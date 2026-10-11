@@ -37,6 +37,7 @@ export default function ECodeLogo({
   size = 48,
   showText = true,
   className = '',
+  textClassName = '',
 }) {
   if (showText) {
     return (
@@ -50,7 +51,7 @@ export default function ECodeLogo({
           {/* Shape 3: Blue U (Right) */}
           <path d="M 39 10 L 39 38 A 4 4 0 0 0 47 38 L 47 10" stroke={BLUE_DARK} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="animate-logo-bar3" />
         </svg>
-        <span className="text-slate-800 font-bold text-2xl leading-none tracking-wide font-sans mt-1">Universal</span>
+        <span className={textClassName || "text-slate-800 font-bold text-2xl leading-none tracking-wide font-sans mt-1"}>E-Code ERP</span>
       </div>
     );
   }
@@ -80,7 +81,7 @@ export function ECodeIcon({ size = 32, className = '' }) {
   );
 }
 
-export function ECodeLogoPrimary({ size = 48, className = '' }) {
+export function ECodeLogoPrimary({ size = 48, className = '', textClassName = '' }) {
   return (
     <div className={`flex items-center gap-2 ${className}`} style={{ width: 'fit-content' }}>
       <LogoWaveStyle />
@@ -89,7 +90,7 @@ export function ECodeLogoPrimary({ size = 48, className = '' }) {
         <path d="M 26 18 L 26 46 A 4 4 0 0 0 34 46 L 34 18" stroke={BLUE_LIGHT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="animate-logo-bar2" />
         <path d="M 39 10 L 39 38 A 4 4 0 0 0 47 38 L 47 10" stroke={BLUE_LIGHT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="animate-logo-bar3" />
       </svg>
-      <span className="text-white font-bold text-2xl leading-none tracking-wide font-sans mt-1">Universal</span>
+      <span className={textClassName || "text-white font-bold text-2xl leading-none tracking-wide font-sans mt-1"}>E-Code ERP</span>
     </div>
   );
 }

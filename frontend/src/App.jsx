@@ -84,11 +84,7 @@ function AdminIndex() {
   if (user?.role === 'super_admin') {
     return <Navigate to="super-admin" replace />
   }
-  if (user?.role === 'cashier') {
-    // cashier default tab handles sotuv or pos-kassa
-    return <Navigate to="sotuv" replace />
-  }
-  return <Navigate to="products" replace />
+  return <Navigate to="sotuv" replace />
 }
 
 export default function App() {
@@ -155,7 +151,7 @@ export default function App() {
           
           <Route path="/" element={
             window.location.hostname.startsWith('savdo.') || window.location.hostname.includes('biznes') 
-            ? <Navigate to="/login" replace /> 
+            ? <Navigate to={localStorage.getItem('access_token') ? "/admin/sotuv" : "/login"} replace /> 
             : <Suspense fallback={<PageLoader />}><Landing /></Suspense>
           } />
           <Route path="/veb-saytlar" element={<Suspense fallback={<PageLoader />}><VebSaytlar /></Suspense>} />

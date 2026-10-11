@@ -204,7 +204,7 @@ function Ic({ d, cls = 'w-4 h-4' }) {
 
   return (
     <div ref={ref} className="relative">
-      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${open ? 'border-blue-500 ring-4 ring-blue-100' : 'border-slate-200 hover:border-slate-300'}`}>
+      <div className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 bg-white transition-all ${open ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'}`}>
         <Ic d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" cls="w-4 h-4 text-slate-400 shrink-0" />
         <input
           ref={inputRef}
@@ -214,34 +214,34 @@ function Ic({ d, cls = 'w-4 h-4' }) {
           onFocus={() => { setOpen(true); setActiveIdx(0); }}
           onBlur={() => { /* relying on mousedown handler */ }}
           placeholder={t('wholesale.selectOrSearchCustomer')}
-          className="flex-1 text-sm font-semibold text-slate-800 outline-none bg-transparent placeholder:font-normal placeholder:text-slate-400"
+          className="flex-1 text-xs md:text-sm font-semibold text-slate-800 outline-none bg-transparent placeholder:font-normal placeholder:text-slate-400"
         />
         {selected && <button onMouseDown={() => { onChange(''); setQ(''); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
       </div>
 
       {selected && !open && (
-        <div className="mt-1.5 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-xs font-black">{selected.name?.[0]?.toUpperCase()}</div>
-            <div>
-              <div className="text-xs font-bold text-blue-800">{selected.name}</div>
-              {selected.phone && <div className="text-xs text-blue-500">{selected.phone}</div>}
-            </div>
+        <div className="mt-1 px-2.5 py-1 bg-blue-50/70 border border-blue-100 rounded-lg flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="w-5 h-5 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-[10px] font-black shrink-0">{selected.name?.[0]?.toUpperCase()}</div>
+            <span className="font-bold text-blue-900 truncate">{selected.name}</span>
+            {selected.phone && <span className="text-[11px] text-blue-600 shrink-0">· {selected.phone}</span>}
           </div>
-          <div className="text-right">
-            {hasAnyDebt(selected) && (
-              <div className="flex items-center gap-3">
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{t('customer.debtBalance')}:</div>
-                <div className="flex flex-col items-end gap-0.5">
+          <div className="flex items-center gap-2 shrink-0">
+            {hasAnyDebt(selected) ? (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">{t('customer.debtBalance')}:</span>
+                <div className="flex items-center gap-1">
                   {getDebtEntries(selected).map(({ currency, amount }) => (
-                    <div key={currency} className="text-xs font-black text-red-700">
+                    <span key={currency} className="text-xs font-black text-red-600 bg-red-50 px-1 py-0.5 rounded border border-red-100">
                       {fmt(amount)} {currency === 'USD' ? '$' : currency}
-                    </div>
+                    </span>
                   ))}
                 </div>
               </div>
+            ) : (
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">Qarzsiz</span>
             )}
-            {Number(selected.loyalty_points) > 0 && <div className="text-xs text-emerald-600 font-bold mt-1 inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">🏆 {fmt(selected.loyalty_points)} b</div>}
+            {Number(selected.loyalty_points) > 0 && <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-1 py-0.5 rounded">🏆 {fmt(selected.loyalty_points)} b</span>}
           </div>
         </div>
       )}
@@ -429,8 +429,8 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
 
   return (
     <div className="relative">
-      <div className={`flex items-center gap-2 border-2 rounded-lg px-3 py-2.5 bg-white transition-all ${disabled ? 'border-slate-100 bg-slate-50 opacity-60' :
-        open || q ? 'border-blue-500 ring-4 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
+      <div className={`flex items-center gap-2 border rounded-lg px-2.5 py-1.5 bg-white transition-all ${disabled ? 'border-slate-100 bg-slate-50 opacity-60' :
+        open || q ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
         }`}>
         {loading
           ? <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
@@ -443,7 +443,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
           onFocus={handleFocus}
           onBlur={handleBlur}
           placeholder={placeholder || t('wholesale.productSearchPlaceholder')}
-          className="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400 disabled:cursor-not-allowed"
+          className="flex-1 text-xs md:text-sm outline-none bg-transparent placeholder:text-slate-400 disabled:cursor-not-allowed"
         />
         {(q || (keepResultsRef.current && results.length > 0)) && <button onMouseDown={(e) => { e.preventDefault(); clearSearch(); inputRef.current?.focus(); }} className="text-slate-300 hover:text-red-400"><Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" /></button>}
       </div>
@@ -1823,19 +1823,19 @@ export default function UlgurjiSotuv() {
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
 
             {/* ── LEFT PANEL: Forma ── */}
-            <div className={`md:w-[360px] md:shrink-0 md:flex md:flex-col md:bg-white md:border-r md:border-slate-200 md:overflow-y-auto
+            <div className={`md:w-[380px] lg:w-[410px] md:shrink-0 md:flex md:flex-col md:bg-white md:border-r md:border-slate-200 md:overflow-y-auto
               ${mobileTab === 'form' ? 'flex flex-col flex-1 overflow-y-auto bg-white' : 'hidden md:flex md:flex-col'}`}>
-              <div className="p-4 space-y-4">
+              <div className="p-3 space-y-2.5">
 
                 {/* Mijoz */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t('sale.customer')} *</label>
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t('sale.customer')} *</label>
+                    <div className="flex items-center gap-1.5">
                       {!custId && <span className="text-xs text-red-400 font-semibold">{t('common.notSelected')}</span>}
                       <button onClick={() => custSearchRef.current?.openForm()}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold border border-blue-200 transition-colors">
-                        <span className="text-base leading-none">+</span> {t('common.new')}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold border border-blue-200 transition-colors">
+                        <span className="text-sm leading-none">+</span> {t('common.new')}
                       </button>
                     </div>
                   </div>
@@ -1862,13 +1862,13 @@ export default function UlgurjiSotuv() {
 
                 {/* Mahsulot qo'shish */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t('wholesale.product')}</label>
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t('wholesale.product')}</label>
+                    <div className="flex items-center gap-1.5">
                       {/* Yangi mahsulot */}
                       <button onClick={() => setShowProdAddModal(true)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold border border-emerald-200 transition-colors">
-                        <span className="text-base leading-none">+</span> {t('common.new')}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold border border-emerald-200 transition-colors">
+                        <span className="text-sm leading-none">+</span> {t('common.new')}
                       </button>
                       {/* Mijoz narx turi ko'rsatgichi / o'zgartirgichi */}
                       <button
@@ -1879,7 +1879,7 @@ export default function UlgurjiSotuv() {
                             return next;
                           });
                         }}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer select-none ${isWholesaleMode ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700' : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'}`}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer select-none ${isWholesaleMode ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700' : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'}`}
                       >
                         <Ic d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" cls="w-3 h-3" />
                         {isWholesaleMode ? t('wholesale.wholesaleShort') : t('wholesale.retail')}
@@ -1887,7 +1887,7 @@ export default function UlgurjiSotuv() {
                       {/* Ombor */}
                       {warehouses.length > 0 && (
                         <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
-                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none bg-white">
+                          className="border border-slate-200 rounded-lg px-1.5 py-0.5 text-xs font-semibold text-slate-700 focus:outline-none bg-white">
                           <option value="">{t('common.all')}</option>
                           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                         </select>
@@ -1899,7 +1899,7 @@ export default function UlgurjiSotuv() {
 
                   {/* Mijoz tanlanmagan ogohlantirish */}
                   {!custId && (
-                    <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
                       <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                       <span className="text-xs font-semibold text-amber-700">{t('wholesale.selectCustomerFirstToAddProduct')}</span>
                     </div>
@@ -1907,66 +1907,44 @@ export default function UlgurjiSotuv() {
 
                   {/* Selected product card */}
                   {formProduct ? (
-                    <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                    <div className="mt-2 bg-blue-50/70 border border-blue-100 rounded-lg p-2.5">
                       {/* Product info */}
-                      <div className="flex items-center gap-2.5 mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-blue-100 flex items-center justify-center shrink-0 overflow-hidden">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 rounded-lg bg-white border border-blue-100 flex items-center justify-center shrink-0 overflow-hidden">
                           {formProduct.image_url
                             ? <img src={formProduct.image_url} alt="" className="w-full h-full object-cover" />
-                            : <span className="font-black text-blue-400 text-sm">{formProduct.name?.[0]}</span>}
+                            : <span className="font-black text-blue-500 text-xs">{formProduct.name?.[0]}</span>}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-slate-800 text-sm truncate">{formProduct.name}</div>
-                          <div className="text-xs text-slate-500 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span>{formProduct.unit || t('common.piece')}</span>
+                          <div className="font-bold text-slate-800 text-xs truncate">{formProduct.name}</div>
+                          <div className="text-[11px] text-slate-500 flex items-center justify-between gap-1 mt-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-600">{formProduct.unit || t('common.piece')}</span>
                               <span className={`font-semibold ${Number(formProduct.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                                 {t('wholesale.warehouseShort')}: {fmt(formProduct.stock_quantity)}
                               </span>
                             </div>
-                            <div className="flex justify-between items-end mt-1 text-xs">
-                                <span className="text-slate-500 line-through">
-                                  {t('wholesale.originalPrice')}: {fmt(isWholesaleMode ? (formProduct.wholesale_price || formProduct.sale_price) : formProduct.sale_price)}
-                                </span>
-                            </div>
-                            {formProduct.sale_currency !== 'UZS' && (
-                              <div className="text-[10px] font-black text-blue-500 bg-white px-1.5 py-0.5 rounded border border-blue-100 shadow-sm">
-                                {t('wholesale.originalPrice')}: {fmt(isWholesaleMode ? formProduct.wholesale_price : formProduct.sale_price)} {formProduct.sale_currency === 'USD' ? '$' : formProduct.sale_currency}
-                              </div>
-                            )}
+                            <span className="text-slate-400">
+                              {t('wholesale.originalPrice')}: {fmt(isWholesaleMode ? (formProduct.wholesale_price || formProduct.sale_price) : formProduct.sale_price)}
+                            </span>
                           </div>
                         </div>
-                        <button onClick={() => setFormProduct(null)} className="text-slate-300 hover:text-red-400 shrink-0">
-                          <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+                        <button onClick={() => setFormProduct(null)} className="text-slate-300 hover:text-red-400 shrink-0 p-1">
+                          <Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" />
                         </button>
                       </div>
 
-                      {/* Grid for Inputs */}
-                      <div className="grid grid-cols-2 items-center gap-3 mb-1">
+                      {/* Inputs Grid: 2 columns */}
+                      <div className="grid grid-cols-2 gap-2 mb-2">
 
-                        {/* Miqdor */}
+                        {/* 1. Narx */}
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">{t('common.quantity')} ({formProduct.unit || t('common.piece')})</label>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => setFormQty(q => String(Math.max(0, (parseFloat(q) || 1) - 1)))}
-                              className="w-10 h-10 rounded-lg bg-white flex items-center justify-center font-black text-slate-600 text-xl active:bg-slate-100 border border-slate-200">−</button>
-                            <input data-no-scan ref={formQtyRef} type="number" value={formQty}
-                              onChange={e => setFormQty(e.target.value)}
-                              onFocus={e => e.target.select()}
-                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
-                              className="flex-1 w-full border border-white rounded-lg py-2 text-center text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
-                            <button onClick={() => setFormQty(q => String((parseFloat(q) || 1) + 1))}
-                              className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-xl active:bg-blue-700">+</button>
-                          </div>
-                        </div>
-
-                        {/* Narx */}
-                        <div>
-                          <div className="flex justify-between items-center">
-                            <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide block">{t('common.price')}</label>
-                            <div className="flex gap-1 mb-1">
+                          <div className="flex justify-between items-center mb-0.5">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('common.price')}</label>
+                            <div className="flex gap-1">
                               {formProduct.wholesale_price > 0 && (
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     let p = Number(formProduct.wholesale_price);
                                     let c = formProduct.sale_currency || 'UZS';
@@ -1977,10 +1955,11 @@ export default function UlgurjiSotuv() {
                                     setFormPrice(String(p));
                                     setFormCurrency(c);
                                   }}
-                                  className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors" title={t('wholesale.wholesalePrice')}>U</button>
+                                  className="text-[9px] font-bold px-1 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors" title={t('wholesale.wholesalePrice')}>U</button>
                               )}
                               {formProduct.sale_price > 0 && (
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     let p = Number(formProduct.sale_price);
                                     let c = formProduct.sale_currency || 'UZS';
@@ -1991,7 +1970,7 @@ export default function UlgurjiSotuv() {
                                     setFormPrice(String(p));
                                     setFormCurrency(c);
                                   }}
-                                  className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title={t('wholesale.retailPrice')}>C</button>
+                                  className="text-[9px] font-bold px-1 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors" title={t('wholesale.retailPrice')}>C</button>
                               )}
                             </div>
                           </div>
@@ -2008,10 +1987,10 @@ export default function UlgurjiSotuv() {
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') {
                                     e.preventDefault();
-                                    formDiscRef.current?.focus();
+                                    formQtyRef.current?.focus();
                                   }
                                 }}
-                                className="w-full border border-white rounded-xl px-3 py-2 text-base font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                               />
                             </div>
                             <select
@@ -2025,16 +2004,14 @@ export default function UlgurjiSotuv() {
                                 const currentPrice = parseFloat(formPrice) || 0;
 
                                 if (currentPrice > 0) {
-                                  // Narxni konvertatsiya qilish
                                   const priceInUZS = currentPrice * oldRate;
                                   const converted = priceInUZS / newRate;
-                                  // Agar juda kichik bo'lsa ko'proq kasr qismini qoldiramiz
                                   const formatted = converted < 0.01 ? converted.toFixed(4) : converted.toFixed(2);
                                   setFormPrice(String(parseFloat(formatted)));
                                 }
                                 setFormCurrency(newCode);
                               }}
-                              className="cursor-pointer rounded-lg px-1.5 py-2.5 text-sm font-black text-blue-600 focus:outline-none bg-white">
+                              className="cursor-pointer border border-slate-200 rounded-lg px-1 py-1.5 text-xs font-black text-blue-600 focus:outline-none bg-white">
                               <option value="UZS">UZS</option>
                               {currencies.filter(c => String(c.code).toUpperCase() !== 'UZS').map((item) => (
                                 <option key={item.id} value={item.code}>{item.code}</option>
@@ -2043,57 +2020,69 @@ export default function UlgurjiSotuv() {
                           </div>
                         </div>
 
-                        {/* Jami summa — kg/litr/metr tovarlarda summadan miqdorni hisoblaydi */}
-                        {isFractionalUnit(formProduct.unit) && (
-                          <div className="col-span-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">
-                              {t('wholesale.totalSum')} <span className="normal-case font-medium text-slate-400">— {t('wholesale.totalSumHint', { unit: formProduct.unit })}</span>
-                            </label>
-                            <div className="flex items-center gap-1">
-                              <input data-no-scan type="text" inputMode="decimal"
-                                value={fmtPrice(formTotalText)}
-                                onChange={e => onFormTotalChange(e.target.value)}
-                                onFocus={e => e.target.select()}
-                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
-                                placeholder="0"
-                                className="flex-1 w-full border border-emerald-200 rounded-lg px-3 py-2 text-base font-black text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
-                              <span className="px-2 text-sm font-black text-emerald-600">{formCurrency || 'UZS'}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Chegirma va Qo'shish */}
-                        <div className="col-span-2 flex gap-3 mt-1">
-                          <div className="flex-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">{t('common.discount')}</label>
-                            <div className="flex gap-1.5">
-                              <button onClick={() => setFormDiscType(dt => dt === 'pct' ? 'amt' : 'pct')}
-                                className="w-10 h-10 shrink-0 rounded-lg bg-white border border-amber-200 text-amber-600 font-black text-xs hover:bg-amber-50 active:bg-amber-100 transition-colors">
-                                {formDiscType === 'pct' ? '%' : "S"}
-                              </button>
-                              <input data-no-scan ref={formDiscRef} type="number" value={formDiscVal}
-                                onChange={e => setFormDiscVal(e.target.value)}
-                                onFocus={e => e.target.select()}
-                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
-                                placeholder="0"
-                                className="w-full border border-white rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
-                            </div>
-                          </div>
-
-                          <div className="flex-[1.2] flex items-end">
-                            <button onClick={addFormToCart}
-                              className="w-full h-10 bg-blue-600 cursor-pointer hover:bg-blue-700 active:bg-blue-800 text-white font-black text-[13px] rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-blue-200 transition-all">
-                              <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
-                              {t('sale.addToCart')}
-                            </button>
+                        {/* 2. Miqdor */}
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5 block">{t('common.quantity')} ({formProduct.unit || t('common.piece')})</label>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setFormQty(q => String(Math.max(0, (parseFloat(q) || 1) - 1)))}
+                              className="w-8 h-8 shrink-0 rounded-lg bg-white flex items-center justify-center font-black text-slate-600 text-base active:bg-slate-100 border border-slate-200">−</button>
+                            <input data-no-scan ref={formQtyRef} type="number" step="any" value={formQty}
+                              onChange={e => setFormQty(e.target.value)}
+                              onFocus={e => e.target.select()}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
+                              className="flex-1 min-w-0 border border-slate-200 rounded-lg py-1.5 text-center text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+                            <button onClick={() => setFormQty(q => String((parseFloat(q) || 1) + 1))}
+                              className="w-8 h-8 shrink-0 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-base active:bg-blue-700">+</button>
                           </div>
                         </div>
+
+                        {/* 3. JAMI SUMMA — Barcha o'lchov birliklari uchun (dona, kg, metr va b.) */}
+                        <div>
+                          <label className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-0.5 block">
+                            {t('wholesale.totalSum')} ({formCurrency || 'UZS'})
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <input data-no-scan type="text" inputMode="decimal"
+                              value={fmtPrice(formTotalText)}
+                              onChange={e => onFormTotalChange(e.target.value)}
+                              onFocus={e => e.target.select()}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
+                              placeholder="0"
+                              title={t('wholesale.totalSumHint', { unit: formProduct.unit || t('common.piece') })}
+                              className="w-full border border-emerald-300 rounded-lg px-2 py-1.5 text-xs font-black text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                          </div>
+                        </div>
+
+                        {/* 4. Chegirma */}
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5 block">{t('common.discount')}</label>
+                          <div className="flex gap-1">
+                            <button onClick={() => setFormDiscType(dt => dt === 'pct' ? 'amt' : 'pct')}
+                              className="w-8 h-8 shrink-0 rounded-lg bg-white border border-amber-200 text-amber-600 font-black text-xs hover:bg-amber-50 active:bg-amber-100 transition-colors">
+                              {formDiscType === 'pct' ? '%' : "S"}
+                            </button>
+                            <input data-no-scan ref={formDiscRef} type="number" value={formDiscVal}
+                              onChange={e => setFormDiscVal(e.target.value)}
+                              onFocus={e => e.target.select()}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormToCart(); } }}
+                              placeholder="0"
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                          </div>
+                        </div>
+
                       </div>
+
+                      {/* 5. Savatga qo'shish */}
+                      <button onClick={addFormToCart}
+                        className="w-full h-8 bg-blue-600 cursor-pointer hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-sm shadow-blue-200 transition-all">
+                        <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" />
+                        {t('sale.addToCart')}
+                      </button>
                     </div>
                   ) : (
-                    <div className="mt-3 flex flex-col items-center justify-center py-8 text-slate-300 gap-2">
-                      <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-10 h-10" />
-                      <p className="text-sm text-slate-400 text-center">{t('wholesale.searchProductOrScan')}</p>
+                    <div className="mt-2 flex flex-col items-center justify-center py-4 text-slate-300 gap-1.5 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                      <Ic d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" cls="w-7 h-7" />
+                      <p className="text-xs text-slate-400 text-center">{t('wholesale.searchProductOrScan')}</p>
                     </div>
                   )}
                 </div>
@@ -2102,10 +2091,10 @@ export default function UlgurjiSotuv() {
 
                 {/* Izoh */}
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('common.note')}</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">{t('common.note')}</label>
                   <textarea value={note} onChange={e => setNote(e.target.value)}
-                    placeholder={t('wholesale.contractNumberNotePlaceholder')} rows={2}
-                    className="w-full border-2 border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white" />
+                    placeholder={t('wholesale.contractNumberNotePlaceholder')} rows={1}
+                    className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white" />
                 </div>
 
                 {/* Yetkazib berish */}
@@ -2115,25 +2104,25 @@ export default function UlgurjiSotuv() {
 
                 {/* Sotuv chegirmasi */}
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('wholesale.saleDiscount')}</label>
-                  <div className="flex gap-2">
-                    <div className="flex rounded-lg border-2 border-slate-200 overflow-hidden">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">{t('wholesale.saleDiscount')}</label>
+                  <div className="flex gap-1.5">
+                    <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0">
                       {['pct', 'amt'].map(dt => (
                         <button key={dt} onClick={() => setDiscType(dt)}
-                          className={`px-3 py-2 text-xs cursor-pointer font-bold transition-colors ${discType === dt ? 'bg-amber-500 text-white' : 'bg-white text-slate-500'}`}>
+                          className={`px-2 py-1 text-xs cursor-pointer font-bold transition-colors ${discType === dt ? 'bg-amber-500 text-white' : 'bg-white text-slate-500'}`}>
                           {dt === 'pct' ? '%' : t('common.sum')}
                         </button>
                       ))}
                     </div>
                     <input data-no-scan type="number" value={discVal} onChange={e => setDiscVal(e.target.value)}
                       placeholder="0"
-                      className="flex-1 border-2 border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                      className="flex-1 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
                   </div>
-                  {saleDisc > 0 && <p className="text-xs text-amber-600 font-semibold mt-1">− {fmt(saleDisc)} {t('common.sum')} {t('common.discount').toLowerCase()}</p>}
+                  {saleDisc > 0 && <p className="text-[11px] text-amber-600 font-semibold mt-0.5">− {fmt(saleDisc)} {t('common.sum')} {t('common.discount').toLowerCase()}</p>}
                 </div>
 
                 {/* Spacer for mobile scroll */}
-                <div className="h-2" />
+                <div className="h-1" />
               </div>
             </div>
 
@@ -2170,13 +2159,13 @@ export default function UlgurjiSotuv() {
                   <table className="w-full text-sm border-collapse">
                     <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="text-left px-3 py-2 text-xs font-bold text-slate-500 w-7">#</th>
-                        <th className="text-left px-2 py-2 text-xs font-bold text-slate-500">{t('common.name')}</th>
-                        <th className="text-center px-2 py-2 text-xs font-bold text-slate-500 w-[120px]">{t('common.quantity')}</th>
-                        <th className="text-right px-2 py-2 text-xs font-bold text-slate-500 w-[110px]">{t('common.price')}</th>
-                        <th className="text-center px-2 py-2 text-xs font-bold text-slate-500 w-[110px]">{t('common.discount')}</th>
-                        <th className="text-right px-3 py-2 text-xs font-bold text-slate-500 w-[100px]">{t('common.total')}</th>
-                        <th className="w-8" />
+                        <th className="text-left px-2 py-1.5 text-xs font-bold text-slate-500 w-7">#</th>
+                        <th className="text-left px-2 py-1.5 text-xs font-bold text-slate-500">{t('common.name')}</th>
+                        <th className="text-center px-1.5 py-1.5 text-xs font-bold text-slate-500 w-[110px]">{t('common.quantity')}</th>
+                        <th className="text-right px-1.5 py-1.5 text-xs font-bold text-slate-500 w-[100px]">{t('common.price')}</th>
+                        <th className="text-center px-1.5 py-1.5 text-xs font-bold text-slate-500 w-[100px]">{t('common.discount')}</th>
+                        <th className="text-right px-2 py-1.5 text-xs font-bold text-slate-500 w-[95px]">{t('common.total')}</th>
+                        <th className="w-7" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -2186,22 +2175,22 @@ export default function UlgurjiSotuv() {
                         const curSym = it.currency === 'USD' ? '$' : (it.currency === 'UZS' ? 's' : it.currency);
                         return (
                           <tr key={idx} className="hover:bg-slate-50/80 group transition-colors">
-                            <td className="px-3 py-2.5 text-xs text-slate-400 font-mono">{idx + 1}</td>
-                            <td className="px-2 py-2.5">
-                              <div className="font-semibold text-slate-800 text-sm leading-tight">{it.name}</div>
-                              <div className="flex flex-wrap items-center gap-2 mt-1">
-                                <span className="text-xs text-slate-400">{it.unit}</span>
+                            <td className="px-2 py-1.5 text-xs text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="px-2 py-1.5">
+                              <div className="font-semibold text-slate-800 text-xs md:text-sm leading-tight">{it.name}</div>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                <span className="text-[11px] text-slate-400">{it.unit}</span>
                                 {it.warehouse_name && (
-                                  <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
-                                    <Ic d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" cls="w-3 h-3" />
+                                  <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-bold px-1 py-0.2 rounded flex items-center gap-0.5">
+                                    <Ic d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" cls="w-2.5 h-2.5" />
                                     {it.warehouse_name}
                                   </span>
                                 )}
                                 {it.currency && it.currency !== 'UZS' && (
-                                  <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-1 py-0.5 rounded uppercase">{it.currency}</span>
+                                  <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-1 py-0.2 rounded uppercase">{it.currency}</span>
                                 )}
                                 {it.promo_name && (
-                                  <span className="bg-violet-50 text-violet-600 border border-violet-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                  <span className="bg-violet-50 text-violet-600 border border-violet-200 text-[9px] font-bold px-1 py-0.2 rounded flex items-center gap-0.5">
                                     🎁 {it.promo_name}
                                   </span>
                                 )}
@@ -2209,7 +2198,7 @@ export default function UlgurjiSotuv() {
                                   <button
                                     type="button"
                                     onClick={() => setMarkingModal({ idx })}
-                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border ${
+                                    className={`text-[9px] font-bold px-1 py-0.2 rounded flex items-center gap-0.5 border ${
                                       (it.marking_codes || []).length >= it.qty
                                         ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
                                         : 'bg-red-50 text-red-600 border-red-200 animate-pulse'
@@ -2220,48 +2209,48 @@ export default function UlgurjiSotuv() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-2 py-2.5">
-                              <div className="flex items-center gap-1 justify-center">
+                            <td className="px-1.5 py-1.5">
+                              <div className="flex items-center gap-0.5 justify-center">
                                 <button onClick={() => updateItem(idx, 'qty', Math.max(0, it.qty - 1))}
-                                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">−</button>
+                                  className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs">−</button>
                                 <input data-no-scan type="number" value={it.qty}
                                   onChange={e => updateItem(idx, 'qty', Math.max(0, parseFloat(e.target.value) ?? 0))}
-                                  className="w-14 text-center font-black text-slate-800 border border-slate-200 rounded-lg py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                                  className="w-12 text-center font-black text-slate-800 border border-slate-200 rounded py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-300" />
                                 <button onClick={() => updateItem(idx, 'qty', it.qty + 1)}
-                                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">+</button>
+                                  className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs">+</button>
                               </div>
                             </td>
-                            <td className="px-2 py-2.5">
+                            <td className="px-1.5 py-1.5">
                               <div className="relative">
                                 <input data-no-scan type="text"
                                   value={fmtPrice(it.price)}
                                   onChange={e => {
                                     updateItem(idx, 'price', parsePrice(e.target.value));
                                   }}
-                                  className="w-full min-w-20 text-right font-bold text-slate-800 border border-slate-200 rounded-lg py-1 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                                <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold ${it.currency === 'USD' ? 'text-green-600' : 'text-slate-400'}`}>{curSym}</span>
+                                  className="w-full min-w-16 text-right font-bold text-slate-800 border border-slate-200 rounded py-0.5 pr-5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-300" />
+                                <span className={`absolute right-1.5 top-1/2 -translate-y-1/2 text-[11px] font-bold ${it.currency === 'USD' ? 'text-green-600' : 'text-slate-400'}`}>{curSym}</span>
                               </div>
                             </td>
-                            <td className="px-2 py-2.5">
-                              <div className="flex items-center gap-1">
+                            <td className="px-1.5 py-1.5">
+                              <div className="flex items-center gap-0.5 justify-center">
                                 <button onClick={() => updateItem(idx, 'discount_type', it.discount_type === 'pct' ? 'amt' : 'pct')}
-                                  className="w-7 h-7 rounded bg-amber-50 text-amber-600 text-[10px] font-black border border-amber-200 shrink-0">
+                                  className="w-6 h-6 rounded bg-amber-50 text-amber-600 text-[10px] font-black border border-amber-200 shrink-0">
                                   {it.discount_type === 'pct' ? '%' : curSym}
                                 </button>
                                 <input data-no-scan type="number" value={it.discount_val || ''}
                                   onChange={e => updateItem(idx, 'discount_val', parseFloat(e.target.value) || 0)}
                                   placeholder="0"
-                                  className="w-14 text-center text-sm border border-slate-200 rounded-lg py-1 focus:outline-none focus:ring-1 focus:ring-amber-300" />
+                                  className="w-12 text-center text-xs border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-300" />
                               </div>
                             </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <div className="font-black text-slate-800 text-sm whitespace-nowrap">{fmt(net)} {curSym}</div>
-                              {hasDisc && <div className="text-xs text-slate-400 line-through whitespace-nowrap">{fmt(it.price * it.qty)} {curSym}</div>}
+                            <td className="px-2 py-1.5 text-right">
+                              <div className="font-black text-slate-800 text-xs md:text-sm whitespace-nowrap">{fmt(net)} {curSym}</div>
+                              {hasDisc && <div className="text-[10px] text-slate-400 line-through whitespace-nowrap">{fmt(it.price * it.qty)} {curSym}</div>}
                               {it.currency !== 'UZS' && <div className="text-[10px] text-blue-500 font-bold">≈ {fmt(Math.round(net * it.rate))} s</div>}
                             </td>
-                            <td className="pr-2 py-2.5">
+                            <td className="pr-1.5 py-1.5">
                               <button onClick={() => removeItem(idx)}
-                                className="w-7 h-7 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors">
+                                className="w-6 h-6 rounded text-slate-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors">
                                 <Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" />
                               </button>
                             </td>
@@ -2275,12 +2264,12 @@ export default function UlgurjiSotuv() {
 
               {/* Cart totals */}
               {cart.length > 0 && (
-                <div className="shrink-0 bg-slate-50 border-t-2 border-slate-200 px-4 py-4 space-y-2">
-                  <div className="">
+                <div className="shrink-0 bg-slate-50 border-t border-slate-200 px-3 py-2 space-y-1">
+                  <div>
                     {Object.entries(totalsByCurrency).map(([cur, amt]) => (
                       <div key={cur} className="flex justify-between items-center group">
-                        <span className="text-[14px] font-black text-slate-600 uppercase tracking-widest leading-none">{cur === 'UZS' ? t('product.title') : cur} {t('common.total').toLowerCase()}:</span>
-                        <span className={`text-[18px] font-black text-blue-600`}>
+                        <span className="text-xs font-black text-slate-600 uppercase tracking-wider leading-none">{cur === 'UZS' ? t('product.title') : cur} {t('common.total').toLowerCase()}:</span>
+                        <span className="text-base font-black text-blue-600">
                           {fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? t('common.sum') : cur)}
                         </span>
                       </div>
@@ -2288,9 +2277,9 @@ export default function UlgurjiSotuv() {
                   </div>
 
                   {saleDisc > 0 && (
-                    <div className="flex justify-between items-center py-2 border-y border-dashed border-slate-200">
-                      <span className="text-[11px] font-black text-amber-600 uppercase tracking-wider">{t('common.discount')}:</span>
-                      <span className="text-sm font-black text-amber-600">− {fmt(saleDisc)} s</span>
+                    <div className="flex justify-between items-center py-1 border-y border-dashed border-slate-200">
+                      <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider">{t('common.discount')}:</span>
+                      <span className="text-xs font-black text-amber-600">− {fmt(saleDisc)} s</span>
                     </div>
                   )}
                 </div>
@@ -2301,18 +2290,18 @@ export default function UlgurjiSotuv() {
           {/* ── MOBILE TABS ── */}
           <div className="md:hidden shrink-0 flex border-t border-slate-200 bg-white">
             <button onClick={() => setMobileTab('form')}
-              className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors
+              className={`flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors
                 ${mobileTab === 'form' ? 'text-blue-600 border-t-2 border-blue-600 -mt-px' : 'text-slate-500 border-t-2 border-transparent -mt-px'}`}>
-              <Ic d="M12 4v16m8-8H4" cls="w-4 h-4" />
+              <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" />
               {t('common.add')}
             </button>
             <button onClick={() => setMobileTab('cart')}
-              className={`flex-1 py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors
+              className={`flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors
                 ${mobileTab === 'cart' ? 'text-blue-600 border-t-2 border-blue-600 -mt-px' : 'text-slate-500 border-t-2 border-transparent -mt-px'}`}>
-              <Ic d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" cls="w-4 h-4" />
+              <Ic d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" cls="w-3.5 h-3.5" />
               {t('sale.cart')}
               {cart.length > 0 && (
-                <span className="bg-blue-600 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{cart.length}</span>
+                <span className="bg-blue-600 text-white text-[10px] font-black rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">{cart.length}</span>
               )}
             </button>
           </div>
@@ -2323,41 +2312,41 @@ export default function UlgurjiSotuv() {
             {/* Mobile: 2-row layout */}
             <div className="md:hidden">
               {/* Row 1: 4 secondary action buttons */}
-              <div className="flex gap-1.5 px-2 pt-2 pb-1">
+              <div className="flex gap-1 px-2 pt-1.5 pb-1">
                 <button onClick={() => { if (!cart.length) return; if (window.confirm(t('wholesale.confirmClearCart'))) { setCart([]); setFormProduct(null); } }}
                   disabled={cart.length === 0}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-red-50 text-red-600 active:bg-red-200 disabled:opacity-30 font-bold transition-colors border border-red-100">
-                  <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-4 h-4" />
-                  <span className="text-[10px]">{t('common.delete')}</span>
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-red-50 text-red-600 active:bg-red-200 disabled:opacity-30 font-bold transition-colors border border-red-100">
+                  <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
+                  <span className="text-[9px]">{t('common.delete')}</span>
                 </button>
 
                 <button onClick={() => savePendingSale(false)}
                   disabled={cart.length === 0 || !custId || pendingSaving}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-amber-50 text-amber-700 active:bg-amber-200 disabled:opacity-30 font-bold transition-colors border border-amber-200">
-                  <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-4 h-4" />
-                  <span className="text-[10px]">{pendingSaving ? t('common.saving') : t('wholesale.withoutPayment')}</span>
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 active:bg-amber-200 disabled:opacity-30 font-bold transition-colors border border-amber-200">
+                  <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-3.5 h-3.5" />
+                  <span className="text-[9px]">{pendingSaving ? t('common.saving') : t('wholesale.withoutPayment')}</span>
                 </button>
 
                 <button onClick={() => handleDirectAction('debt')}
                   disabled={cart.length === 0 || saving}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-blue-50 text-blue-600 active:bg-blue-200 disabled:opacity-30 font-bold transition-colors border border-blue-100">
-                  <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4" />
-                  <span className="text-[10px]">{t('pay.debt')}</span>
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 active:bg-blue-200 disabled:opacity-30 font-bold transition-colors border border-blue-100">
+                  <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-3.5 h-3.5" />
+                  <span className="text-[9px]">{t('pay.debt')}</span>
                 </button>
 
                 <button disabled={cart.length === 0}
                   onClick={() => { if (!cart.length) return; openPayModal(); }}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl bg-slate-50 text-slate-600 active:bg-slate-200 disabled:opacity-30 font-bold transition-colors border border-slate-200">
-                  <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-4 h-4" />
-                  <span className="text-[10px]">{t('sale.receipt')}</span>
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-slate-50 text-slate-600 active:bg-slate-200 disabled:opacity-30 font-bold transition-colors border border-slate-200">
+                  <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-3.5 h-3.5" />
+                  <span className="text-[9px]">{t('sale.receipt')}</span>
                 </button>
               </div>
 
               {totalsByCurrency && Object.keys(totalsByCurrency).length > 1 && (
-                <div className="px-3 py-2 bg-blue-50/50 border-y border-blue-100 flex flex-wrap gap-x-4 gap-y-1">
+                <div className="px-2 py-1.5 bg-blue-50/50 border-y border-blue-100 flex flex-wrap gap-x-3 gap-y-0.5">
                   {Object.entries(totalsByCurrency).map(([cur, amt]) => (
-                    <div key={cur} className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{cur}:</span>
+                    <div key={cur} className="flex items-center gap-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">{cur}:</span>
                       <span className="text-xs font-black text-blue-700">{fmt(amt)} {cur === 'USD' ? '$' : (cur === 'UZS' ? 's' : cur)}</span>
                     </div>
                   ))}
@@ -2365,12 +2354,12 @@ export default function UlgurjiSotuv() {
               )}
 
               {/* Row 2: full-width Pay button */}
-              <div className="px-2 pb-2 mt-2">
+              <div className="px-2 pb-1.5 mt-1">
                 <button onClick={openPayModal}
                   disabled={cart.length === 0 || saving}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-sm shadow-md transition-all disabled:opacity-40
-                    ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}>
-                  <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4" />
+                  className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg font-black text-xs shadow-sm transition-all disabled:opacity-40
+                    ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
+                  <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-3.5 h-3.5" />
                   <span>{!custId && cart.length > 0 ? t('sale.selectCustomer') : editingSale ? t('common.update') : t('sale.checkout')}</span>
                   {cart.length > 0 && <span className="font-black">{fmt(total)} s</span>}
                 </button>
@@ -2378,32 +2367,32 @@ export default function UlgurjiSotuv() {
             </div>
 
             {/* Desktop: single row */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-2.5">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5">
               <button onClick={() => { if (!cart.length) return; if (window.confirm(t('wholesale.confirmClearCart'))) { setCart([]); setFormProduct(null); } }}
                 disabled={cart.length === 0}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 disabled:opacity-30 text-sm font-bold transition-colors border border-red-100">
-                <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-4 h-4" />
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 disabled:opacity-30 text-xs font-bold transition-colors border border-red-100">
+                <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
                 {t('common.delete')}
               </button>
 
               <button onClick={() => savePendingSale(false)}
                 disabled={cart.length === 0 || !custId || pendingSaving}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 text-sm font-bold transition-colors border border-amber-200">
-                <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-4 h-4" />
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 text-xs font-bold transition-colors border border-amber-200">
+                <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-3.5 h-3.5" />
                 {pendingSaving ? t('common.saving') : t('wholesale.saveWithoutPayment')}
               </button>
 
               <button onClick={() => handleDirectAction('debt')}
                 disabled={cart.length === 0 || saving}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-200 disabled:opacity-30 text-sm font-bold transition-colors border border-blue-100">
-                <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-4 h-4" />
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-200 disabled:opacity-30 text-xs font-bold transition-colors border border-blue-100">
+                <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-3.5 h-3.5" />
                 {t('pay.debt')}
               </button>
 
               <button disabled={cart.length === 0}
                 onClick={() => { if (!cart.length) return; openPayModal(); }}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200 disabled:opacity-30 text-sm font-bold transition-colors border border-slate-200">
-                <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-4 h-4" />
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200 disabled:opacity-30 text-xs font-bold transition-colors border border-slate-200">
+                <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-3.5 h-3.5" />
                 {t('sale.receipt')}
               </button>
 
@@ -2411,9 +2400,9 @@ export default function UlgurjiSotuv() {
 
               <button onClick={openPayModal}
                 disabled={cart.length === 0 || saving}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-black text-md shadow-md transition-all disabled:opacity-40
-                  ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'}`}>
-                <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-4 h-4" />
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-black text-xs md:text-sm shadow-sm transition-all disabled:opacity-40
+                  ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
+                <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-3.5 h-3.5" />
                 <span>{!custId && cart.length > 0 ? t('sale.selectCustomer') : editingSale ? t('common.update') : t('sale.checkout')}</span>
               </button>
             </div>

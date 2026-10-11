@@ -755,7 +755,7 @@ export default function RegisterCompany() {
 
       {/* Footer */}
       <footer className="relative z-10 w-full py-6 text-center text-xs text-slate-400">
-        <p>© {new Date().getFullYear()} E-Code Universal ERP. Barcha huquqlar himoyalangan.</p>
+        <p>© {new Date().getFullYear()} E-Code ERP. Barcha huquqlar himoyalangan.</p>
       </footer>
 
     </div>

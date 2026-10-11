@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
@@ -413,6 +413,22 @@ export default function Login() {
   const [tempToken, setTempToken] = useState('')
   const [companyLoading, setCompanyLoading] = useState(false)
 
+  useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}')
+        if (u.role === 'super_admin') {
+          navigate('/admin/super-admin', { replace: true })
+        } else {
+          navigate('/admin/sotuv', { replace: true })
+        }
+      } catch {
+        navigate('/admin/sotuv', { replace: true })
+      }
+    }
+  }, [navigate])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -429,10 +445,8 @@ export default function Login() {
 
       if (userRes?.role === 'super_admin') {
         navigate('/admin/super-admin')
-      } else if (userRes?.role === 'cashier') {
-        navigate('/admin/ulgurji-sotuv')
       } else {
-        navigate('/admin/products')
+        navigate('/admin/sotuv')
       }
     } catch (err) {
       const detail = err.response?.data?.detail
@@ -474,10 +488,8 @@ export default function Login() {
 
       if (user?.role === 'super_admin') {
         window.location.href = '/admin/super-admin'
-      } else if (user?.role === 'cashier') {
-        window.location.href = '/admin/ulgurji-sotuv'
       } else {
-        window.location.href = '/admin/products'
+        window.location.href = '/admin/sotuv'
       }
     } catch (err) {
       setError(err.response?.data?.detail || "OTP noto'g'ri")
@@ -502,10 +514,8 @@ export default function Login() {
 
       if (user?.role === 'super_admin') {
         window.location.href = '/admin/super-admin'
-      } else if (user?.role === 'cashier') {
-        window.location.href = '/admin/ulgurji-sotuv'
       } else {
-        window.location.href = '/admin/products'
+        window.location.href = '/admin/sotuv'
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Korxona tanlashda xato")
@@ -550,7 +560,7 @@ export default function Login() {
             
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-bold w-fit shadow-xs">
               <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-              <span>Universal ERP Ecosystem 2.0</span>
+              <span>E-Code ERP Ecosystem 2.0</span>
             </div>
 
             <div>
@@ -831,7 +841,7 @@ export default function Login() {
 
       {/* ── Footer ── */}
       <footer className="relative z-10 w-full py-6 text-center text-xs text-slate-400">
-        <p>© {new Date().getFullYear()} E-Code Universal ERP. Barcha huquqlar himoyalangan.</p>
+        <p>© {new Date().getFullYear()} E-Code ERP. Barcha huquqlar himoyalangan.</p>
       </footer>
 
     </div>
