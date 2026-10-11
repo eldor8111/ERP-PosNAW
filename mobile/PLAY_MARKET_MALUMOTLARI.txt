@@ -1,0 +1,37 @@
+======================================================================
+E-CODE AGENT / ERP - GOOGLE PLAY CONSOLE MA'LUMOTLARI
+======================================================================
+
+1. ILOVA FAYLI (GOOGLE PLAY'GA YUKLANADIGAN FAYL):
+   - Fayl nomi: app-release.aab (Android App Bundle)
+   - Fayl joylashuvi: C:\Users\User\Desktop\PlayMarket_ECode_Release\app-release.aab
+   - Package Name (Application ID): uz.ecode.mobile
+   - Versiya nomi (versionName): 1.0.0
+   - Versiya kodi (versionCode / Index code): 1
+
+2. RELEASE KALIT (KEYSTORE) MA'LUMOTLARI:
+   - Keystore fayli: upload-keystore.jks
+   - Alias: upload
+   - Keystore paroli: ecode2026password
+   - Key paroli: ecode2026password
+   - Amal qilish muddati: 2054-yilgacha (28 yil)
+   - SHA-1: C2:C6:BF:3E:5A:AF:19:4C:CA:2E:8F:E5:A3:CF:4B:A7:4F:98:C7:05
+   - SHA-256: 8D:4E:3D:CE:12:1A:63:02:EB:BA:20:D5:30:B6:DD:7E:DB:23:65:5A:06:A4:80:86:1E:0F:AE:75:DE:6D:08:29
+
+MUHIM:
+Ushbu "upload-keystore.jks" faylini va parolini aslo yo'qotmang! Google Play Console'da keyingi yangilanishlarni (versiya 2, 3 va h.k.) yuklashda aynan shu kalit bilan imzolangan AAB talab qilinadi.
+
+3. GOOGLE PLAY CONSOLE'GA YUKLASH QADAMLARI:
+   1) Google Play Console (https://play.google.com/console) saytiga kiring.
+   2) Ilovangizni tanlang yoki "Create app" (Ilova yaratish) tugmasini bosing:
+      - App name: E-Code Agent
+      - Default language: Uzbek (yoki English)
+      - App or game: App
+      - Free or paid: Free
+   3) Chap menyudan "Release" -> "Production" (yoki "Testing" -> "Internal testing") bo'limiga kiring.
+   4) "Create new release" (Yangi reliz yaratish) tugmasini bosing.
+   5) "App bundles" bo'limiga Desktop'dagi "app-release.aab" faylini yuklang.
+   6) Reliz nomi avtomatik "1.0.0 (1)" bo'lib tushadi.
+   7) "Next" -> "Save" -> "Start rollout to Production" tugmasini bosing.
+
+======================================================================
