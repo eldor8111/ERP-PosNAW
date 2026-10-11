@@ -18,28 +18,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'marketplace_agent_notifications',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('agent_id', sa.Integer(), nullable=False),
-        sa.Column('company_id', sa.Integer(), nullable=False),
-        sa.Column('title', sa.String(length=255), nullable=False),
-        sa.Column('body', sa.String(length=1000), nullable=False),
-        sa.Column('notif_type', sa.String(length=50), nullable=True, server_default='general'),
-        sa.Column('data', postgresql.JSON(astext_type=sa.Text()), nullable=True),
-        sa.Column('is_read', sa.Boolean(), nullable=True, server_default='false'),
-        sa.Column('created_at', sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['agent_id'], ['users.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_marketplace_agent_notifications_agent_id'), 'marketplace_agent_notifications', ['agent_id'], unique=False)
-    op.create_index(op.f('ix_marketplace_agent_notifications_id'), 'marketplace_agent_notifications', ['id'], unique=False)
-    op.create_index(op.f('ix_marketplace_agent_notifications_is_read'), 'marketplace_agent_notifications', ['is_read'], unique=False)
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS marketplace_agent_notifications (
+            id SERIAL PRIMARY KEY,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            title VARCHAR(255) NOT NULL,
+            body VARCHAR(1000) NOT NULL,
+            notif_type VARCHAR(50) DEFAULT 'general',
+            data JSON,
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS ix_marketplace_agent_notifications_agent_id ON marketplace_agent_notifications(agent_id);
+        CREATE INDEX IF NOT EXISTS ix_marketplace_agent_notifications_id ON marketplace_agent_notifications(id);
+        CREATE INDEX IF NOT EXISTS ix_marketplace_agent_notifications_is_read ON marketplace_agent_notifications(is_read);
+    """)
 
 
 def downgrade() -> None:
-    op.drop_index(op.f('ix_marketplace_agent_notifications_is_read'), table_name='marketplace_agent_notifications')
-    op.drop_index(op.f('ix_marketplace_agent_notifications_id'), table_name='marketplace_agent_notifications')
-    op.drop_index(op.f('ix_marketplace_agent_notifications_agent_id'), table_name='marketplace_agent_notifications')
-    op.drop_table('marketplace_agent_notifications')
+    op.execute("DROP TABLE IF EXISTS marketplace_agent_notifications CASCADE;")
