@@ -42,7 +42,7 @@ else
 fi
 
 step "3/5 Migratsiyalar"
-alembic upgrade head
+alembic upgrade heads
 alembic current | tail -1
 
 step "4/5 Frontend"
