@@ -73,3 +73,6 @@ check_db.py
 # Mijoz rasmlari va shaxsiy hujjatlar (pasport, shartnoma) — repoga tushmasin
 uploads_private/
 static/uploads/customers/
+
+*.apk
+

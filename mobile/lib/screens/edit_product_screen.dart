@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import '../api/api_client.dart';
+import '../widgets/barcode_scanner_dialog.dart';
 
 class EditProductScreen extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -26,9 +26,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _removeBg = true;
+  bool _isUploadingImage = false;
 
   final List<String> _existingImages = [];
-  final List<File> _newImages = [];
   final ImagePicker _picker = ImagePicker();
 
   static const brandBlue = Color(0xFF2563EB);
@@ -86,18 +86,67 @@ class _EditProductScreenState extends State<EditProductScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    if (_existingImages.length + _newImages.length >= 8) {
+    if (_existingImages.length >= 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Maksimal 8 ta rasm yuklash mumkin')),
       );
       return;
     }
-    final picked = await _picker.pickImage(source: source, imageQuality: 75);
-    if (picked != null) {
-      setState(() {
-        _newImages.add(File(picked.path));
+    final picked = await _picker.pickImage(source: source, imageQuality: 85);
+    if (picked == null) return;
+
+    setState(() => _isUploadingImage = true);
+    try {
+      final filename = picked.path.split('/').last.split('\\').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(picked.path, filename: filename),
       });
+      final res = await apiClient.dio.post(
+        '/mobile/marketplace/upload',
+        queryParameters: {'remove_bg': _removeBg},
+        data: formData,
+      );
+      if (res.data != null && res.data['url'] != null) {
+        final url = res.data['url'] as String;
+        final bgRemoved = res.data['bg_removed'] == true;
+        setState(() {
+          _existingImages.add(url);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(bgRemoved ? 'Rasm yuklandi va foni olib tashlandi (Oq fon)!' : 'Rasm yuklandi!'),
+              backgroundColor: bgRemoved ? const Color(0xFF10B981) : brandBlue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rasm yuklashda xatolik: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
     }
+  }
+
+  void _generateRandomBarcode() {
+    final now = DateTime.now().millisecondsSinceEpoch.toString();
+    final base = '200${now.substring(now.length - 9)}';
+    int sum = 0;
+    for (int i = 0; i < 12; i++) {
+      int digit = int.parse(base[i]);
+      sum += (i % 2 == 0) ? digit : digit * 3;
+    }
+    int check = (10 - (sum % 10)) % 10;
+    final ean13 = '$base$check';
+    setState(() => _barcodeCtrl.text = ean13);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Yangi shtrix-kod yaratildi: $ean13'), duration: const Duration(seconds: 2)),
+    );
   }
 
   Future<void> _saveProduct() async {
@@ -132,24 +181,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
     setState(() => _saving = true);
     try {
-      // 1. Yangi rasmlarni yuklash
-      List<String> finalImages = List.from(_existingImages);
-      for (var img in _newImages) {
-        final filename = img.path.split('/').last.split('\\').last;
-        final formData = FormData.fromMap({
-          'file': await MultipartFile.fromFile(img.path, filename: filename),
-        });
-        final res = await apiClient.dio.post(
-          '/mobile/marketplace/upload',
-          queryParameters: {'remove_bg': _removeBg},
-          data: formData,
-        );
-        if (res.data != null && res.data['url'] != null) {
-          finalImages.add(res.data['url']);
-        }
-      }
-
-      // 2. PUT so'rovi yuborish
+      // 1. PUT so'rovi yuborish (Rasmlar allaqachon yuklangan)
       final productId = widget.product['id'];
       await apiClient.dio.put('/mobile/marketplace/products/$productId', data: {
         'name': _nameCtrl.text.trim(),
@@ -158,7 +190,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
         'category_id': _selectedCategoryId,
         'description': _descCtrl.text.trim(),
         'barcode': _barcodeCtrl.text.trim(),
-        'images': finalImages,
+        'images': _existingImages,
         'submit': true,
       });
 
@@ -288,24 +320,73 @@ class _EditProductScreenState extends State<EditProductScreen> {
                   ),
                   const SizedBox(width: 8),
 
-                  // Existing server images
+                  // Uploading loader tile
+                  if (_isUploadingImage)
+                    Container(
+                      width: 100,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF93C5FD)),
+                      ),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: brandBlue),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Fon tozalanmoqda...',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Existing server images on White BG
                   ..._existingImages.map((url) => Padding(
                         padding: const EdgeInsets.only(right: 8.0),
                         child: Stack(
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                url,
-                                width: 90,
-                                height: 90,
-                                fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => Container(
+                            Container(
+                              width: 90,
+                              height: 90,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  url,
                                   width: 90,
                                   height: 90,
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(Icons.broken_image),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (ctx, err, stack) => Container(
+                                    width: 90,
+                                    height: 90,
+                                    color: Colors.grey.shade100,
+                                    child: const Icon(Icons.broken_image),
+                                  ),
                                 ),
+                              ),
+                            ),
+                            Positioned(
+                              left: 4,
+                              bottom: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text('Oq fon', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
                               ),
                             ),
                             Positioned(
@@ -313,31 +394,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
                               right: 4,
                               child: InkWell(
                                 onTap: () => setState(() => _existingImages.remove(url)),
-                                child: const CircleAvatar(
-                                  radius: 11,
-                                  backgroundColor: Colors.white,
-                                  child: Icon(Icons.close, size: 14, color: Colors.red),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )),
-
-                  // Newly added files
-                  ..._newImages.map((file) => Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.file(file, width: 90, height: 90, fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: InkWell(
-                                onTap: () => setState(() => _newImages.remove(file)),
                                 child: const CircleAvatar(
                                   radius: 11,
                                   backgroundColor: Colors.white,
@@ -497,11 +553,33 @@ class _EditProductScreenState extends State<EditProductScreen> {
             TextField(
               controller: _barcodeCtrl,
               decoration: InputDecoration(
+                labelText: 'Shtrix-kod (EAN / QR)',
+                hintText: 'Skanerlang yoki avto yarating',
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _generateRandomBarcode,
+                      icon: const Icon(Icons.bolt, size: 16, color: brandBlue),
+                      label: const Text('Avto', style: TextStyle(fontWeight: FontWeight.bold, color: brandBlue, fontSize: 12)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, color: brandBlue),
+                      tooltip: 'Kameradan skanerlash',
+                      onPressed: () async {
+                        final code = await BarcodeScannerDialog.scan(context);
+                        if (code != null && code.isNotEmpty) {
+                          setState(() => _barcodeCtrl.text = code);
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
 

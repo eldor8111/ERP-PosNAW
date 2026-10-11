@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import 'login_screen.dart';
+import 'categories_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool isTab;
+  const ProfileScreen({super.key, this.isTab = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -210,6 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 1,
+        automaticallyImplyLeading: !widget.isTab,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
@@ -462,6 +465,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Kategoriyalar bo'limi
+            const Text(
+              'MAHSULOT KATEGORIYALARI',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF475569), letterSpacing: 0.8),
+            ),
+            const SizedBox(height: 10),
+
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.category_outlined, color: brandBlue, size: 22),
+                ),
+                title: const Text('Mening kategoriyalarim', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                subtitle: Text(
+                  _profile?['categories'] != null && (_profile!['categories'] as List).isNotEmpty
+                      ? '${(_profile!['categories'] as List).length} ta kategoriya tanlangan'
+                      : 'Kategoriyalarni tanlang',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+                trailing: const Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CategoriesScreen(isInitialSelection: false)),
+                  );
+                  _fetchProfile();
+                },
               ),
             ),
 

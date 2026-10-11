@@ -36,14 +36,45 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Future<void> _fetchData() async {
     try {
-      final catResp = await apiClient.dio.get('/mobile/marketplace/categories');
-      final profileResp = await apiClient.dio.get('/mobile/marketplace/me');
+      Set<int> preselected = {};
+      try {
+        final profileResp = await apiClient.dio.get('/mobile/marketplace/me');
+        final currentCats = profileResp.data['categories'] as List<dynamic>? ?? [];
+        preselected = currentCats.map<int>((c) => c['id'] as int).toSet();
+      } catch (_) {}
 
-      final currentCats = profileResp.data['categories'] as List<dynamic>? ?? [];
-      final preselected = currentCats.map<int>((c) => c['id'] as int).toSet();
+      List<dynamic> items = [];
+      List<dynamic> tree = [];
 
-      final items = catResp.data['items'] as List<dynamic>? ?? [];
-      final tree = catResp.data['tree'] as List<dynamic>? ?? [];
+      try {
+        final catResp = await apiClient.dio.get('/mobile/marketplace/categories');
+        items = catResp.data['items'] as List<dynamic>? ?? [];
+        tree = catResp.data['tree'] as List<dynamic>? ?? [];
+      } catch (_) {}
+
+      // Fallback: Mir-maza rasmiy tree API dan to'g'ridan-to'g'ri barcha daraxtni olish
+      if (tree.isEmpty) {
+        try {
+          final directResp = await Dio().get('https://mir-maza.uz/api/v1/categories/tree');
+          if (directResp.data is List) {
+            tree = directResp.data as List<dynamic>;
+          }
+        } catch (_) {}
+      }
+
+      // Agar items ro'yxati bo'sh bo'lsa, tree dan barcha 532 kategoriyani yig'amiz
+      if (items.isEmpty && tree.isNotEmpty) {
+        void extractAll(List<dynamic> nodes) {
+          for (var n in nodes) {
+            items.add(n);
+            final ch = n['children'] as List<dynamic>?;
+            if (ch != null && ch.isNotEmpty) {
+              extractAll(ch);
+            }
+          }
+        }
+        extractAll(tree);
+      }
 
       setState(() {
         _allCategories = items;
@@ -68,7 +99,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     }
     List<dynamic> roots = [];
     for (var it in items) {
-      final pid = it['parent_id'];
+      final pid = it['parentId'] ?? it['parent_id'];
       if (pid != null && map.containsKey(pid)) {
         (map[pid]!['children'] as List).add(map[it['id']]);
       } else {
@@ -172,7 +203,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           ),
         ),
         subtitle: Text(
-          children.isEmpty ? 'To\'g\'ridan-to\'g\'ri bo\'lim' : '${children.length} ta ichki bo\'lim ($selectedCountInGroup tanlandi)',
+          children.isEmpty
+              ? (selectedCountInGroup > 0 ? 'Tanlangan' : 'Tanlanmagan')
+              : '${children.length} ta ichki bo\'lim ($selectedCountInGroup tanlandi)',
           style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
         ),
         children: children.map<Widget>((child) {
@@ -274,7 +307,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Kategoriyalar (Mir-Maza)', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Kategoriyalar', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -331,17 +364,34 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   ),
                 ),
 
-                // Info Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                // Info Header (Mahsulotingiz qaysi kategoriyalarda ko'rinsin?)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, size: 16, color: brandBlue),
-                      const SizedBox(width: 6),
+                      const Icon(Icons.check_circle_outline, size: 20, color: brandBlue),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          'Ota bo\'limni bosib barchasini tanlashingiz mumkin (${_selectedIds.length} ta tanlandi)',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Mahsulotingiz qaysi kategoriyalarda ko\'rinsin?',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Tanlangan: ${_selectedIds.length} ta bo\'lim',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF3B82F6), fontWeight: FontWeight.w600),
+                            ),
+                          ],
                         ),
                       ),
                     ],

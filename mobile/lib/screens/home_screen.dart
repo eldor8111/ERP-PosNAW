@@ -242,9 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.inventory,
                   label: 'Mening\nmahsulotlarim',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MyProductsScreen()),
-                    );
+                    setState(() => _currentIndex = 1);
                   },
                 ),
               ),
@@ -258,53 +256,58 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agent Dashboard'),
-        actions: [
-          IconButton(
-            icon: Badge(
-              isLabelVisible: _unreadCount > 0,
-              label: Text('$_unreadCount'),
-              child: const Icon(Icons.notifications_outlined),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            appBar: AppBar(
+              title: const Text('Agent Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+              backgroundColor: Colors.white,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: Badge(
+                    isLabelVisible: _unreadCount > 0,
+                    label: Text('$_unreadCount'),
+                    child: const Icon(Icons.notifications_outlined),
+                  ),
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                    );
+                    _fetchData();
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _fetchData,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'Chiqish',
+                  onPressed: _logout,
+                ),
+              ],
             ),
-            onPressed: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-              );
-              _fetchData();
-            },
+            body: _buildDashboard(),
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
+          const MyProductsScreen(isTab: true),
+          const ProfileScreen(isTab: true),
         ],
       ),
-      body: _buildDashboard(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
+        selectedItemColor: const Color(0xFF2563EB),
+        unselectedItemColor: const Color(0xFF94A3B8),
         onTap: (index) {
           setState(() => _currentIndex = index);
-          if (index == 1) {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CategoriesScreen(isInitialSelection: false)),
-            ).then((_) {
-              setState(() => _currentIndex = 0);
-              _fetchData();
-            });
-          } else if (index == 2) {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            ).then((_) {
-              setState(() => _currentIndex = 0);
-              _fetchData();
-            });
-          }
+          if (index == 0) _fetchData();
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Asosiy'),
-          BottomNavigationBarItem(icon: Icon(Icons.category), label: 'Kategoriyalar'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Asosiy'),
+          BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2), label: 'Mahsulotlarim'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
     );

@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import '../api/api_client.dart';
+import '../widgets/barcode_scanner_dialog.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -23,14 +23,27 @@ class _AddProductScreenState extends State<AddProductScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _removeBg = true;
+  bool _isUploadingImage = false;
   
-  final List<File> _images = [];
+  final List<String> _imageUrls = [];
   final ImagePicker _picker = ImagePicker();
+
+  static const brandBlue = Color(0xFF2563EB);
 
   @override
   void initState() {
     super.initState();
     _fetchMyCategories();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _priceCtrl.dispose();
+    _qtyCtrl.dispose();
+    _descCtrl.dispose();
+    _barcodeCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchMyCategories() async {
@@ -52,16 +65,65 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    if (_images.length >= 8) {
+    if (_imageUrls.length >= 8) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Maksimal 8 ta rasm qo\'shish mumkin')));
       return;
     }
-    final picked = await _picker.pickImage(source: source, imageQuality: 70);
-    if (picked != null) {
-      setState(() {
-        _images.add(File(picked.path));
+    final picked = await _picker.pickImage(source: source, imageQuality: 85);
+    if (picked == null) return;
+
+    setState(() => _isUploadingImage = true);
+    try {
+      final filename = picked.path.split('/').last.split('\\').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(picked.path, filename: filename),
       });
+      final res = await apiClient.dio.post(
+        '/mobile/marketplace/upload',
+        queryParameters: {'remove_bg': _removeBg},
+        data: formData,
+      );
+      if (res.data != null && res.data['url'] != null) {
+        final url = res.data['url'] as String;
+        final bgRemoved = res.data['bg_removed'] == true;
+        setState(() {
+          _imageUrls.add(url);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(bgRemoved ? 'Rasm yuklandi va foni olib tashlandi (Oq fon)!' : 'Rasm yuklandi!'),
+              backgroundColor: bgRemoved ? const Color(0xFF10B981) : brandBlue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rasm yuklashda xatolik: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
     }
+  }
+
+  void _generateRandomBarcode() {
+    final now = DateTime.now().millisecondsSinceEpoch.toString();
+    final base = '200${now.substring(now.length - 9)}';
+    int sum = 0;
+    for (int i = 0; i < 12; i++) {
+      int digit = int.parse(base[i]);
+      sum += (i % 2 == 0) ? digit : digit * 3;
+    }
+    int check = (10 - (sum % 10)) % 10;
+    final ean13 = '$base$check';
+    setState(() => _barcodeCtrl.text = ean13);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Yangi shtrix-kod yaratildi: $ean13'), duration: const Duration(seconds: 2)),
+    );
   }
 
   Future<void> _submitProduct(bool asSubmit) async {
@@ -72,24 +134,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     setState(() => _saving = true);
     try {
-      // 1. Upload images to server
-      List<String> imageUrls = [];
-      for (var img in _images) {
-        final filename = img.path.split('/').last.split('\\').last;
-        final formData = FormData.fromMap({
-          'file': await MultipartFile.fromFile(img.path, filename: filename),
-        });
-        final res = await apiClient.dio.post(
-          '/mobile/marketplace/upload',
-          queryParameters: {'remove_bg': _removeBg},
-          data: formData,
-        );
-        if (res.data != null && res.data['url'] != null) {
-          imageUrls.add(res.data['url']);
-        }
-      }
-
-      // 2. Submit product
       await apiClient.dio.post('/mobile/marketplace/products', data: {
         'name': _nameCtrl.text.trim(),
         'price': double.tryParse(_priceCtrl.text) ?? 0,
@@ -97,7 +141,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'category_id': _selectedCategoryId,
         'description': _descCtrl.text.trim(),
         'barcode': _barcodeCtrl.text.trim(),
-        'images': imageUrls,
+        'images': _imageUrls,
         'submit': asSubmit,
       });
 
@@ -120,30 +164,38 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mahsulot qo\'shish')),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('Mahsulot qo\'shish', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Images section
+            // Images section (Immediate Live Preview on White BG)
             SizedBox(
-              height: 100,
+              height: 110,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
+                  // Add Image Button
                   InkWell(
-                    onTap: () {
+                    onTap: _isUploadingImage ? null : () {
                       showModalBottomSheet(context: context, builder: (_) => SafeArea(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             ListTile(
-                              leading: const Icon(Icons.camera_alt), title: const Text('Kameradan'),
+                              leading: const Icon(Icons.camera_alt, color: brandBlue),
+                              title: const Text('Kameradan rasmga olish'),
                               onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
                             ),
                             ListTile(
-                              leading: const Icon(Icons.photo_library), title: const Text('Galereyadan'),
+                              leading: const Icon(Icons.photo_library, color: brandBlue),
+                              title: const Text('Galereyadan tanlash'),
                               onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
                             ),
                           ],
@@ -152,24 +204,108 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     },
                     child: Container(
                       width: 100,
-                      decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
-                      child: const Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_a_photo, size: 30, color: brandBlue),
+                          SizedBox(height: 6),
+                          Text('Rasm qo\'shish', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: brandBlue)),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ..._images.map((img) => Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
+                  const SizedBox(width: 10),
+
+                  // Uploading loader tile
+                  if (_isUploadingImage)
+                    Container(
+                      width: 110,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF93C5FD)),
+                      ),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2.5, color: brandBlue),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Fon tozalanmoqda...',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Clean images on White BG preview
+                  ..._imageUrls.map((url) => Padding(
+                    padding: const EdgeInsets.only(right: 10.0),
                     child: Stack(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(img, width: 100, height: 100, fit: BoxFit.cover),
+                        Container(
+                          width: 100,
+                          height: 110,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              url,
+                              width: 100,
+                              height: 110,
+                              fit: BoxFit.contain,
+                              loadingBuilder: (c, child, progress) {
+                                if (progress == null) return child;
+                                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                              },
+                              errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 36, color: Colors.grey),
+                            ),
+                          ),
                         ),
                         Positioned(
-                          right: 4, top: 4,
+                          left: 4,
+                          bottom: 4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('Oq fon ✓', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                        Positioned(
+                          right: 4,
+                          top: 4,
                           child: InkWell(
-                            onTap: () => setState(() => _images.remove(img)),
-                            child: const CircleAvatar(radius: 12, backgroundColor: Colors.white, child: Icon(Icons.close, size: 16, color: Colors.red)),
+                            onTap: () => setState(() => _imageUrls.remove(url)),
+                            child: const CircleAvatar(
+                              radius: 11,
+                              backgroundColor: Colors.white,
+                              child: Icon(Icons.close, size: 14, color: Colors.red),
+                            ),
                           ),
                         ),
                       ],
@@ -190,7 +326,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.auto_fix_high, color: Color(0xFF2563EB), size: 20),
+                  const Icon(Icons.auto_fix_high, color: brandBlue, size: 20),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Column(
@@ -203,7 +339,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                   Switch(
                     value: _removeBg,
-                    activeThumbColor: const Color(0xFF2563EB),
+                    activeThumbColor: brandBlue,
                     onChanged: (v) => setState(() => _removeBg = v),
                   ),
                 ],
@@ -214,7 +350,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
             // Form fields
             DropdownButtonFormField<int>(
               initialValue: _selectedCategoryId,
-              decoration: const InputDecoration(labelText: 'Kategoriya', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: 'Kategoriya',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               items: _myCategories.map((c) => DropdownMenuItem<int>(
                 value: c['id'],
                 child: Text(c['name']),
@@ -222,32 +363,89 @@ class _AddProductScreenState extends State<AddProductScreen> {
               onChanged: (val) => setState(() => _selectedCategoryId = val),
             ),
             const SizedBox(height: 16),
-            TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Mahsulot nomi', border: OutlineInputBorder())),
+            TextField(
+              controller: _nameCtrl,
+              decoration: InputDecoration(
+                labelText: 'Mahsulot nomi',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: TextField(controller: _priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Narxi', border: OutlineInputBorder()))),
-                const SizedBox(width: 16),
-                Expanded(child: TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Qoldiq (Soni/Kg)', border: OutlineInputBorder()))),
+                Expanded(
+                  child: TextField(
+                    controller: _priceCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Narxi (so\'m)',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: TextField(
+                    controller: _qtyCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Qoldiq (Soni/Kg)',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
+
+            // Barcode with Camera Scan & Auto EAN Generator
             TextField(
               controller: _barcodeCtrl,
               decoration: InputDecoration(
-                labelText: 'Shtrix kod',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () {
-                    // Integration with barcode_scan2 or similar would go here
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skaner ulanmoqda...')));
-                  },
+                labelText: 'Shtrix-kod (EAN / QR)',
+                hintText: 'Skanerlang yoki avto yarating',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _generateRandomBarcode,
+                      icon: const Icon(Icons.bolt, size: 16, color: brandBlue),
+                      label: const Text('Avto', style: TextStyle(fontWeight: FontWeight.bold, color: brandBlue, fontSize: 12)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, color: brandBlue),
+                      tooltip: 'Kameradan skanerlash',
+                      onPressed: () async {
+                        final code = await BarcodeScannerDialog.scan(context);
+                        if (code != null && code.isNotEmpty) {
+                          setState(() => _barcodeCtrl.text = code);
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            TextField(controller: _descCtrl, maxLines: 4, decoration: const InputDecoration(labelText: 'Tavsif', border: OutlineInputBorder())),
+            TextField(
+              controller: _descCtrl,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'Tavsif',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
             const SizedBox(height: 32),
             
             // Action buttons
@@ -256,7 +454,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _saving ? null : () => _submitProduct(false),
-                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                     child: const Text('Qoralama'),
                   ),
                 ),
@@ -264,8 +465,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _saving ? null : () => _submitProduct(true),
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                    child: _saving ? const CircularProgressIndicator() : const Text('Tasdiqqa yuborish'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: brandBlue,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _saving ? const CircularProgressIndicator(color: Colors.white) : const Text('Tasdiqqa yuborish', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],

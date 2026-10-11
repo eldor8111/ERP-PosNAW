@@ -299,12 +299,16 @@ async def upload_marketplace_image(
     from app.routers.uploads import _store
     from app.utils import image_pipeline as ip
 
+    bg_removed = False
     # Agar fonni tozalash so'ralgan bo'lsa
     if remove_bg:
         try:
             from app.services.bg_removal_worker import remove_background
             content = await anyio.to_thread.run_sync(remove_background, content)
+            bg_removed = True
         except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Marketplace image bg removal fallback: %s", e)
             # rembg xatosi yoki o'rnatilmagan bo'lsa, xavfsiz oq fon bilan saqlash
             try:
                 def _fallback_white(raw_bytes: bytes) -> bytes:
@@ -318,7 +322,7 @@ async def upload_marketplace_image(
     rel_url = ip.URL_PREFIX + filename
     base = settings.SERVER_URL.rstrip("/") if settings.SERVER_URL else "https://savdo.e-code.uz"
     full_url = f"{base}{rel_url}"
-    return {"url": full_url, "relative_url": rel_url}
+    return {"url": full_url, "relative_url": rel_url, "bg_removed": bg_removed}
 
 
 # ── Kategoriyalar ──────────────────────────────────────────────────────────
