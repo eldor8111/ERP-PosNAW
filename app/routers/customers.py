@@ -472,7 +472,7 @@ def list_customers(
         search: Optional[str] = None,
         skip: int = Query(0, ge=0),
         page: Optional[int] = Query(None, ge=1, description="Sahifa raqami (berilsa skip = (page-1)*limit)"),
-        limit: int = Query(100, ge=1, le=2000),
+        limit: int = Query(100, ge=1, le=50000),
         customer_type: Optional[str] = Query(None),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
