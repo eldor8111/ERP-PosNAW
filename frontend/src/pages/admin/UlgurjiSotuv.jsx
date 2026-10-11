@@ -1841,18 +1841,6 @@ export default function UlgurjiSotuv() {
                   </div>
                   <CustomerSearch onCustomerSelected={() => setTimeout(() => prodSearchRef.current?.focus(), 50)} ref={custSearchRef} customers={customers} value={custId}
                     onChange={(newId) => {
-                      if (cart.length > 0 && newId !== custId) {
-                        if (!window.confirm(t('wholesale.confirmChangeCustomerClearsCart'))) {
-                          return;
-                        }
-                        setCart([]);
-                        sessionStorage.removeItem('ulgurji_cart');
-                      }
-
-                      if (newId !== custId && editingSale) {
-                        setEditingSale(null);
-                        sessionStorage.removeItem('ulgurji_session_sale_id');
-                      }
                       setCustId(newId);
                     }}
                     onNew={c => setCustomers(prev => [...prev, c])} onFetch={handleNewFetchedCustomers} />

@@ -39,6 +39,7 @@ export default function KirimTolovlar() {
 
   // Edit modal state
   const [editItem, setEditItem] = useState(null);
+  const [editGroup, setEditGroup] = useState([]);
   const [editForm, setEditForm] = useState({ amount: '', payment_type: '', description: '' });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
@@ -98,7 +99,39 @@ export default function KirimTolovlar() {
     return res;
   }, [data?.items]);
 
-  const openEdit = (item) => {
+  const groupedItems = useMemo(() => {
+    if (!data?.items || !Array.isArray(data.items)) return [];
+    const groups = [];
+
+    data.items.forEach(item => {
+      const itemTime = item.created_at ? new Date(item.created_at).getTime() : 0;
+      // Bir xil contragent, turi, reference_type, wallet va 5 soniya ichida bo'lsa bitta to'lov
+      const existing = groups.find(g =>
+        g.contragent === item.contragent &&
+        g.turi === item.turi &&
+        g.reference_type === item.reference_type &&
+        g.wallet === item.wallet &&
+        Math.abs(g._time - itemTime) <= 5000
+      );
+
+      if (existing) {
+        existing.subItems.push(item);
+      } else {
+        groups.push({
+          ...item,
+          _time: itemTime,
+          subItems: [item],
+        });
+      }
+    });
+
+    return groups;
+  }, [data?.items]);
+
+  const openEdit = (groupOrItem) => {
+    const sub = groupOrItem.subItems || [groupOrItem];
+    setEditGroup(sub);
+    const item = sub[0];
     setEditItem(item);
     setEditForm({
       amount: item.amount,
@@ -109,7 +142,7 @@ export default function KirimTolovlar() {
     setEditError('');
   };
 
-  const closeEdit = () => { setEditItem(null); setEditError(''); };
+  const closeEdit = () => { setEditItem(null); setEditGroup([]); setEditError(''); };
 
   const handleEditSave = async () => {
     if (!editItem) return;
@@ -131,10 +164,14 @@ export default function KirimTolovlar() {
     }
   };
 
-  const handleDelete = async (item) => {
-    if (!window.confirm(t('kirimTolov.deleteConfirm'))) return;
+  const handleDelete = async (groupOrItem) => {
+    const itemsToDelete = groupOrItem.subItems || [groupOrItem];
+    const msg = itemsToDelete.length > 1
+      ? `Ushbu to'lovdagi barcha (${itemsToDelete.length} ta) valyutadagi qismlarni o'chirishni tasdiqlaysizmi?`
+      : t('kirimTolov.deleteConfirm');
+    if (!window.confirm(msg)) return;
     try {
-      await api.delete(`/finance/transactions/${item.id}`);
+      await Promise.all(itemsToDelete.map(it => api.delete(`/finance/transactions/${it.id}`)));
       loadData();
     } catch (e) {
       alert(t('kirimTolov.errorPrefix') + (e.response?.data?.detail || e.message));
@@ -142,18 +179,18 @@ export default function KirimTolovlar() {
   };
 
   const exportExcel = async () => {
-    if (!data?.items) return;
+    if (!groupedItems?.length) return;
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
-    const ws = XLSX.utils.json_to_sheet(data.items.map((i, index) => ({
+    const ws = XLSX.utils.json_to_sheet(groupedItems.map((g, index) => ({
       '#': index + 1,
-      [t('kirimTolov.colContragent')]: i.contragent,
-      [t('kirimTolov.colType')]: i.turi,
-      [t('kirimTolov.colPayment')]: i.amount,
-      [t('kirimTolov.colPaymentType')]: i.payment_type,
-      [t('kirimTolov.colSourceShort')]: i.reference_type,
-      [t('kirimTolov.colWallet')]: i.wallet,
-      [t('kirimTolov.colInfo')]: i.description || '',
-      [t('kirimTolov.colDate')]: new Date(i.created_at).toLocaleString('uz-UZ')
+      [t('kirimTolov.colContragent')]: g.contragent,
+      [t('kirimTolov.colType')]: g.turi,
+      [t('kirimTolov.colPayment')]: g.subItems.map(si => fmtCurr(si.amount, si.currency_code)).join('; '),
+      [t('kirimTolov.colPaymentType')]: [...new Set(g.subItems.map(si => si.payment_type))].join(', '),
+      [t('kirimTolov.colSourceShort')]: g.reference_type,
+      [t('kirimTolov.colWallet')]: g.wallet,
+      [t('kirimTolov.colInfo')]: g.subItems.map(si => si.description).filter(Boolean).join('; ') || '',
+      [t('kirimTolov.colDate')]: new Date(g.created_at).toLocaleString('uz-UZ')
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, t('kirimTolov.title'));
@@ -312,55 +349,95 @@ export default function KirimTolovlar() {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr><td colSpan="15" className="text-center py-8">{t('common.loading')}</td></tr>
-              ) : data?.items?.length > 0 ? (
-                data.items.map((i, idx) => (
-                  <tr key={i.id} className="hover:bg-slate-50 text-sm">
-                    <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-blue-600">{i.contragent}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${i.turi === 'Mijoz' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                        {i.turi}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-bold text-emerald-600">{fmtCurr(i.amount, i.currency_code)}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['cash', 'naqd'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'click' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'payme' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-3 text-center border-x border-slate-50">{i.payment_type === 'uzum' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
-                        {i.reference_type === 'customer_payment' ? t('kirimTolov.sourceDebtPayment') : i.reference_type === 'sale' ? t('kirimTolov.sourceSale') : t('kirimTolov.sourceSupplierReturn')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{i.wallet}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{i.description || '—'}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{new Date(i.created_at).toLocaleString('uz-UZ')}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        {i.reference_type !== 'sale' ? (
-                          <>
-                            <button
-                              onClick={() => openEdit(i)}
-                              className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                            >
-                              {t('common.edit')}
-                            </button>
-                            <button
-                              onClick={() => handleDelete(i)}
-                              className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                            >
-                              {t('common.delete')}
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">{t('kirimTolov.fromSalesSection')}</span>
-                        )}
+              ) : groupedItems?.length > 0 ? (
+                groupedItems.map((g, idx) => {
+                  const renderTypeAmounts = (matcher) => {
+                    const matches = g.subItems.filter(si => matcher(si.payment_type));
+                    if (matches.length === 0) return <span className="text-slate-300">0</span>;
+                    return (
+                      <div className="flex flex-col gap-0.5 items-center">
+                        {matches.map((m, mIdx) => (
+                          <span key={m.id || mIdx} className="font-semibold text-slate-800 text-xs">
+                            {fmtCurr(m.amount, m.currency_code)}
+                          </span>
+                        ))}
                       </div>
-                    </td>
-                  </tr>
-                ))
+                    );
+                  };
+
+                  return (
+                    <tr key={g.id} className="hover:bg-slate-50 text-sm">
+                      <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
+                      <td className="px-4 py-3 font-semibold text-blue-600">{g.contragent}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${g.turi === 'Mijoz' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                          {g.turi}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-bold text-emerald-600">
+                        {g.subItems.length === 1 ? (
+                          fmtCurr(g.subItems[0].amount, g.subItems[0].currency_code)
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {g.subItems.map((si, sIdx) => (
+                              <span key={si.id || sIdx} className="inline-block bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">
+                                {fmtCurr(si.amount, si.currency_code)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-3 text-center border-x border-slate-50">{renderTypeAmounts(pt => ['cash', 'naqd'].includes(pt))}</td>
+                      <td className="px-2 py-3 text-center border-x border-slate-50">{renderTypeAmounts(pt => ['card', 'plastik', 'uzcard', 'humo'].includes(pt))}</td>
+                      <td className="px-2 py-3 text-center border-x border-slate-50">{renderTypeAmounts(pt => ['bank', 'bank_transfer'].includes(pt))}</td>
+                      <td className="px-2 py-3 text-center border-x border-slate-50">{renderTypeAmounts(pt => pt === 'click')}</td>
+                      <td className="px-2 py-3 text-center border-x border-slate-50">{renderTypeAmounts(pt => pt === 'payme')}</td>
+                      <td className="px-2 py-3 text-center border-x border-slate-50">{renderTypeAmounts(pt => pt === 'uzum')}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
+                          {g.reference_type === 'customer_payment' ? t('kirimTolov.sourceDebtPayment') : g.reference_type === 'sale' ? t('kirimTolov.sourceSale') : t('kirimTolov.sourceSupplierReturn')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 text-xs">{g.wallet}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">
+                        {g.subItems.length === 1 ? (
+                          g.description || '—'
+                        ) : (
+                          <div className="flex flex-col gap-0.5">
+                            {g.subItems.map((si, sIdx) => (
+                              <span key={si.id || sIdx} className="text-slate-600">
+                                {si.description || `${fmtCurr(si.amount, si.currency_code)} to'lov`}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{new Date(g.created_at).toLocaleString('uz-UZ')}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          {g.reference_type !== 'sale' ? (
+                            <>
+                              <button
+                                onClick={() => openEdit(g)}
+                                className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                              >
+                                {t('common.edit')}
+                              </button>
+                              <button
+                                onClick={() => handleDelete(g)}
+                                className="px-2 py-1 text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                              >
+                                {t('common.delete')}
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">{t('kirimTolov.fromSalesSection')}</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr><td colSpan="15" className="text-center py-8 text-slate-500">{t('common.noData')}</td></tr>
               )}
@@ -425,6 +502,37 @@ export default function KirimTolovlar() {
                 <div className="text-xs text-slate-500 mb-1">{t('admin.dict.contragent')}</div>
                 <div className="font-semibold text-slate-800">{editItem.contragent}</div>
               </div>
+
+              {/* Currency switcher if grouped */}
+              {editGroup.length > 1 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Tahrirlanadigan valyuta:</label>
+                  <div className="flex gap-2">
+                    {editGroup.map(si => (
+                      <button
+                        key={si.id}
+                        type="button"
+                        onClick={() => {
+                          setEditItem(si);
+                          setEditForm({
+                            amount: si.amount,
+                            payment_type: si.payment_type || 'cash',
+                            description: si.description || '',
+                            wallet_id: si.wallet_id || null,
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          editItem.id === si.id
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {fmtCurr(si.amount, si.currency_code)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Amount */}
               <div>

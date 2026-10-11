@@ -39,6 +39,7 @@ export default function ChiqimTolovlar() {
 
   // Edit modal state
   const [editItem, setEditItem] = useState(null);
+  const [editGroup, setEditGroup] = useState([]);
   const [editForm, setEditForm] = useState({ amount: '', payment_type: '', description: '' });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
@@ -96,7 +97,38 @@ export default function ChiqimTolovlar() {
     return res;
   }, [data?.items]);
 
-  const openEdit = (item) => {
+  const groupedItems = useMemo(() => {
+    if (!data?.items || !Array.isArray(data.items)) return [];
+    const groups = [];
+
+    data.items.forEach(item => {
+      const itemTime = item.created_at ? new Date(item.created_at).getTime() : 0;
+      const existing = groups.find(g =>
+        g.contragent === item.contragent &&
+        g.turi === item.turi &&
+        g.reference_type === item.reference_type &&
+        g.wallet === item.wallet &&
+        Math.abs(g._time - itemTime) <= 5000
+      );
+
+      if (existing) {
+        existing.subItems.push(item);
+      } else {
+        groups.push({
+          ...item,
+          _time: itemTime,
+          subItems: [item],
+        });
+      }
+    });
+
+    return groups;
+  }, [data?.items]);
+
+  const openEdit = (groupOrItem) => {
+    const sub = groupOrItem.subItems || [groupOrItem];
+    setEditGroup(sub);
+    const item = sub[0];
     setEditItem(item);
     setEditForm({
       amount: item.amount,
@@ -107,7 +139,7 @@ export default function ChiqimTolovlar() {
     setEditError('');
   };
 
-  const closeEdit = () => { setEditItem(null); setEditError(''); };
+  const closeEdit = () => { setEditItem(null); setEditGroup([]); setEditError(''); };
 
   const handleEditSave = async () => {
     if (!editItem) return;
@@ -129,10 +161,14 @@ export default function ChiqimTolovlar() {
     }
   };
 
-  const handleDelete = async (item) => {
-    if (!window.confirm(t('chiqimTolov.deleteConfirm'))) return;
+  const handleDelete = async (groupOrItem) => {
+    const itemsToDelete = groupOrItem.subItems || [groupOrItem];
+    const msg = itemsToDelete.length > 1
+      ? `Ushbu to'lovdagi barcha (${itemsToDelete.length} ta) valyutadagi qismlarni o'chirishni tasdiqlaysizmi?`
+      : t('chiqimTolov.deleteConfirm');
+    if (!window.confirm(msg)) return;
     try {
-      await api.delete(`/finance/transactions/${item.id}`);
+      await Promise.all(itemsToDelete.map(it => api.delete(`/finance/transactions/${it.id}`)));
       loadData();
     } catch (e) {
       alert(t('chiqimTolov.errorPrefix') + (e.response?.data?.detail || e.message));
@@ -287,55 +323,95 @@ export default function ChiqimTolovlar() {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr><td colSpan="15" className="text-center py-8">{t('common.loading')}</td></tr>
-              ) : data?.items?.length > 0 ? (
-                data.items.map((i, idx) => (
-                  <tr key={i.id} className="hover:bg-slate-50 text-xs">
-                    <td className="px-2 py-2 text-slate-500">{idx + 1}</td>
-                    <td className="px-2 py-2 font-semibold text-blue-600">{i.contragent}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-md font-medium ${i.turi === 'Xarajat' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-                        {i.turi}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 font-bold text-red-500 whitespace-nowrap">{fmtCurr(i.amount, i.currency_code)}</td>
-                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{['cash', 'naqd'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{['card', 'plastik', 'uzcard', 'humo'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{['bank', 'bank_transfer'].includes(i.payment_type) ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{i.payment_type === 'click' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{i.payment_type === 'payme' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{i.payment_type === 'uzum' ? fmtCurr(i.amount, i.currency_code) : 0}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100">
-                        {i.reference_type === 'supplier_payment' || i.reference_type === 'purchase_order' ? t('chiqimTolov.sourceSupplier') : i.reference_type === 'expense' ? t('chiqimTolov.sourceExpense') : t('chiqimTolov.sourceCustomerReturn')}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-slate-600 whitespace-nowrap">{i.wallet}</td>
-                    <td className="px-2 py-2 text-slate-500 max-w-[120px] truncate" title={i.description || ''}>{i.description || '—'}</td>
-                    <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{new Date(i.created_at).toLocaleString('uz-UZ')}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <div className="flex gap-1.5">
-                        {i.reference_type !== 'purchase_order' ? (
-                          <>
-                            <button
-                              onClick={() => openEdit(i)}
-                              className="px-2 py-1 font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                            >
-                              {t('common.edit')}
-                            </button>
-                            <button
-                              onClick={() => handleDelete(i)}
-                              className="px-2 py-1 font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                            >
-                              {t('common.delete')}
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-[10px] text-red-400 italic bg-red-50 px-1 py-0.5 rounded">{t('chiqimTolov.editFromPurchases')}</span>
-                        )}
+              ) : groupedItems?.length > 0 ? (
+                groupedItems.map((g, idx) => {
+                  const renderTypeAmounts = (matcher) => {
+                    const matches = g.subItems.filter(si => matcher(si.payment_type));
+                    if (matches.length === 0) return <span className="text-slate-300">0</span>;
+                    return (
+                      <div className="flex flex-col gap-0.5 items-center">
+                        {matches.map((m, mIdx) => (
+                          <span key={m.id || mIdx} className="font-semibold text-slate-800 text-xs whitespace-nowrap">
+                            {fmtCurr(m.amount, m.currency_code)}
+                          </span>
+                        ))}
                       </div>
-                    </td>
-                  </tr>
-                ))
+                    );
+                  };
+
+                  return (
+                    <tr key={g.id} className="hover:bg-slate-50 text-xs">
+                      <td className="px-2 py-2 text-slate-500">{idx + 1}</td>
+                      <td className="px-2 py-2 font-semibold text-blue-600">{g.contragent}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-md font-medium ${g.turi === 'Xarajat' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                          {g.turi}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 font-bold text-red-500 whitespace-nowrap">
+                        {g.subItems.length === 1 ? (
+                          fmtCurr(g.subItems[0].amount, g.subItems[0].currency_code)
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {g.subItems.map((si, sIdx) => (
+                              <span key={si.id || sIdx} className="inline-block bg-red-50 text-red-600 px-1.5 py-0.5 rounded text-xs font-bold whitespace-nowrap">
+                                {fmtCurr(si.amount, si.currency_code)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{renderTypeAmounts(pt => ['cash', 'naqd'].includes(pt))}</td>
+                      <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{renderTypeAmounts(pt => ['card', 'plastik', 'uzcard', 'humo'].includes(pt))}</td>
+                      <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{renderTypeAmounts(pt => ['bank', 'bank_transfer'].includes(pt))}</td>
+                      <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{renderTypeAmounts(pt => pt === 'click')}</td>
+                      <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{renderTypeAmounts(pt => pt === 'payme')}</td>
+                      <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{renderTypeAmounts(pt => pt === 'uzum')}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100">
+                          {g.reference_type === 'supplier_payment' || g.reference_type === 'purchase_order' ? t('chiqimTolov.sourceSupplier') : g.reference_type === 'expense' ? t('chiqimTolov.sourceExpense') : t('chiqimTolov.sourceCustomerReturn')}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-slate-600 whitespace-nowrap">{g.wallet}</td>
+                      <td className="px-2 py-2 text-slate-500 max-w-[120px] truncate" title={g.description || ''}>
+                        {g.subItems.length === 1 ? (
+                          g.description || '—'
+                        ) : (
+                          <div className="flex flex-col gap-0.5">
+                            {g.subItems.map((si, sIdx) => (
+                              <span key={si.id || sIdx} className="text-slate-600">
+                                {si.description || `${fmtCurr(si.amount, si.currency_code)} to'lov`}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{new Date(g.created_at).toLocaleString('uz-UZ')}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <div className="flex gap-1.5">
+                          {g.reference_type !== 'purchase_order' ? (
+                            <>
+                              <button
+                                onClick={() => openEdit(g)}
+                                className="px-2 py-1 font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                              >
+                                {t('common.edit')}
+                              </button>
+                              <button
+                                onClick={() => handleDelete(g)}
+                                className="px-2 py-1 font-semibold bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                              >
+                                {t('common.delete')}
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-red-400 italic bg-red-50 px-1 py-0.5 rounded">{t('chiqimTolov.editFromPurchases')}</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr><td colSpan="15" className="text-center py-8 text-slate-500">{t('common.noData')}</td></tr>
               )}
@@ -400,6 +476,37 @@ export default function ChiqimTolovlar() {
                 <div className="text-xs text-slate-500 mb-1">{t('admin.dict.contragent')}</div>
                 <div className="font-semibold text-slate-800">{editItem.contragent}</div>
               </div>
+
+              {/* Currency switcher if grouped */}
+              {editGroup.length > 1 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Tahrirlanadigan valyuta:</label>
+                  <div className="flex gap-2">
+                    {editGroup.map(si => (
+                      <button
+                        key={si.id}
+                        type="button"
+                        onClick={() => {
+                          setEditItem(si);
+                          setEditForm({
+                            amount: si.amount,
+                            payment_type: si.payment_type || 'cash',
+                            description: si.description || '',
+                            wallet_id: si.wallet_id || null,
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          editItem.id === si.id
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {fmtCurr(si.amount, si.currency_code)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Amount */}
               <div>
