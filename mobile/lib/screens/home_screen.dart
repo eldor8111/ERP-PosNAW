@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _unreadCount = 0;
   bool _loading = true;
   bool _isLaunching = false;
+  int _selectedMonths = 1; // 1, 3, 6 oy
   Timer? _notifTimer;
 
   @override
@@ -106,10 +107,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _payWithPayme() async {
+  Future<void> _payWithPayme([int? months]) async {
+    final m = months ?? _selectedMonths;
     setState(() => _isLaunching = true);
     try {
-      final res = await apiClient.dio.get('/mobile/marketplace/auth/payme-checkout');
+      final res = await apiClient.dio.get(
+        '/mobile/marketplace/auth/payme-checkout',
+        queryParameters: {'months': m},
+      );
       final url = Uri.parse(res.data['checkout_url']);
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         if (mounted) {
@@ -137,35 +142,152 @@ class _HomeScreenState extends State<HomeScreen> {
     final needsCategory = _profile!['needs_category_selection'] == true;
 
     if (status != 'active') {
+      final plans = [
+        {'months': 1, 'name': '1 oylik', 'price': '200,000 so\'m', 'desc': 'Standart oylik obuna', 'badge': ''},
+        {'months': 3, 'name': '3 oylik', 'price': '550,000 so\'m', 'desc': '50,000 so\'m tejaladi (~183k/oy)', 'badge': 'Ommabop'},
+        {'months': 6, 'name': '6 oylik', 'price': '1,000,000 so\'m', 'desc': '200,000 so\'m tejaladi (~166k/oy)', 'badge': 'Eng foydali'},
+      ];
+
+      final selectedPlan = plans.firstWhere((p) => p['months'] == _selectedMonths);
+
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.payment, size: 64, color: Colors.blue),
-              const SizedBox(height: 16),
-              const Text('Hisobingiz faol emas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text(
-                'Tizimdan foydalanish uchun 200,000 so\'m to\'lov qilishingiz kerak.', 
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.workspace_premium, size: 52, color: Color(0xFF2563EB)),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              const Text(
+                'Hisobingizni faollashtiring',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Savdo qilish uchun qulay tarif muddatini tanlang:',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+              ...plans.map((p) {
+                final isSelected = _selectedMonths == p['months'];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => setState(() => _selectedMonths = p['months'] as int),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF2563EB) : Colors.grey.shade300,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                            color: isSelected ? const Color(0xFF2563EB) : Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      p['name'] as String,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected ? const Color(0xFF1E3A8A) : Colors.black87,
+                                      ),
+                                    ),
+                                    if ((p['badge'] as String).isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: p['months'] == 6 ? Colors.amber.shade100 : Colors.blue.shade100,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          p['badge'] as String,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: p['months'] == 6 ? Colors.amber.shade900 : const Color(0xFF1D4ED8),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  p['desc'] as String,
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            p['price'] as String,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? const Color(0xFF2563EB) : Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                  onPressed: _isLaunching ? null : _payWithPayme, 
-                  child: _isLaunching 
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Payme orqali to\'lash', style: TextStyle(color: Colors.white, fontSize: 18)),
+                height: 52,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 2,
+                  ),
+                  onPressed: _isLaunching ? null : () => _payWithPayme(_selectedMonths),
+                  icon: _isLaunching
+                      ? const SizedBox.shrink()
+                      : const Icon(Icons.payment, color: Colors.white),
+                  label: _isLaunching
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : Text(
+                          'Payme orqali to\'lash (${selectedPlan['price']})',
+                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
-              const SizedBox(height: 16),
-              TextButton(onPressed: _fetchData, child: const Text('Holatni yangilash')),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: _fetchData,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('To\'lov holatini yangilash'),
+              ),
             ],
           ),
         ),

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import 'login_screen.dart';
 import 'categories_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool isTab;
@@ -120,6 +121,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     }
+  }
+
+  void _showSubscriptionSheet() {
+    int selectedM = 1;
+    final plans = [
+      {'months': 1, 'name': '1 oylik', 'price': '200,000 so\'m', 'desc': 'Standart oylik obuna', 'badge': ''},
+      {'months': 3, 'name': '3 oylik', 'price': '550,000 so\'m', 'desc': '50,000 so\'m tejaladi (~183k/oy)', 'badge': 'Ommabop'},
+      {'months': 6, 'name': '6 oylik', 'price': '1,000,000 so\'m', 'desc': '200,000 so\'m tejaladi (~166k/oy)', 'badge': 'Eng foydali'},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Obunani uzaytirish', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              const Text('Qulay muddatni tanlang va Payme orqali to\'lang:', style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              ...plans.map((p) {
+                final isSelected = selectedM == p['months'];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => setSheetState(() => selectedM = p['months'] as int),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF2563EB) : Colors.grey.shade300,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                            color: isSelected ? const Color(0xFF2563EB) : Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                    if ((p['badge'] as String).isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(6)),
+                                        child: Text(p['badge'] as String, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                Text(p['desc'] as String, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              ],
+                            ),
+                          ),
+                          Text(p['price'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      final res = await apiClient.dio.get(
+                        '/mobile/marketplace/auth/payme-checkout',
+                        queryParameters: {'months': selectedM},
+                      );
+                      final url = Uri.parse(res.data['checkout_url']);
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Xatolik: $e')),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.payment, color: Colors.white),
+                  label: Text('To\'lov qilish (${plans.firstWhere((p) => p['months'] == selectedM)['price']})', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showDocumentSheet(String title, String content) {
@@ -319,6 +441,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Text(
                   'Biriktirilgan korxona: $companyName',
                   style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+
+            if (_profile?['subscription_ends_at'] != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.blue.shade100),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _profile?['is_trial'] == true ? Icons.card_giftcard : Icons.verified,
+                      color: const Color(0xFF2563EB),
+                      size: 26,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _profile?['is_trial'] == true ? 'Sinov (probniy) muddati:' : 'Obuna amal qilish muddati:',
+                            style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            DateFormat('dd.MM.yyyy').format(DateTime.parse(_profile!['subscription_ends_at'])),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        minimumSize: Size.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _showSubscriptionSheet,
+                      child: const Text('Uzaytirish', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               ),
             ],

@@ -57,6 +57,9 @@ class UserOut(BaseModel):
     branch_id: Optional[int] = None
     company_id: Optional[int] = None
     created_at: Optional[datetime] = None
+    subscription_ends_at: Optional[datetime] = None
+    is_trial: Optional[bool] = False
+    paid_amount: Optional[float] = 0
 
     model_config = {"from_attributes": True}
 

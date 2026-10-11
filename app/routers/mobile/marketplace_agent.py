@@ -102,6 +102,9 @@ def _agent_out(db: Session, user: User) -> dict:
         "company_name": company.name if company else "",
         "categories": [{"id": i, "name": names.get(i)} for i in ids],
         "needs_category_selection": len(ids) == 0,
+        "subscription_ends_at": user.subscription_ends_at.isoformat() if user.subscription_ends_at else None,
+        "is_trial": bool(user.is_trial),
+        "paid_amount": float(user.paid_amount or 0),
     }
 
 
@@ -261,22 +264,30 @@ def agent_refresh(request: Request, data: AgentRefreshIn, db: Session = Depends(
     return _issue_tokens(user, device)
 
 @router.get("/auth/payme-checkout")
-def get_payme_checkout_url(request: Request, db: Session = Depends(get_db), user: User = Depends(get_agent)):
-    # get_agent allows UserStatus.pending
-    if user.status == UserStatus.active:
-        raise HTTPException(status_code=400, detail="Sizning hisobingiz allaqachon faollashtirilgan")
-        
+def get_payme_checkout_url(
+    months: int = Query(1, ge=1, le=12),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_agent)
+):
     from app.config import settings
     import base64
     if not settings.PAYME_MERCHANT_ID:
         raise HTTPException(status_code=500, detail="Payme merchant id topilmadi")
         
-    amount_tiyin = 200000 * 100 # 200 000 UZS
+    if months == 6:
+        amount_som = 1000000  # 6 oy: 1 000 000 UZS (chegirma bilan)
+    elif months == 3:
+        amount_som = 550000   # 3 oy: 550 000 UZS (chegirma bilan)
+    else:
+        amount_som = 200000   # 1 oy: 200 000 UZS
+
+    amount_tiyin = int(amount_som * 100)
     raw = f"m={settings.PAYME_MERCHANT_ID};ac.agent_phone={user.phone};a={amount_tiyin}"
     encoded = base64.b64encode(raw.encode()).decode()
     base_url = "https://checkout.test.paycom.uz" if settings.PAYME_IS_TEST else "https://checkout.paycom.uz"
     
-    return {"checkout_url": f"{base_url}/{encoded}"}
+    return {"checkout_url": f"{base_url}/{encoded}", "amount": amount_som, "months": months}
 
 
 @router.get("/me")

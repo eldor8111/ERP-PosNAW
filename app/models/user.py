@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import enum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey, JSON  # type: ignore
+from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey, JSON, Numeric  # type: ignore
 from sqlalchemy.orm import relationship  # type: ignore
 
 from app.database import Base  # type: ignore
@@ -46,6 +46,9 @@ class User(Base):
     status = Column(Enum(UserStatus), default=UserStatus.active)
     tg_chat_id = Column(String(50), nullable=True)  # Telegram OTP uchun
     fcm_token = Column(String(255), nullable=True)  # Push bildirishnomalar uchun
+    subscription_ends_at = Column(DateTime, nullable=True)
+    is_trial = Column(Boolean, default=False)
+    paid_amount = Column(Numeric(18, 2), default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     branch = relationship("Branch", back_populates="users")

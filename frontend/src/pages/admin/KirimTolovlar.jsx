@@ -171,7 +171,7 @@ export default function KirimTolovlar() {
     setPayNote('');
     setPayError('');
     const [cRes, wRes, curRes] = await Promise.all([
-      api.get('/customers', { params: { limit: 5000 } }).catch(() => ({ data: [] })),
+      api.get('/customers', { params: { limit: 2000 } }).catch(() => ({ data: [] })),
       api.get('/finance/wallets').catch(() => ({ data: [] })),
       api.get('/currencies/active').catch(() => ({ data: [] })),
     ]);

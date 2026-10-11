@@ -284,6 +284,32 @@ export default function UsersTab() {
     } catch (err) { alert(err.response?.data?.detail || t('common.error')); }
   };
 
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+  })();
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+
+  const handleToggleStatus = async (u) => {
+    try {
+      const res = await api.post(`/users/${u.id}/toggle-status`);
+      toast.success(`Holat yangilandi: ${res.data.status === 'active' ? 'Faol' : 'Nofaol'}`);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Xatolik yuz berdi');
+    }
+  };
+
+  const handleActivateTrial = async (u) => {
+    if (!window.confirm(`"${u.name}" ga 7 kunlik sinov (probniy) muddatini yoqib bermoqchimisiz?`)) return;
+    try {
+      const res = await api.post(`/users/${u.id}/activate-trial?days=7`);
+      toast.success(res.data.detail || 'Sinov muddati yoqildi');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Xatolik yuz berdi');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -316,15 +342,15 @@ export default function UsersTab() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {[t('common.name') || 'Xodim', t('common.phone'), 'Email', t('branch.title') || 'Filial', t('user.role'), t('common.status'), ''].map(h => (
-                <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+              {[t('common.name') || 'Xodim', t('common.phone'), 'Email', t('branch.title') || 'Filial', t('user.role'), "To'langan summa", "To'lov muddati", t('common.status'), 'Amallar'].map(h => (
+                <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {users.map(u => (
               <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4">
+                <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">
                       {u.name?.[0]?.toUpperCase()}
@@ -332,29 +358,83 @@ export default function UsersTab() {
                     <span className="text-sm font-semibold text-slate-800">{u.name}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-500">{u.phone}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">{u.email || 'тАФ'}</td>
-                <td className="px-6 py-4 text-sm text-slate-500">
-                  {u.branch_id ? (branches.find(b => b.id === u.branch_id)?.name || 'тАФ') : 'тАФ'}
+                <td className="px-5 py-4 text-sm text-slate-500">{u.phone}</td>
+                <td className="px-5 py-4 text-sm text-slate-500">{u.email || '—'}</td>
+                <td className="px-5 py-4 text-sm text-slate-500">
+                  {u.branch_id ? (branches.find(b => b.id === u.branch_id)?.name || '—') : '—'}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-5 py-4">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600'}`}>
                     {ROLE_LABELS[u.role] || u.role}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                    u.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                    u.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>
+                <td className="px-5 py-4">
+                  {['marketplace_agent', 'agent'].includes(u.role) ? (
+                    <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                      {Number(u.paid_amount || 0) > 0 ? (
+                        Number(u.paid_amount).toLocaleString('uz-UZ') + " so'm"
+                      ) : (
+                        <span className="text-slate-400 font-normal">0 so'm</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400">—</span>
+                  )}
+                </td>
+                <td className="px-5 py-4">
+                  {['marketplace_agent', 'agent'].includes(u.role) ? (
+                    (() => {
+                      if (!u.subscription_ends_at) return <span className="text-xs text-slate-400">Belgilanmagan</span>;
+                      const end = new Date(u.subscription_ends_at);
+                      const isExpired = end < new Date();
+                      const dateStr = end.toLocaleDateString('uz-UZ');
+                      if (isExpired) {
+                        return <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-rose-100 text-rose-700 whitespace-nowrap">Muddati o'tgan ({dateStr})</span>;
+                      }
+                      if (u.is_trial) {
+                        return <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-purple-100 text-purple-700 whitespace-nowrap">Sinov: {dateStr} gacha</span>;
+                      }
+                      return <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-100 text-emerald-700 whitespace-nowrap">{dateStr} gacha</span>;
+                    })()
+                  ) : (
+                    <span className="text-xs text-slate-400">—</span>
+                  )}
+                </td>
+                <td className="px-5 py-4">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(u)}
+                    title="Holatni almashtirish (Faol / Nofaol)"
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-xs border whitespace-nowrap ${
+                      u.status === 'active' ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200' :
+                      u.status === 'pending' ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200' :
+                      'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${
+                      u.status === 'active' ? 'bg-emerald-500' :
+                      u.status === 'pending' ? 'bg-amber-500 animate-pulse' :
+                      'bg-slate-400'
+                    }`}></span>
                     {u.status === 'active' ? (t('common.active') || 'Faol') :
                      u.status === 'pending' ? 'Kutilmoqda' :
                      (t('common.inactive') || 'Nofaol')}
-                  </span>
+                  </button>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-5 py-4">
                   <div className="flex items-center gap-1 justify-end">
+                    {isSuperAdmin && ['marketplace_agent', 'agent'].includes(u.role) && (
+                      <button
+                        onClick={() => handleActivateTrial(u)}
+                        title="Super Admin: Probni yoqish (7 kunlik sinov berish)"
+                        className="px-2 py-1 text-purple-700 hover:bg-purple-100 bg-purple-50 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold border border-purple-200 whitespace-nowrap"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Probni yoqish
+                      </button>
+                    )}
                     <button onClick={() => openEdit(u)} title={t('common.edit')} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -380,7 +460,7 @@ export default function UsersTab() {
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-400 text-sm">{t('user.noUsers')}</td></tr>
+              <tr><td colSpan={9} className="px-6 py-16 text-center text-slate-400 text-sm">{t('user.noUsers')}</td></tr>
             )}
           </tbody>
         </table>

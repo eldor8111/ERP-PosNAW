@@ -246,13 +246,13 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
     amount   = _to_amount_int(params.get("amount", 0))
 
     if agent_phone:
-        user = db.query(User).filter(User.phone == agent_phone, User.role == "marketplace_agent").first()
+        user = db.query(User).filter(User.phone == agent_phone, User.role.in_(["marketplace_agent", "agent"])).first()
         if not user:
             return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent topilmadi", "ru": "Агент не найден", "en": "Agent not found"})
-        if user.status != "pending":
-            return _err(req_id, ERR_UNABLE_TO_PERFORM, {"uz": "Agent allaqachon faol", "ru": "Агент уже активен", "en": "Agent already active"})
-        if amount != 20000000: # 200,000 UZS in tiyin
-            return _err(req_id, ERR_INVALID_AMOUNT, {"ru": "Неверная сумма", "uz": "Summa noto'g'ri (200,000 UZS bo'lishi kerak)", "en": "Invalid amount"})
+        # 1 oy: 200 000, 3 oy: 550 000 yoki 600 000, 6 oy: 1 000 000 yoki 1 200 000 UZS (tiyinda)
+        VALID_AGENT_AMOUNTS = (20000000, 55000000, 60000000, 100000000, 120000000)
+        if amount not in VALID_AGENT_AMOUNTS and amount < 20000000:
+            return _err(req_id, ERR_INVALID_AMOUNT, {"ru": "Неверная сумма", "uz": "Summa noto'g'ri (1 oy: 200,000, 3 oy: 550,000, 6 oy: 1,000,000 UZS)", "en": "Invalid amount"})
         return _ok(req_id, {"allow": True})
 
     # 1. AVVAL org_code ni tekshir (bosh bolsa)
@@ -434,18 +434,40 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
         is_agent_payment = False
         user = None
         if txn.account_org_code and txn.account_org_code.startswith("998") and len(txn.account_org_code) == 12:
-            user = db.query(User).filter(User.phone == txn.account_org_code, User.role == "marketplace_agent").first()
+            user = db.query(User).filter(User.phone == txn.account_org_code, User.role.in_(["marketplace_agent", "agent"])).first()
             if user:
                 is_agent_payment = True
 
         if is_agent_payment and user:
+            from datetime import timedelta
+            now_dt = datetime.now(timezone.utc)
+            # Kunlar hisobi
+            if txn.amount >= 100000000:
+                days = 180  # 6 oy
+            elif txn.amount >= 55000000:
+                days = 90   # 3 oy
+            elif txn.amount >= 20000000:
+                days = 30   # 1 oy
+            else:
+                days = max(1, int((txn.amount / 20000000) * 30))
+
+            cur_end = user.subscription_ends_at
+            if cur_end and cur_end.tzinfo is None:
+                cur_end = cur_end.replace(tzinfo=timezone.utc)
+            if cur_end and cur_end > now_dt:
+                user.subscription_ends_at = cur_end + timedelta(days=days)
+            else:
+                user.subscription_ends_at = now_dt + timedelta(days=days)
+
             user.status = "active"
+            user.is_trial = False
+            user.paid_amount = (float(user.paid_amount) if user.paid_amount else 0.0) + amount_som
             now_ms = _now_ms()
             txn.state        = 2 # type: ignore
             txn.perform_time = now_ms # type: ignore
             db.commit()
-            logger.info("[Payme] PerformTransaction: Agent faollashtirildi id=%s phone=%s +%.0f som",
-                        payme_id, user.phone, amount_som)
+            logger.info("[Payme] PerformTransaction: Agent faollashtirildi/uzaytirildi id=%s phone=%s +%.0f som (+%d kun)",
+                        payme_id, user.phone, amount_som, days)
         else:
             company = db.query(Company).filter(Company.id == txn.company_id).first()
             if not company:

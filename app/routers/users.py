@@ -21,9 +21,10 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    from sqlalchemy import or_
+    from sqlalchemy import or_, func
     from app.models.user_company import UserCompany
-    q = db.query(User).filter(User.status.in_([UserStatus.active, UserStatus.pending]))
+    from app.models.payme_transaction import PaymeTransaction
+    q = db.query(User).filter(User.status.in_([UserStatus.active, UserStatus.pending, UserStatus.inactive]))
     
     uc_exists = db.query(UserCompany).filter(
         UserCompany.user_id == User.id,
@@ -37,7 +38,16 @@ def list_users(
             uc_exists
         )
     )
-    return q.all()
+    users_list = q.all()
+    for u in users_list:
+        if u.role in (UserRole.agent, UserRole.marketplace_agent):
+            total_tiyin = db.query(func.sum(PaymeTransaction.amount)).filter(
+                PaymeTransaction.account_org_code == u.phone,
+                PaymeTransaction.state == 2
+            ).scalar()
+            if total_tiyin:
+                u.paid_amount = float(total_tiyin) / 100
+    return users_list
 
 
 @router.get("/{user_id}/wallets")
@@ -548,3 +558,55 @@ def update_my_fcm_token(
         user.fcm_token = data.fcm_token
         db.commit()
     return {"ok": True, "message": "FCM token saqlandi"}
+
+
+@router.post("/{user_id}/toggle-status")
+def toggle_user_status(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    if current_user.role not in (UserRole.admin, UserRole.director, UserRole.super_admin):
+        raise HTTPException(status_code=403, detail="Ruxsat berilmagan")
+    if current_user.role != UserRole.super_admin and target.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Boshqa korxona foydalanuvchisi")
+        
+    if target.status == UserStatus.active:
+        target.status = UserStatus.inactive
+    else:
+        target.status = UserStatus.active
+    db.commit()
+    return {"ok": True, "status": target.status.value}
+
+
+@router.post("/{user_id}/activate-trial")
+def activate_user_trial(
+    user_id: int,
+    days: int = 7,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Faqat Super Admin uchun: Agent yoki xodimga probniy (sinov) muddatini yoqib berish."""
+    if current_user.role != UserRole.super_admin:
+        raise HTTPException(status_code=403, detail="Sinov (probniy) muddatini faqat Super Admin yoqishi mumkin")
+        
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+        
+    from datetime import datetime, timezone, timedelta
+    target.is_trial = True
+    target.status = UserStatus.active
+    target.subscription_ends_at = datetime.now(timezone.utc) + timedelta(days=days)
+    db.commit()
+    return {
+        "ok": True,
+        "detail": f"{target.name} uchun {days} kunlik sinov muddati yoqildi",
+        "subscription_ends_at": target.subscription_ends_at.isoformat() if target.subscription_ends_at else None,
+        "is_trial": True,
+        "status": target.status.value,
+    }
+
