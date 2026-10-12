@@ -66,7 +66,8 @@ def list_agents(status: Optional[str] = None, q: Optional[str] = Query(None, max
     items = []
     for u in query.order_by(User.id.desc()).all():
         cnt = db.query(func.count(MarketplaceProduct.id)).filter(MarketplaceProduct.agent_id == u.id).scalar() or 0
-        items.append({"id": u.id, "name": u.name, "phone": u.phone, "status": u.status.value,
+        u_status = u.status.value if hasattr(u.status, "value") else str(u.status or "")
+        items.append({"id": u.id, "name": u.name, "phone": u.phone, "status": u_status,
                       "products": cnt, "balance": agent_balance(db, u.id)["balance"],
                       "created_at": u.created_at.isoformat() if u.created_at else None})
     return {"items": items}
@@ -76,7 +77,7 @@ def list_agents(status: Optional[str] = None, q: Optional[str] = Query(None, max
 def set_agent_status(agent_id: int, data: AgentStatusIn, db: Session = Depends(get_db),
                      admin: User = Depends(_admin)):
     u = _agent_or_404(db, admin, agent_id)
-    old = u.status.value
+    old = u.status.value if hasattr(u.status, "value") else str(u.status or "")
     u.status = UserStatus(data.status)
     # Bloklanganda mahsulotlar marketplace'dan yashiriladi (review ga qaytariladi),
     # qayta faollashtirilganda admin ularni qayta tasdiqlaydi.
@@ -87,7 +88,8 @@ def set_agent_status(agent_id: int, data: AgentStatusIn, db: Session = Depends(g
     log_action(db=db, action="MARKETPLACE_AGENT_STATUS", entity_type="user", entity_id=u.id, user_id=admin.id,
                old_values={"status": old}, new_values={"status": data.status, "reason": data.reason})
     db.commit()
-    return {"id": u.id, "status": u.status.value}
+    new_status = u.status.value if hasattr(u.status, "value") else str(u.status or "")
+    return {"id": u.id, "status": new_status}
 
 
 # ── Moderatsiya va mahsulotlar ─────────────────────────────────────────────
@@ -106,8 +108,12 @@ def list_products(status: Optional[str] = None, agent_id: Optional[int] = None,
         query = query.filter(MarketplaceProduct.agent_id == agent_id)
     total = query.count()
     rows = query.order_by(MarketplaceProduct.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    names = mp.category_name_map()
-    agent_names = {u.id: u.name for u in db.query(User).filter(User.id.in_({p.agent_id for p in rows} or {0})).all()}
+    try:
+        names = mp.category_name_map()
+    except Exception:
+        names = {}
+    agent_ids = {p.agent_id for p in rows if p.agent_id}
+    agent_names = {u.id: u.name for u in db.query(User).filter(User.id.in_(agent_ids)).all()} if agent_ids else {}
     return {"total": total, "items": [{**_product_out(p, names), "agent_id": p.agent_id,
                                        "agent_name": agent_names.get(p.agent_id)} for p in rows]}
 

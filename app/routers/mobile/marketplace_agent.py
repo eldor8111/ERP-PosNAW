@@ -109,12 +109,14 @@ def _agent_out(db: Session, user: User) -> dict:
 
 
 def _product_out(p: MarketplaceProduct, names: dict) -> dict:
+    status_str = p.status.value if hasattr(p.status, "value") else str(p.status or "")
+    cat_name = names.get(p.category_id) if names else None
     return {
         "id": p.id, "name": p.name, "description": p.description,
         "price": float(p.price or 0), "qty": float(p.qty or 0),
-        "category_id": p.category_id, "category_name": names.get(p.category_id),
+        "category_id": p.category_id, "category_name": cat_name,
         "barcode": p.barcode, "sku": p.sku, "images": p.images or [],
-        "status": p.status.value, "reject_reason": p.reject_reason,
+        "status": status_str, "reject_reason": p.reject_reason,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "updated_at": p.updated_at.isoformat() if p.updated_at else None,
     }

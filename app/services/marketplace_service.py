@@ -159,11 +159,22 @@ def fetch_categories_tree(force: bool = False) -> List[dict]:
 
 
 def category_ids() -> set:
-    return {c["id"] for c in fetch_categories()}
+    try:
+        return {int(c["id"]) for c in fetch_categories() if isinstance(c, dict) and c.get("id") is not None}
+    except Exception:
+        return set()
 
 
 def category_name_map() -> Dict[int, str]:
-    return {c["id"]: c["name"] for c in fetch_categories()}
+    try:
+        return {
+            int(c["id"]): str(c.get("name") or "")
+            for c in fetch_categories()
+            if isinstance(c, dict) and c.get("id") is not None
+        }
+    except Exception as ex:
+        logger.warning("category_name_map olishda xatolik: %s", ex)
+        return {}
 
 
 def normalize_phone(phone: str) -> str:

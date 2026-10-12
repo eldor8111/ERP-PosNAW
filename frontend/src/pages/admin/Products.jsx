@@ -198,10 +198,6 @@ export default function Products() {
     api.get('/bin-locations').then(r => setBinLocations(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
   }, []);
 
-  const loadPaginated = useCallback(() => {
-    api.get('/products/paginated').then(r => setPaginated(r.data.items)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
-  }, []);
-
   // api.get('/mxik/barcode/4780068020047').then(r => console.log(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
 
   const loadProducts = useCallback(() => {
@@ -240,7 +236,6 @@ export default function Products() {
   useEffect(() => {
     loadCategories();
     loadBinLocations();
-    loadPaginated()
 
     api.get('/currencies/').then(r => setCurrencies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });

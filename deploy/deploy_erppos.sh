@@ -23,13 +23,12 @@ step() { printf '\n\033[1;34m== %s\033[0m\n' "$*"; }
 
 step "1/5 git pull"
 OLD_HEAD=$(git rev-parse HEAD)
-git pull --ff-only origin main
+git pull origin main
 NEW_HEAD=$(git rev-parse HEAD)
-if [ "$OLD_HEAD" = "$NEW_HEAD" ] && [ "${FORCE:-0}" != "1" ]; then
-  echo "Yangi o'zgarish yo'q (majburan: FORCE=1 bash deploy/deploy_erppos.sh)"
-  exit 0
+if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
+  echo "Git: Yangi commitlar yo'q, lekin migratsiyalar va servis holati yangilanadi..."
 fi
-changed() { git diff --name-only "$OLD_HEAD" "$NEW_HEAD" | grep -qE "$1"; }
+changed() { [ "$OLD_HEAD" != "$NEW_HEAD" ] && git diff --name-only "$OLD_HEAD" "$NEW_HEAD" | grep -qE "$1"; }
 
 # shellcheck disable=SC1091
 source venv/bin/activate
