@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
@@ -6,7 +6,7 @@ import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
-import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight, ChevronDown, Binary, Trash2 } from 'lucide-react';
+import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight, ChevronDown, Binary, Trash2, Folder, FolderOpen, CornerDownRight, Plus } from 'lucide-react';
 
 // ── Extracted modules ──────────────────────────────────────────
 import {
@@ -93,6 +93,100 @@ export default function Products() {
   const [catError, setCatError] = useState('');
   const [selectedCatIds, setSelectedCatIds] = useState([]);
   const [bulkCatDeleting, setBulkCatDeleting] = useState(false);
+
+  /* category search, filter, collapse state */
+  const [catSearch, setCatSearch] = useState('');
+  const [catFilter, setCatFilter] = useState('all'); // 'all' | 'roots' | 'children'
+  const [collapsedCatIds, setCollapsedCatIds] = useState(new Set());
+
+  const toggleCollapseCat = (catId) => {
+    setCollapsedCatIds(prev => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      return next;
+    });
+  };
+
+  const expandAllCats = () => setCollapsedCatIds(new Set());
+  const collapseAllCats = () => {
+    const parentIds = categories
+      .filter(c => categories.some(ch => ch.parent_id === c.id))
+      .map(c => c.id);
+    setCollapsedCatIds(new Set(parentIds));
+  };
+
+  const openAddSubCat = (parentCat) => {
+    setCatForm({ ...emptyCategory, parent_id: parentCat.id });
+    setCatError('');
+    setCatModal('add');
+  };
+
+  // Build hierarchical category tree
+  const hierarchicalCategories = useMemo(() => {
+    const byId = new Map();
+    const childrenMap = new Map();
+
+    categories.forEach(c => {
+      byId.set(c.id, c);
+      if (c.parent_id) {
+        if (!childrenMap.has(c.parent_id)) childrenMap.set(c.parent_id, []);
+        childrenMap.get(c.parent_id).push(c);
+      }
+    });
+
+    childrenMap.forEach(list => {
+      list.sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name));
+    });
+
+    const roots = categories.filter(c => !c.parent_id || !byId.has(c.parent_id));
+    roots.sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name));
+
+    const result = [];
+    const traverse = (node, depth, parentName) => {
+      const children = childrenMap.get(node.id) || [];
+      result.push({
+        ...node,
+        _depth: depth,
+        _hasChildren: children.length > 0,
+        _childrenCount: children.length,
+        _parentName: parentName,
+      });
+
+      if (!collapsedCatIds.has(node.id)) {
+        children.forEach(child => {
+          traverse(child, depth + 1, node.name);
+        });
+      }
+    };
+
+    roots.forEach(root => traverse(root, 0, null));
+    return result;
+  }, [categories, collapsedCatIds]);
+
+  const displayedCategories = useMemo(() => {
+    let list = hierarchicalCategories;
+    if (catFilter === 'roots') {
+      list = list.filter(c => c._depth === 0);
+    } else if (catFilter === 'children') {
+      list = list.filter(c => c._depth > 0);
+    }
+    if (catSearch.trim()) {
+      const q = catSearch.toLowerCase().trim();
+      list = list.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c._parentName && c._parentName.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [hierarchicalCategories, catFilter, catSearch]);
+
+  const totalRootsCount = useMemo(() => {
+    const byId = new Map(categories.map(c => [c.id, c]));
+    return categories.filter(c => !c.parent_id || !byId.has(c.parent_id)).length;
+  }, [categories]);
+
+  const totalChildrenCount = categories.length - totalRootsCount;
 
   /* bin location state */
   const [blModal, setBlModal] = useState(null);
@@ -2290,7 +2384,9 @@ export default function Products() {
               </div>
               <div>
                 <h3 className="text-[15px] sm:text-base font-bold text-slate-800">{t('product.allCategoriesLabel')}</h3>
-                <p className="text-[11px] sm:text-xs text-slate-400 font-medium">{t('product.totalCategoriesCount', { count: categories.length })}</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
+                  Jami: {categories.length} ta kategoriya ({totalRootsCount} ta asosiy ota, {totalChildrenCount} ta quyi kategoriya)
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -2320,7 +2416,7 @@ export default function Products() {
                 onClick={syncMirmazaCategories}
                 disabled={syncingMirmaza}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
-                title="Mir-maza.uz dan joriy kategoriyalarni tartib bilan yuklash"
+                title="Mir-maza.uz dan joriy kategoriyalarni ota-bola bog'lanishi bilan yuklash"
               >
                 <Layers size={18} />
                 {syncingMirmaza ? t('product.syncing') : (t('product.syncMirmazaCategories') || 'Mir-maza kategoriyalarini yuklash')}
@@ -2335,11 +2431,70 @@ export default function Products() {
               </button>
               <button onClick={openAddCat}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98]">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                </svg>
+                <Plus size={18} />
                 {t('product.addCategory')}
               </button>
+            </div>
+          </div>
+
+          {/* Search, Filter & Tree Controls */}
+          <div className="p-4 bg-slate-50/60 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="relative w-full md:w-80">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={catSearch}
+                onChange={e => setCatSearch(e.target.value)}
+                placeholder="Kategoriyani qidirish..."
+                className="w-full pl-9 pr-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+              />
+              {catSearch && (
+                <button
+                  onClick={() => setCatSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="inline-flex p-1 bg-slate-200/60 rounded-xl text-xs font-semibold text-slate-600">
+                {[
+                  { key: 'all', label: `Barchasi (${categories.length})` },
+                  { key: 'roots', label: `Ota (${totalRootsCount})` },
+                  { key: 'children', label: `Quyi (${totalChildrenCount})` },
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => setCatFilter(f.key)}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      catFilter === f.key
+                        ? 'bg-white text-blue-600 shadow-xs'
+                        : 'hover:text-slate-800'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {totalChildrenCount > 0 && (
+                <div className="flex items-center gap-1.5 ml-auto md:ml-0">
+                  <button
+                    onClick={expandAllCats}
+                    className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-slate-200 rounded-lg transition-all"
+                  >
+                    Barchasini ochish
+                  </button>
+                  <button
+                    onClick={collapseAllCats}
+                    className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-slate-200 rounded-lg transition-all"
+                  >
+                    Yig'ish
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2362,10 +2517,22 @@ export default function Products() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {categories.map(c => {
+                {displayedCategories.map(c => {
                   const isChecked = selectedCatIds.includes(c.id);
+                  const isRoot = c._depth === 0;
+                  const isCollapsed = collapsedCatIds.has(c.id);
+
                   return (
-                  <tr key={c.id} className={`transition-colors group ${isChecked ? 'bg-blue-50/50' : 'hover:bg-blue-50/20'}`}>
+                  <tr
+                    key={c.id}
+                    className={`transition-colors group ${
+                      isChecked
+                        ? 'bg-blue-50/50'
+                        : isRoot
+                          ? 'bg-slate-50/30 hover:bg-blue-50/20'
+                          : 'hover:bg-blue-50/20'
+                    }`}
+                  >
                     <td className="px-4 py-4 text-center">
                       <input
                         type="checkbox"
@@ -2376,13 +2543,51 @@ export default function Products() {
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-400 font-mono">#{c.id}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
-                        <span className="text-[13px] font-semibold text-slate-800">{c.name}</span>
+                      <div
+                        className="flex items-center gap-2"
+                        style={{ paddingLeft: `${c._depth * 24}px` }}
+                      >
+                        {isRoot ? (
+                          <>
+                            {c._hasChildren ? (
+                              <button
+                                onClick={() => toggleCollapseCat(c.id)}
+                                className="p-1 -ml-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title={isCollapsed ? "Quyi kategoriyalarni ko'rsatish" : "Yig'ish"}
+                              >
+                                {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                              </button>
+                            ) : (
+                              <div className="w-5" />
+                            )}
+                            <FolderOpen size={17} className="text-blue-600 shrink-0" />
+                            <span className="text-[13px] sm:text-sm font-bold text-slate-800">{c.name}</span>
+                            {c._childrenCount > 0 && (
+                              <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {c._childrenCount} ta quyi
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-slate-300 font-mono text-xs select-none pl-1">└─</span>
+                            <CornerDownRight size={13} className="text-blue-400 shrink-0" />
+                            <span className="text-[13px] font-semibold text-slate-700">{c.name}</span>
+                          </>
+                        )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-[13px] text-slate-500">
-                      {c.parent_id ? catName(c.parent_id) : <span className="text-slate-300">—</span>}
+                    <td className="px-6 py-4 text-[13px]">
+                      {isRoot ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          Asosiy (Ota)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                          <Folder size={12} className="text-blue-500 shrink-0" />
+                          {c._parentName || catName(c.parent_id)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-[13px] text-slate-500">{c.sort_order}</td>
                     <td className="px-6 py-4 text-xs">
@@ -2398,6 +2603,13 @@ export default function Products() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openAddSubCat(c)}
+                          className="p-2 cursor-pointer text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Quyi kategoriya qo'shish"
+                        >
+                          <Plus size={16} />
+                        </button>
                         <button onClick={() => openEditCat(c)} className="p-2 cursor-pointer text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -2413,12 +2625,14 @@ export default function Products() {
                   </tr>
                   );
                 })}
-                {categories.length === 0 && (
+                {displayedCategories.length === 0 && (
                   <tr>
                     <td colSpan={9} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center gap-3 text-slate-400">
                         <Layers size={40} className="opacity-20" />
-                        <span className="text-sm font-medium">{t('product.noCategories')}</span>
+                        <span className="text-sm font-medium">
+                          {catSearch ? "Qidiruv bo'yicha kategoriya topilmadi" : t('product.noCategories')}
+                        </span>
                       </div>
                     </td>
                   </tr>

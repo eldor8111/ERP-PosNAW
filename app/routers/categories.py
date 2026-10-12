@@ -200,10 +200,27 @@ def sync_mirmaza_categories(
 
     count_created = 0
     count_updated = 0
+    mirmaza_id_to_cat = {}
+    mirmaza_id_to_parent_mid = {}
+    mirmaza_id_to_parent_name = {}
 
+    # 1-bosqich: Barcha kategoriyalarni yaratish / yangilash
     for c in cats:
-        name = c["name"].strip()
+        mid = c.get("id")
+        name = str(c.get("name") or "").strip()
+        if not name:
+            continue
         sort_order = c.get("sort_order", 0)
+        pmid = c.get("parent_id")
+        pname = c.get("parent_name")
+
+        if pmid not in (None, "", 0):
+            try:
+                mirmaza_id_to_parent_mid[mid] = int(pmid)
+            except (ValueError, TypeError):
+                pass
+        if pname:
+            mirmaza_id_to_parent_name[mid] = str(pname).strip()
 
         existing = db.query(Category).filter(
             Category.name == name,
@@ -217,20 +234,49 @@ def sync_mirmaza_categories(
             else:
                 count_updated += 1
             existing.sort_order = sort_order
+            cat_obj = existing
         else:
-            new_cat = Category(
+            cat_obj = Category(
                 name=name,
                 sort_order=sort_order,
                 company_id=current_user.company_id,
             )
-            db.add(new_cat)
+            db.add(cat_obj)
             count_created += 1
+
+        if mid is not None:
+            mirmaza_id_to_cat[mid] = cat_obj
+
+    db.flush()
+
+    # 2-bosqich: Ota-bola (parent_id) bog'lanishlarini to'g'ri o'rnatish
+    count_linked = 0
+    for mid, cat_obj in mirmaza_id_to_cat.items():
+        parent_cat = None
+        # 1. Mir-maza parent_id bo'yicha bog'lash
+        parent_mid = mirmaza_id_to_parent_mid.get(mid)
+        if parent_mid and parent_mid in mirmaza_id_to_cat:
+            parent_cat = mirmaza_id_to_cat[parent_mid]
+        
+        # 2. Agar parent_mid topilmasa, ota kategoriya nomi bo'yicha bog'lash
+        if not parent_cat and mid in mirmaza_id_to_parent_name:
+            pname = mirmaza_id_to_parent_name[mid]
+            parent_cat = db.query(Category).filter(
+                Category.name == pname,
+                Category.company_id == current_user.company_id,
+                Category.is_deleted == False,
+            ).first()
+
+        if parent_cat and parent_cat.id != cat_obj.id:
+            cat_obj.parent_id = parent_cat.id
+            count_linked += 1
 
     db.commit()
     return {
-        "message": f"Mir-maza kategoriyalari muvaffaqiyatli yuklandi: {count_created} ta yangi qo'shildi, {count_updated} ta yangilandi.",
+        "message": f"Mir-maza kategoriyalari yuklandi: {count_created} ta yangi/tiklandi, {count_updated} ta yangilandi, {count_linked} ta ota-bola bog'landi.",
         "created_count": count_created,
         "updated_count": count_updated,
+        "linked_count": count_linked,
         "total": len(cats),
     }
 
