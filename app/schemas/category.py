@@ -18,6 +18,11 @@ class CategoryUpdate(BaseModel):
     is_perishable: Optional[bool] = None
 
 
+class BulkDeleteCategoriesIn(BaseModel):
+    category_ids: Optional[List[int]] = None
+    delete_all: bool = False
+
+
 class CategoryOut(BaseModel):
     id: int
     name: str

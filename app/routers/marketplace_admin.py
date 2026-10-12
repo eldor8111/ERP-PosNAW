@@ -26,10 +26,10 @@ from app.services import marketplace_service as mp
 
 router = APIRouter(
     prefix="/marketplace-agents", tags=["marketplace-agents"],
-    dependencies=[Depends(require_feature("marketplace_agents"))],
 )
 
 _admin = require_roles(UserRole.admin, UserRole.director, UserRole.manager)
+_feature = require_feature("marketplace_agents")
 
 
 def _agent_or_404(db: Session, admin: User, agent_id: int) -> User:
@@ -98,24 +98,34 @@ def set_agent_status(agent_id: int, data: AgentStatusIn, db: Session = Depends(g
 def list_products(status: Optional[str] = None, agent_id: Optional[int] = None,
                   page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100),
                   db: Session = Depends(get_db), admin: User = Depends(_admin)):
-    query = db.query(MarketplaceProduct).filter(MarketplaceProduct.company_id == admin.company_id)
-    if status and status.strip():
-        try:
-            query = query.filter(MarketplaceProduct.status == MarketplaceProductStatus(status.strip()))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Noto'g'ri status")
-    if agent_id:
-        query = query.filter(MarketplaceProduct.agent_id == agent_id)
-    total = query.count()
-    rows = query.order_by(MarketplaceProduct.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
     try:
-        names = mp.category_name_map()
-    except Exception:
-        names = {}
-    agent_ids = {p.agent_id for p in rows if p.agent_id}
-    agent_names = {u.id: u.name for u in db.query(User).filter(User.id.in_(agent_ids)).all()} if agent_ids else {}
-    return {"total": total, "items": [{**_product_out(p, names), "agent_id": p.agent_id,
-                                       "agent_name": agent_names.get(p.agent_id)} for p in rows]}
+        query = db.query(MarketplaceProduct).filter(MarketplaceProduct.company_id == admin.company_id)
+        if status and status.strip():
+            try:
+                query = query.filter(MarketplaceProduct.status == MarketplaceProductStatus(status.strip()))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Noto'g'ri status")
+        if agent_id:
+            query = query.filter(MarketplaceProduct.agent_id == agent_id)
+        total = query.count()
+        rows = query.order_by(MarketplaceProduct.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        try:
+            names = mp.category_name_map()
+        except Exception:
+            names = {}
+        agent_ids = {p.agent_id for p in rows if p.agent_id}
+        agent_names = {u.id: u.name for u in db.query(User).filter(User.id.in_(agent_ids)).all()} if agent_ids else {}
+        return {"total": total, "items": [{**_product_out(p, names), "agent_id": p.agent_id,
+                                           "agent_name": agent_names.get(p.agent_id)} for p in rows]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("list_products error: %s", e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return {"total": 0, "items": []}
 
 
 @router.post("/products/{product_id}/approve")

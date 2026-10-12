@@ -33,6 +33,7 @@ from app.models import billing as billing_models  # noqa: F401 — ensure Alembi
 from app.models import bot_session  # noqa: F401 — ensure bot_sessions table exists
 from app.models import payme_transaction  # noqa: F401 — ensure payme_transactions table exists
 from app.models import order  # noqa: F401 — ensure orders table exists
+from app.models import marketplace  # noqa: F401 — ensure marketplace tables exist
 from dotenv import load_dotenv
 from app.services.scheduler import start_scheduler
 
@@ -251,6 +252,65 @@ def _run_auto_migrations(engine):
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_sale_price NUMERIC(16,4);",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_wholesale_price NUMERIC(16,4);",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS meta JSON;",
+        # ── Marketplace agentlari modullari ──
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS marketplace_agents_enabled BOOLEAN DEFAULT FALSE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMP;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT FALSE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(18, 2) DEFAULT 0;",
+        """CREATE TABLE IF NOT EXISTS marketplace_agent_categories (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            category_id INTEGER NOT NULL,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_marketplace_agent_categories_user ON marketplace_agent_categories(user_id);",
+        "CREATE INDEX IF NOT EXISTS ix_marketplace_agent_categories_cat ON marketplace_agent_categories(category_id);",
+        """CREATE TABLE IF NOT EXISTS marketplace_products (
+            id SERIAL PRIMARY KEY,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            price NUMERIC(18, 2) NOT NULL DEFAULT 0,
+            qty NUMERIC(18, 2) NOT NULL DEFAULT 0,
+            category_id INTEGER NOT NULL,
+            barcode VARCHAR(100),
+            sku VARCHAR(100),
+            images JSON DEFAULT '[]'::json,
+            status VARCHAR(50) DEFAULT 'draft',
+            reject_reason TEXT,
+            purchase_order_id INTEGER,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_mp_prod_company ON marketplace_products(company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_mp_prod_agent ON marketplace_products(agent_id);",
+        "CREATE INDEX IF NOT EXISTS ix_mp_prod_cat ON marketplace_products(category_id);",
+        "CREATE INDEX IF NOT EXISTS ix_mp_prod_status ON marketplace_products(status);",
+        """CREATE TABLE IF NOT EXISTS marketplace_agent_transactions (
+            id SERIAL PRIMARY KEY,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            order_id INTEGER,
+            transaction_type VARCHAR(50) NOT NULL,
+            amount NUMERIC(18, 2) NOT NULL,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_mp_txn_agent ON marketplace_agent_transactions(agent_id);",
+        """CREATE TABLE IF NOT EXISTS marketplace_agent_notifications (
+            id SERIAL PRIMARY KEY,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            title VARCHAR(255) NOT NULL,
+            body VARCHAR(1000) NOT NULL,
+            notif_type VARCHAR(50) DEFAULT 'general',
+            data JSON DEFAULT '{}'::json,
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_mp_notif_agent ON marketplace_agent_notifications(agent_id);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

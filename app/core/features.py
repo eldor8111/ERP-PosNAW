@@ -19,11 +19,20 @@ FEATURES = {
 
 
 def company_has_feature(db: Session, company_id, feature: str) -> bool:
+    if feature not in FEATURES:
+        return False
     column, _ = FEATURES[feature]
     if not company_id:
         return False
-    row = db.query(getattr(Company, column)).filter(Company.id == company_id).first()
-    return bool(row and row[0])
+    try:
+        row = db.query(getattr(Company, column)).filter(Company.id == company_id).first()
+        return bool(row and row[0])
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
 
 
 def require_feature(feature: str):

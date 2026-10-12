@@ -7,7 +7,7 @@ from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.category import Category
 from app.models.user import User, UserRole
-from app.schemas.category import CategoryCreate, CategoryOut, CategoryUpdate
+from app.schemas.category import BulkDeleteCategoriesIn, CategoryCreate, CategoryOut, CategoryUpdate
 from app.services import marketplace_service as mp
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
@@ -113,6 +113,39 @@ def delete_category(
     
     cat.is_deleted = True
     db.commit()
+
+
+@router.post("/bulk-delete")
+def bulk_delete_categories(
+    data: BulkDeleteCategoriesIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+):
+    query = db.query(Category).filter(
+        Category.company_id == current_user.company_id,
+        Category.is_deleted == False,
+    )
+    if not data.delete_all:
+        if not data.category_ids:
+            return {"message": "Hech qanday kategoriya tanlanmagan", "count": 0}
+        query = query.filter(Category.id.in_(data.category_ids))
+
+    count = query.update({"is_deleted": True}, synchronize_session=False)
+    db.commit()
+    return {"message": f"{count} ta kategoriya o'chirildi", "count": count}
+
+
+@router.delete("/all-categories")
+def delete_all_categories(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*WRITE_ROLES)),
+):
+    count = db.query(Category).filter(
+        Category.company_id == current_user.company_id,
+        Category.is_deleted == False,
+    ).update({"is_deleted": True}, synchronize_session=False)
+    db.commit()
+    return {"message": f"Barcha {count} ta kategoriya o'chirildi", "count": count}
 
 @router.post("/seed-clothing")
 def seed_clothing_categories(

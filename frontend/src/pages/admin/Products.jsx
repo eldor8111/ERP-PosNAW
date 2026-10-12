@@ -6,7 +6,7 @@ import BarcodePrintModal from '../../components/BarcodeTemplates';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
-import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight, ChevronDown, Binary } from 'lucide-react';
+import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight, ChevronDown, Binary, Trash2 } from 'lucide-react';
 
 // ── Extracted modules ──────────────────────────────────────────
 import {
@@ -91,6 +91,8 @@ export default function Products() {
   const [catForm, setCatForm] = useState(emptyCategory);
   const [catSaving, setCatSaving] = useState(false);
   const [catError, setCatError] = useState('');
+  const [selectedCatIds, setSelectedCatIds] = useState([]);
+  const [bulkCatDeleting, setBulkCatDeleting] = useState(false);
 
   /* bin location state */
   const [blModal, setBlModal] = useState(null);
@@ -161,7 +163,7 @@ export default function Products() {
     try {
       setMpLoading(true);
       const url = mpStatus ? `/marketplace-agents/products?status=${mpStatus}` : '/marketplace-agents/products';
-      const { data } = await api.get(url);
+      const { data } = await api.get(url, { _suppressToast: true });
       setMarketplaceProducts(data.items || []);
     } catch {
       setMarketplaceProducts([]);
@@ -573,12 +575,58 @@ export default function Products() {
   };
 
   const handleDeleteCat = async (id) => {
-    if (!confirm(t('confirm.delete'))) return;
+    if (!confirm(t('confirm.delete') || "Kategoriyani o'chirishni tasdiqlaysizmi?")) return;
     try {
       await api.delete(`/categories/${id}`);
+      toast.success("Kategoriya o'chirildi");
+      setSelectedCatIds(prev => prev.filter(x => x !== id));
       loadCategories();
     } catch (err) {
-      alert(err.response?.data?.detail || t('common.error'));
+      toast.error(err.response?.data?.detail || t('common.error'));
+    }
+  };
+
+  const handleToggleCat = (id) => {
+    setSelectedCatIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleToggleAllCats = () => {
+    if (categories.length > 0 && selectedCatIds.length === categories.length) {
+      setSelectedCatIds([]);
+    } else {
+      setSelectedCatIds(categories.map(c => c.id));
+    }
+  };
+
+  const handleBulkDeleteCats = async () => {
+    if (selectedCatIds.length === 0) return;
+    if (!confirm(`Haqiqatan ham tanlangan ${selectedCatIds.length} ta kategoriyani o'chirmoqchimisiz?`)) return;
+    setBulkCatDeleting(true);
+    try {
+      const { data } = await api.post('/categories/bulk-delete', { category_ids: selectedCatIds });
+      toast.success(data?.message || `${selectedCatIds.length} ta kategoriya o'chirildi`);
+      setSelectedCatIds([]);
+      loadCategories();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('common.error'));
+    } finally {
+      setBulkCatDeleting(false);
+    }
+  };
+
+  const handleDeleteAllCats = async () => {
+    if (categories.length === 0) return;
+    if (!confirm(`DIQQAT: Barcha ${categories.length} ta kategoriyani o'chirishni tasdiqlaysizmi?`)) return;
+    setBulkCatDeleting(true);
+    try {
+      const { data } = await api.post('/categories/bulk-delete', { delete_all: true });
+      toast.success(data?.message || "Barcha kategoriyalar o'chirildi");
+      setSelectedCatIds([]);
+      loadCategories();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('common.error'));
+    } finally {
+      setBulkCatDeleting(false);
     }
   };
 
@@ -2245,7 +2293,29 @@ export default function Products() {
                 <p className="text-[11px] sm:text-xs text-slate-400 font-medium">{t('product.totalCategoriesCount', { count: categories.length })}</p>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {selectedCatIds.length > 0 && (
+                <button
+                  onClick={handleBulkDeleteCats}
+                  disabled={bulkCatDeleting}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                  title="Tanlangan kategoriyalarni o'chirish"
+                >
+                  <Trash2 size={16} />
+                  Tanlanganlarni o'chirish ({selectedCatIds.length})
+                </button>
+              )}
+              {categories.length > 0 && (
+                <button
+                  onClick={handleDeleteAllCats}
+                  disabled={bulkCatDeleting}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                  title="Barcha kategoriyalarni o'chirish"
+                >
+                  <Trash2 size={16} />
+                  Barchasini o'chirish ({categories.length})
+                </button>
+              )}
               <button
                 onClick={syncMirmazaCategories}
                 disabled={syncingMirmaza}
@@ -2277,14 +2347,33 @@ export default function Products() {
             <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="px-4 py-4 w-12 text-center">
+                    <input
+                      type="checkbox"
+                      checked={categories.length > 0 && selectedCatIds.length === categories.length}
+                      onChange={handleToggleAllCats}
+                      className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                      title="Barchasini tanlash"
+                    />
+                  </th>
                   {['#', t('common.name'), t('product.parentCategory'), t('product.sortOrder'), 'FEFO', t('common.created'), t('product.productsCount'), ''].map(h => (
                     <th key={h} className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {categories.map(c => (
-                  <tr key={c.id} className="hover:bg-blue-50/20 transition-colors group">
+                {categories.map(c => {
+                  const isChecked = selectedCatIds.includes(c.id);
+                  return (
+                  <tr key={c.id} className={`transition-colors group ${isChecked ? 'bg-blue-50/50' : 'hover:bg-blue-50/20'}`}>
+                    <td className="px-4 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleCat(c.id)}
+                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-6 py-4 text-xs text-slate-400 font-mono">#{c.id}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -2322,10 +2411,11 @@ export default function Products() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {categories.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-20 text-center">
+                    <td colSpan={9} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center gap-3 text-slate-400">
                         <Layers size={40} className="opacity-20" />
                         <span className="text-sm font-medium">{t('product.noCategories')}</span>
