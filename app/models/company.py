@@ -64,6 +64,16 @@ class Company(Base):
     # qoldiq bloklanadi.
     pos_allow_negative_stock = Column(Boolean, default=True)
 
+    # ── Mahsulot qoldig‘iga ta’sir qilish bosqichi ──
+    # 'order_confirmed' (standart) — buyurtma/sotuv tasdiqlanganda
+    # 'loaded' — tovarlar mashinaga yuklanganda (omborchi load-confirm)
+    # 'delivered' — kuryer tovarlarni do'konga yetkazib topshirganda
+    stock_deduct_stage = Column(String(30), nullable=False, default="order_confirmed", server_default="order_confirmed")
+
+    # ── Agent va Kuryer geo-radius sozlamalari ──
+    agent_order_geo_radius_check = Column(Boolean, nullable=False, default=True, server_default="true")
+    default_delivery_radius_m = Column(Integer, nullable=False, default=250, server_default="250")
+
     # bot = relationship("CompanyBot", back_populates="company", uselist=False)
     # ── Billing ──────────────────────────────────────────────
     tariff_id = Column(Integer, ForeignKey("tariffs.id"), nullable=True)

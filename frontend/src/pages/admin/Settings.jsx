@@ -2334,6 +2334,12 @@ function GeneralTab({ companyId }) {
   const [savingFee, setSavingFee] = useState(false);
   const [autoSale, setAutoSale] = useState(false);
   const [savingAutoSale, setSavingAutoSale] = useState(false);
+  const [stockDeductStage, setStockDeductStage] = useState('order_confirmed');
+  const [savingStage, setSavingStage] = useState(false);
+  const [agentGeoCheck, setAgentGeoCheck] = useState(true);
+  const [savingGeoCheck, setSavingGeoCheck] = useState(false);
+  const [deliveryRadius, setDeliveryRadius] = useState('250');
+  const [savingRadius, setSavingRadius] = useState(false);
 
   useEffect(() => {
     api.get('/companies').then(r => {
@@ -2341,9 +2347,54 @@ function GeneralTab({ companyId }) {
         setPosAllowNegative(r.data[0].pos_allow_negative_stock !== false);
         setDeliveryFee(String(r.data[0].delivery_fee ?? 0));
         setAutoSale(r.data[0].orders_auto_create_sale === true);
+        setStockDeductStage(r.data[0].stock_deduct_stage || 'order_confirmed');
+        setAgentGeoCheck(r.data[0].agent_order_geo_radius_check !== false);
+        setDeliveryRadius(String(r.data[0].default_delivery_radius_m ?? 250));
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
   }, []);
+
+  const changeStockDeductStage = async (newStage) => {
+    if (!companyId) return;
+    setStockDeductStage(newStage);
+    setSavingStage(true);
+    try {
+      await api.put(`/companies/${companyId}`, { stock_deduct_stage: newStage });
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingStage(false);
+    }
+  };
+
+  const toggleAgentGeoCheck = async (checked) => {
+    if (!companyId) return;
+    setAgentGeoCheck(checked);
+    setSavingGeoCheck(true);
+    try {
+      await api.put(`/companies/${companyId}`, { agent_order_geo_radius_check: checked });
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      setAgentGeoCheck(!checked);
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingGeoCheck(false);
+    }
+  };
+
+  const saveDeliveryRadius = async () => {
+    if (!companyId) return;
+    setSavingRadius(true);
+    try {
+      await api.put(`/companies/${companyId}`, { default_delivery_radius_m: Number(deliveryRadius) || 250 });
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingRadius(false);
+    }
+  };
 
   const toggleAutoSale = async (checked) => {
     if (!companyId) return;
@@ -2391,6 +2442,106 @@ function GeneralTab({ companyId }) {
   return (
     <div className="p-6 space-y-4">
       <ModulesCard companyId={companyId} />
+
+      {/* Hippo ERP — Mahsulot qoldig'iga ta'sir qilish bosqichi */}
+      <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">📦</span>
+          <h3 className="text-sm font-bold text-slate-800">{t('settings.distribution.stockDeductTitle') || "Mahsulot qoldig‘iga ta’sir qilish bosqichi"}</h3>
+        </div>
+        <p className="text-[11px] text-slate-400 mb-4 leading-snug">
+          {t('settings.distribution.stockDeductDesc') || "Sotuv va buyurtmalarda ombordagi mahsulot qoldig‘i aynan qaysi bosqichda kamayishini belgilang."}
+        </p>
+        <div className="space-y-2.5">
+          {[
+            {
+              id: 'order_confirmed',
+              title: t('settings.distribution.stageOrderConfirmed') || "1️⃣ Operatsiya tasdiqlanganida (Darhol)",
+              desc: t('settings.distribution.stageOrderConfirmedDesc') || "Operatsiya yaratilishi yoki tasdiqlanishi bilanoq ombordan qoldiq kamayadi."
+            },
+            {
+              id: 'loaded',
+              title: t('settings.distribution.stageLoaded') || "2️⃣ Tovarlar yuklanganda / yo‘lga chiqqanda",
+              desc: t('settings.distribution.stageLoadedDesc') || "Omborchi tovarni kuryer mashinasiga yuklaganda ombordan chiqadi."
+            },
+            {
+              id: 'delivered',
+              title: t('settings.distribution.stageDelivered') || "3️⃣ Yetkazib berilganida (Mijozga topshirilganda)",
+              desc: t('settings.distribution.stageDeliveredDesc') || "Mahsulot mijozga yetib borgach, kuryer topshirgandagina ombordan chiqadi."
+            }
+          ].map(opt => (
+            <label
+              key={opt.id}
+              onClick={() => changeStockDeductStage(opt.id)}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                stockDeductStage === opt.id
+                  ? 'border-blue-600 bg-blue-50/40 text-blue-900 shadow-sm'
+                  : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 text-slate-700'
+              }`}
+            >
+              <input
+                type="radio"
+                name="stockDeductStage"
+                checked={stockDeductStage === opt.id}
+                onChange={() => changeStockDeductStage(opt.id)}
+                disabled={savingStage}
+                className="mt-0.5 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="min-w-0">
+                <div className="text-xs font-bold">{opt.title}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Agent va Kuryer Geo-nazorati */}
+      <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">📍</span>
+          <h3 className="text-sm font-bold text-slate-800">{t('settings.distribution.geoControlTitle') || "Agent va Kuryer Geo-joylashuv nazorati"}</h3>
+        </div>
+        <div className="flex items-start justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-700">{t('settings.distribution.agentGeoCheck') || "Agent radius cheklovi (Do'kondan tashqarida zakaz olmaslik)"}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+              {t('settings.distribution.agentGeoCheckDesc') || "Agent do'kon koordinatasidan uzoqda bo'lsa buyurtma berish bloklanadi."}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={savingGeoCheck}
+            onClick={() => toggleAgentGeoCheck(!agentGeoCheck)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${agentGeoCheck ? 'bg-blue-600' : 'bg-slate-200'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${agentGeoCheck ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <div className="flex items-end gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700 mb-1">{t('settings.distribution.courierRadius') || "Kuryer 'Topshirdim' radiusi (metr)"}</p>
+            <p className="text-[11px] text-slate-400 mb-2 leading-snug">
+              {t('settings.distribution.courierRadiusDesc') || "Kuryer do'kondan ko'pi bilan shu masofada bo'lganda topshirishni tasdiqlay oladi."}
+            </p>
+            <input
+              type="number" min="50" max="2000"
+              value={deliveryRadius}
+              onChange={e => setDeliveryRadius(e.target.value)}
+              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm focus:border-blue-500 outline-none"
+              placeholder="250"
+            />
+          </div>
+          <button
+            onClick={saveDeliveryRadius}
+            disabled={savingRadius}
+            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-xl transition-colors"
+          >
+            {savingRadius ? t('common.saving') : t('common.save')}
+          </button>
+        </div>
+      </div>
+
       <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
         <h3 className="text-sm font-bold text-slate-800 mb-4">{t('settings.general.posSettings')}</h3>
         <div className="flex items-start justify-between gap-3">

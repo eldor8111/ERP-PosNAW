@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
-from pydantic import BaseModel  # type: ignore
+from pydantic import BaseModel, field_validator  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 
 from app.core.dependencies import get_current_user, get_current_user_allow_expired  # type: ignore

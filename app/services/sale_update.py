@@ -502,18 +502,28 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                         flag_modified(customer, "debt_balances")
 
         if old_status == SaleStatus.pending and sale.status != SaleStatus.pending:
-            from app.utils.product_conversion import deduct_target_for_sale
-            for item in sale.items:
-                deduct_id, deduct_qty, conv, src = deduct_target_for_sale(db, item.product_id, item.quantity)
-                reason = f"Sotuv tasdiqlandi (sale #{sale.id})"
-                if conv and src:
-                    reason += f" ({item.product.name} → {src.name} x{conv.ratio})"
-                deduct_stock(
-                    db=db, product_id=deduct_id, quantity=deduct_qty,
-                    user_id=current_user.id, reason=reason,  # type: ignore
-                    reference_type="sale", reference_id=sale.id,  # type: ignore
-                    warehouse_id=sale.warehouse_id, allow_negative=allow_negative_stock,  # type: ignore
-                )
+            from app.models.company import Company
+            comp = db.query(Company).filter(Company.id == sale.company_id).first()
+            stage = getattr(comp, "stock_deduct_stage", "order_confirmed") or "order_confirmed"
+            # Agar yetkazma bo'lsa va bosqich 'loaded' yoki 'delivered' bo'lsa, ombordan keyin chiqadi
+            has_delivery = hasattr(sale, "delivery") and sale.delivery is not None
+            should_deduct_now = not (has_delivery and stage in ("loaded", "delivered"))
+
+            if should_deduct_now:
+                from app.utils.product_conversion import deduct_target_for_sale
+                for item in sale.items:
+                    deduct_id, deduct_qty, conv, src = deduct_target_for_sale(db, item.product_id, item.quantity)
+                    reason = f"Sotuv tasdiqlandi (sale #{sale.id})"
+                    if conv and src:
+                        reason += f" ({item.product.name} → {src.name} x{conv.ratio})"
+                    deduct_stock(
+                        db=db, product_id=deduct_id, quantity=deduct_qty,
+                        user_id=current_user.id, reason=reason,  # type: ignore
+                        reference_type="sale", reference_id=sale.id,  # type: ignore
+                        warehouse_id=sale.warehouse_id, allow_negative=allow_negative_stock,  # type: ignore
+                    )
+                if has_delivery:
+                    sale.delivery.stock_deducted = True
         elif old_status != SaleStatus.pending and sale.status == SaleStatus.pending:
             from app.models.inventory import StockMovement, StockLevel
             for movement in db.query(StockMovement).filter(

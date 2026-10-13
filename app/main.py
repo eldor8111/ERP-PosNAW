@@ -311,6 +311,20 @@ def _run_auto_migrations(engine):
             created_at TIMESTAMP DEFAULT NOW()
         );""",
         "CREATE INDEX IF NOT EXISTS ix_mp_notif_agent ON marketplace_agent_notifications(agent_id);",
+        # ── Dala xodimlari reja va tashriflar ──
+        "ALTER TABLE agent_visits ADD COLUMN IF NOT EXISTS planned_date DATE;",
+        "ALTER TABLE agent_visits ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'visited';",
+        "ALTER TABLE agent_visits ALTER COLUMN check_in_at DROP NOT NULL;",
+        "CREATE INDEX IF NOT EXISTS ix_agent_visits_planned_date ON agent_visits(planned_date);",
+        "CREATE INDEX IF NOT EXISTS ix_agent_visits_status ON agent_visits(status);",
+        # ── Hippo ERP Distribyutsiya va Yetkazma boshqaruvi ──
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS stock_deduct_stage VARCHAR(30) DEFAULT 'order_confirmed';",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS agent_order_geo_radius_check BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS default_delivery_radius_m INTEGER DEFAULT 250;",
+        "ALTER TABLE sale_deliveries ADD COLUMN IF NOT EXISTS loaded_at TIMESTAMP;",
+        "ALTER TABLE sale_deliveries ADD COLUMN IF NOT EXISTS loaded_by INTEGER;",
+        "ALTER TABLE sale_deliveries ADD COLUMN IF NOT EXISTS delivery_radius_m INTEGER;",
+        "ALTER TABLE sale_deliveries ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN DEFAULT FALSE;",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:

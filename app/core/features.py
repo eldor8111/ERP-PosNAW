@@ -35,6 +35,14 @@ def company_has_feature(db: Session, company_id, feature: str) -> bool:
         return False
 
 
+def get_active_features(db: Session, company_id) -> list[str]:
+    active = []
+    for feat in FEATURES:
+        if company_has_feature(db, company_id, feat):
+            active.append(feat)
+    return active
+
+
 def require_feature(feature: str):
     _, title = FEATURES[feature]
 

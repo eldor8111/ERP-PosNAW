@@ -252,6 +252,8 @@ class AgentOrderIn(BaseModel):
     visit_id: Optional[int] = None
     delivery: bool = True
     planned_date: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 def _order_out(s: Sale) -> dict:
@@ -271,6 +273,38 @@ def create_order(data: AgentOrderIn, db: Session = Depends(get_db), current_user
     if prev is not None:
         return prev
     c = _my_customer(db, current_user, data.customer_id)
+
+    # ── Geo-radius tekshiruvi: agent do'kon radiusida bo'lishi shart ──
+    from app.models.company import Company
+    comp = db.query(Company).filter(Company.id == current_user.company_id).first()
+    geo_check_enabled = getattr(comp, "agent_order_geo_radius_check", True) if comp else True
+
+    radius = c.visit_radius_m or DEFAULT_RADIUS_M
+    if geo_check_enabled:
+        if data.visit_id:
+            v = db.query(AgentVisit).filter(AgentVisit.id == data.visit_id, AgentVisit.agent_id == current_user.id).first()
+            if v and v.within_radius is False:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Siz do'kon radiusidan tashqaridasiz ({v.distance_m} m, ruxsat: {radius} m). Buyurtma faqat do'kon yaqinida qabul qilinadi."
+                )
+        if c.lat is not None and c.lng is not None:
+            if data.lat is not None and data.lng is not None:
+                dist = distance_m(data.lat, data.lng, c.lat, c.lng)
+                if dist is not None and dist > radius:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Siz do'kondan {dist} metr uzoqdasiz (ruxsat: {radius} m). Buyurtma faqat do'kon yaqinida qabul qilinadi."
+                    )
+            elif not data.visit_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Buyurtma berish uchun GPS joylashuvingiz kerak. Do'kon yaqinida bo'lishingiz shart."
+                )
+    # Birinchi buyurtmada do'kon nuqtasi hali belgilanmagan bo'lsa — agent koordinatasini saqlash
+    if c.lat is None and data.lat is not None:
+        c.lat, c.lng, c.location_source = round(data.lat, 7), round(data.lng, 7), "agent"
+
     from app.schemas.sale import SaleCreate
     from app.services.sale_create import create_pending_sale
 

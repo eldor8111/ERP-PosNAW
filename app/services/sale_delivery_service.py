@@ -81,6 +81,8 @@ def set_status(d: SaleDelivery, status: SaleDeliveryStatus, courier_id: Optional
     if status == SaleDeliveryStatus.assigned:
         d.courier_id = courier_id
         d.assigned_at = now
+    elif status == SaleDeliveryStatus.loaded:
+        d.loaded_at = now
     elif status == SaleDeliveryStatus.on_way:
         d.on_way_at = now
     elif status == SaleDeliveryStatus.delivered:
@@ -93,6 +95,7 @@ def release(d: SaleDelivery) -> None:
         d.status = SaleDeliveryStatus.pending
         d.courier_id = None
         d.assigned_at = None
+        d.loaded_at = None
         d.on_way_at = None
 
 
@@ -135,3 +138,91 @@ def record_fee_once(db: Session, d: SaleDelivery, user) -> None:
     from app.services.order_to_sale import record_delivery_fee
     record_delivery_fee(db, sale, fee, payment_type, user)
     d.fee_recorded = 1
+
+
+def deduct_delivery_stock(db: Session, d: SaleDelivery, user_id: Optional[int] = None) -> None:
+    """Ombordan tovarlarni chiqarish (StockLevel va StockMovement). Idempotent: bir marta ishlaydi."""
+    if d.stock_deducted:
+        return
+    sale = db.query(Sale).filter(Sale.id == d.sale_id).first()
+    if not sale:
+        return
+    from app.services.inventory_service import deduct_stock
+    from app.utils.product_conversion import deduct_target_for_sale
+    from app.models.company import Company
+    company = db.query(Company).filter(Company.id == d.company_id).first()
+    allow_negative = getattr(company, "pos_allow_negative_stock", True) if company else True
+    u_id = user_id or d.loaded_by or sale.user_id or 1
+
+    for item in sale.items:
+        deduct_id, deduct_qty, conv, src = deduct_target_for_sale(db, item.product_id, item.quantity)
+        reason = f"Yetkazma orqali chiqim (sotuv #{sale.id}, yetkazma #{d.id})"
+        if conv and src:
+            reason += f" ({item.product.name} → {src.name} x{conv.ratio})"
+        deduct_stock(
+            db=db,
+            product_id=deduct_id,
+            quantity=deduct_qty,
+            user_id=u_id,
+            reason=reason,
+            reference_type="sale_delivery",
+            reference_id=d.id,
+            warehouse_id=item.warehouse_id or sale.warehouse_id,
+            allow_negative=allow_negative,
+        )
+    d.stock_deducted = True
+
+
+def restore_delivery_stock(db: Session, d: SaleDelivery, user_id: Optional[int] = None) -> None:
+    """Bekor qilingan yetkazma tovarlarini omborga qaytarish."""
+    if not d.stock_deducted:
+        return
+    sale = db.query(Sale).filter(Sale.id == d.sale_id).first()
+    if not sale:
+        return
+    from app.services.inventory_service import receive_stock
+    from app.utils.product_conversion import deduct_target_for_sale
+    u_id = user_id or sale.user_id or 1
+
+    for item in sale.items:
+        deduct_id, deduct_qty, conv, src = deduct_target_for_sale(db, item.product_id, item.quantity)
+        reason = f"Bekor qilingan yetkazma tovari qaytdi (sotuv #{sale.id}, yetkazma #{d.id})"
+        receive_stock(
+            db=db,
+            product_id=deduct_id,
+            quantity=deduct_qty,
+            user_id=u_id,
+            reason=reason,
+            reference_type="sale_delivery_cancel",
+            reference_id=d.id,
+            warehouse_id=item.warehouse_id or sale.warehouse_id,
+            company_id=d.company_id,
+        )
+    d.stock_deducted = False
+
+
+def handle_delivery_stage_stock(db: Session, d: SaleDelivery, new_status: SaleDeliveryStatus, user_id: Optional[int] = None) -> None:
+    """Hippo ERP qoldiq boshqaruvi:
+    Kompaniya sozlamasiga ko'ra (stock_deduct_stage):
+    - 'order_confirmed': sotuv tasdiqlanganda chiqadi. Bekor bo'lsa qaytariladi.
+    - 'loaded': omborchi mashinaga yuklaganda chiqadi. Bekor bo'lsa qaytariladi.
+    - 'delivered': kuryer mijozga topshirganda chiqadi. Bekor bo'lsa qaytariladi.
+    """
+    from app.models.company import Company
+    company = db.query(Company).filter(Company.id == d.company_id).first()
+    stage = getattr(company, "stock_deduct_stage", "order_confirmed") or "order_confirmed"
+
+    if stage == "loaded":
+        if new_status in (SaleDeliveryStatus.loaded, SaleDeliveryStatus.on_way):
+            deduct_delivery_stock(db, d, user_id)
+        elif new_status == SaleDeliveryStatus.cancelled:
+            restore_delivery_stock(db, d, user_id)
+    elif stage == "delivered":
+        if new_status == SaleDeliveryStatus.delivered:
+            deduct_delivery_stock(db, d, user_id)
+        elif new_status == SaleDeliveryStatus.cancelled:
+            restore_delivery_stock(db, d, user_id)
+    elif stage == "order_confirmed":
+        if new_status == SaleDeliveryStatus.cancelled:
+            restore_delivery_stock(db, d, user_id)
+

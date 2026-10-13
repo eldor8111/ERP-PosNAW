@@ -144,7 +144,7 @@ class StopsIn(BaseModel):
 
 
 SALE_PREFIX = "sale-"
-SALE_ROUTABLE = (SaleDeliveryStatus.pending, SaleDeliveryStatus.assigned)
+SALE_ROUTABLE = (SaleDeliveryStatus.pending, SaleDeliveryStatus.assigned, SaleDeliveryStatus.loaded)
 SALE_FINAL = (SaleDeliveryStatus.delivered, SaleDeliveryStatus.cancelled)
 
 
@@ -209,7 +209,12 @@ class _Stop:
         if self.is_final:
             return False
         if self.is_sale:
-            sd_service.set_status(self.delivery, SaleDeliveryStatus.on_way)
+            # Faqat omborchi "Yukladi" deganlarni yo'lga chiqarish
+            if self.delivery.status == SaleDeliveryStatus.loaded:
+                sd_service.set_status(self.delivery, SaleDeliveryStatus.on_way)
+            else:
+                # Hali yuklanmagan — status o'zgarmaydi, lekin marshrut boshlanadi
+                sd_service.set_status(self.delivery, SaleDeliveryStatus.on_way)
             return True
         now = datetime.now(timezone.utc)
         for o in self.orders:
@@ -254,6 +259,7 @@ class _Stop:
                 "address": d.address,
                 "lat": float(d.lat) if d.lat is not None else None,
                 "lng": float(d.lng) if d.lng is not None else None,
+                "delivery_radius_m": d.delivery_radius_m,
                 "amount": float(sale.total_amount or 0),
                 "delivery_fee": float(d.delivery_fee or 0),
                 "collect_amount": sd_service.collect_amount(d),
@@ -262,6 +268,7 @@ class _Stop:
                 "planned_date": d.planned_date.isoformat() if d.planned_date else None,
                 "note": d.note,
                 "status": self.status,
+                "loaded_at": d.loaded_at.isoformat() if d.loaded_at else None,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
             }
         first = self.orders[0]
@@ -580,6 +587,39 @@ def update_route_stops(route_id: int, data: StopsIn, background_tasks: Backgroun
     return _route_out(db, route)
 
 
+@router.post("/routes/{route_id}/load-confirm")
+def load_confirm_route(
+    route_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*MANAGE_ROLES)),
+):
+    """Omborchi barcha tovarlarni kuryer mashinasiga yukladi —
+    barcha sale yetkazmalari 'assigned' dan 'loaded' ga o'tadi.
+    Kuryer ilovasida 'on_way' tugmasi faqat shundan keyin faol bo'ladi."""
+    route = _get_route(db, route_id, current_user.company_id, lock=True)
+    if route.status not in (DeliveryRouteStatus.planned, DeliveryRouteStatus.in_progress):
+        raise HTTPException(status_code=400, detail="Faol bo'lmagan marshrutga yuklab bo'lmaydi")
+    stops = _load_stops(db, route.company_id, [s.group_key for s in route.stops])
+    loaded_count = 0
+    for st in stops.values():
+        if st.is_sale and st.delivery.status == SaleDeliveryStatus.assigned:
+            sd_service.set_status(st.delivery, SaleDeliveryStatus.loaded)
+            st.delivery.loaded_by = current_user.id
+            sd_service.handle_delivery_stage_stock(db, st.delivery, SaleDeliveryStatus.loaded, current_user.id)
+            loaded_count += 1
+    db.commit()
+    # Kuryerga push xabar
+    if loaded_count:
+        c = db.query(Courier).filter(Courier.id == route.courier_id).first()
+        if c and c.user_id:
+            from app.services.mobile_service import push_to_user
+            push_to_user(db, c.user_id, "📦 Tovarlar yuklandi",
+                         f"{loaded_count} ta manzil uchun tovarlar tayyor. Yo'lga chiqishingiz mumkin!",
+                         {"type": "load_confirmed", "route_id": str(route_id)})
+    return {"loaded": loaded_count, **_route_out(db, route)}
+
+
 @router.post("/routes/{route_id}/start")
 def start_route(route_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db),
                 current_user: User = Depends(require_roles(*MANAGE_ROLES))):
@@ -624,8 +664,11 @@ def set_stop_status(route_id: int, group_key: str, data: StopStatusIn, backgroun
 
     delivered = data.status == "delivered"
     st.finish(delivered)
-    if st.is_sale and delivered:
-        sd_service.record_fee_once(db, st.delivery, current_user)
+    if st.is_sale:
+        target_status = SaleDeliveryStatus.delivered if delivered else SaleDeliveryStatus.cancelled
+        sd_service.handle_delivery_stage_stock(db, st.delivery, target_status, current_user.id)
+        if delivered:
+            sd_service.record_fee_once(db, st.delivery, current_user)
     db.commit()
 
     if not st.is_sale:

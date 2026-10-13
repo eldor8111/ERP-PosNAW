@@ -5,6 +5,7 @@ import { useLang } from '../../context/LangContext';
 import { enqueue } from '../offline/outbox';
 import { Btn } from '../ui';
 import { fmtMoney } from '../format';
+import { getPosition, distanceM, fmtDistance } from '../lib/geo';
 import { loadCatalog, priceFor } from './data';
 
 /** Mijoz uchun buyurtma: katalog (oflayn keshdan ham), miqdor, izoh */
@@ -36,9 +37,40 @@ export default function OrderEditor({ customer, onClose, onDone }) {
 
   const submit = async () => {
     setBusy(true);
+    let pos = null;
+    try {
+      pos = await getPosition({ timeout: 8000 });
+    } catch {
+      // GPS ruxsatsiz yoki o'chiq
+    }
+
+    const radius = customer.visit_radius_m || 150;
+    if (customer.lat != null && customer.lng != null) {
+      if (!pos) {
+        toast.error(t('m.gpsRequiredForOrder') || "Buyurtma berish uchun GPS yoqilgan bo'lishi shart");
+        setBusy(false);
+        return;
+      }
+      const d = distanceM(pos, customer);
+      if (d != null && d > radius) {
+        toast.error(
+          t('m.orderRadiusBlocked', { distance: fmtDistance(d), radius }) ||
+          `Siz do'kondan ${fmtDistance(d)} uzoqdasiz (ruxsat: ${radius} m). Buyurtma faqat do'kon yaqinida qabul qilinadi.`
+        );
+        setBusy(false);
+        return;
+      }
+    }
+
     await enqueue({
       url: '/mobile/agent/orders',
-      body: { customer_id: customer.id, items: lines.map(l => ({ product_id: l.p.id, quantity: l.qty })), note: note || null },
+      body: {
+        customer_id: customer.id,
+        items: lines.map(l => ({ product_id: l.p.id, quantity: l.qty })),
+        note: note || null,
+        lat: pos?.lat ?? null,
+        lng: pos?.lng ?? null,
+      },
       label: `${t('m.order')}: ${customer.name} — ${fmtMoney(total)}`,
     });
     setBusy(false);

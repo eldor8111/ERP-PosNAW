@@ -80,6 +80,9 @@ class CompanyUpdate(BaseModel):
     manufacturing_enabled: Optional[bool] = None
     distribution_enabled: Optional[bool] = None
     marketplace_agents_enabled: Optional[bool] = None
+    stock_deduct_stage: Optional[str] = None
+    agent_order_geo_radius_check: Optional[bool] = None
+    default_delivery_radius_m: Optional[int] = None
 
 
 class ReceiptTemplatesUpdate(BaseModel):
@@ -111,6 +114,9 @@ class CompanyOut(BaseModel):
     manufacturing_enabled: bool = False
     distribution_enabled: bool = False
     marketplace_agents_enabled: bool = False
+    stock_deduct_stage: str = "order_confirmed"
+    agent_order_geo_radius_check: bool = True
+    default_delivery_radius_m: int = 250
 
     class Config:
         from_attributes = True
@@ -151,6 +157,9 @@ def list_companies(
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
         marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
+        stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
+        agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
+        default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         ))  # type: ignore[call-arg]
     return result
 
@@ -225,6 +234,9 @@ def create_company(
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
+        stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
+        agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
+        default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
     )  # type: ignore[call-arg]
 
 
@@ -304,6 +316,9 @@ def update_company(
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
         marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
+        stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
+        agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
+        default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
     )  # type: ignore[call-arg]
 
 
