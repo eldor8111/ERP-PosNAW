@@ -2329,7 +2329,7 @@ function ModulesCard({ companyId }) {
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-bold text-slate-800">{t('features.cardTitle') || "Qo'shimcha modullar va paketlar"}</h3>
         <button
-          onClick={() => navigate('/admin/tariffs?tab=packages')}
+          onClick={() => navigate('/admin/tariflar?tab=paketlar')}
           className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
         >
           Paketlar do'koni <ArrowRight className="w-3.5 h-3.5" />
@@ -2378,7 +2378,7 @@ function ModulesCard({ companyId }) {
                       {Number(pkg.price_per_month || 0).toLocaleString('uz-UZ')} so'm <span className="font-normal text-slate-400">/ oy</span>
                     </span>
                     <button
-                      onClick={() => navigate('/admin/tariffs?tab=packages')}
+                      onClick={() => navigate('/admin/tariflar?tab=paketlar')}
                       className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
                     >
                       Ulash <ArrowRight className="w-3 h-3" />
@@ -2401,7 +2401,7 @@ function ModulesCard({ companyId }) {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/tariffs?tab=packages')}
+                    onClick={() => navigate('/admin/tariflar?tab=paketlar')}
                     title="Paketni xarid qilish"
                     className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
                   >

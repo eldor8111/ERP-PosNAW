@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LangContext';
@@ -83,7 +84,7 @@ const getTariffTheme = (name = '') => {
   };
 };
 
-function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, priceColor, handleBuyTariff, handlePayme, trialLoading, isCurrent, hasActiveSub }) {
+function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, priceColor, handleBuyTariff, handlePayme, trialLoading, isCurrent, hasActiveSub, onSwitchToPackages }) {
   const { t } = useLang();
   const [selectedMonths, setSelectedMonths] = useState(1);
 
@@ -449,6 +450,28 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
           );
         })}
       </div>
+
+      {/* ── Alohida pullik paketlar taklifi banneri ── */}
+      {onSwitchToPackages && (
+        <div className="mt-8 p-6 rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg shadow-blue-500/15 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
+              <span>✨</span> Qo'shimcha modullar
+            </div>
+            <h3 className="text-xl font-black">Alohida modullar va paketlar kerakmi?</h3>
+            <p className="text-sm text-blue-100 max-w-xl">
+              Ishlab chiqarish (BOM), Distribyutorlar va kuryerlar, Yetkazib berish avtomatikasini tarifni o'zgartirmasdan ham oylik paket sifatida faollashtirishingiz mumkin.
+            </p>
+          </div>
+          <button
+            onClick={onSwitchToPackages}
+            className="shrink-0 px-6 py-3.5 bg-white text-blue-700 hover:bg-blue-50 active:scale-95 font-black text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center gap-2"
+          >
+            <span>Paketlar do'koni</span>
+            <span className="text-lg">→</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -793,7 +816,26 @@ export default function Tariflar() {
   const [trialLoading, setTrialLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [tabs, setTabs] = useState('tariflar');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [tabs, setTabs] = useState(
+    tabParam === 'paketlar' || tabParam === 'packages' ? 'paketlar' :
+    tabParam === 'billing' ? 'billing' :
+    tabParam === 'subscription' ? 'subscription' : 'tariflar'
+  );
+
+  useEffect(() => {
+    if (tabParam === 'paketlar' || tabParam === 'packages') {
+      setTabs('paketlar');
+    } else if (tabParam === 'tariflar') {
+      setTabs('tariflar');
+    }
+  }, [tabParam]);
+
+  const switchTab = (tabName) => {
+    setTabs(tabName);
+    setSearchParams({ tab: tabName });
+  };
 
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
@@ -988,24 +1030,62 @@ export default function Tariflar() {
   const hasBhm = tariffs.some(tr => tr.bhm_percent != null && tr.price_per_month > 0);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="flex text-[14px] whitespace-nowrap shadow w-max rounded-lg">
-        <button onClick={() => setTabs('tariflar')} className={`px-4 py-1.5 w-35 cursor-pointer font-medium rounded-l-lg ${tabs === 'tariflar' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
-          {t('nav.tariffs')}
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* ── Tabs Bar ── */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 mb-6 w-full sm:w-auto shadow-inner">
+        <button
+          onClick={() => switchTab('tariflar')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+            tabs === 'tariflar'
+              ? 'bg-white text-blue-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Crown className="w-4 h-4" />
+          <span>{t('nav.tariffs') || 'Tariflar'}</span>
         </button>
-        <button onClick={() => setTabs('paketlar')} className={`px-4 py-1.5 cursor-pointer font-medium w-35 ${tabs === 'paketlar' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
-          Pullik paketlar
+
+        <button
+          onClick={() => switchTab('paketlar')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer relative ${
+            tabs === 'paketlar'
+              ? 'bg-white text-blue-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Pullik paketlar</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-blue-600 to-indigo-600 text-white tracking-wide">
+            YANGI
+          </span>
         </button>
-        <button onClick={() => setTabs('subscription')} className={`px-4 py-1.5 cursor-pointer font-medium w-35 ${tabs === 'subscription' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
-          {t('tariff.subscriptionHistory')}
+
+        <button
+          onClick={() => switchTab('subscription')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+            tabs === 'subscription'
+              ? 'bg-white text-blue-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <span>{t('tariff.subscriptionHistory') || 'Obuna tarixi'}</span>
         </button>
-        <button onClick={() => setTabs('billing')} className={`px-4 py-1.5 rounded-r-lg cursor-pointer font-medium w-35 ${tabs === 'billing' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
-          {t('tariff.balanceHistory')}
+
+        <button
+          onClick={() => switchTab('billing')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+            tabs === 'billing'
+              ? 'bg-white text-blue-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Wallet className="w-4 h-4" />
+          <span>{t('tariff.balanceHistory') || 'Balans tarixi'}</span>
         </button>
       </div>
 
       {
-        tabs === 'tariflar' && <TariflarTab hasBhm={hasBhm} billing={billing} settings={settings} tariffs={tariffs} bgAccent={bgAccent} btnColor={btnColor} priceColor={priceColor} handleBuyTariff={handleBuyTariff} handlePayme={handlePayme} trialLoading={trialLoading} isCurrent={isCurrent} hasActiveSub={hasActiveSub} />
+        tabs === 'tariflar' && <TariflarTab hasBhm={hasBhm} billing={billing} settings={settings} tariffs={tariffs} bgAccent={bgAccent} btnColor={btnColor} priceColor={priceColor} handleBuyTariff={handleBuyTariff} handlePayme={handlePayme} trialLoading={trialLoading} isCurrent={isCurrent} hasActiveSub={hasActiveSub} onSwitchToPackages={() => switchTab('paketlar')} />
       }
       {
         tabs === 'paketlar' && <PaketlarTab billing={billing} refreshBilling={async () => { const b = await api.get('/billing/my-company'); setBilling(b.data); }} setToast={setToast} />
