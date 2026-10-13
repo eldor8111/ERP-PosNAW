@@ -30,11 +30,13 @@ const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
 const today = () => ymd(new Date());
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
 const firstOfMonth = () => { const d = new Date(); d.setDate(1); return ymd(d); };
+const firstOfLastMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return ymd(d); };
+const endOfLastMonth = () => { const d = new Date(); d.setDate(0); return ymd(d); };
 
 const MOV_LIMIT = 500;
 const DEAD_MONTHS = [1, 3, 6, 12];
 // Filial filtri qo'llanadigan tablar (qarzlar kompaniya bo'yicha, harakatlarda ombor yozilmaydi)
-const BRANCH_TABS = new Set(['sales', 'profit', 'pl', 'cashier', 'deadstock', 'expenses', 'purchases', 'abc', 'batches', 'product-sales']);
+const BRANCH_TABS = new Set(['sales', 'profit', 'pl', 'pnl-compare', 'cashier', 'deadstock', 'expenses', 'purchases', 'abc', 'batches', 'product-sales']);
 const EMPTY_SALES = { items: [], summary: null, total_count: 0, truncated: false };
 
 // Harakat miqdori o'zgarishi: qoldiq farqidan, bo'lmasa turidan
@@ -236,6 +238,13 @@ export default function Reports() {
   const [supplierDebts, setSupplierDebts] = useState(null);
   const [abcData, setAbcData] = useState([]);
   const [plData, setPlData] = useState(null);
+  const [pnlCompareData, setPnlCompareData] = useState(null);
+  const [p1From, setP1From] = useState(firstOfLastMonth());
+  const [p1To, setP1To] = useState(endOfLastMonth());
+  const [p2From, setP2From] = useState(firstOfMonth());
+  const [p2To, setP2To] = useState(today());
+  const [pnlActiveTab, setPnlActiveTab] = useState('gross_revenue');
+  const [accordionExpenses, setAccordionExpenses] = useState(true);
   const [batchData, setBatchData] = useState([]);
   const [productSalesData, setProductSalesData] = useState([]);
   const [movementsData, setMovementsData] = useState([]);
@@ -310,6 +319,16 @@ export default function Reports() {
       } else if (tab === 'pl') {
         const r = await api.get(`/reports/profit-loss${qs()}`);
         if (isCurrent()) setPlData(r.data);
+      } else if (tab === 'pnl-compare') {
+        const p = new URLSearchParams({
+          p1_from: p1From,
+          p1_to: p1To,
+          p2_from: p2From,
+          p2_to: p2To,
+        });
+        if (branchId) p.set('branch_id', branchId);
+        const r = await api.get(`/reports/pnl-compare?${p}`);
+        if (isCurrent()) setPnlCompareData(r.data);
       } else if (tab === 'batches') {
         const r = await api.get(`/reports/batches${qs()}`);
         if (isCurrent()) setBatchData(r.data);
@@ -339,6 +358,7 @@ export default function Reports() {
         'supplier-debts': () => setSupplierDebts(null),
         abc: () => setAbcData([]),
         pl: () => setPlData(null),
+        'pnl-compare': () => setPnlCompareData(null),
         batches: () => setBatchData([]),
         'product-sales': () => setProductSalesData([]),
         movements: () => setMovementsData([]),
@@ -347,18 +367,19 @@ export default function Reports() {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [tab, dateFrom, dateTo, branchId, salesIncludeReturns, deadMonths, movDateFrom, movDateTo, movSearch, movRefType, movProductId, t]);
+  }, [tab, dateFrom, dateTo, branchId, salesIncludeReturns, deadMonths, movDateFrom, movDateTo, movSearch, movRefType, movProductId, p1From, p1To, p2From, p2To, t]);
 
   // Tab, filial va tab ichidagi tanlovlar o'zgarganda avtomatik yuklash;
   // sana va qidiruv filtrlari "Qidiruv" tugmasi bilan qo'llanadi.
   const loadRef = useRef(load);
   useEffect(() => { loadRef.current = load; }, [load]);
-  useEffect(() => { loadRef.current(); }, [tab, branchId, salesIncludeReturns, deadMonths]);
+  useEffect(() => { loadRef.current(); }, [tab, branchId, salesIncludeReturns, deadMonths, p1From, p1To, p2From, p2To]);
 
   const tabs = [
     { key: 'sales', label: t('reports.tab.sales'), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
     { key: 'profit', label: t('reports.tab.profit'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
     { key: 'pl', label: t('reports.tab.pl'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+    { key: 'pnl-compare', label: `⚖️ ${t('reports.tab.pnlCompare')}`, icon: 'M3 6l3 18h12l3-18H3zm15 4H6m9 4H9m7 4H8' },
     { key: 'cashier', label: t('reports.tab.cashier'), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
     { key: 'deadstock', label: t('reports.tab.deadstock'), icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key: 'expenses', label: t('reports.tab.expenses'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
@@ -997,6 +1018,282 @@ export default function Reports() {
                 )}
               </div>
             ) : <div className="py-12 text-center text-sm text-slate-400">{t('common.noData')}</div>}
+          </>
+        )}
+
+        {/* ── P&L Solishtirish (Ikki davr tahlili) ── */}
+        {tab === 'pnl-compare' && (
+          <>
+            {/* Header + Export */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+              <div>
+                <span className="text-base font-bold text-slate-800">{`⚖️ ${t('reports.pnlCompareTitle')}`}</span>
+                {uzsNote}
+              </div>
+              <ExportBtns
+                onExcel={() => {
+                  if (!pnlCompareData) return;
+                  const d = pnlCompareData;
+                  const rows = [
+                    { [t('reports.th.indicator')]: t('reports.realization'), [t('reports.p1Label')]: d.rows.gross_revenue?.p1, [t('reports.p2Label')]: d.rows.gross_revenue?.p2, [t('reports.diffAmount')]: d.rows.gross_revenue?.diff, [t('reports.diffPercent')]: d.rows.gross_revenue?.diff_pct ? `${d.rows.gross_revenue.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.cogs'), [t('reports.p1Label')]: d.rows.cogs?.p1, [t('reports.p2Label')]: d.rows.cogs?.p2, [t('reports.diffAmount')]: d.rows.cogs?.diff, [t('reports.diffPercent')]: d.rows.cogs?.diff_pct ? `${d.rows.cogs.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.returns'), [t('reports.p1Label')]: d.rows.returns?.p1, [t('reports.p2Label')]: d.rows.returns?.p2, [t('reports.diffAmount')]: d.rows.returns?.diff, [t('reports.diffPercent')]: d.rows.returns?.diff_pct ? `${d.rows.returns.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.returnsCost'), [t('reports.p1Label')]: d.rows.returns_cost?.p1, [t('reports.p2Label')]: d.rows.returns_cost?.p2, [t('reports.diffAmount')]: d.rows.returns_cost?.diff, [t('reports.diffPercent')]: d.rows.returns_cost?.diff_pct ? `${d.rows.returns_cost.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.netRealization'), [t('reports.p1Label')]: d.rows.net_revenue?.p1, [t('reports.p2Label')]: d.rows.net_revenue?.p2, [t('reports.diffAmount')]: d.rows.net_revenue?.diff, [t('reports.diffPercent')]: d.rows.net_revenue?.diff_pct ? `${d.rows.net_revenue.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.grossProfit'), [t('reports.p1Label')]: d.rows.gross_profit?.p1, [t('reports.p2Label')]: d.rows.gross_profit?.p2, [t('reports.diffAmount')]: d.rows.gross_profit?.diff, [t('reports.diffPercent')]: d.rows.gross_profit?.diff_pct ? `${d.rows.gross_profit.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.grossMargin'), [t('reports.p1Label')]: `${d.rows.gross_margin_pct?.p1}%`, [t('reports.p2Label')]: `${d.rows.gross_margin_pct?.p2}%`, [t('reports.diffAmount')]: `${d.rows.gross_margin_pct?.diff}%`, [t('reports.diffPercent')]: '—' },
+                    { [t('reports.th.indicator')]: t('reports.otherIncome'), [t('reports.p1Label')]: d.rows.other_income?.p1, [t('reports.p2Label')]: d.rows.other_income?.p2, [t('reports.diffAmount')]: d.rows.other_income?.diff, [t('reports.diffPercent')]: d.rows.other_income?.diff_pct ? `${d.rows.other_income.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.totalIndirectExpenses'), [t('reports.p1Label')]: d.rows.total_indirect_expenses?.p1, [t('reports.p2Label')]: d.rows.total_indirect_expenses?.p2, [t('reports.diffAmount')]: d.rows.total_indirect_expenses?.diff, [t('reports.diffPercent')]: d.rows.total_indirect_expenses?.diff_pct ? `${d.rows.total_indirect_expenses.diff_pct}%` : '—' },
+                    ...(d.expense_categories || []).map(c => ({
+                      [t('reports.th.indicator')]: `  • ${c.name}`, [t('reports.p1Label')]: c.p1, [t('reports.p2Label')]: c.p2, [t('reports.diffAmount')]: c.diff, [t('reports.diffPercent')]: c.diff_pct ? `${c.diff_pct}%` : '—'
+                    })),
+                    { [t('reports.th.indicator')]: t('reports.netProfit'), [t('reports.p1Label')]: d.rows.net_profit?.p1, [t('reports.p2Label')]: d.rows.net_profit?.p2, [t('reports.diffAmount')]: d.rows.net_profit?.diff, [t('reports.diffPercent')]: d.rows.net_profit?.diff_pct ? `${d.rows.net_profit.diff_pct}%` : '—' },
+                    { [t('reports.th.indicator')]: t('reports.netMargin'), [t('reports.p1Label')]: `${d.rows.net_margin_pct?.p1}%`, [t('reports.p2Label')]: `${d.rows.net_margin_pct?.p2}%`, [t('reports.diffAmount')]: `${d.rows.net_margin_pct?.diff}%`, [t('reports.diffPercent')]: '—' },
+                  ];
+                  saveSheet(rows, 'P&L_Solishtirish', `pnl_solishtirish_${today()}.xlsx`);
+                }}
+                onPdf={() => {
+                  if (!pnlCompareData) return;
+                  const d = pnlCompareData;
+                  const printRows = [
+                    [t('reports.realization'), fmtS(d.rows.gross_revenue?.p1), fmtS(d.rows.gross_revenue?.p2), fmtS(d.rows.gross_revenue?.diff), d.rows.gross_revenue?.diff_pct ? `${d.rows.gross_revenue.diff_pct}%` : '—'],
+                    [t('reports.cogs'), fmtS(d.rows.cogs?.p1), fmtS(d.rows.cogs?.p2), fmtS(d.rows.cogs?.diff), d.rows.cogs?.diff_pct ? `${d.rows.cogs.diff_pct}%` : '—'],
+                    [t('reports.returns'), fmtS(d.rows.returns?.p1), fmtS(d.rows.returns?.p2), fmtS(d.rows.returns?.diff), d.rows.returns?.diff_pct ? `${d.rows.returns.diff_pct}%` : '—'],
+                    [t('reports.returnsCost'), fmtS(d.rows.returns_cost?.p1), fmtS(d.rows.returns_cost?.p2), fmtS(d.rows.returns_cost?.diff), d.rows.returns_cost?.diff_pct ? `${d.rows.returns_cost.diff_pct}%` : '—'],
+                    [t('reports.netRealization'), fmtS(d.rows.net_revenue?.p1), fmtS(d.rows.net_revenue?.p2), fmtS(d.rows.net_revenue?.diff), d.rows.net_revenue?.diff_pct ? `${d.rows.net_revenue.diff_pct}%` : '—'],
+                    [t('reports.grossProfit'), fmtS(d.rows.gross_profit?.p1), fmtS(d.rows.gross_profit?.p2), fmtS(d.rows.gross_profit?.diff), d.rows.gross_profit?.diff_pct ? `${d.rows.gross_profit.diff_pct}%` : '—'],
+                    [t('reports.grossMargin'), `${d.rows.gross_margin_pct?.p1}%`, `${d.rows.gross_margin_pct?.p2}%`, `${d.rows.gross_margin_pct?.diff}%`, '—'],
+                    [t('reports.otherIncome'), fmtS(d.rows.other_income?.p1), fmtS(d.rows.other_income?.p2), fmtS(d.rows.other_income?.diff), d.rows.other_income?.diff_pct ? `${d.rows.other_income.diff_pct}%` : '—'],
+                    [t('reports.totalIndirectExpenses'), fmtS(d.rows.total_indirect_expenses?.p1), fmtS(d.rows.total_indirect_expenses?.p2), fmtS(d.rows.total_indirect_expenses?.diff), d.rows.total_indirect_expenses?.diff_pct ? `${d.rows.total_indirect_expenses.diff_pct}%` : '—'],
+                    [t('reports.netProfit'), fmtS(d.rows.net_profit?.p1), fmtS(d.rows.net_profit?.p2), fmtS(d.rows.net_profit?.diff), d.rows.net_profit?.diff_pct ? `${d.rows.net_profit.diff_pct}%` : '—'],
+                    [t('reports.netMargin'), `${d.rows.net_margin_pct?.p1}%`, `${d.rows.net_margin_pct?.p2}%`, `${d.rows.net_margin_pct?.diff}%`, '—'],
+                  ];
+                  printTable(t('reports.pnlCompareTitle'),
+                    [t('reports.th.indicator'), `${t('reports.p1Label')} (${p1From} — ${p1To})`, `${t('reports.p2Label')} (${p2From} — ${p2To})`, t('reports.diffAmount'), t('reports.diffPercent')],
+                    printRows, null, t('common.print')
+                  );
+                }}
+              />
+            </div>
+
+            {/* Presets and Date Controls */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 space-y-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Shablonlar:</span>
+                {[
+                  {
+                    l: t('reports.presetMonth'),
+                    set: () => { setP1From(firstOfLastMonth()); setP1To(endOfLastMonth()); setP2From(firstOfMonth()); setP2To(today()); }
+                  },
+                  {
+                    l: t('reports.preset30Days'),
+                    set: () => { setP1From(daysAgo(59)); setP1To(daysAgo(30)); setP2From(daysAgo(29)); setP2To(today()); }
+                  },
+                  {
+                    l: t('reports.presetYear'),
+                    set: () => {
+                      const y = new Date().getFullYear();
+                      setP1From(`${y - 1}-01-01`); setP1To(`${y - 1}-12-31`);
+                      setP2From(`${y}-01-01`); setP2To(today());
+                    }
+                  },
+                ].map(p => (
+                  <button key={p.l} onClick={p.set}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all shadow-xs cursor-pointer">
+                    {p.l}
+                  </button>
+                ))}
+              </div>
+
+              {/* 2 Date Pickers side by side */}
+              <div className="flex flex-wrap items-end gap-4 pt-1">
+                {/* 1-davr */}
+                <div className="flex items-center gap-2 bg-blue-50/60 border border-blue-200/80 rounded-2xl p-2 px-3">
+                  <span className="text-xs font-bold text-blue-700 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    {t('reports.p1Label')}:
+                  </span>
+                  <input type="date" value={p1From} max={p1To || undefined} onChange={e => setP1From(e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-blue-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  <span className="text-xs text-slate-400">—</span>
+                  <input type="date" value={p1To} min={p1From || undefined} onChange={e => setP1To(e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-blue-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+
+                {/* 2-davr */}
+                <div className="flex items-center gap-2 bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-2 px-3">
+                  <span className="text-xs font-bold text-indigo-700 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    {t('reports.p2Label')}:
+                  </span>
+                  <input type="date" value={p2From} max={p2To || undefined} onChange={e => setP2From(e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                  <span className="text-xs text-slate-400">—</span>
+                  <input type="date" value={p2To} min={p2From || undefined} onChange={e => setP2To(e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                </div>
+
+                <button onClick={load} disabled={loading}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-200 flex items-center gap-1.5 cursor-pointer">
+                  {loading ? <Spinner /> : `🔍 ${t('reports.search')}`}
+                </button>
+              </div>
+            </div>
+
+            {/* Access upgrade promo note */}
+            {pnlCompareData && pnlCompareData.has_access === false && (
+              <div className="mx-6 mt-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">💡</span>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-900">Ushbu hisobot Distribyutor tariflariga mo'ljallangan</h4>
+                    <p className="text-[11px] text-amber-700 mt-0.5">Siz hozirda demo ko'rinishida ko'rmoqdasiz. To'liq va cheksiz analitika uchun Distribyutor paketiga ulaning.</p>
+                  </div>
+                </div>
+                <a href="/admin/tariffs" className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl whitespace-nowrap shadow-xs">
+                  Tariflarni ko'rish
+                </a>
+              </div>
+            )}
+
+            {loading ? <Spinner /> : pnlCompareData ? (
+              <div className="p-6 space-y-6">
+                {/* 4 Top KPI Cards */}
+                {pnlCompareData.tabs && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      { key: 'gross_revenue', label: t('reports.realization'), data: pnlCompareData.tabs.gross_revenue, icon: '💰', color: 'blue' },
+                      { key: 'returns', label: t('reports.returns'), data: pnlCompareData.tabs.returns, icon: '↩️', color: 'orange' },
+                      { key: 'net_revenue', label: t('reports.netRealization'), data: pnlCompareData.tabs.net_revenue, icon: '📈', color: 'emerald' },
+                      { key: 'gross_profit', label: t('reports.grossProfit'), data: pnlCompareData.tabs.gross_profit, icon: '🏆', color: 'indigo' },
+                    ].map(card => {
+                      const isGood = card.data.status === 'good';
+                      const isBad = card.data.status === 'bad';
+                      return (
+                        <div key={card.key}
+                          className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:border-blue-300 transition-all flex flex-col justify-between">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                              <span>{card.icon}</span> {card.label}
+                            </span>
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                              isGood ? 'bg-emerald-100 text-emerald-700' : isBad ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {card.data.diff_pct !== null ? `${card.data.diff_pct > 0 ? '+' : ''}${card.data.diff_pct}%` : '—'}
+                            </span>
+                          </div>
+                          <div className="mt-3">
+                            <div className="text-xl font-black text-slate-800">{fmtS(card.data.p2)}</div>
+                            <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
+                              <span>1-davr: {fmtS(card.data.p1)}</span>
+                              <span className={`font-semibold ${isGood ? 'text-emerald-600' : isBad ? 'text-rose-600' : 'text-slate-500'}`}>
+                                {card.data.diff > 0 ? '+' : ''}{fmtS(card.data.diff)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Comparative Table */}
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200">
+                          <th className="px-5 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{t('reports.th.indicator')}</th>
+                          <th className="px-5 py-3.5 text-right text-xs font-bold text-blue-600 uppercase tracking-wider">{t('reports.p1Label')}</th>
+                          <th className="px-5 py-3.5 text-right text-xs font-bold text-indigo-600 uppercase tracking-wider">{t('reports.p2Label')}</th>
+                          <th className="px-5 py-3.5 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">{t('reports.diffAmount')}</th>
+                          <th className="px-5 py-3.5 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">{t('reports.diffPercent')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(() => {
+                          const r = pnlCompareData.rows;
+                          const renderRow = (label, metric, opts = {}) => {
+                            if (!metric) return null;
+                            const isGood = metric.status === 'good';
+                            const isBad = metric.status === 'bad';
+                            const bgCls = opts.highlight === 'primary' ? 'bg-blue-50/50 font-bold' :
+                                          opts.highlight === 'emerald' ? 'bg-emerald-50/60 font-black' :
+                                          opts.highlight === 'sub' ? 'bg-slate-50/60 font-semibold' : 'hover:bg-slate-50/50';
+                            return (
+                              <tr key={label} className={`${bgCls} transition-colors`}>
+                                <td className={`px-5 py-3.5 text-sm ${opts.indent ? 'pl-9 text-slate-600' : 'text-slate-800'}`}>
+                                  {opts.indent && <span className="text-slate-300 mr-2">•</span>}
+                                  {label}
+                                </td>
+                                <td className="px-5 py-3.5 text-sm text-right tabular-nums text-slate-600">
+                                  {opts.isPct ? `${metric.p1}%` : fmtS(metric.p1)}
+                                </td>
+                                <td className="px-5 py-3.5 text-sm text-right tabular-nums text-slate-800 font-semibold">
+                                  {opts.isPct ? `${metric.p2}%` : fmtS(metric.p2)}
+                                </td>
+                                <td className={`px-5 py-3.5 text-sm text-right tabular-nums font-bold ${
+                                  isGood ? 'text-emerald-600' : isBad ? 'text-rose-600' : 'text-slate-500'
+                                }`}>
+                                  {metric.diff > 0 ? '+' : ''}{opts.isPct ? `${metric.diff}%` : fmtS(metric.diff)}
+                                </td>
+                                <td className="px-5 py-3.5 text-sm text-right">
+                                  <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded-lg tabular-nums ${
+                                    isGood ? 'bg-emerald-100 text-emerald-700' : isBad ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    {metric.diff_pct !== null ? `${metric.diff_pct > 0 ? '+' : ''}${metric.diff_pct}%` : '—'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          };
+
+                          return (
+                            <>
+                              {renderRow(t('reports.realization'), r.gross_revenue)}
+                              {renderRow(`(−) ${t('reports.cogs')}`, r.cogs)}
+                              {renderRow(`(−) ${t('reports.returns')}`, r.returns)}
+                              {renderRow(`(+) ${t('reports.returnsCost')}`, r.returns_cost)}
+                              {renderRow(t('reports.netRealization'), r.net_revenue, { highlight: 'sub' })}
+                              {renderRow(t('reports.grossProfit'), r.gross_profit, { highlight: 'primary' })}
+                              {renderRow(t('reports.grossMargin'), r.gross_margin_pct, { isPct: true })}
+                              {renderRow(t('reports.otherIncome'), r.other_income)}
+
+                              {/* Bilvosita Xarajatlar (Akkordeon Header) */}
+                              <tr onClick={() => setAccordionExpenses(prev => !prev)}
+                                className="bg-slate-100/70 hover:bg-slate-200/60 cursor-pointer transition-colors border-y border-slate-200">
+                                <td colSpan={5} className="px-5 py-3 text-xs font-bold text-slate-700 flex items-center justify-between">
+                                  <span className="flex items-center gap-2">
+                                    <span className="text-sm">{accordionExpenses ? '▼' : '▶'}</span>
+                                    <span>📁 {t('reports.indirectExpenses')}</span>
+                                    <span className="text-slate-400 font-normal">({pnlCompareData.expense_categories?.length || 0} ta modda)</span>
+                                  </span>
+                                  <span className="text-slate-500 text-[11px] font-semibold underline">
+                                    {accordionExpenses ? 'Yopish' : 'Tafsilotlarni ochish'}
+                                  </span>
+                                </td>
+                              </tr>
+
+                              {/* Expandable Expense Categories */}
+                              {accordionExpenses && (pnlCompareData.expense_categories || []).map(cat => (
+                                renderRow(cat.name, cat, { indent: true })
+                              ))}
+
+                              {/* Jami Bilvosita xarajatlar */}
+                              {renderRow(`(−) ${t('reports.totalIndirectExpenses')}`, r.total_indirect_expenses, { highlight: 'sub' })}
+
+                              {/* Sof Foyda */}
+                              {renderRow(`🏆 ${t('reports.netProfit')}`, r.net_profit, { highlight: 'emerald' })}
+                              {renderRow(`📊 ${t('reports.netMargin')}`, r.net_margin_pct, { isPct: true, highlight: 'emerald' })}
+                            </>
+                          );
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : <div className="py-16 text-center text-sm text-slate-400">{t('common.noData')}</div>}
           </>
         )}
 

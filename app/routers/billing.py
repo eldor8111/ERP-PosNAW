@@ -70,6 +70,17 @@ def _tariff_out(t: Tariff) -> dict:
         "duration_days": t.duration_days,
         "max_users": t.max_users,
         "max_branches": t.max_branches,
+        "max_warehouses": t.max_warehouses,
+        "max_products": t.max_products,
+        "max_agents": t.max_agents,
+        "max_couriers": t.max_couriers,
+        "max_monthly_orders": t.max_monthly_orders,
+        "max_production_orders": t.max_production_orders,
+        "min_duration_months": t.min_duration_months,
+        "has_pnl_compare": bool(t.has_pnl_compare),
+        "has_manufacturing": bool(t.has_manufacturing),
+        "has_distribution": bool(t.has_distribution),
+        "period_discounts": t.period_discounts or {},
         "is_active": t.is_active,
         "sort_order": t.sort_order,
         "bhm_percent": float(t.bhm_percent) if t.bhm_percent is not None else None,
@@ -135,7 +146,6 @@ def get_payment_settings(
 def list_tariffs(
         all: bool = False,
         db: Session = Depends(get_db),
-        # _: User = Depends(get_current_user_allow_expired),
 ):
     """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
     query = db.query(Tariff)
@@ -145,6 +155,20 @@ def list_tariffs(
     return [_tariff_out(t) for t in tariffs]
 
 
+@router.get("/tariffs/{tariff_id}/quote")
+def get_tariff_quote(
+        tariff_id: int,
+        months: int = 1,
+        db: Session = Depends(get_db),
+):
+    """Muayyan tarif va oylar soni bo'yicha narx va chegirma hisoboti"""
+    t = db.query(Tariff).filter(Tariff.id == tariff_id, Tariff.is_active == True).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Tarif topilmadi")
+    from app.services.tariff_guard import calculate_subscription_price
+    return calculate_subscription_price(t, months)
+
+
 class TariffCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -152,6 +176,17 @@ class TariffCreate(BaseModel):
     duration_days: int = 30
     max_users: int = 5
     max_branches: int = 1
+    max_warehouses: int = 1
+    max_products: Optional[int] = None
+    max_agents: int = 0
+    max_couriers: int = 0
+    max_monthly_orders: Optional[int] = None
+    max_production_orders: Optional[int] = None
+    min_duration_months: int = 1
+    has_pnl_compare: bool = False
+    has_manufacturing: bool = False
+    has_distribution: bool = False
+    period_discounts: Optional[dict] = None
     sort_order: int = 0
     bhm_percent: Optional[float] = None
 
@@ -169,6 +204,17 @@ def create_tariff(
         duration_days=data.duration_days,
         max_users=data.max_users,
         max_branches=data.max_branches,
+        max_warehouses=data.max_warehouses,
+        max_products=data.max_products,
+        max_agents=data.max_agents,
+        max_couriers=data.max_couriers,
+        max_monthly_orders=data.max_monthly_orders,
+        max_production_orders=data.max_production_orders,
+        min_duration_months=data.min_duration_months,
+        has_pnl_compare=data.has_pnl_compare,
+        has_manufacturing=data.has_manufacturing,
+        has_distribution=data.has_distribution,
+        period_discounts=data.period_discounts,
         sort_order=data.sort_order,
         bhm_percent=data.bhm_percent,
         created_at=datetime.now(timezone.utc),
@@ -186,6 +232,17 @@ class TariffUpdate(BaseModel):
     duration_days: Optional[int] = None
     max_users: Optional[int] = None
     max_branches: Optional[int] = None
+    max_warehouses: Optional[int] = None
+    max_products: Optional[int] = None
+    max_agents: Optional[int] = None
+    max_couriers: Optional[int] = None
+    max_monthly_orders: Optional[int] = None
+    max_production_orders: Optional[int] = None
+    min_duration_months: Optional[int] = None
+    has_pnl_compare: Optional[bool] = None
+    has_manufacturing: Optional[bool] = None
+    has_distribution: Optional[bool] = None
+    period_discounts: Optional[dict] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
     bhm_percent: Optional[float] = None
@@ -406,7 +463,7 @@ def activate_subscription(
         db: Session = Depends(get_db),
         admin: User = Depends(require_super_admin),
 ):
-    """Balansdan hisobdan chiqarib obunani faollashtirish"""
+    """Balansdan hisobdan chiqarib obunani faollashtirish (Super Admin)"""
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
@@ -415,13 +472,15 @@ def activate_subscription(
     if not tariff:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
 
-    total_price = float(tariff.price_per_month) * data.months
+    from app.services.tariff_guard import calculate_subscription_price
+    quote = calculate_subscription_price(tariff, data.months)
+    total_price = quote["total_price"]
     current_balance = float(c.balance or 0)
 
     if current_balance < total_price:
         raise HTTPException(
             status_code=400,
-            detail=f"Balans yetarli emas. Kerak: {total_price:,.0f} s, Balans: {current_balance:,.0f} s"
+            detail=f"Balans yetarli emas. Kerak: {total_price:,.0f} so'm, Balans: {current_balance:,.0f} so'm"
         )
 
     now = datetime.now(timezone.utc)
@@ -432,19 +491,23 @@ def activate_subscription(
     base = current_end if (current_end and current_end > now) else now
     extra_days = tariff.duration_days * data.months
 
-    # Balansdan chiqarish
+    # Balansdan chiqarish va obunani yangilash
     c.balance = current_balance - total_price
     c.tariff_id = tariff.id
     c.is_trial = False
     c.purchased_at = now
     c.subscription_starts_at = base
     c.subscription_ends_at = base + timedelta(days=extra_days)
+    # Modullarni tarifga moslab faollashtirish
+    c.manufacturing_enabled = bool(tariff.has_manufacturing)
+    c.distribution_enabled = bool(tariff.has_distribution)
 
+    discount_str = f" (-{quote['discount_percent']}%)" if quote["discount_percent"] > 0 else ""
     log = BalanceLog(
         company_id=c.id,
         amount=-total_price,
         log_type="subscription",
-        note=f"Tarif: {tariff.name} × {data.months} oy",
+        note=f"Tarif: {tariff.name} × {data.months} oy{discount_str}",
         created_by_id=admin.id,
         created_at=now,
     )
@@ -453,8 +516,9 @@ def activate_subscription(
     db.refresh(c)
     return {
         **_company_billing_out(c, db),
-        "message": f"Obuna {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha uzaytirildi",
+        "message": f"Obuna {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha faollashtirildi",
         "charged": total_price,
+        "discount_percent": quote["discount_percent"],
     }
 
 
@@ -476,13 +540,15 @@ def subscribe_my_company(
     if not tariff:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
 
-    total_price = float(tariff.price_per_month) * data.months
+    from app.services.tariff_guard import calculate_subscription_price
+    quote = calculate_subscription_price(tariff, data.months)
+    total_price = quote["total_price"]
     current_balance = float(c.balance or 0)
 
     if current_balance < total_price:
         raise HTTPException(
             status_code=400,
-            detail=f"Balans yetarli emas. Kerak: {total_price:,.0f} s, Balans: {current_balance:,.0f} s"
+            detail=f"Balans yetarli emas. Kerak: {total_price:,.0f} so'm, Balans: {current_balance:,.0f} so'm"
         )
 
     now = datetime.now(timezone.utc)
@@ -500,19 +566,23 @@ def subscribe_my_company(
     base = current_end if (current_end and current_end > now) else now
     extra_days = tariff.duration_days * data.months
 
-    # Balansdan chiqarish
+    # Balansdan chiqarish va obunani yangilash
     c.balance = current_balance - total_price
     c.tariff_id = tariff.id
     c.is_trial = False
     c.purchased_at = now
     c.subscription_starts_at = base
     c.subscription_ends_at = base + timedelta(days=extra_days)
+    # Modullarni tarifga moslab faollashtirish
+    c.manufacturing_enabled = bool(tariff.has_manufacturing)
+    c.distribution_enabled = bool(tariff.has_distribution)
 
+    discount_str = f" (-{quote['discount_percent']}%)" if quote["discount_percent"] > 0 else ""
     log = BalanceLog(
         company_id=c.id,
         amount=-total_price,
         log_type="subscription",
-        note=f"Tarif: {tariff.name} × {data.months} oy",
+        note=f"Tarif: {tariff.name} × {data.months} oy{discount_str}",
         created_by_id=user.id,
         created_at=now,
     )
@@ -523,6 +593,7 @@ def subscribe_my_company(
         **_company_billing_out(c, db),
         "message": f"Obuna {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha uzaytirildi",
         "charged": total_price,
+        "discount_percent": quote["discount_percent"],
     }
 
 

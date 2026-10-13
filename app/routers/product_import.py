@@ -102,6 +102,9 @@ def bulk_import_products(
     Har bir satr alohida savepoint bilan saqlanadi — bitta xato
     butun importni to'xtatmaydi.
     """
+    from app.services.tariff_guard import check_product_limit
+    check_product_limit(db, current_user.company_id, count_to_add=len(rows))
+
     created = 0
     updated = 0
     errors: list = []

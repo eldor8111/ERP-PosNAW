@@ -2,37 +2,105 @@ import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useLang } from '../../context/LangContext';
-import { CreditCard } from 'lucide-react';
+import {
+  CreditCard,
+  Wallet,
+  Store,
+  Zap,
+  Sparkles,
+  Crown,
+  Package,
+  Warehouse,
+  Users,
+  Bike,
+  Truck,
+  BarChart3,
+  Factory,
+  Share2,
+  Check,
+  X,
+  AlertTriangle,
+} from 'lucide-react';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('uz-UZ');
 
-const TG_ICON = (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.09 13.98l-2.95-.924c-.642-.2-.654-.642.136-.953l11.57-4.461c.537-.194 1.006.131.716.606z" />
-  </svg>
-);
-const PHONE_ICON = (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-  </svg>
-);
+const getTariffTheme = (name = '') => {
+  const n = (name || '').toLowerCase();
+  if (n.includes('mini')) {
+    return {
+      type: 'mini',
+      badge: "Kichik Do'kon",
+      badgeCls: 'bg-emerald-600 text-white shadow-xs',
+      borderCls: 'border-emerald-200 hover:border-emerald-400 hover:shadow-xl hover:shadow-emerald-500/10',
+      bgCls: 'bg-white',
+      priceColor: 'text-emerald-700',
+      iconBg: 'bg-emerald-50 text-emerald-600 border border-emerald-200',
+      btnGradient: 'from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/20',
+      accentBar: 'from-emerald-500 via-teal-500 to-emerald-600',
+      icon: Store,
+    };
+  }
+  if (n.includes('pro')) {
+    return {
+      type: 'pro',
+      badge: 'VIP Korxona',
+      badgeCls: 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-xs',
+      borderCls: 'border-violet-200 hover:border-violet-400 hover:shadow-xl hover:shadow-violet-500/10',
+      bgCls: 'bg-white',
+      priceColor: 'text-violet-700',
+      iconBg: 'bg-violet-50 text-violet-600 border border-violet-200',
+      btnGradient: 'from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-violet-500/20',
+      accentBar: 'from-violet-600 via-purple-600 to-indigo-600',
+      icon: Crown,
+    };
+  }
+  if (n.includes('standart')) {
+    return {
+      type: 'standart',
+      badge: 'Eng Ommabop',
+      badgeCls: 'bg-blue-600 text-white shadow-md shadow-blue-500/30',
+      borderCls: 'border-blue-400 ring-2 ring-blue-500/30 hover:border-blue-600 hover:shadow-xl hover:shadow-blue-500/15',
+      bgCls: 'bg-gradient-to-br from-blue-50/40 via-white to-indigo-50/30',
+      priceColor: 'text-blue-700',
+      iconBg: 'bg-blue-50 text-blue-600 border border-blue-200',
+      btnGradient: 'from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25',
+      accentBar: 'from-blue-600 via-indigo-600 to-blue-500',
+      isPopular: true,
+      icon: Sparkles,
+    };
+  }
+  return {
+    type: 'start',
+    badge: 'Distribyutsiya Start',
+    badgeCls: 'bg-sky-600 text-white shadow-xs',
+    borderCls: 'border-sky-200 hover:border-sky-400 hover:shadow-xl hover:shadow-sky-500/10',
+    bgCls: 'bg-white',
+    priceColor: 'text-sky-700',
+    iconBg: 'bg-sky-50 text-sky-600 border border-sky-200',
+    btnGradient: 'from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 shadow-sky-500/20',
+    accentBar: 'from-sky-500 via-blue-500 to-sky-600',
+    icon: Zap,
+  };
+};
 
 function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, priceColor, handleBuyTariff, handlePayme, trialLoading, isCurrent, hasActiveSub }) {
   const { t } = useLang();
+  const [selectedMonths, setSelectedMonths] = useState(1);
+
   return (
-    <div className="max-w-5xl mx-auto py-6">
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 py-8">
       {/* ── Header + BHM noti ── */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 leading-tight">{t('nav.tariffs')}</h1>
-          <p className="text-xs text-slate-400 mt-0.5">{t('tariffs.subtitle')}</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">{t('nav.tariffs')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('tariffs.subtitle')}</p>
         </div>
         {hasBhm && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl">
-            <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-2xl shadow-xs">
+            <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-xs text-blue-600 font-medium">
+            <span className="text-xs text-blue-700 font-bold">
               {t('tariff.bhmNotice')}
             </span>
           </div>
@@ -41,150 +109,325 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
       {/* ── Joriy obuna holati ── */}
       {billing && (
-        <div className={`mb-5 rounded-xl px-4 py-3 border flex items-center gap-3 ${billing.subscription_active ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base font-black ${billing.subscription_active ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
+        <div className={`mb-8 rounded-3xl p-5 border-2 shadow-sm flex items-center gap-4 ${
+          billing.subscription_active ? 'bg-emerald-50/80 border-emerald-300' : 'bg-red-50/80 border-red-300'
+        }`}>
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shadow-xs ${
+            billing.subscription_active ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+          }`}>
             {billing.subscription_active ? '✓' : '✕'}
           </div>
           <div className="flex-1 min-w-0">
-            <span className="text-xs font-bold text-slate-500">{t('tariffs.currentStatus')}: </span>
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('tariffs.currentStatus')}</div>
             {billing.subscription_active ? (
-              <span className="text-xs text-emerald-700">
-                <span className="font-bold">{billing.tariff_name || t('tariff.unknownTariff')}</span>
-                {billing.is_trial && <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">{t('tariffs.trial')}</span>}
-                <span className="ml-1.5 text-slate-400">— {billing.days_left} {t('tariffs.daysLeft')}</span>
-              </span>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="text-base font-black text-slate-900">{billing.tariff_name || t('tariff.unknownTariff')}</span>
+                {billing.is_trial && (
+                  <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-black uppercase tracking-wider">
+                    {t('tariffs.trial')}
+                  </span>
+                )}
+                <span className="text-sm font-semibold text-emerald-700">— {billing.days_left} {t('tariffs.daysLeft')}</span>
+              </div>
             ) : (
-              <span className="text-xs text-red-600 font-bold">{t('tariffs.expired')}</span>
+              <span className="text-sm text-red-600 font-bold">{t('tariffs.expired')}</span>
             )}
           </div>
           {billing.subscription_active && billing.subscription_ends_at && (
-            <div className="text-right text-[11px] text-slate-400 shrink-0">
+            <div className="text-right text-xs text-slate-500 shrink-0">
               <div>{t('tariffs.expiresOn')}</div>
-              <div className="font-bold text-slate-600">{new Date(billing.subscription_ends_at).toLocaleDateString('uz-UZ')}</div>
+              <div className="text-sm font-black text-slate-800">{new Date(billing.subscription_ends_at).toLocaleDateString('uz-UZ')}</div>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Tarif kartalar ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {tariffs.map(tariff => (
-          <div
-            key={tariff.id}
-            className={`relative rounded-2xl border-2 bg-linear-to-br p-4 flex flex-col transition-all hover:shadow-md ${bgAccent(tariff.price_per_month)} ${isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-blue-400' : ''}`}
-          >
-            {isCurrent(tariff) && (
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-blue-600 text-white text-[10px] font-black rounded-full whitespace-nowrap shadow">
-                {t('tariffs.currentPlan')}
-              </span>
-            )}
-
-            <div className="mb-2">
-              <h3 className="font-black text-slate-800 text-sm">{tariff.name}</h3>
-              {tariff.description && <p className="text-[11px] text-slate-500 mt-0.5">{tariff.description}</p>}
-            </div>
-
-            <div className={`text-[28px] font-black mb-2 ${priceColor(tariff.price_per_month)}`}>
-              {tariff.price_per_month > 0 ? (
-                <>{fmtMoney(tariff.price_per_month)} <span className="text-sm font-semibold text-slate-400">{t('tariffs.perMonth')}</span></>
-              ) : (
-                t('tariffs.trial')
-              )}
-            </div>
-
-            <div className="space-y-1 flex-1">
-              <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
-                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {t('tariffs.duration')} <span className="font-bold">{tariff.duration_days} {t('tariff.days')}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
-                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                {t('tariffs.maxUsers')} <span className="font-bold">{tariff.max_users >= 9999 ? t('tariffs.unlimited') : tariff.max_users}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
-                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                {t('tariffs.maxBranches')} <span className="font-bold">{tariff.max_branches >= 9999 ? t('tariffs.unlimited') : tariff.max_branches}</span>
-              </div>
-            </div>
-
-            {/* BHM ko'rsatkichi */}
-            {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
-              <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200/80">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] text-blue-600 font-semibold">
-                  {t('tariff.bhmOf')} <span className="font-black">{tariff.bhm_percent}%</span>
-                  <span className="text-blue-400">({(tariff.bhm_percent / 100).toFixed(2)} {t('tariff.share')})</span>
-                </span>
-              </div>
-            )}
-
-            <div className='flex flex-col mt-5 gap-2'>
-              {/* Harakatlar */}
-              <div className="grid grid-cols-1 gap-2">
-                <button
-                  onClick={() => handlePayme(tariff)}
-                  disabled={trialLoading}
-                  className="flex items-center justify-center gap-2 py-2.5 bg-[#19b467] cursor-pointer hover:bg-[#16a35d] text-white font-bold rounded-lg text-xs transition-all shadow-md disabled:opacity-60"
-                >
-                  {trialLoading ? t('tariff.waiting') : (
-                    <>
-                      <CreditCard size={20} /> <span>{t('tariff.payViaPayme')}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-full h-px bg-slate-200"></div>
-                <span className='text-xs text-slate-500'>{t('tariff.or')}</span>
-                <div className="w-full h-px bg-slate-200"></div>
-              </div>
-
-              {/* Tugma */}
-              <div className="">
-                {isCurrent(tariff) ? (
-                  // Faol tarif — faqat "Aktiv" badge ko'rsatamiz
-                  <div className="w-full py-2.5 text-center font-bold rounded-lg text-xs bg-emerald-100 text-emerald-700 border border-emerald-300">
-                    ✓ {t('tariff.active')}
-                  </div>
-                ) : (
-                  // Obuna yo'q yoki boshqa tarif — sotib olish tugmasi
-                  <button
-                    onClick={() => handleBuyTariff(tariff)}
-                    disabled={trialLoading || (hasActiveSub && !isCurrent(tariff))}
-                    className={`w-full py-2.5 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md transition-all ${btnColor(tariff.price_per_month)} disabled:opacity-60`}
-                  >
-                    {trialLoading ? t('tariff.waiting') : t('tariffs.buy')}
-                  </button>
+      {/* ── Paket muddati tanlash (1 oy | 3 oy | 6 oy -10% | 1 yil -20%) ── */}
+      <div className="flex flex-col items-center justify-center mb-8">
+        <div className="inline-flex p-1.5 bg-slate-100 rounded-2xl border border-slate-200/90 shadow-inner gap-1 flex-wrap justify-center">
+          {[
+            { m: 1, label: t('tariffs.package1m') },
+            { m: 3, label: t('tariffs.package3m') },
+            { m: 6, label: t('tariffs.package6m'), badge: '-10%' },
+            { m: 12, label: t('tariffs.package12m'), badge: '-20%' },
+          ].map(opt => {
+            const active = selectedMonths === opt.m;
+            return (
+              <button
+                key={opt.m}
+                onClick={() => setSelectedMonths(opt.m)}
+                className={`relative px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  active
+                    ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <span>{opt.label}</span>
+                {opt.badge && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                    active ? 'bg-blue-600 text-white' : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {opt.badge}
+                  </span>
                 )}
-              </div>
-            </div>
-          </div>
-        ))}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-slate-500 font-medium mt-2.5">
+          Paket muddatini tanlang: 6 oyga <span className="font-bold text-emerald-600">-10%</span>, 1 yilga <span className="font-bold text-emerald-600">-20%</span> chegirma
+        </p>
       </div>
 
+      {/* ── Keng, aniq va muvozanatli tarif kartalar (2 ustunli keng dizayn) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-7 items-stretch">
+        {tariffs.map(tariff => {
+          const theme = getTariffTheme(tariff.name);
+          const IconComp = theme.icon;
+          const isMini = theme.type === 'mini';
+          const minMonths = tariff.min_duration_months || 1;
+          const isUnderMin = selectedMonths < minMonths;
+          const effMonths = Math.max(selectedMonths, minMonths);
 
-      {/* ── Aloqa ── */}
-      <div className="bg-slate-50 rounded-xl mt-5 py-4 border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <p className="text-xs text-slate-500 font-medium">{t('tariff.contactUs')}</p>
-        <div className="flex items-center gap-2">
-          <a href={`https://t.me/JavokhirUbaydullayev`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-[#2AABEE] hover:bg-[#1d9bd6] text-white rounded-md font-bold text-xs transition-all shadow-sm">
-            {TG_ICON} @JavokhirUbaydullayev
-          </a>
-          <a href={`tel:${settings.phone_raw}`}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-bold text-xs transition-all shadow-sm">
-            {PHONE_ICON} +998-93-334-46-02
-          </a>
-        </div>
+          let discountRate = 0;
+          if (effMonths >= 12) discountRate = 0.20;
+          else if (effMonths >= 6) discountRate = 0.10;
+
+          const baseMonthly = tariff.price_per_month || 0;
+          const discountedMonthly = Math.round(baseMonthly * (1 - discountRate));
+          const totalPackagePrice = Math.round(discountedMonthly * effMonths);
+          const savedAmount = Math.max(0, (baseMonthly * effMonths) - totalPackagePrice);
+
+          return (
+            <div
+              key={tariff.id}
+              className={`relative rounded-3xl border-2 overflow-hidden flex flex-col justify-between transition-all duration-300 shadow-sm ${
+                theme.bgCls
+              } ${theme.borderCls} ${
+                isCurrent(tariff) ? 'ring-2 ring-offset-2 ring-blue-500' : ''
+              }`}
+            >
+              {/* Yuqori accent chiziq */}
+              <div className={`h-1.5 w-full bg-gradient-to-r ${theme.accentBar}`} />
+
+              <div className="p-6 sm:p-7 flex-1 flex flex-col justify-between">
+                <div>
+                  {/* ── Top Header & Price Row ── */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div className="flex items-start gap-3.5">
+                      <div className={`w-12 h-12 rounded-2xl ${theme.iconBg} flex items-center justify-center shadow-xs shrink-0`}>
+                        <IconComp size={24} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-black text-slate-900 text-xl tracking-tight">{tariff.name}</h3>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${theme.badgeCls}`}>
+                            {theme.badge}
+                          </span>
+                          {isCurrent(tariff) && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-600 text-white">
+                              ✓ {t('tariffs.currentPlan')}
+                            </span>
+                          )}
+                        </div>
+                        {tariff.description && (
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-sm">{tariff.description}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Price Block */}
+                    <div className="sm:text-right shrink-0 bg-slate-50/80 sm:bg-transparent p-3 sm:p-0 rounded-2xl">
+                      {tariff.price_per_month > 0 ? (
+                        <div>
+                          <div className="flex items-baseline sm:justify-end gap-1">
+                            <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                              {fmtMoney(discountedMonthly)}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">so'm/oy</span>
+                          </div>
+                          {effMonths > 1 && (
+                            <div className="text-xs text-slate-600 font-semibold mt-0.5">
+                              {effMonths} oylik: <span className={`font-black ${theme.priceColor}`}>{fmtMoney(totalPackagePrice)} s</span>
+                            </div>
+                          )}
+                          {savedAmount > 0 && (
+                            <div className="mt-1">
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                ✓ Tejaladi: {fmtMoney(savedAmount)} s (-{Math.round(discountRate * 100)}%)
+                              </span>
+                            </div>
+                          )}
+                          {isUnderMin && (
+                            <div className="mt-1.5 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg flex items-center sm:justify-end gap-1">
+                              <AlertTriangle size={12} className="shrink-0 text-amber-600" />
+                              <span>Kamida {minMonths} oylik paket talab etiladi</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-2xl font-black text-emerald-600">{t('tariffs.trial')}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── 2-Ustunli Kvotalar & Imkoniyatlar Paneli (Keng va aniq) ── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-5">
+                    {/* Chap ustun: Kvotalar va Resurslar */}
+                    <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        Resurs Limitlari
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-2 text-slate-600 font-medium">
+                          <Package size={15} className="text-amber-600 shrink-0" />
+                          Tovar limiti:
+                        </span>
+                        <span className={`font-black ${tariff.max_products > 0 ? (isMini ? 'text-amber-700' : 'text-slate-900') : 'text-emerald-600'}`}>
+                          {tariff.max_products > 0 ? `${tariff.max_products.toLocaleString('uz-UZ')} ta` : 'Cheksiz'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-2 text-slate-600 font-medium">
+                          <Warehouse size={15} className="text-blue-600 shrink-0" />
+                          Omborlar:
+                        </span>
+                        <span className="font-black text-slate-900">
+                          {tariff.max_warehouses && tariff.max_warehouses < 9999 ? `${tariff.max_warehouses} ta` : 'Cheksiz'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-2 text-slate-600 font-medium">
+                          <Users size={15} className="text-indigo-600 shrink-0" />
+                          Xodimlar:
+                        </span>
+                        <span className="font-black text-slate-900">
+                          {tariff.max_users >= 9999 ? 'Cheksiz' : `${tariff.max_users} ta`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-2 text-slate-600 font-medium">
+                          <Bike size={15} className="text-violet-600 shrink-0" />
+                          Savdo agentlari:
+                        </span>
+                        <span className={`font-black ${tariff.max_agents > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                          {tariff.max_agents > 0 ? `${tariff.max_agents} ta` : '—'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-2 text-slate-600 font-medium">
+                          <Truck size={15} className="text-sky-600 shrink-0" />
+                          Kuryerlar:
+                        </span>
+                        <span className={`font-black ${tariff.max_couriers > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                          {tariff.max_couriers > 0 ? `${tariff.max_couriers} ta` : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* O'ng ustun: Modullar & Funksiyalar */}
+                    <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                          Tizim Modullari
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs py-1">
+                          <span className="flex items-center gap-2 text-slate-600 font-medium">
+                            <BarChart3 size={15} className="text-blue-600 shrink-0" />
+                            P&L 2 davr solishtirish:
+                          </span>
+                          <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            tariff.has_pnl_compare ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {tariff.has_pnl_compare ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs py-1">
+                          <span className="flex items-center gap-2 text-slate-600 font-medium">
+                            <Factory size={15} className="text-amber-600 shrink-0" />
+                            Ishlab chiqarish:
+                          </span>
+                          <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            tariff.has_manufacturing ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {tariff.has_manufacturing ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs py-1">
+                          <span className="flex items-center gap-2 text-slate-600 font-medium">
+                            <Share2 size={15} className="text-purple-600 shrink-0" />
+                            Distribyutsiya:
+                          </span>
+                          <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            tariff.has_distribution ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {tariff.has_distribution ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                          </span>
+                        </div>
+                      </div>
+
+                      {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
+                        <div className="pt-2 border-t border-dashed border-slate-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-blue-700 font-semibold">
+                            BHM ulushi: <span className="font-black">{tariff.bhm_percent}%</span>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Tugmalar qatori (Yonma-yon 2 ta tugma) ── */}
+                <div className="pt-4 border-t border-slate-100">
+                  {isCurrent(tariff) ? (
+                    <div className="w-full py-3 text-center font-black rounded-xl text-sm bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center justify-center gap-2">
+                      <Check size={16} /> {t('tariff.active')}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        onClick={() => handlePayme(tariff, effMonths, totalPackagePrice)}
+                        disabled={trialLoading}
+                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      >
+                        {trialLoading ? t('tariff.waiting') : (
+                          <>
+                            <CreditCard size={17} className="shrink-0" />
+                            <span>Payme orqali to'lash</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => handleBuyTariff(tariff, effMonths, totalPackagePrice)}
+                        disabled={trialLoading || (hasActiveSub && !isCurrent(tariff))}
+                        className={`py-3 px-4 bg-gradient-to-r ${theme.btnGradient} text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60`}
+                      >
+                        {trialLoading ? t('tariff.waiting') : (
+                          <>
+                            <Wallet size={17} className="shrink-0" />
+                            <span>Balansdan sotib olish</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
-  )
+  );
 }
 
 function SubscriptionHistoryTab({ logs }) {
@@ -401,14 +644,14 @@ export default function Tariflar() {
     fetchData();
   }, [user]);
 
-  const handlePayme = async (directTariff = null) => {
+  const handlePayme = async (directTariff = null, customMonths = 1, customAmount = null) => {
     const tariffToPay = directTariff;
     if (!tariffToPay) return;
 
     setTrialLoading(true);
     try {
-      const payMonths = 1;
-      const amount = Math.round(tariffToPay.price_per_month * payMonths);
+      const payMonths = customMonths || 1;
+      const amount = customAmount != null ? Math.round(customAmount) : Math.round(tariffToPay.price_per_month * payMonths);
       const res = await api.post('/payme/checkout-url', { amount });
 
       // Popup oynani markazda ochish
@@ -447,7 +690,7 @@ export default function Tariflar() {
     });
   };
 
-  const handleBuyTariff = async (tariff) => {
+  const handleBuyTariff = async (tariff, customMonths = 1, customPrice = null) => {
     setTrialLoading(true);
     try {
       // 1. Fetch latest company billing to ensure balance is up-to-date
@@ -456,7 +699,8 @@ export default function Tariflar() {
       setBilling(latestBilling);
 
       const balance = latestBilling.balance || 0;
-      const price = tariff.price_per_month || 0;
+      const months = customMonths || 1;
+      const price = customPrice != null ? customPrice : ((tariff.price_per_month || 0) * months);
 
       // 2. Perform balance checks
       if (latestBilling.subscription_active && !latestBilling.is_trial && latestBilling.tariff_id !== tariff.id) {
@@ -474,14 +718,14 @@ export default function Tariflar() {
 
       // 3. Prompt for confirmation
       const confirmed = window.confirm(
-        t('tariff.confirmActivate', { name: tariff.name, amount: fmtMoney(price) })
+        t('tariff.confirmActivate', { name: `${tariff.name} (${months} ${t('superAdmin.month') || 'oy'})`, amount: fmtMoney(price) })
       );
       if (!confirmed) return;
 
       // 4. Activate subscription
       const res = await api.post('/billing/my-company/subscribe', {
         tariff_id: tariff.id,
-        months: 1
+        months: months
       });
       setToast({ msg: res.data.message || t('tariff.subscriptionActivated'), ok: true });
 

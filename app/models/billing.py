@@ -3,7 +3,7 @@ Billing modellari: Tariff, BalanceLog
 Company modeliga qo'shimcha ustunlar migration orqali qo'shiladi.
 """
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, Text, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, Text, Float, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base  # type: ignore
 
@@ -18,6 +18,17 @@ class Tariff(Base):
     duration_days = Column(Integer, default=30)  # obuna muddati (kun)
     max_users = Column(Integer, default=5)
     max_branches = Column(Integer, default=1)
+    max_warehouses = Column(Integer, default=1)
+    max_products = Column(Integer, nullable=True)  # tovar/shtrixkod limiti (masalan 700 ta)
+    max_agents = Column(Integer, default=0)  # savdo agentlari limiti
+    max_couriers = Column(Integer, default=0)  # dastavchiklar limiti
+    max_monthly_orders = Column(Integer, nullable=True)  # oylik buyurtmalar kvotasi
+    max_production_orders = Column(Integer, nullable=True)  # oylik ishlab chiqarish kvotasi
+    min_duration_months = Column(Integer, default=1)  # kamida necha oylik sotiladi (1 yoki 3)
+    has_pnl_compare = Column(Boolean, default=False)  # 2 davrli P&L solishtirish huquqi
+    has_manufacturing = Column(Boolean, default=False)  # ishlab chiqarish moduli
+    has_distribution = Column(Boolean, default=False)  # distribyutsiya moduli
+    period_discounts = Column(JSON, nullable=True)  # muddat bo'yicha chegirmalar: {"3": 0, "6": 10, "12": 20}
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
     bhm_percent = Column(Float, nullable=True)  # BHM ning necha foizini tashkil qiladi

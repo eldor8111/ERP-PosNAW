@@ -17,7 +17,7 @@ from app.database import get_db
 from app.models.batch import Batch
 from app.models.category import Category
 from app.models.customer import Customer
-from app.models.moliya import Expense, ExpenseCategory
+from app.models.moliya import Expense, ExpenseCategory, Transaction
 from app.models.product import Product
 from app.models.sale import Sale, SaleItem, SaleItemBatch
 from app.models.supplier import Supplier
@@ -346,3 +346,201 @@ def profit_loss_statement(
         "net_profit": round(net_profit, 2),
         "net_margin_pct": _pct(net_profit, revenue),
     }
+
+
+def _diff_metric(p1_val: float, p2_val: float, is_income: bool = True) -> dict:
+    p1 = round(float(p1_val or 0), 2)
+    p2 = round(float(p2_val or 0), 2)
+    diff = round(p2 - p1, 2)
+
+    if p1 != 0:
+        pct = round((diff / abs(p1)) * 100, 1)
+    else:
+        pct = None
+
+    if diff == 0:
+        status = "neutral"
+    elif is_income:
+        status = "good" if diff > 0 else "bad"
+    else:
+        status = "good" if diff < 0 else "bad"
+
+    return {
+        "p1": p1,
+        "p2": p2,
+        "diff": diff,
+        "diff_pct": pct,
+        "status": status,
+    }
+
+
+def _calc_pnl_data(db: Session, cid: int, start, end, branch_id: Optional[int]) -> dict:
+    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    sale_filters = [Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end]
+    if wh_ids is not None:
+        sale_filters.append(Sale.warehouse_id.in_(wh_ids))
+
+    def _sum_sales(flt) -> float:
+        val = db.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(*sale_filters, flt).scalar()
+        return float(val or 0)
+
+    gross_revenue = _sum_sales(sale_doc_filter())
+    returns = _sum_sales(return_doc_filter())
+    net_revenue = gross_revenue - returns
+
+    # COGS for sales
+    cogs_sales = float(
+        db.query(func.coalesce(func.sum(item_cost_uzs()), 0))
+        .select_from(SaleItem)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(*sale_filters, sale_doc_filter())
+        .scalar() or 0
+    )
+
+    # Returns cost
+    returns_cost = float(
+        db.query(func.coalesce(func.sum(item_cost_uzs()), 0))
+        .select_from(SaleItem)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(*sale_filters, return_doc_filter())
+        .scalar() or 0
+    )
+
+    net_cogs = cogs_sales - returns_cost
+    gross_profit = net_revenue - net_cogs
+    gross_margin_pct = _pct(gross_profit, net_revenue)
+
+    # Boshqa daromadlar (asosiy savdodan tashqari kirimlar)
+    tx_filters = [
+        Transaction.company_id == cid,
+        Transaction.created_at >= start,
+        Transaction.created_at < end,
+        Transaction.type == "income",
+        or_(
+            Transaction.reference_type.is_(None),
+            Transaction.reference_type.notin_(["sale", "sale_payment", "customer_debt_payment", "customer_payment"])
+        )
+    ]
+    if branch_id:
+        tx_filters.append(Transaction.branch_id == branch_id)
+    other_income = float(
+        db.query(func.coalesce(func.sum(Transaction.amount), 0))
+        .filter(*tx_filters)
+        .scalar() or 0
+    )
+
+    # Bilvosita xarajatlar (ExpenseCategories)
+    exp_q = (
+        db.query(
+            ExpenseCategory.id.label("cat_id"),
+            ExpenseCategory.name.label("cat_name"),
+            func.coalesce(func.sum(Expense.amount), 0).label("total")
+        )
+        .select_from(Expense)
+        .outerjoin(ExpenseCategory, ExpenseCategory.id == Expense.category_id)
+        .filter(Expense.company_id == cid, Expense.created_at >= start, Expense.created_at < end)
+    )
+    if branch_id:
+        exp_q = exp_q.filter(Expense.branch_id == branch_id)
+    exp_rows = exp_q.group_by(ExpenseCategory.id, ExpenseCategory.name).all()
+
+    expenses_by_cat = {
+        (r.cat_name or "Boshqa xarajatlar"): round(float(r.total or 0), 2)
+        for r in exp_rows
+    }
+    total_indirect_expenses = sum(expenses_by_cat.values())
+
+    net_profit = gross_profit + other_income - total_indirect_expenses
+    net_margin_pct = _pct(net_profit, net_revenue)
+
+    return {
+        "gross_revenue": gross_revenue,
+        "cogs": cogs_sales,
+        "returns": returns,
+        "returns_cost": returns_cost,
+        "net_revenue": net_revenue,
+        "net_cogs": net_cogs,
+        "gross_profit": gross_profit,
+        "gross_margin_pct": gross_margin_pct,
+        "other_income": other_income,
+        "expenses_by_cat": expenses_by_cat,
+        "total_indirect_expenses": total_indirect_expenses,
+        "net_profit": net_profit,
+        "net_margin_pct": net_margin_pct,
+    }
+
+
+@router.get("/pnl-compare")
+def pnl_compare_report(
+    p1_from: date = Query(..., description="1-davr boshlanishi"),
+    p1_to: date = Query(..., description="1-davr tugashi"),
+    p2_from: date = Query(..., description="2-davr boshlanishi"),
+    p2_to: date = Query(..., description="2-davr tugashi"),
+    branch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*REPORT_ROLES)),
+):
+    """
+    Foyda va Zarar (P&L) Ikki davrni solishtirish hisoboti (Linko analitika modeli).
+    Ustunlar: Birinchi davr, Ikkinchi davr, Farq (summa va foizda).
+    Rang indikatsiyasi: Daromad oshsa yashil, xarajat oshsa qizil.
+    """
+    cid = current_user.company_id
+
+    # Tarif ruxsatini tekshirish
+    from app.services.tariff_guard import get_company_tariff
+    tariff = get_company_tariff(db, cid)
+    has_access = bool(tariff and tariff.has_pnl_compare) if tariff else True
+
+    s1, e1 = _date_range(p1_from, p1_to)
+    s2, e2 = _date_range(p2_from, p2_to)
+
+    d1 = _calc_pnl_data(db, cid, s1, e1, branch_id)
+    d2 = _calc_pnl_data(db, cid, s2, e2, branch_id)
+
+    # Asosiy P&L qatorlari
+    rows = {
+        "gross_revenue": _diff_metric(d1["gross_revenue"], d2["gross_revenue"], is_income=True),
+        "cogs": _diff_metric(d1["cogs"], d2["cogs"], is_income=False),
+        "returns": _diff_metric(d1["returns"], d2["returns"], is_income=False),
+        "returns_cost": _diff_metric(d1["returns_cost"], d2["returns_cost"], is_income=False),
+        "net_revenue": _diff_metric(d1["net_revenue"], d2["net_revenue"], is_income=True),
+        "gross_profit": _diff_metric(d1["gross_profit"], d2["gross_profit"], is_income=True),
+        "gross_margin_pct": _diff_metric(d1["gross_margin_pct"], d2["gross_margin_pct"], is_income=True),
+        "other_income": _diff_metric(d1["other_income"], d2["other_income"], is_income=True),
+        "total_indirect_expenses": _diff_metric(d1["total_indirect_expenses"], d2["total_indirect_expenses"], is_income=False),
+        "net_profit": _diff_metric(d1["net_profit"], d2["net_profit"], is_income=True),
+        "net_margin_pct": _diff_metric(d1["net_margin_pct"], d2["net_margin_pct"], is_income=True),
+    }
+
+    # Barcha xarajat moddalarini birlashtirish
+    all_cats = sorted(set(d1["expenses_by_cat"].keys()) | set(d2["expenses_by_cat"].keys()))
+    expense_categories = []
+    for cat in all_cats:
+        v1 = d1["expenses_by_cat"].get(cat, 0.0)
+        v2 = d2["expenses_by_cat"].get(cat, 0.0)
+        diff_info = _diff_metric(v1, v2, is_income=False)
+        expense_categories.append({
+            "name": cat,
+            **diff_info
+        })
+    expense_categories.sort(key=lambda c: max(c["p1"], c["p2"]), reverse=True)
+
+    # Yuqori tablar (kartalar)
+    tabs = {
+        "gross_revenue": rows["gross_revenue"],
+        "returns": rows["returns"],
+        "net_revenue": rows["net_revenue"],
+        "gross_profit": rows["gross_profit"],
+    }
+
+    return {
+        "period1": {"from": str(p1_from), "to": str(p1_to)},
+        "period2": {"from": str(p2_from), "to": str(p2_to)},
+        "has_access": has_access,
+        "currency": "UZS",
+        "tabs": tabs,
+        "rows": rows,
+        "expense_categories": expense_categories,
+    }
+

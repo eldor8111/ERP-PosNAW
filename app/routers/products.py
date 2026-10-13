@@ -405,6 +405,9 @@ def create_product(
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
+    from app.services.tariff_guard import check_product_limit
+    check_product_limit(db, current_user.company_id, count_to_add=1)
+
     # Extract non-model fields before dump
     initial_stock = data.initial_stock or Decimal("0")
     initial_warehouse_id = data.initial_warehouse_id

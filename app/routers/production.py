@@ -263,6 +263,9 @@ def create_order(
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
     company_id = _company_id(current_user)
+    from app.services.tariff_guard import check_production_limit
+    check_production_limit(db, company_id)
+
     order = create_production_order(db, data, current_user.id, company_id)
     db.commit()
     order = _load_order(db, order.id, company_id)

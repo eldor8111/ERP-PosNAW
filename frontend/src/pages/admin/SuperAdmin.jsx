@@ -2,6 +2,26 @@ import { useState, useEffect } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import {
+  Store,
+  Zap,
+  Sparkles,
+  Crown,
+  Package,
+  Warehouse,
+  Users,
+  Building2,
+  Bike,
+  Truck,
+  BarChart3,
+  Factory,
+  Share2,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  AlertTriangle,
+} from 'lucide-react';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 
@@ -1619,7 +1639,27 @@ function TariffsTab() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ name: '', description: '', price_per_month: 0, duration_days: 30, max_users: 10, max_branches: 2, sort_order: 0, bhm_percent: '' });
+  const defaultForm = {
+    name: '',
+    description: '',
+    price_per_month: 0,
+    duration_days: 30,
+    max_users: 10,
+    max_branches: 2,
+    max_warehouses: 1,
+    max_products: 0,
+    max_agents: 0,
+    max_couriers: 0,
+    max_monthly_orders: 0,
+    max_production_orders: 0,
+    min_duration_months: 1,
+    has_pnl_compare: false,
+    has_manufacturing: false,
+    has_distribution: false,
+    sort_order: 0,
+    bhm_percent: '',
+  };
+  const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -1630,13 +1670,32 @@ function TariffsTab() {
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ name: '', description: '', price_per_month: 0, duration_days: 30, max_users: 10, max_branches: 2, sort_order: 0, bhm_percent: '' });
+    setForm(defaultForm);
     setShowForm(true);
   };
 
   const openEdit = (tariff) => {
     setEditItem(tariff);
-    setForm({ name: tariff.name, description: tariff.description || '', price_per_month: tariff.price_per_month, duration_days: tariff.duration_days, max_users: tariff.max_users, max_branches: tariff.max_branches, sort_order: tariff.sort_order, bhm_percent: tariff.bhm_percent ?? '' });
+    setForm({
+      name: tariff.name || '',
+      description: tariff.description || '',
+      price_per_month: tariff.price_per_month || 0,
+      duration_days: tariff.duration_days || 30,
+      max_users: tariff.max_users ?? 10,
+      max_branches: tariff.max_branches ?? 2,
+      max_warehouses: tariff.max_warehouses ?? 1,
+      max_products: tariff.max_products ?? 0,
+      max_agents: tariff.max_agents ?? 0,
+      max_couriers: tariff.max_couriers ?? 0,
+      max_monthly_orders: tariff.max_monthly_orders ?? 0,
+      max_production_orders: tariff.max_production_orders ?? 0,
+      min_duration_months: tariff.min_duration_months ?? 1,
+      has_pnl_compare: !!tariff.has_pnl_compare,
+      has_manufacturing: !!tariff.has_manufacturing,
+      has_distribution: !!tariff.has_distribution,
+      sort_order: tariff.sort_order ?? 0,
+      bhm_percent: tariff.bhm_percent ?? '',
+    });
     setShowForm(true);
   };
 
@@ -1662,7 +1721,7 @@ function TariffsTab() {
     load();
   };
 
-  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-300";
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-300";
 
   return (
     <div className="space-y-4">
@@ -1674,43 +1733,226 @@ function TariffsTab() {
             </span>
             {t('superAdmin.tariffs')}
           </h3>
-          <button onClick={openNew} className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5">
+          <button onClick={openNew} className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer">
             <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" /> {t('superAdmin.newTariff')}
           </button>
         </div>
         {loading ? (
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-5">
-            {tariffs.map(tariff => (
-              <div key={tariff.id} className="border border-slate-200 rounded-2xl p-5 flex flex-col gap-3 hover:border-blue-300 hover:shadow-md transition-all">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-black text-slate-800 text-base">{tariff.name}</h4>
-                    {tariff.description && <p className="text-xs text-slate-400 mt-1">{tariff.description}</p>}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
+            {tariffs.map(tariff => {
+              const nameLower = (tariff.name || '').toLowerCase();
+              let tierBadge = 'Distribyutor Start';
+              let badgeCls = 'bg-sky-600 text-white shadow-xs';
+              let borderCls = 'border-sky-200 hover:border-sky-400 hover:shadow-xl hover:shadow-sky-500/10';
+              let bgCls = 'bg-white';
+              let priceColor = 'text-sky-700';
+              let iconBg = 'bg-sky-50 text-sky-600 border border-sky-200';
+              let accentBar = 'from-sky-500 via-blue-500 to-sky-600';
+              let IconComp = Zap;
+
+              if (nameLower.includes('mini')) {
+                tierBadge = "Kichik Do'kon";
+                badgeCls = 'bg-emerald-600 text-white shadow-xs';
+                borderCls = 'border-emerald-200 hover:border-emerald-400 hover:shadow-xl hover:shadow-emerald-500/10';
+                bgCls = 'bg-white';
+                priceColor = 'text-emerald-700';
+                iconBg = 'bg-emerald-50 text-emerald-600 border border-emerald-200';
+                accentBar = 'from-emerald-500 via-teal-500 to-emerald-600';
+                IconComp = Store;
+              } else if (nameLower.includes('pro')) {
+                tierBadge = 'Distribyutor Pro (VIP)';
+                badgeCls = 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-xs';
+                borderCls = 'border-violet-200 hover:border-violet-400 hover:shadow-xl hover:shadow-violet-500/10';
+                bgCls = 'bg-white';
+                priceColor = 'text-violet-700';
+                iconBg = 'bg-violet-50 text-violet-600 border border-violet-200';
+                accentBar = 'from-violet-600 via-purple-600 to-indigo-600';
+                IconComp = Crown;
+              } else if (nameLower.includes('standart')) {
+                tierBadge = 'Distribyutor Standart';
+                badgeCls = 'bg-blue-600 text-white shadow-md shadow-blue-500/30';
+                borderCls = 'border-blue-400 ring-2 ring-blue-500/30 hover:border-blue-600 hover:shadow-xl hover:shadow-blue-500/15';
+                bgCls = 'bg-gradient-to-br from-blue-50/40 via-white to-indigo-50/30';
+                priceColor = 'text-blue-700';
+                iconBg = 'bg-blue-50 text-blue-600 border border-blue-200';
+                accentBar = 'from-blue-600 via-indigo-600 to-blue-500';
+                IconComp = Sparkles;
+              }
+
+              return (
+                <div key={tariff.id} className={`rounded-3xl border-2 overflow-hidden flex flex-col justify-between transition-all duration-300 shadow-sm ${bgCls} ${borderCls}`}>
+                  {/* Yuqori accent chiziq */}
+                  <div className={`h-1.5 w-full bg-gradient-to-r ${accentBar}`} />
+
+                  <div className="p-6 flex-1 flex flex-col justify-between">
+                    <div>
+                      {/* Top Header & Price */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-start gap-3.5">
+                          <div className={`w-12 h-12 rounded-2xl ${iconBg} flex items-center justify-center shadow-xs shrink-0`}>
+                            <IconComp size={24} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-black text-slate-900 text-xl tracking-tight">{tariff.name}</h4>
+                              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${badgeCls}`}>
+                                {tierBadge}
+                              </span>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${tariff.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                                {tariff.is_active ? t('common.active') : t('common.inactive')}
+                              </span>
+                            </div>
+                            {tariff.description && (
+                              <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-sm">{tariff.description}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Price */}
+                        <div className="sm:text-right shrink-0 bg-slate-50/80 sm:bg-transparent p-3 sm:p-0 rounded-2xl">
+                          <div className="flex items-baseline sm:justify-end gap-1">
+                            <span className="text-2xl sm:text-3xl font-black text-slate-900">
+                              {tariff.price_per_month === 0 ? t('superAdmin.free') : `${fmtMoney(tariff.price_per_month)} s`}
+                            </span>
+                            {tariff.price_per_month > 0 && <span className="text-xs font-bold text-slate-400">/{t('superAdmin.month')}</span>}
+                          </div>
+                          <div className="text-[11px] font-semibold text-slate-500 mt-1 flex items-center sm:justify-end gap-2">
+                            <span>⏱ {tariff.duration_days} kun</span>
+                            {tariff.min_duration_months > 1 && (
+                              <span className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md">Min: {tariff.min_duration_months} oy</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2-Column Limits & Modules Specs Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-5">
+                        {/* Chap ustun: Resurs kvotalari */}
+                        <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                            Resurs Limitlari
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 text-slate-600 font-medium">
+                              <Package size={15} className="text-amber-600 shrink-0" />
+                              Mahsulot limiti:
+                            </span>
+                            <span className="font-black text-slate-900">
+                              {tariff.max_products > 0 ? `${tariff.max_products.toLocaleString('uz-UZ')} ta` : 'Cheksiz'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 text-slate-600 font-medium">
+                              <Warehouse size={15} className="text-blue-600 shrink-0" />
+                              Omborlar:
+                            </span>
+                            <span className="font-black text-slate-900">
+                              {tariff.max_warehouses && tariff.max_warehouses < 9999 ? `${tariff.max_warehouses} ta` : 'Cheksiz'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 text-slate-600 font-medium">
+                              <Users size={15} className="text-indigo-600 shrink-0" />
+                              Xodimlar:
+                            </span>
+                            <span className="font-black text-slate-900">
+                              {tariff.max_users >= 9999 ? 'Cheksiz' : `${tariff.max_users} ta`}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 text-slate-600 font-medium">
+                              <Building2 size={15} className="text-slate-600 shrink-0" />
+                              Filiallar:
+                            </span>
+                            <span className="font-black text-slate-900">
+                              {tariff.max_branches >= 9999 ? 'Cheksiz' : `${tariff.max_branches} ta`}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 text-slate-600 font-medium">
+                              <Bike size={15} className="text-violet-600 shrink-0" />
+                              Agentlar:
+                            </span>
+                            <span className="font-black text-blue-700">{tariff.max_agents || 0} ta</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 text-slate-600 font-medium">
+                              <Truck size={15} className="text-sky-600 shrink-0" />
+                              Kuryerlar:
+                            </span>
+                            <span className="font-black text-blue-700">{tariff.max_couriers || 0} ta</span>
+                          </div>
+                        </div>
+
+                        {/* O'ng ustun: Modullar */}
+                        <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between">
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              Tizim Modullari
+                            </div>
+                            <div className="flex items-center justify-between text-xs py-1">
+                              <span className="flex items-center gap-2 text-slate-600 font-medium">
+                                <BarChart3 size={15} className="text-blue-600 shrink-0" />
+                                P&L Solishtirish:
+                              </span>
+                              <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                tariff.has_pnl_compare ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {tariff.has_pnl_compare ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs py-1">
+                              <span className="flex items-center gap-2 text-slate-600 font-medium">
+                                <Factory size={15} className="text-amber-600 shrink-0" />
+                                Ishlab chiqarish:
+                              </span>
+                              <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                tariff.has_manufacturing ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {tariff.has_manufacturing ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs py-1">
+                              <span className="flex items-center gap-2 text-slate-600 font-medium">
+                                <Share2 size={15} className="text-purple-600 shrink-0" />
+                                Distribyutsiya:
+                              </span>
+                              <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                tariff.has_distribution ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {tariff.has_distribution ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                              </span>
+                            </div>
+                          </div>
+
+                          {tariff.bhm_percent != null && tariff.price_per_month > 0 && (
+                            <div className="pt-2 border-t border-dashed border-slate-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-blue-700 font-semibold">
+                                BHM ulushi: <span className="font-black">{tariff.bhm_percent}%</span>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Boshqaruv tugmalari */}
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                      <button onClick={() => openEdit(tariff)} className="py-2.5 px-4 text-xs font-bold bg-white hover:bg-blue-600 hover:text-white text-slate-700 border border-slate-200 hover:border-blue-600 rounded-xl transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-2">
+                        <Pencil size={14} />
+                        {t('common.edit')}
+                      </button>
+                      <button onClick={() => deactivate(tariff.id)} className="py-2.5 px-4 text-xs font-bold bg-white hover:bg-red-600 hover:text-white text-red-600 border border-red-200 hover:border-red-600 rounded-xl transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-2">
+                        <Trash2 size={14} />
+                        {t('common.delete')}
+                      </button>
+                    </div>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${tariff.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                    {tariff.is_active ? t('common.active') : t('common.inactive')}
-                  </span>
                 </div>
-                <div className="text-2xl font-black text-blue-700">
-                  {tariff.price_per_month === 0 ? t('superAdmin.free') : `${fmtMoney(tariff.price_per_month)} s`}
-                  {tariff.price_per_month > 0 && <span className="text-sm font-semibold text-slate-400">/{t('superAdmin.month')}</span>}
-                </div>
-                <div className="space-y-1 text-xs text-slate-500">
-                  <div>⏱ {t('superAdmin.durationLabel')}: <span className="font-bold text-slate-700">{tariff.duration_days} {t('superAdmin.days')}</span></div>
-                  <div>👤 {t('superAdmin.maxEmployees')}: <span className="font-bold text-slate-700">{tariff.max_users >= 9999 ? t('superAdmin.unlimited') : tariff.max_users}</span></div>
-                  <div>🏢 {t('superAdmin.maxBranches')}: <span className="font-bold text-slate-700">{tariff.max_branches >= 9999 ? t('superAdmin.unlimited') : tariff.max_branches}</span></div>
-                  {tariff.bhm_percent != null && (
-                    <div>📊 BHM: <span className="font-bold text-blue-600">{tariff.bhm_percent}% ({(tariff.bhm_percent / 100).toFixed(2)} BHM)</span></div>
-                  )}
-                </div>
-                <div className="flex gap-2 mt-auto pt-2 border-t border-slate-100">
-                  <button onClick={() => openEdit(tariff)} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all">{t('common.edit')}</button>
-                  <button onClick={() => deactivate(tariff.id)} className="flex-1 py-1.5 text-xs font-bold bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-all">{t('common.delete')}</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {tariffs.length === 0 && (
               <div className="col-span-full py-14 text-center text-slate-400 text-sm font-semibold">
                 {t('superAdmin.noTariffsYet')}
@@ -1723,47 +1965,120 @@ function TariffsTab() {
       {/* Tarif Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-slate-800">{editItem ? t('superAdmin.editTariff') : t('superAdmin.newTariff')}</h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><Ic d="M6 18L18 6M6 6l12 12" /></button>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-lg">{editItem ? t('superAdmin.editTariff') : t('superAdmin.newTariff')}</h3>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><Ic d="M6 18L18 6M6 6l12 12" /></button>
             </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.nameLabel')} *</label>
-                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inp} placeholder={t('superAdmin.tariffNamePlaceholder')} />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.descriptionLabel')}</label>
-                <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className={inp} placeholder={t('superAdmin.shortDescriptionPlaceholder')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-4">
+              {/* Asosiy */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t('superAdmin.nameLabel')} *</label>
+                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inp} placeholder={t('superAdmin.tariffNamePlaceholder')} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t('superAdmin.descriptionLabel')}</label>
+                  <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className={inp} placeholder={t('superAdmin.shortDescriptionPlaceholder')} />
+                </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.priceSumPerMonth')}</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t('superAdmin.priceSumPerMonth')}</label>
                   <input type="number" value={form.price_per_month} onChange={e => setForm(p => ({ ...p, price_per_month: Number(e.target.value) }))} className={inp} min="0" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.durationDays')}</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t('superAdmin.durationDays')}</label>
                   <input type="number" value={form.duration_days} onChange={e => setForm(p => ({ ...p, duration_days: Number(e.target.value) }))} className={inp} min="1" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.maxEmployees')}</label>
-                  <input type="number" value={form.max_users} onChange={e => setForm(p => ({ ...p, max_users: Number(e.target.value) }))} className={inp} min="1" />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t('superAdmin.bhmPercentLabel')}</label>
+                  <input type="number" value={form.bhm_percent} onChange={e => setForm(p => ({ ...p, bhm_percent: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} min="0" step="0.1" placeholder={t('superAdmin.bhmPercentPlaceholder')} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.maxBranches')}</label>
-                  <input type="number" value={form.max_branches} onChange={e => setForm(p => ({ ...p, max_branches: Number(e.target.value) }))} className={inp} min="1" />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t('superAdmin.minDurationMonths')}</label>
+                  <input type="number" value={form.min_duration_months} onChange={e => setForm(p => ({ ...p, min_duration_months: Math.max(1, Number(e.target.value)) }))} className={inp} min="1" max="24" />
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">{t('superAdmin.bhmPercentLabel')}</label>
-                <input type="number" value={form.bhm_percent} onChange={e => setForm(p => ({ ...p, bhm_percent: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} min="0" step="0.1" placeholder={t('superAdmin.bhmPercentPlaceholder')} />
-                <p className="text-xs text-slate-400 mt-1">{t('superAdmin.bhmPercentHint')}</p>
+
+              {/* Cheklovlar va kvotalar */}
+              <div className="border-t border-slate-100 pt-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2.5">
+                  {t('superAdmin.limitsAndQuotas')}
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxEmployees')}</label>
+                    <input type="number" value={form.max_users} onChange={e => setForm(p => ({ ...p, max_users: Number(e.target.value) }))} className={inp} min="1" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxBranches')}</label>
+                    <input type="number" value={form.max_branches} onChange={e => setForm(p => ({ ...p, max_branches: Number(e.target.value) }))} className={inp} min="1" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxWarehouses')}</label>
+                    <input type="number" value={form.max_warehouses} onChange={e => setForm(p => ({ ...p, max_warehouses: Number(e.target.value) }))} className={inp} min="1" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxProducts')}</label>
+                    <input type="number" value={form.max_products} onChange={e => setForm(p => ({ ...p, max_products: Number(e.target.value) }))} className={inp} min="0" placeholder="0 = cheksiz" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxAgents')}</label>
+                    <input type="number" value={form.max_agents} onChange={e => setForm(p => ({ ...p, max_agents: Number(e.target.value) }))} className={inp} min="0" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxCouriers')}</label>
+                    <input type="number" value={form.max_couriers} onChange={e => setForm(p => ({ ...p, max_couriers: Number(e.target.value) }))} className={inp} min="0" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxMonthlyOrders')}</label>
+                    <input type="number" value={form.max_monthly_orders} onChange={e => setForm(p => ({ ...p, max_monthly_orders: Number(e.target.value) }))} className={inp} min="0" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('superAdmin.maxProductionOrders')}</label>
+                    <input type="number" value={form.max_production_orders} onChange={e => setForm(p => ({ ...p, max_production_orders: Number(e.target.value) }))} className={inp} min="0" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modullar va imkoniyatlar */}
+              <div className="border-t border-slate-100 pt-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2.5">
+                  {t('superAdmin.featuresTitle')}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.has_pnl_compare}
+                      onChange={e => setForm(p => ({ ...p, has_pnl_compare: e.target.checked }))}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <span className="text-xs font-bold text-slate-700">{t('superAdmin.hasPnlCompare')}</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.has_manufacturing}
+                      onChange={e => setForm(p => ({ ...p, has_manufacturing: e.target.checked }))}
+                      className="w-4 h-4 text-amber-600 rounded"
+                    />
+                    <span className="text-xs font-bold text-slate-700">{t('superAdmin.hasManufacturing')}</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.has_distribution}
+                      onChange={e => setForm(p => ({ ...p, has_distribution: e.target.checked }))}
+                      className="w-4 h-4 text-purple-600 rounded"
+                    />
+                    <span className="text-xs font-bold text-slate-700">{t('superAdmin.hasDistribution')}</span>
+                  </label>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all">{t('common.cancel')}</button>
-              <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all disabled:opacity-50">
+            <div className="flex gap-2 mt-5 border-t border-slate-100 pt-4">
+              <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all cursor-pointer">{t('common.cancel')}</button>
+              <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-200 transition-all disabled:opacity-50 cursor-pointer">
                 {saving ? t('common.saving') : t('common.save')}
               </button>
             </div>

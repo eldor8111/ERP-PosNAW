@@ -112,6 +112,9 @@ def create_courier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*MANAGE_ROLES)),
 ):
+    from app.services.tariff_guard import check_courier_limit
+    check_courier_limit(db, current_user.company_id)
+
     _check_vehicle(db, current_user.company_id, data.vehicle_id)
     courier = Courier(
         company_id=current_user.company_id,
