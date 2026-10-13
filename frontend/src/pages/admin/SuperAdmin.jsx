@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -51,6 +51,9 @@ function DeleteCompanyModal({ company, onClose, onDeleted }) {
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [step, setStep] = useState('');
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   const code = company.code || company.org_code || '';
   const target = (code || company.name || '').trim();
   const matches = confirm.trim().toLowerCase() === target.toLowerCase();
@@ -63,14 +66,29 @@ function DeleteCompanyModal({ company, onClose, onDeleted }) {
 
   const doDelete = async () => {
     if (!matches || deleting) return;
-    setDeleting(true); setError('');
+    setDeleting(true); setError(''); setStep('');
     try {
+      // O'chirish serverda fonda ishlaydi (minglab yozuv bo'lishi mumkin) — holatini kuzatamiz
       const r = await api.delete(`/super-admin/companies/${company.id}`, { params: { confirm: confirm.trim() } });
-      toast.success(r.data?.message || t('superAdmin.companyDeleted'));
-      onDeleted();
+      const jobId = r.data?.job_id;
+      for (;;) {
+        await new Promise(res => setTimeout(res, 2000));
+        if (!alive.current) return;
+        let job;
+        try { job = (await api.get(`/super-admin/purge-jobs/${jobId}`)).data; }
+        catch { continue; }   // vaqtinchalik tarmoq xatosi — qayta so'raymiz
+        if (job.status === 'done') {
+          toast.success(`${company.name}: ${t('superAdmin.companyDeleted')}`);
+          onDeleted();
+          return;
+        }
+        if (job.status === 'error') throw new Error(job.error);
+        setStep(job.step || '');
+      }
     } catch (e) {
-      setError(e.response?.data?.detail || t('superAdmin.deleteError'));
-      setDeleting(false);
+      if (!alive.current) return;
+      setError(e.response?.data?.detail || e.message || t('superAdmin.deleteError'));
+      setDeleting(false); setStep('');
     }
   };
 
@@ -120,6 +138,12 @@ function DeleteCompanyModal({ company, onClose, onDeleted }) {
             disabled={deleting}
             className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300"
           />
+          {deleting && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+              <div className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin shrink-0" />
+              <span>{step || t('superAdmin.deleting')}</span>
+            </div>
+          )}
           {error && <div className="mt-3 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-100">{error}</div>}
         </div>
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex gap-2 justify-end">

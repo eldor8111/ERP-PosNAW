@@ -487,9 +487,10 @@ def delete_company_super(
     db: Session = Depends(get_db),
     admin: User = Depends(require_super_admin)
 ):
-    """Korxonani barcha ma'lumotlari bilan butunlay o'chiradi. confirm = korxona kodi yoki nomi."""
-    import logging
-    from app.services.company_purge import purge_company, PurgeError
+    """Korxonani barcha ma'lumotlari bilan butunlay o'chirishni FONDA boshlaydi (confirm = korxona kodi yoki nomi).
+    Javob darhol qaytadi: {job_id}; holat — GET /super-admin/purge-jobs/{job_id}."""
+    from app.database import SessionLocal
+    from app.services.company_purge import start_purge_job
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
@@ -497,17 +498,19 @@ def delete_company_super(
     if confirm.strip().lower() not in expected:
         raise HTTPException(status_code=400, detail="Tasdiqlash uchun korxona kodi yoki nomini aniq yozing")
     name = c.name
-    try:
-        counts = purge_company(db, company_id)
-    except PurgeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logging.getLogger(__name__).exception("Korxonani o'chirishda xato: %s", company_id)
-        raise HTTPException(status_code=500, detail=f"O'chirishda xato, hech narsa o'zgarmadi: {e}")
-    logging.getLogger(__name__).warning("Korxona o'chirildi: id=%s name=%r admin=%s counts=%s",
-                                        company_id, name, admin.id, counts)
-    return {"ok": True, "message": f"'{name}' korxonasi butunlay o'chirildi",
-            "counts": counts, "total": sum(counts.values())}
+    db.close()   # fon vazifasi o'z sessiyasini ochadi; bu ulanish pulga qaytsin
+    job = start_purge_job(company_id, name, SessionLocal, admin.id)
+    return {"ok": True, "job_id": job["id"], "status": job["status"], "step": job.get("step")}
+
+
+@router.get("/purge-jobs/{job_id}")
+def get_purge_job(job_id: str, _: User = Depends(require_super_admin)):
+    """Korxonani o'chirish vazifasining holati: running | done | error."""
+    from app.services.company_purge import read_job
+    job = read_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Vazifa topilmadi")
+    return job
 
 
 # ── Bildirish Nomalar (Announcements) ────────────────────────────────────────
