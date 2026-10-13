@@ -109,7 +109,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
       {/* ── Joriy obuna holati ── */}
       {billing && (
-        <div className={`mb-8 rounded-3xl p-5 border-2 shadow-sm flex items-center gap-4 ${
+        <div className={`mb-4 rounded-3xl p-5 border-2 shadow-sm flex items-center gap-4 ${
           billing.subscription_active ? 'bg-emerald-50/80 border-emerald-300' : 'bg-red-50/80 border-red-300'
         }`}>
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shadow-xs ${
@@ -127,7 +127,9 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                     {t('tariffs.trial')}
                   </span>
                 )}
-                <span className="text-sm font-semibold text-emerald-700">— {billing.days_left} {t('tariffs.daysLeft')}</span>
+                <span className={`text-sm font-semibold ${billing.days_left <= 3 ? 'text-red-600' : 'text-emerald-700'}`}>
+                  — {billing.days_left} {t('tariffs.daysLeft')}
+                </span>
               </div>
             ) : (
               <span className="text-sm text-red-600 font-bold">{t('tariffs.expired')}</span>
@@ -139,6 +141,27 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
               <div className="text-sm font-black text-slate-800">{new Date(billing.subscription_ends_at).toLocaleDateString('uz-UZ')}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Muddat tugashiga yaqin ogohlantirish ── */}
+      {billing?.subscription_active && billing.days_left <= 3 && (
+        <div className="mb-6 rounded-2xl bg-amber-50 border-2 border-amber-300 px-5 py-4 flex items-start gap-3 shadow-sm">
+          <div className="w-8 h-8 rounded-xl bg-amber-400 text-white flex items-center justify-center shrink-0 mt-0.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <div className="font-black text-amber-800 text-sm">
+              {billing.days_left === 0
+                ? "⚡ Bugun obunangiz tugaydi!"
+                : `⚡ Obunangiz ${billing.days_left} kundan so'ng tugaydi!`}
+            </div>
+            <div className="text-xs text-amber-700 mt-1">
+              Xizmatlar uzilishini oldini olish uchun quyidagi tariflardan birini hoziroq yangilang. Balans: <strong>{Number(billing.balance || 0).toLocaleString('uz-UZ')} so'm</strong>
+            </div>
+          </div>
         </div>
       )}
 
@@ -588,6 +611,178 @@ function BillingHistoryTab({ logs }) {
   )
 }
 
+function PaketlarTab({ billing, refreshBilling, setToast }) {
+  const { t } = useLang();
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedMonths, setSelectedMonths] = useState({});
+  const [subscribing, setSubscribing] = useState(null);
+
+  const loadPackages = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/billing/my-company/packages');
+      setPackages(res.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPackages();
+  }, []);
+
+  const handleSubscribe = async (pkg) => {
+    const months = selectedMonths[pkg.code] || 1;
+    const price = (pkg.price_per_month || 0) * months;
+    const balance = billing?.balance || 0;
+
+    if (balance < price) {
+      setToast({ msg: `Balans yetarli emas. Kerak: ${fmtMoney(price)} so'm, Balans: ${fmtMoney(balance)} so'm`, ok: false });
+      return;
+    }
+
+    if (!window.confirm(`'${pkg.name}' paketini ${months} oyga (${fmtMoney(price)} so'm) faollashtirasizmi?`)) {
+      return;
+    }
+
+    setSubscribing(pkg.code);
+    try {
+      const res = await api.post('/billing/my-company/packages/subscribe', {
+        package_code: pkg.code,
+        months: months
+      });
+      setToast({ msg: res.data.message || "Paket muvaffaqiyatli faollashtirildi", ok: true });
+      loadPackages();
+      if (refreshBilling) refreshBilling();
+    } catch (e) {
+      setToast({ msg: e.response?.data?.detail || "Xatolik yuz berdi", ok: false });
+    } finally {
+      setSubscribing(null);
+    }
+  };
+
+  const getPackageIcon = (code) => {
+    if (code === 'manufacturing') return Factory;
+    if (code === 'distribution') return Truck;
+    return Zap;
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 py-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">Qo'shimcha pullik paketlar</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Istalgan tarifingizga kerakli modullarni alohida ulab oling. Narxlar BHM (bazaviy hisoblash miqdori) asosida hisoblanadi.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-48">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {packages.map((pkg) => {
+            const Icon = getPackageIcon(pkg.code);
+            const months = selectedMonths[pkg.code] || 1;
+            const totalPrice = (pkg.price_per_month || 0) * months;
+            const isActive = pkg.is_active_package;
+
+            return (
+              <div key={pkg.code} className={`rounded-3xl p-6 border-2 flex flex-col justify-between transition-all bg-white shadow-sm ${
+                isActive ? 'border-emerald-300 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-blue-300'
+              }`}>
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    {isActive ? (
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                        pkg.days_left <= 3
+                          ? 'bg-amber-100 text-amber-800 animate-pulse'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {pkg.days_left <= 3
+                          ? <AlertTriangle className="w-3.5 h-3.5" />
+                          : <Check className="w-3.5 h-3.5" />}
+                        {pkg.days_left <= 3
+                          ? `${pkg.days_left} kun qoldi!`
+                          : `Faol (${pkg.days_left} kun)`}
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
+                        Nofaol
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-lg font-bold text-slate-900 mb-1">{pkg.name}</h3>
+                  <p className="text-xs text-slate-500 mb-4 min-h-[36px]">{pkg.description}</p>
+
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-5">
+                    <div className="text-xs text-slate-500 font-medium">Oylik obuna narxi:</div>
+                    <div className="text-2xl font-black text-slate-900 mt-0.5">
+                      {fmtMoney(pkg.price_per_month)} <span className="text-sm font-semibold text-slate-500">so'm / oy</span>
+                    </div>
+                    {pkg.bhm_percent && (
+                      <div className="text-[11px] text-blue-600 font-semibold mt-0.5">
+                        BHMning {pkg.bhm_percent}% i
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Oylar tanlash */}
+                  <div className="mb-4">
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">Muddati:</label>
+                    <div className="grid grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl">
+                      {[1, 3, 6, 12].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setSelectedMonths(prev => ({ ...prev, [pkg.code]: m }))}
+                          className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
+                            months === m ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {m} oy
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-3 px-1">
+                    <span>Jami to'lov:</span>
+                    <span className="font-bold text-slate-900 text-sm">{fmtMoney(totalPrice)} so'm</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={subscribing === pkg.code}
+                    onClick={() => handleSubscribe(pkg)}
+                    className={`w-full py-3 rounded-xl font-bold text-sm transition-all shadow-sm ${
+                      isActive
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    } disabled:opacity-50`}
+                  >
+                    {subscribing === pkg.code ? 'Bajarilmoqda...' : isActive ? "Muddatni uzaytirish" : "Faollashtirish"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Tariflar() {
   const { user } = useAuth();
   const { t } = useLang();
@@ -798,6 +993,9 @@ export default function Tariflar() {
         <button onClick={() => setTabs('tariflar')} className={`px-4 py-1.5 w-35 cursor-pointer font-medium rounded-l-lg ${tabs === 'tariflar' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
           {t('nav.tariffs')}
         </button>
+        <button onClick={() => setTabs('paketlar')} className={`px-4 py-1.5 cursor-pointer font-medium w-35 ${tabs === 'paketlar' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
+          Pullik paketlar
+        </button>
         <button onClick={() => setTabs('subscription')} className={`px-4 py-1.5 cursor-pointer font-medium w-35 ${tabs === 'subscription' ? 'bg-white text-slate-900' : 'bg-slate-100 text-gray-700'}`}>
           {t('tariff.subscriptionHistory')}
         </button>
@@ -808,6 +1006,9 @@ export default function Tariflar() {
 
       {
         tabs === 'tariflar' && <TariflarTab hasBhm={hasBhm} billing={billing} settings={settings} tariffs={tariffs} bgAccent={bgAccent} btnColor={btnColor} priceColor={priceColor} handleBuyTariff={handleBuyTariff} handlePayme={handlePayme} trialLoading={trialLoading} isCurrent={isCurrent} hasActiveSub={hasActiveSub} />
+      }
+      {
+        tabs === 'paketlar' && <PaketlarTab billing={billing} refreshBilling={async () => { const b = await api.get('/billing/my-company'); setBilling(b.data); }} setToast={setToast} />
       }
       {
         tabs === 'subscription' && <SubscriptionHistoryTab logs={logs} />

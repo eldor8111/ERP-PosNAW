@@ -325,6 +325,33 @@ def _run_auto_migrations(engine):
         "ALTER TABLE sale_deliveries ADD COLUMN IF NOT EXISTS loaded_by INTEGER;",
         "ALTER TABLE sale_deliveries ADD COLUMN IF NOT EXISTS delivery_radius_m INTEGER;",
         "ALTER TABLE sale_deliveries ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN DEFAULT FALSE;",
+        # ── Pullik paketlar (modullar) va BHM ──
+        """CREATE TABLE IF NOT EXISTS feature_packages (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(50) UNIQUE NOT NULL,
+            name VARCHAR(100) NOT NULL,
+            description TEXT,
+            bhm_percent DOUBLE PRECISION,
+            price_per_month NUMERIC(12, 2) DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_feature_packages_code ON feature_packages(code);",
+        """CREATE TABLE IF NOT EXISTS company_packages (
+            id SERIAL PRIMARY KEY,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            package_code VARCHAR(50) NOT NULL,
+            starts_at TIMESTAMP,
+            ends_at TIMESTAMP,
+            is_active BOOLEAN DEFAULT TRUE,
+            is_trial BOOLEAN DEFAULT FALSE,
+            purchased_at TIMESTAMP DEFAULT NOW(),
+            created_at TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_company_packages_company ON company_packages(company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_company_packages_code ON company_packages(package_code);",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
@@ -357,6 +384,48 @@ def _create_missing_tables(engine):
             print(f"[AUTO-MIGRATION] skip {table.name}: {e}")
 
 
+def _seed_default_feature_packages():
+    """Bazada pullik paketlar (modullar) bo'lmasa standart paketlarni kiritadi."""
+    try:
+        from app.database import SessionLocal
+        from app.models.billing import FeaturePackage
+        db = SessionLocal()
+        pkgs = [
+            {
+                'code': 'manufacturing',
+                'name': 'Ishlab chiqarish',
+                'description': 'Retseptura, ishlab chiqarish buyurtmalari, tannarx va xom ashyo nazorati',
+                'bhm_percent': 25.0,
+                'price_per_month': 110000,
+                'sort_order': 1
+            },
+            {
+                'code': 'distribution',
+                'name': 'Distribyutorlar va logistika',
+                'description': 'Distribyutorlar, marshrutlar, transport, dala xodimlari, mobil ilovalar',
+                'bhm_percent': 25.0,
+                'price_per_month': 110000,
+                'sort_order': 2
+            },
+            {
+                'code': 'delivery_automation',
+                'name': 'Yetkazib berish avtomatikasi',
+                'description': 'Buyurtma yetkazilganda sotuv avtomatik yaratiladi',
+                'bhm_percent': 10.0,
+                'price_per_month': 44000,
+                'sort_order': 3
+            }
+        ]
+        for p in pkgs:
+            exists = db.query(FeaturePackage).filter(FeaturePackage.code == p['code']).first()
+            if not exists:
+                db.add(FeaturePackage(**p))
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"[SEED] feature_packages skip: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.admin_tg_bot.bot_manager import main as run_admin_bot_polling
@@ -373,6 +442,8 @@ async def lifespan(app: FastAPI):
     _run_auto_migrations(engine)
     # 3. Modelda bor, bazada yo'q jadvallar
     _create_missing_tables(engine)
+    # 4. Standart paketlar
+    _seed_default_feature_packages()
     scheduler_task = asyncio.create_task(start_scheduler())
     admin_bot_task = asyncio.create_task(run_admin_bot_polling())
     yield

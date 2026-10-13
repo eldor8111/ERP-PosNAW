@@ -167,12 +167,29 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
     total_warehouses = sum(b["warehouses_count"] for b in branches_data)
 
     from datetime import datetime, timezone as tz
+    from app.models.billing import CompanyPackage
     now = datetime.now(tz.utc)
     sub_ends = company.subscription_ends_at
     if sub_ends and sub_ends.tzinfo is None:
         sub_ends = sub_ends.replace(tzinfo=tz.utc)
     is_active_sub = sub_ends is not None and sub_ends > now
     days_left = max(0, (sub_ends - now).days) if is_active_sub else 0
+
+    # Kompaniya paketlari
+    cp_rows = db.query(CompanyPackage).filter(CompanyPackage.company_id == company_id).all()
+    company_packages_data = []
+    for cp in cp_rows:
+        cp_ends = cp.ends_at
+        if cp_ends and cp_ends.tzinfo is None:
+            cp_ends = cp_ends.replace(tzinfo=tz.utc)
+        company_packages_data.append({
+            "id": cp.id,
+            "package_code": cp.package_code,
+            "starts_at": cp.starts_at.isoformat() if cp.starts_at else None,
+            "ends_at": cp_ends.isoformat() if cp_ends else None,
+            "is_active": bool(cp.is_active),
+            "is_trial": bool(cp.is_trial),
+        })
 
     return {
         "id": company.id,
@@ -198,7 +215,9 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
             "warehouses": total_warehouses,
         },
         "branches": branches_data,
+        "company_packages": company_packages_data,
     }
+
 
 
 # ── Branches ─────────────────────────────────────────────

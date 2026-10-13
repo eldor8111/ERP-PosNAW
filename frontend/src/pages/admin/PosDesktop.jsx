@@ -126,7 +126,9 @@ const navigate = useNavigate();
   }, []);
 
   const filteredProducts = useMemo(() => products.filter(p => {
-    const ms = !search || matchesSearch(p.name, search) || p.sku?.includes(search) || p.barcode?.includes(search);
+    const sLow = (search || '').toLowerCase();
+    const hasExtra = Array.isArray(p.extra_barcodes) && p.extra_barcodes.some(b => String(b).toLowerCase().includes(sLow));
+    const ms = !search || matchesSearch(p.name, search) || p.sku?.toLowerCase().includes(sLow) || p.barcode?.toLowerCase().includes(sLow) || hasExtra;
     const mc = activeCat ? p.category_id === activeCat : true;
     const mv = p.product_type !== 'variant';
     return ms && mc && mv;
@@ -197,7 +199,11 @@ const navigate = useNavigate();
            e.stopPropagation();
            if (isInput) { e.target.blur(); e.target.value = ''; e.target.dispatchEvent(new Event('input', { bubbles: true })); }
            
-           const found = products.find(p => p.barcode === scannedCode || p.sku === scannedCode);
+           const found = products.find(p =>
+             p.barcode === scannedCode ||
+             p.sku === scannedCode ||
+             (Array.isArray(p.extra_barcodes) && p.extra_barcodes.includes(scannedCode))
+           );
            if (found) {
               setCart(prev => {
                 const ex = prev.find(x => x.product_id === found.id);

@@ -169,11 +169,14 @@ def get_my_company_features(
     current_user: User = Depends(get_current_user),
 ):
     """Kompaniyada yoqilgan ixtiyoriy modullar (sidebar va sahifalar uchun)."""
-    c = db.query(Company).filter(Company.id == current_user.company_id).first() if current_user.company_id else None
+    from app.core.features import company_has_feature
+    cid = current_user.company_id
+    if not cid:
+        return {"manufacturing": False, "distribution": False, "marketplace_agents": False}
     return {
-        "manufacturing": bool(c and c.manufacturing_enabled),
-        "distribution": bool(c and c.distribution_enabled),
-        "marketplace_agents": bool(c and c.marketplace_agents_enabled),
+        "manufacturing": company_has_feature(db, cid, "manufacturing"),
+        "distribution": company_has_feature(db, cid, "distribution"),
+        "marketplace_agents": company_has_feature(db, cid, "marketplace_agents"),
     }
 
 
@@ -268,6 +271,38 @@ def update_company(
             log_action(db=db, action="MARKETPLACE_AGENTS_TOGGLE", entity_type="company", entity_id=c.id,
                        user_id=current_user.id, old_values={"enabled": bool(c.marketplace_agents_enabled)},
                        new_values={"enabled": new_flag}, ip_address=request.client.host if request.client else None)
+
+    # Ishlab chiqarish va distribyutsiya modullarini yoqish huquqini tekshirish
+    if current_user.role != UserRole.super_admin:
+        from app.models.billing import CompanyPackage
+        from datetime import datetime, timezone
+        now_dt = datetime.now(timezone.utc)
+
+        for feat_key, feat_name, col_name in [
+            ("manufacturing", "Ishlab chiqarish", "manufacturing_enabled"),
+            ("distribution", "Distribyutsiya", "distribution_enabled"),
+            ("delivery_automation", "Yetkazib berish avtomatikasi", "orders_auto_create_sale"),
+        ]:
+            if col_name in update_data and update_data[col_name]:
+                has_in_tariff = bool(c.tariff and getattr(c.tariff, f"has_{feat_key}", False))
+                has_active_pkg = False
+                pkgs = db.query(CompanyPackage).filter(
+                    CompanyPackage.company_id == c.id,
+                    CompanyPackage.package_code == feat_key,
+                ).all()
+                for p in pkgs:
+                    ends = p.ends_at
+                    if ends and ends.tzinfo is None:
+                        ends = ends.replace(tzinfo=timezone.utc)
+                    if p.is_active and ends and ends > now_dt:
+                        has_active_pkg = True
+                        break
+
+                if not has_in_tariff and not has_active_pkg:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"'{feat_name}' modulini faollashtirish uchun Tariflar sahifasidan mos tarif yoki paketni xarid qiling",
+                    )
 
     if "tg_bot_token" in update_data:
         new_token = update_data["tg_bot_token"]

@@ -80,6 +80,13 @@ class CreateProductTool(AITool):
         unit = (kwargs.get("unit") or "dona").strip() or "dona"
         barcode = (kwargs.get("barcode") or "").strip()
 
+        from fastapi import HTTPException
+        from app.services.tariff_guard import check_product_limit
+        try:
+            check_product_limit(db, company_id, count_to_add=1)
+        except HTTPException as e:
+            return {"reply": f"❌ {e.detail}"}
+
         if barcode:
             existing = db.query(Product).filter(
                 Product.barcode == barcode,

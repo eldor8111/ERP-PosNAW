@@ -3,7 +3,8 @@ import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { saveReceiptSettings } from '../../utils/receiptBuilder';
-import { Search, Zap } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, Zap, Lock, ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import { getFiscalModules } from '../../api/hippoLocal';
 import RolesTab from './Settings/Roles';
@@ -2271,11 +2272,19 @@ function FiskalTab() {
   );
 }
 
-// ── Ixtiyoriy modullar (oddiy do'konga ko'rinmasligi uchun o'chirib qo'yiladi) ──
+// ── Ixtiyoriy modullar va Pullik paketlar boshqaruvi ─────────────────────────
 function ModulesCard({ companyId }) {
   const { t } = useLang();
+  const navigate = useNavigate();
   const features = useCompanyFeatures();
+  const [packages, setPackages] = useState([]);
   const [saving, setSaving] = useState(null);
+
+  useEffect(() => {
+    api.get('/billing/my-company/packages')
+      .then(r => setPackages(r.data || []))
+      .catch(() => setPackages([]));
+  }, []);
 
   const toggle = async (key, column, value) => {
     if (!companyId) return;
@@ -2283,40 +2292,123 @@ function ModulesCard({ companyId }) {
     try {
       await api.put(`/companies/${companyId}`, { [column]: value });
       await refreshCompanyFeatures();
-      toast.success(t('settings.general.settingSaved'));
+      toast.success(t('settings.general.settingSaved') || 'Sozlama saqlandi');
     } catch (e) {
-      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+      toast.error(e.response?.data?.detail || t('auth.errGeneral') || 'Xatolik yuz berdi');
     } finally {
       setSaving(null);
     }
   };
 
   const MODULES = [
-    { key: 'manufacturing', column: 'manufacturing_enabled' },
-    { key: 'distribution', column: 'distribution_enabled' },
+    {
+      key: 'manufacturing',
+      column: 'manufacturing_enabled',
+      name: t('features.manufacturing.title') || 'Ishlab chiqarish',
+      desc: t('features.manufacturing.desc') || 'Retseptlar, xom-ashyo sarfi va ishlab chiqarish buyurtmalari',
+      icon: '🏭',
+    },
+    {
+      key: 'distribution',
+      column: 'distribution_enabled',
+      name: t('features.distribution.title') || 'Distribyutsiya va logistika',
+      desc: t('features.distribution.desc') || "Savdo agentlari, kuryerlar, marshrutlar va do'konlar monitoringi",
+      icon: '🚚',
+    },
+    {
+      key: 'delivery_automation',
+      column: 'orders_auto_create_sale',
+      name: 'Yetkazib berish avtomatikasi',
+      desc: 'Kuryer mijozga topshirganda avtomatik kassa cheki va sotuv shakllantirish',
+      icon: '⚡',
+    },
   ];
 
   return (
-    <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
-      <h3 className="text-sm font-bold text-slate-800">{t('features.cardTitle')}</h3>
-      <p className="text-[11px] text-slate-400 mt-0.5 mb-4">{t('features.cardDesc')}</p>
-      <div className="space-y-4">
-        {MODULES.map(({ key, column }) => {
+    <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-bold text-slate-800">{t('features.cardTitle') || "Qo'shimcha modullar va paketlar"}</h3>
+        <button
+          onClick={() => navigate('/admin/tariffs?tab=packages')}
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+        >
+          Paketlar do'koni <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <p className="text-[11px] text-slate-400 mb-4">{t('features.cardDesc') || "Biznesingiz ehtiyojiga qarab ixtiyoriy funksiyalarni yoqing yoki o'chiring."}</p>
+
+      <div className="space-y-3.5 divide-y divide-slate-100">
+        {MODULES.map(({ key, column, name, desc, icon }) => {
+          const pkg = packages.find(p => p.code === key);
+          const canUse = pkg ? (pkg.included_in_tariff || pkg.is_active_package) : !!features?.[key];
           const on = !!features?.[key];
+
           return (
-            <div key={key} className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-700">{t(`features.${key}.title`)}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{t(`features.${key}.desc`)}</p>
+            <div key={key} className="pt-3.5 first:pt-0 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm">{icon}</span>
+                  <p className="text-xs font-bold text-slate-800">{name}</p>
+
+                  {/* Status Badge */}
+                  {pkg?.included_in_tariff ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Tarifda mavjud
+                    </span>
+                  ) : pkg?.is_active_package ? (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                      pkg.days_left <= 3
+                        ? 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
+                        : 'bg-blue-50 text-blue-700 border-blue-200'
+                    }`}>
+                      {pkg.days_left <= 3 ? <AlertTriangle className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+                      {pkg.days_left <= 3 ? `${pkg.days_left} kun qoldi!` : `Faol (${pkg.days_left} kun)`}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> Alohida paket
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-snug">{desc}</p>
+
+                {!canUse && pkg && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-[11px] font-bold text-slate-700">
+                      {Number(pkg.price_per_month || 0).toLocaleString('uz-UZ')} so'm <span className="font-normal text-slate-400">/ oy</span>
+                    </span>
+                    <button
+                      onClick={() => navigate('/admin/tariffs?tab=packages')}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                    >
+                      Ulash <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                disabled={features === null || saving === key}
-                onClick={() => toggle(key, column, !on)}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
+
+              {/* Toggle Switch */}
+              <div className="shrink-0 pt-0.5">
+                {canUse ? (
+                  <button
+                    type="button"
+                    disabled={features === null || saving === key}
+                    onClick={() => toggle(key, column, !on)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/tariffs?tab=packages')}
+                    title="Paketni xarid qilish"
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
+                  >
+                    <Lock className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -2607,7 +2699,6 @@ function GeneralTab({ companyId }) {
   );
 }
 
-import { useSearchParams } from 'react-router-dom';
 import { getSettingsMenus } from '../../constants/settingsMenus';
 
 // ── Main Settings Component ──────────────────────────────────────────────────
