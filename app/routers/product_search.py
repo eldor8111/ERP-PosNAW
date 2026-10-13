@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
@@ -436,3 +437,32 @@ def list_product_ids(
         q = q.join(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
 
     return [r[0] for r in q.order_by(Product.name).all()]
+
+
+class ProductIdsIn(BaseModel):
+    product_ids: List[int]
+
+
+@router.post("/by-ids")
+def products_by_ids(
+    payload: ProductIdsIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Tanlangan tovarlarning yorliq (shtrix-kod chop etish) uchun qisqa ma'lumoti — tanlangan tartibda.
+    Ommaviy amallarda "hammasini tanlash" boshqa sahifadagi tovarlarni ham belgilaydi — ular ro'yxatda yuklanmagan."""
+    ids = list(dict.fromkeys(payload.product_ids))[:5000]
+    if not ids:
+        return []
+    rows = (
+        db.query(Product.id, Product.name, Product.barcode, Product.sku, Product.product_code,
+                 Product.sale_price, Product.sale_currency)
+        .filter(Product.id.in_(ids), Product.company_id == current_user.company_id, Product.is_deleted == False)
+        .all()
+    )
+    by_id = {r.id: r for r in rows}
+    return [
+        {"id": r.id, "name": r.name, "barcode": r.barcode, "sku": r.sku, "product_code": r.product_code,
+         "sale_price": float(r.sale_price or 0), "sale_currency": r.sale_currency}
+        for r in (by_id.get(i) for i in ids) if r is not None
+    ]

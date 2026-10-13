@@ -3712,6 +3712,8 @@ export default {
   'product.deleteRowTitle': 'Delete row',
   'product.dropExcelHint': 'Drop the Excel file here or click',
   'product.editStock': 'Edit stock',
+  'product.printBarcodes': "Print barcodes",
+  'product.bulkPrintTooMany': "Select at most 5000 products at a time",
   'product.egRatioPlaceholder': 'E.g: 1.0',
   'product.enabledLabel': 'Enabled',
   'product.enterBarcodeError': 'Enter the barcode',

@@ -9,7 +9,7 @@
  * - Quantity selector + print window generation
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../api/axios';
 
 const LS_KEY = 'barcode_saved_templates';
@@ -426,9 +426,22 @@ function TemplateCard({ tpl, product, selected, onSelect, isSaved }) {
 /* ══════════════════════════════════════════════
    Main export: BarcodePrintModal
 ══════════════════════════════════════════════ */
-export default function BarcodePrintModal({ product, onClose }) {
+const MAX_LABELS = 3000;   // bir martada chop etiladigan yorliqlar chegarasi (brauzer qotib qolmasin)
+
+/* product — bitta tovar; products — ommaviy amal (belgilangan tovarlar) */
+export default function BarcodePrintModal({ product, products, onClose }) {
   const [selectedTpl, setSelectedTpl] = useState(BUILT_IN_TEMPLATES[3]); // 50×30 default
   const [qty, setQty] = useState(1);
+  const items = useMemo(() => (products?.length ? products : [product]).filter(Boolean), [product, products]);
+  const multi = items.length > 1;
+  const printable = useMemo(() => items.filter(p => String(p.barcode || '').trim()), [items]);
+  const [previewIdx, setPreviewIdx] = useState(0);
+  const current = items[Math.min(previewIdx, items.length - 1)];
+  const [qtys, setQtys] = useState({});   // tovar bo'yicha alohida soni; bo'lmasa — umumiy qty
+  const qtyOf = (p) => qtys[p.id] ?? qty;
+  const toPrint = multi ? printable : items;
+  const totalLabels = toPrint.reduce((sum, p) => sum + qtyOf(p), 0);
+  const changeQty = (fn) => { setQty(fn); setQtys({}); };
 
   const [fontSize, setFontSize] = useState(8);
   const [productNameSize, setProductNameSize] = useState(8);
@@ -447,7 +460,7 @@ export default function BarcodePrintModal({ product, onClose }) {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [currencies, setCurrencies] = useState([]);
-  const [currencyVal, setCurrencyVal] = useState(() => (product.sale_currency || "UZS").toUpperCase());
+  const [currencyVal, setCurrencyVal] = useState(() => (items[0]?.sale_currency || "UZS").toUpperCase());
 
   const [showCompanyName, setShowCompanyName] = useState(true);
   const [showProductName, setShowProductName] = useState(true);
@@ -468,7 +481,7 @@ export default function BarcodePrintModal({ product, onClose }) {
     api.get('/currencies').then(res => {
       setCurrencies(res.data);
       // Ensure the initial product sale currency exists in currency list, otherwise default.
-      const hasOriginal = res.data.some(c => c.code?.toUpperCase() === (product.sale_currency || "UZS").toUpperCase());
+      const hasOriginal = res.data.some(c => c.code?.toUpperCase() === (items[0]?.sale_currency || "UZS").toUpperCase());
       if (!hasOriginal && res.data.length > 0) {
         // Find default or first currency
         const defCur = res.data.find(c => c.is_default) || res.data[0];
@@ -481,7 +494,7 @@ export default function BarcodePrintModal({ product, onClose }) {
     s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
     s.async = true;
     document.head.appendChild(s);
-  }, [product.sale_currency]);
+  }, [items[0]?.sale_currency]);
 
   const previewOptions = {
     companyName,
@@ -592,10 +605,16 @@ export default function BarcodePrintModal({ product, onClose }) {
   /* Print — uses a hidden iframe so no new tab is opened */
   const handlePrint = () => {
     const { w, h } = selectedTpl;
-    const singleLabel = buildLabelHTML(selectedTpl, product, previewOptions);
-    const labelItems = Array.from({ length: qty }, (_, i) =>
-      `<div class="lbl-wrap${i < qty - 1 ? ' page-break' : ''}">${singleLabel}</div>`
+    if (!totalLabels || totalLabels > MAX_LABELS) return;
+    const labels = [];
+    for (const p of toPrint) {
+      const html = buildLabelHTML(selectedTpl, p, previewOptions);
+      for (let i = 0; i < qtyOf(p); i++) labels.push(html);
+    }
+    const labelItems = labels.map((html, i) =>
+      `<div class="lbl-wrap${i < labels.length - 1 ? ' page-break' : ''}">${html}</div>`
     ).join('');
+    const title = multi ? `${toPrint.length} ta tovar` : current.name;
 
     const iframeId = '__barcode_print_frame__';
     const old = document.getElementById(iframeId);
@@ -611,7 +630,7 @@ export default function BarcodePrintModal({ product, onClose }) {
     doc.write(`
       <!DOCTYPE html>
         <html>
-          <head><title>Chop: ${product.name}</title>
+          <head><title>Chop: ${title}</title>
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></scr` + `ipt>
             <style>
               @page {
@@ -689,7 +708,9 @@ export default function BarcodePrintModal({ product, onClose }) {
           <div>
             <h3 className="text-lg font-bold text-slate-800">Shtrix-kod</h3>
             <p className="text-xs text-slate-400 truncate max-w-sm">
-              {product.name} · <span className="font-mono">{product.barcode}</span>
+              {multi
+                ? <>{items.length} ta tovar · {totalLabels} ta yorliq</>
+                : <>{current.name} · <span className="font-mono">{current.barcode}</span></>}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -976,7 +997,7 @@ export default function BarcodePrintModal({ product, onClose }) {
                 <div className="flex">
                   <div>
                     <div className="bg-white shadow-md inline-flex items-center justify-center">
-                      <LabelPreview tpl={selectedTpl} product={product} scale={2} options={previewOptions} />
+                      <LabelPreview tpl={selectedTpl} product={current} scale={2} options={previewOptions} />
                     </div>
                     <div className="text-xs text-slate-400 mt-2 text-center">
                       {selectedTpl.w}×{selectedTpl.h} mm · {selectedTpl.name}
@@ -987,6 +1008,39 @@ export default function BarcodePrintModal({ product, onClose }) {
                 <div className="text-slate-400 text-sm mt-12">Shablon tanlang</div>
               )}
             </div>
+            {multi && (
+              <div className="border-t border-slate-200 bg-white max-h-[45%] overflow-y-auto shrink-0">
+                <div className="sticky top-0 bg-white px-4 py-2 border-b border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500 uppercase">
+                  <span>Belgilangan tovarlar ({items.length})</span>
+                  <span>Soni</span>
+                </div>
+                {items.length !== printable.length && (
+                  <div className="px-4 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
+                    {items.length - printable.length} ta tovarda shtrix-kod yo'q — ular chop etilmaydi
+                  </div>
+                )}
+                {items.map((p, i) => {
+                  const noBc = !String(p.barcode || '').trim();
+                  return (
+                    <div key={p.id}
+                      onClick={() => setPreviewIdx(i)}
+                      className={`flex items-center gap-3 px-4 py-1.5 text-sm cursor-pointer border-b border-slate-50 ${i === previewIdx ? 'bg-blue-50' : 'hover:bg-slate-50'} ${noBc ? 'opacity-50' : ''}`}>
+                      <span className="w-6 text-xs text-slate-400 text-right">{i + 1}</span>
+                      <span className="flex-1 truncate text-slate-700">{p.name}</span>
+                      <span className="w-32 truncate font-mono text-xs text-slate-400">{p.barcode || '—'}</span>
+                      <input
+                        type="number" min="0" max="500"
+                        value={noBc ? 0 : qtyOf(p)}
+                        disabled={noBc}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => setQtys(m => ({ ...m, [p.id]: Math.max(0, Math.min(500, Number(e.target.value) || 0)) }))}
+                        className="w-16 text-center border border-slate-200 rounded-md py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* RIGHT: Controls */}
@@ -1168,11 +1222,12 @@ export default function BarcodePrintModal({ product, onClose }) {
 
             {/* Print button */}
             <div className="p-4 border-t border-slate-100 space-y-2 shrink-0">
+              {multi && <div className="text-xs text-slate-500">Har bir tovardan (ro'yxatda alohida o'zgartirish mumkin):</div>}
               {/* Quantity */}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setQty(q => Math.max(1, q - 1))}
+                  onClick={() => changeQty(q => Math.max(1, q - 1))}
                   className="w-10 h-10 bg-slate-100 cursor-pointer hover:bg-slate-200 rounded-md font-bold text-slate-700 flex items-center justify-center"
                 >
                   −
@@ -1182,12 +1237,12 @@ export default function BarcodePrintModal({ product, onClose }) {
                   min="1"
                   max="500"
                   value={qty}
-                  onChange={e => setQty(Math.max(1, Math.min(500, +e.target.value)))}
+                  onChange={e => changeQty(Math.max(1, Math.min(500, +e.target.value)))}
                   className="flex-1 text-center border border-slate-200 rounded-md py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
-                  onClick={() => setQty(q => Math.min(500, q + 1))}
+                  onClick={() => changeQty(q => Math.min(500, q + 1))}
                   className="w-10 h-10 bg-slate-100 cursor-pointer hover:bg-slate-200 rounded-md font-bold text-slate-700 flex items-center justify-center"
                 >
                   +
@@ -1197,14 +1252,17 @@ export default function BarcodePrintModal({ product, onClose }) {
               <button
                 type="button"
                 onClick={handlePrint}
-                disabled={!selectedTpl}
+                disabled={!selectedTpl || !totalLabels || totalLabels > MAX_LABELS}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-md cursor-pointer transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
-                {qty} ta chop et
+                {totalLabels} ta chop et
               </button>
+              {totalLabels > MAX_LABELS && (
+                <div className="text-xs text-red-600">Bir martada ko'pi bilan {MAX_LABELS} ta yorliq — sonini kamaytiring</div>
+              )}
               <button
                 type="button"
                 onClick={onClose}

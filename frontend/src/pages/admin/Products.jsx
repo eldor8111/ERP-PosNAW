@@ -38,6 +38,8 @@ export default function Products() {
   const { t } = useLang();
   const MXIK_STATUS_META = getMxikStatusMeta(t);
   const [printProduct, setPrintProduct] = useState(null);
+  const [printProducts, setPrintProducts] = useState(null);   // ommaviy shtrix-kod chop etish
+  const [printLoading, setPrintLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
 
   /* products state */
@@ -592,6 +594,22 @@ export default function Products() {
       }
     } else {
       setSelectedIds([]);
+    }
+  };
+
+  /* Belgilangan tovarlar uchun shtrix-kod chop etish ("hammasini tanlash" boshqa sahifalarni ham qamraydi) */
+  const openBulkBarcodePrint = async () => {
+    setMassActionsOpen(false);
+    if (selectedIds.length > 5000) { toast.error(t('product.bulkPrintTooMany')); return; }
+    setPrintLoading(true);
+    try {
+      const { data } = await api.post('/products/by-ids', { product_ids: selectedIds }, { timeout: 60000 });
+      if (!data?.length) { toast.error(t('product.serverWorkError')); return; }
+      setPrintProducts(data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || t('product.serverWorkError'));
+    } finally {
+      setPrintLoading(false);
     }
   };
 
@@ -1989,6 +2007,14 @@ export default function Products() {
                     >
                       <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                       {t('product.editStock')}
+                    </button>
+                    <button
+                      onClick={openBulkBarcodePrint}
+                      disabled={printLoading}
+                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12" /></svg>
+                      {t('product.printBarcodes')}
                     </button>
                     <div className="border-t border-slate-100 my-1" />
                     <button
@@ -3762,6 +3788,9 @@ export default function Products() {
       {/* BARCODE PRINT MODAL */}
       {printProduct && (
         <BarcodePrintModal product={printProduct} onClose={() => setPrintProduct(null)} />
+      )}
+      {printProducts && (
+        <BarcodePrintModal products={printProducts} onClose={() => setPrintProducts(null)} />
       )}
 
       {/* ════ BULK ADD MODAL ════ */}

@@ -3839,6 +3839,8 @@ export default {
   'product.deleteRowTitle': 'Qatorni o\'chirish',
   'product.dropExcelHint': 'Excel faylni bu yerga tashlang yoki bosing',
   'product.editStock': 'Qoldiqni tahrirlash',
+  'product.printBarcodes': "Shtrix-kod chop etish",
+  'product.bulkPrintTooMany': "Bir martada ko'pi bilan 5000 ta tovar tanlang",
   'product.egRatioPlaceholder': 'M-n: 1.0',
   'product.enabledLabel': 'Yoqilgan',
   'product.enterBarcodeError': 'Barkodni kiriting',

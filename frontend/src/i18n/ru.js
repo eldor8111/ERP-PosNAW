@@ -3775,6 +3775,8 @@ export default {
   'product.deleteRowTitle': 'Удалить строку',
   'product.dropExcelHint': 'Перетащите файл Excel сюда или нажмите',
   'product.editStock': 'Редактировать остаток',
+  'product.printBarcodes': "Печать штрих-кодов",
+  'product.bulkPrintTooMany': "Выберите не более 5000 товаров за раз",
   'product.egRatioPlaceholder': 'Напр: 1.0',
   'product.enabledLabel': 'Включено',
   'product.enterBarcodeError': 'Введите штрих-код',
