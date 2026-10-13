@@ -82,30 +82,86 @@ def my_customers(db: Session = Depends(get_db), current_user: User = Depends(age
 
 
 @router.get("/plan")
-def today_plan(db: Session = Depends(get_db), current_user: User = Depends(agent_user)):
-    """Bugungi hafta kuniga (Toshkent vaqti) mos mijozlar + bugungi tashriflar."""
-    today = local_today()
-    weekday = today.isoweekday()
-    start = local_day_start(today)
+def today_plan(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(agent_user),
+    date: Optional[str] = None,  # YYYY-MM-DD; bo'sh bo'lsa bugun
+):
+    """Kunlik reja: hafta kuni avto + menejer tomonidan rejalashtirilgan tashriflar.
+    Ikkala manba birlashtiriladi, tashrif holati (planned/visited/cancelled) ko'rsatiladi."""
+    from datetime import date as date_type
+    try:
+        plan_date = date_type.fromisoformat(date) if date else local_today()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Noto'g'ri sana formati. YYYY-MM-DD kerak.")
+
+    weekday = plan_date.isoweekday()
+    start = local_day_start(plan_date)
+    end = start + timedelta(days=1)
+
     customers = db.query(Customer).filter(
         Customer.company_id == current_user.company_id, Customer.agent_id == current_user.id,
     ).all()
-    planned = [c for c in customers if weekday in (c.work_days or [])]
-    visits = db.query(AgentVisit).filter(
-        AgentVisit.agent_id == current_user.id, AgentVisit.check_in_at >= start,
+    cust_map = {c.id: c for c in customers}
+
+    # 1) Hafta kuni bo'yicha avto-reja
+    workday_ids = {c.id for c in customers if weekday in (c.work_days or [])}
+
+    # 2) Menejer tomonidan aniq sana uchun rejalashtirilgan
+    planned_visits = db.query(AgentVisit).filter(
+        AgentVisit.agent_id == current_user.id,
+        AgentVisit.planned_date == plan_date,
+        AgentVisit.planned == True,  # noqa: E712
+    ).all()
+    planned_visit_map = {v.customer_id: v for v in planned_visits}
+
+    # 3) Shu kunda haqiqiy bo'lgan tashriflar (check_in_at bo'yicha)
+    actual_visits = db.query(AgentVisit).filter(
+        AgentVisit.agent_id == current_user.id,
+        AgentVisit.check_in_at >= start,
+        AgentVisit.check_in_at < end,
+        AgentVisit.planned == False,  # noqa: E712
     ).order_by(AgentVisit.check_in_at).all()
-    by_customer: dict = {}
-    for v in visits:
-        by_customer[v.customer_id] = _visit_out(v)
-    names = {c.id: c.name for c in customers}
+    actual_by_cust: dict = {}
+    for v in actual_visits:
+        actual_by_cust[v.customer_id] = _visit_out(v)
+
+    # Barcha rejalashtirilgan mijozlar (avto + qo'lda)
+    all_planned_ids = workday_ids | set(planned_visit_map.keys())
+    planned_items = []
+    for cid in all_planned_ids:
+        c = cust_map.get(cid)
+        if not c:
+            continue
+        pv = planned_visit_map.get(cid)
+        actual = actual_by_cust.get(cid)
+        if actual:
+            visit_status = "visited"
+            visit_data = actual
+        elif pv and (pv.status or "planned") == "cancelled":
+            visit_status = "cancelled"
+            visit_data = _visit_out(pv)
+        else:
+            visit_status = "planned"
+            visit_data = _visit_out(pv) if pv else None
+        planned_items.append({
+            **_customer_out(c),
+            "visit": visit_data,
+            "visit_status": visit_status,
+            "plan_visit_id": pv.id if pv else None,
+        })
+
+    # Rejalanmagan, lekin haqiqiy bo'lgan tashriflar
+    unplanned = [
+        {**v, "customer_name": cust_map[cid].name if cid in cust_map else "—"}
+        for cid, v in actual_by_cust.items() if cid not in all_planned_ids
+    ]
+
     return {
-        "date": today.isoformat(),
+        "date": plan_date.isoformat(),
         "weekday": weekday,
-        "planned": [{**_customer_out(c), "visit": by_customer.get(c.id)} for c in planned],
-        "unplanned_visits": [
-            {**v, "customer_name": names.get(v["customer_id"])}
-            for cid_, v in by_customer.items() if cid_ not in {c.id for c in planned}
-        ],
+        "planned": planned_items,
+        "unplanned_visits": unplanned,
     }
 
 
@@ -114,6 +170,8 @@ def today_plan(db: Session = Depends(get_db), current_user: User = Depends(agent
 def _visit_out(v: AgentVisit) -> dict:
     return {
         "id": v.id, "customer_id": v.customer_id, "planned": v.planned,
+        "planned_date": v.planned_date.isoformat() if v.planned_date else None,
+        "status": v.status or "visited",
         "check_in_at": v.check_in_at.isoformat() if v.check_in_at else None,
         "check_out_at": v.check_out_at.isoformat() if v.check_out_at else None,
         "distance_m": v.distance_m, "within_radius": v.within_radius,
@@ -154,16 +212,38 @@ def check_in(data: CheckInIn, db: Session = Depends(get_db), current_user: User 
     # Do'kon nuqtasi hali belgilanmagan bo'lsa — birinchi tashrifda agent turgan joy
     if c.lat is None and data.lat is not None:
         c.lat, c.lng, c.location_source = round(data.lat, 7), round(data.lng, 7), "agent"
-    v = AgentVisit(
-        company_id=current_user.company_id, agent_id=current_user.id, customer_id=c.id,
-        planned=local_today().isoweekday() in (c.work_days or []),
-        lat=data.lat, lng=data.lng, distance_m=dist,
-        within_radius=None if dist is None else dist <= radius,
-        check_in_at=_client_time(data.check_in_at) or datetime.now(timezone.utc),
-        check_out_at=_client_time(data.check_out_at),
-        result=data.result, note=data.note,
-    )
-    db.add(v)
+    today = local_today()
+    is_planned = today.isoweekday() in (c.work_days or [])
+    # Menejer rejalashtirilgan tashrif bormi — bo'lsa o'sha yozuvni yangilaymiz
+    existing_plan = db.query(AgentVisit).filter(
+        AgentVisit.agent_id == current_user.id,
+        AgentVisit.customer_id == c.id,
+        AgentVisit.planned_date == today,
+        AgentVisit.planned == True,  # noqa: E712
+        AgentVisit.status == "planned",
+    ).first()
+    if existing_plan:
+        v = existing_plan
+        v.lat, v.lng = data.lat, data.lng
+        v.distance_m = dist
+        v.within_radius = None if dist is None else dist <= radius
+        v.check_in_at = _client_time(data.check_in_at) or datetime.now(timezone.utc)
+        v.check_out_at = _client_time(data.check_out_at)
+        v.result = data.result
+        v.note = data.note
+        v.status = "visited"
+    else:
+        v = AgentVisit(
+            company_id=current_user.company_id, agent_id=current_user.id, customer_id=c.id,
+            planned=is_planned, planned_date=today if is_planned else None,
+            status="visited",
+            lat=data.lat, lng=data.lng, distance_m=dist,
+            within_radius=None if dist is None else dist <= radius,
+            check_in_at=_client_time(data.check_in_at) or datetime.now(timezone.utc),
+            check_out_at=_client_time(data.check_out_at),
+            result=data.result, note=data.note,
+        )
+        db.add(v)
     db.flush()
     out = _visit_out(v)
     idem_put(db, current_user, idempotency_key, "agent/visits", out)
@@ -481,3 +561,170 @@ def kpi(db: Session = Depends(get_db), current_user: User = Depends(agent_user))
     }
     db.commit()
     return out
+
+
+# ── Menejer: Agent tashriflarini rejalashtirish (CRM tomoni) ─────────────────
+
+PLAN_ROLES = (UserRole.admin, UserRole.director, UserRole.manager)
+
+
+class PlanVisitIn(BaseModel):
+    agent_id: int
+    customer_id: int
+    planned_date: str  # YYYY-MM-DD
+    note: Optional[str] = Field(None, max_length=500)
+
+
+class PlanVisitBulkIn(BaseModel):
+    agent_id: int
+    planned_date: str  # YYYY-MM-DD
+    customer_ids: List[int] = Field(..., min_length=1, max_length=200)
+
+
+@router.post("/visits/plan", status_code=201)
+def create_planned_visit(
+    data: PlanVisitIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+):
+    """Menejer agent uchun aniq sanaga tashrif rejalashtiradi."""
+    from datetime import date as date_type
+    try:
+        pd = date_type.fromisoformat(data.planned_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Noto'g'ri sana formati. YYYY-MM-DD kerak.")
+    agent = db.query(User).filter(
+        User.id == data.agent_id, User.company_id == current_user.company_id,
+        User.role == UserRole.agent,
+    ).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent topilmadi")
+    customer = db.query(Customer).filter(
+        Customer.id == data.customer_id, Customer.company_id == current_user.company_id,
+    ).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+    existing = db.query(AgentVisit).filter(
+        AgentVisit.agent_id == data.agent_id,
+        AgentVisit.customer_id == data.customer_id,
+        AgentVisit.planned_date == pd,
+        AgentVisit.planned == True,  # noqa: E712
+    ).first()
+    if existing:
+        return _visit_out(existing)
+    v = AgentVisit(
+        company_id=current_user.company_id,
+        agent_id=data.agent_id,
+        customer_id=data.customer_id,
+        planned=True,
+        planned_date=pd,
+        status="planned",
+        note=data.note,
+    )
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+    return _visit_out(v)
+
+
+@router.post("/visits/plan/bulk", status_code=201)
+def create_planned_visits_bulk(
+    data: PlanVisitBulkIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+):
+    """Menejer agent uchun bir necha mijozni birdan rejalashtiradi."""
+    from datetime import date as date_type
+    try:
+        pd = date_type.fromisoformat(data.planned_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Noto'g'ri sana formati. YYYY-MM-DD kerak.")
+    agent = db.query(User).filter(
+        User.id == data.agent_id, User.company_id == current_user.company_id,
+        User.role == UserRole.agent,
+    ).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent topilmadi")
+    existing_ids = {
+        v.customer_id for v in db.query(AgentVisit).filter(
+            AgentVisit.agent_id == data.agent_id,
+            AgentVisit.planned_date == pd,
+            AgentVisit.planned == True,  # noqa: E712
+        ).all()
+    }
+    created = 0
+    for cid in data.customer_ids:
+        if cid in existing_ids:
+            continue
+        customer = db.query(Customer).filter(
+            Customer.id == cid, Customer.company_id == current_user.company_id,
+        ).first()
+        if not customer:
+            continue
+        db.add(AgentVisit(
+            company_id=current_user.company_id,
+            agent_id=data.agent_id,
+            customer_id=cid,
+            planned=True,
+            planned_date=pd,
+            status="planned",
+        ))
+        created += 1
+    db.commit()
+    return {"created": created, "skipped": len(data.customer_ids) - created}
+
+
+@router.delete("/visits/{visit_id}/plan", status_code=200)
+def cancel_planned_visit(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+):
+    """Rejalashtirilgan tashrifni bekor qilish (menejer)."""
+    v = db.query(AgentVisit).filter(
+        AgentVisit.id == visit_id,
+        AgentVisit.company_id == current_user.company_id,
+        AgentVisit.planned == True,  # noqa: E712
+    ).first()
+    if not v:
+        raise HTTPException(status_code=404, detail="Rejalashtirilgan tashrif topilmadi")
+    v.status = "cancelled"
+    db.commit()
+    return {"ok": True, "visit_id": visit_id}
+
+
+@router.get("/visits/report")
+def visits_report(
+    agent_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
+):
+    """Menejer uchun: agentlar tashriflari hisoboti (filter: agent, sana oraliq)."""
+    from datetime import date as date_type
+    from sqlalchemy import or_, and_
+    today = local_today()
+    try:
+        d_from = date_type.fromisoformat(date_from) if date_from else today
+        d_to = date_type.fromisoformat(date_to) if date_to else today
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Noto'g'ri sana formati. YYYY-MM-DD kerak.")
+    start = local_day_start(d_from)
+    end = local_day_start(d_to) + timedelta(days=1)
+    q = db.query(AgentVisit).filter(AgentVisit.company_id == current_user.company_id)
+    if agent_id:
+        q = q.filter(AgentVisit.agent_id == agent_id)
+    q = q.filter(or_(
+        and_(AgentVisit.planned == True, AgentVisit.planned_date >= d_from, AgentVisit.planned_date <= d_to),  # noqa: E712
+        and_(AgentVisit.planned == False, AgentVisit.check_in_at >= start, AgentVisit.check_in_at < end),  # noqa: E712
+    ))
+    visits = q.order_by(AgentVisit.planned_date, AgentVisit.check_in_at).all()
+    agent_ids = {v.agent_id for v in visits}
+    cust_ids = {v.customer_id for v in visits}
+    agents = {u.id: u.name for u in db.query(User).filter(User.id.in_(agent_ids)).all()} if agent_ids else {}
+    custs = {c.id: c.name for c in db.query(Customer).filter(Customer.id.in_(cust_ids)).all()} if cust_ids else {}
+    return [
+        {**_visit_out(v), "agent_name": agents.get(v.agent_id, "—"), "customer_name": custs.get(v.customer_id, "—")}
+        for v in visits
+    ]
