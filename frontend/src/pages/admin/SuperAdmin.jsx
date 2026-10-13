@@ -22,6 +22,98 @@ const Ic = ({ d, cls = "w-4 h-4" }) => (
   </svg>
 );
 
+/* ─── Korxonani butunlay o'chirish (oldindan ko'rish + nom/kod bilan tasdiqlash) ─── */
+const PURGE_LABELS = ['users', 'branches', 'warehouses', 'products', 'customers', 'sales', 'purchase_orders', 'expenses'];
+
+function DeleteCompanyModal({ company, onClose, onDeleted }) {
+  const { t } = useLang();
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const code = company.code || company.org_code || '';
+  const target = (code || company.name || '').trim();
+  const matches = confirm.trim().toLowerCase() === target.toLowerCase();
+
+  useEffect(() => {
+    api.get(`/super-admin/companies/${company.id}/delete-preview`)
+      .then(r => setPreview(r.data))
+      .catch(e => setError(e.response?.data?.detail || t('superAdmin.errorOccurred')));
+  }, [company.id]);
+
+  const doDelete = async () => {
+    if (!matches || deleting) return;
+    setDeleting(true); setError('');
+    try {
+      const r = await api.delete(`/super-admin/companies/${company.id}`, { params: { confirm: confirm.trim() } });
+      toast.success(r.data?.message || t('superAdmin.companyDeleted'));
+      onDeleted();
+    } catch (e) {
+      setError(e.response?.data?.detail || t('superAdmin.deleteError'));
+      setDeleting(false);
+    }
+  };
+
+  const counts = preview?.counts || {};
+  const others = (preview?.total || 0) - PURGE_LABELS.reduce((s, k) => s + (counts[k] || 0), 0) - (counts.companies || 0);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => !deleting && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mb-4">
+            <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-6 h-6 text-red-600" />
+          </div>
+          <h4 className="font-black text-slate-800 text-lg mb-1">{t('superAdmin.deleteCompanyTitle')}</h4>
+          <p className="text-sm text-slate-500 mb-4">
+            <span className="font-semibold text-slate-800">{company.name}</span>
+            {code && <span className="font-mono font-bold text-blue-600 ml-1.5">({code})</span>}
+            {' '}{t('superAdmin.deleteCompanyWarning')}
+          </p>
+
+          <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4 text-sm">
+            {!preview && !error && <div className="text-slate-400 text-xs">{t('common.loading')}</div>}
+            {preview && (
+              <>
+                <div className="font-semibold text-red-700 mb-2">{t('superAdmin.deleteCompanyWillRemove')}</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-700">
+                  {PURGE_LABELS.filter(k => counts[k]).map(k => (
+                    <div key={k} className="flex justify-between"><span>{t(`superAdmin.purge.${k}`)}</span><b>{counts[k].toLocaleString('uz-UZ')}</b></div>
+                  ))}
+                  {others > 0 && (
+                    <div className="flex justify-between col-span-2 text-slate-500"><span>{t('superAdmin.purge.other')}</span><b>{others.toLocaleString('uz-UZ')}</b></div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <label className="text-xs text-slate-600 font-medium">
+            {t('superAdmin.deleteCompanyTypeToConfirm', { value: target })}
+          </label>
+          <input
+            value={confirm}
+            onChange={e => { setConfirm(e.target.value); setError(''); }}
+            onKeyDown={e => e.key === 'Enter' && doDelete()}
+            placeholder={target}
+            autoFocus
+            disabled={deleting}
+            className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-300"
+          />
+          {error && <div className="mt-3 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-100">{error}</div>}
+        </div>
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex gap-2 justify-end">
+          <button onClick={onClose} disabled={deleting} className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl disabled:opacity-50">{t('common.cancel')}</button>
+          <button onClick={doDelete} disabled={!matches || !preview || deleting}
+            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl shadow-sm disabled:opacity-40 transition-all">
+            {deleting ? t('superAdmin.deleting') : t('superAdmin.deleteCompanyButton')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Company Detail Drawer (o'ng tomondan siljib chiqadigan katta panel) ─── */
 function CompanyDetailPanel({ companyId, companyName, onClose }) {
   const { t } = useLang();
@@ -675,6 +767,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(defaultTab);
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [deleteCompany, setDeleteCompany] = useState(null);
   const [topUp, setTopUp] = useState({ org_code: '', amount: '' });
   const [topUpMsg, setTopUpMsg] = useState(null);
   const [topUpLoading, setTopUpLoading] = useState(false);
@@ -730,8 +823,12 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
     api.get('/super-admin/companies').then(r => setCompanies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) }).finally(() => setLoading(false));
   };
 
-  useEffect(() => {
+  const loadOverview = () => {
     api.get('/super-admin/overview').then(r => setOverview(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) });
+  };
+
+  useEffect(() => {
+    loadOverview();
     loadCompanies();
   }, []);
 
@@ -939,7 +1036,16 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                         </span>
                       </td>
                       <td className="px-5 py-3 text-slate-300">
-                        <Ic d="M9 5l7 7-7 7" cls="w-4 h-4" />
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={e => { e.stopPropagation(); setDeleteCompany(c); }}
+                            title={t('superAdmin.deleteCompanyButton')}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          >
+                            <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-4 h-4" />
+                          </button>
+                          <Ic d="M9 5l7 7-7 7" cls="w-4 h-4" />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -961,6 +1067,15 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
       {/* ── BILDIRISH NOMALAR TAB ── */}
       {tab === 'announcements' && <AnnouncementsTab companies={companies} />}
+
+      {/* Korxonani butunlay o'chirish */}
+      {deleteCompany && (
+        <DeleteCompanyModal
+          company={deleteCompany}
+          onClose={() => setDeleteCompany(null)}
+          onDeleted={() => { setDeleteCompany(null); loadCompanies(); loadOverview(); }}
+        />
+      )}
 
       {/* Company Detail Modal */}
       {selectedCompany && (

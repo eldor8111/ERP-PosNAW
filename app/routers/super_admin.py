@@ -460,30 +460,54 @@ def update_company_super(
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Xatolik: {str(e)}")
 
-@router.delete("/companies/{company_id}")
-def delete_company_super(
+@router.get("/companies/{company_id}/delete-preview")
+def delete_company_preview(
     company_id: int,
     db: Session = Depends(get_db),
     _: User = Depends(require_super_admin)
 ):
+    """Korxona o'chirilsa nima o'chishini sanaydi (hech narsa o'zgarmaydi)."""
+    from app.services.company_purge import preview_company_purge, PurgeError
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    
-    import sqlalchemy.exc
+    name, code = c.name, c.org_code
     try:
-        db.delete(c)
-        db.commit()
-        return {"ok": True, "message": "Korxona o'chirildi"}
-    except sqlalchemy.exc.IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=400, 
-            detail="Bu korxonaga tegishli ma'lumotlar (xodimlar, filiallar va h.k.) mavjud bo'lganligi sababli uni o'chirib bo'lmaydi. Iltimos, tahrirlash tugmasi orqali 'Korxona faol' holatini o'chirib qo'ying (nofaol qiling)."
-        )
+        counts = preview_company_purge(db, company_id)
+    except PurgeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"id": company_id, "name": name, "org_code": code,
+            "counts": counts, "total": sum(counts.values())}
+
+
+@router.delete("/companies/{company_id}")
+def delete_company_super(
+    company_id: int,
+    confirm: str = "",
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin)
+):
+    """Korxonani barcha ma'lumotlari bilan butunlay o'chiradi. confirm = korxona kodi yoki nomi."""
+    import logging
+    from app.services.company_purge import purge_company, PurgeError
+    c = db.query(Company).filter(Company.id == company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    expected = {x.strip().lower() for x in (c.org_code, c.name) if x and x.strip()}
+    if confirm.strip().lower() not in expected:
+        raise HTTPException(status_code=400, detail="Tasdiqlash uchun korxona kodi yoki nomini aniq yozing")
+    name = c.name
+    try:
+        counts = purge_company(db, company_id)
+    except PurgeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=f"Xatolik: {str(e)}")
+        logging.getLogger(__name__).exception("Korxonani o'chirishda xato: %s", company_id)
+        raise HTTPException(status_code=500, detail=f"O'chirishda xato, hech narsa o'zgarmadi: {e}")
+    logging.getLogger(__name__).warning("Korxona o'chirildi: id=%s name=%r admin=%s counts=%s",
+                                        company_id, name, admin.id, counts)
+    return {"ok": True, "message": f"'{name}' korxonasi butunlay o'chirildi",
+            "counts": counts, "total": sum(counts.values())}
 
 
 # ── Bildirish Nomalar (Announcements) ────────────────────────────────────────
