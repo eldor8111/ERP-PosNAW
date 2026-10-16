@@ -148,6 +148,8 @@ def list_products_for_pos(
         StockLevel.product_id,
         sqlfunc.coalesce(sqlfunc.sum(StockLevel.quantity), 0).label("total_qty"),
     ).filter(StockLevel.product_id.in_(all_needed_ids))
+    from sqlalchemy import or_ as _or_
+    stock_q = stock_q.filter(_or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
     if warehouse_id:
         stock_q = stock_q.filter(StockLevel.warehouse_id == warehouse_id)
     stock_rows = stock_q.group_by(StockLevel.product_id).all()
@@ -244,6 +246,8 @@ def list_products_paginated(
         StockLevel.product_id,
         f2.coalesce(f2.sum(StockLevel.quantity), 0).label("total_stock")
     )
+    from sqlalchemy import or_ as _or_
+    stock_subq = stock_subq.filter(_or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
     if warehouse_id:
         stock_subq = stock_subq.filter(StockLevel.warehouse_id == warehouse_id)
     elif branch_wh_set:
@@ -334,8 +338,12 @@ def list_products_paginated(
 
     all_needed_ids = set(product_ids) | source_ids
 
+    from sqlalchemy import or_ as _or_
     all_stock_rows = (
-        db.query(StockLevel).filter(StockLevel.product_id.in_(all_needed_ids)).all()
+        db.query(StockLevel)
+        .filter(StockLevel.product_id.in_(all_needed_ids))
+        .filter(_or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
+        .all()
     ) if all_needed_ids else []
 
     stock_by_product: dict = defaultdict(list)

@@ -919,7 +919,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
   const { t } = useLang();
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const [sortOrder, setSortOrder] = useState('asc')
+  const [sortOrder, setSortOrder] = useState('desc')
   const [operationType, setOperationType] = useState('all')
   const [selectedCashier, setSelectedCashier] = useState('all')
   const [openSaleDetailModal, setOpenSaleDetailModal] = useState(false)
@@ -956,9 +956,9 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
     label: t('customerDetail.opSale'),
     sublabel: s.payment_type ? (PAY_LABEL_KEYS[s.payment_type] ? t(PAY_LABEL_KEYS[s.payment_type]) : s.payment_type) : '',
     amount: Number(s.total_amount || 0),
-    paid: Number(s.paid_amount || 0),
+    paid: (s.debt_amounts && Object.keys(s.debt_amounts).length > 0) ? Math.max(0, Number(s.total_amount || 0) - Object.values(s.debt_amounts).reduce((a, v) => a + Number(v || 0), 0)) : Number(s.paid_amount || 0),
     // Qarzga sotuv: to'lanmagan qism qarz bo'ladi
-    debtChange: +Math.max(0, Number(s.total_amount || 0) - Number(s.paid_amount || 0)),
+    debtChange: (s.debt_amounts && Object.keys(s.debt_amounts).length > 0) ? Object.values(s.debt_amounts).reduce((a, v) => a + Number(v || 0), 0) : Math.max(0, Number(s.total_amount || 0) - Number(s.paid_amount || 0)),
     cashier: s.cashier_name || '',
     currency: s.currency || 'UZS',
     rowType: 'sale',
@@ -1027,11 +1027,11 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
   // Boshlang'ich qarz = joriy qarz − barcha operatsiyalar yig'indisi.
   const currentDebt = mappedBalances.reduce((sum, b) => sum + Number(b.amount || 0), 0)
   const totalDebtChange = allEvents.reduce((sum, ev) => sum + ev.debtChange, 0)
-  const initialDebt = Math.max(0, currentDebt - totalDebtChange)
+  const initialDebt = currentDebt - totalDebtChange
 
   const allEventsWithBalance = allEvents.reduce((acc, ev) => {
     const prevDebt = acc.length > 0 ? acc[acc.length - 1].finalDebt : initialDebt
-    const finalDebt = Math.max(0, prevDebt + ev.debtChange)
+    const finalDebt = prevDebt + ev.debtChange
     acc.push({ ...ev, prevDebt, finalDebt })
     return acc
   }, [])

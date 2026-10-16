@@ -488,6 +488,7 @@ class GetLowStockTool(AITool):
             sqlfunc.sum(StockLevel.quantity).label("qty")
         ).join(StockLevel, Product.id == StockLevel.product_id)\
          .filter(Product.company_id == company_id)\
+         .filter(__import__("sqlalchemy").or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))\
          .group_by(Product.id, Product.name)\
          .having(sqlfunc.sum(StockLevel.quantity) < threshold)\
          .order_by(sqlfunc.sum(StockLevel.quantity)).limit(15).all()
@@ -611,7 +612,8 @@ class FindProductInfoTool(AITool):
         lines = []
         for p in products:
             stock_qty = db.query(sqlfunc.sum(StockLevel.quantity)).filter(
-                StockLevel.product_id == p.id
+                StockLevel.product_id == p.id,
+                __import__("sqlalchemy").or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)),
             ).scalar() or 0
             price = _sf(p.sale_price)
             lines.append(f"📦 {p.name}\n   Narxi: {_fmt(price)} | Zaxira: {int(stock_qty)} ta")

@@ -196,6 +196,7 @@ def finalize_inventory_count(db: Session, count_id: int, user_id: int) -> Invent
         movement = StockMovement(
             product_id=item.product_id,
             variant_id=item.variant_id,
+            warehouse_id=count.warehouse_id,
             type=MovementType.ADJUST,
             qty_before=qty_before,
             qty_after=item.counted_qty,

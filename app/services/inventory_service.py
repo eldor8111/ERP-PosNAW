@@ -307,6 +307,7 @@ def adjust_stock(
     movement = StockMovement(
         product_id=product_id,
         variant_id=variant_id,
+        warehouse_id=stock.warehouse_id,
         type=MovementType.ADJUST,
         qty_before=qty_before,
         qty_after=new_quantity,

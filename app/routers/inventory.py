@@ -366,6 +366,7 @@ def delete_return_movement(
             stock.quantity -= qty
             revert_mov = StockMovement(
                 product_id=m.product_id,
+                warehouse_id=stock.warehouse_id,
                 type=MovementType.OUT,
                 qty_before=qty_before,
                 qty_after=stock.quantity,
@@ -934,6 +935,7 @@ def write_off_expired(
     movement = StockMovement(
         product_id=batch.product_id,
         variant_id=batch.variant_id,
+        warehouse_id=batch.warehouse_id,
         type=MovementType.EXPIRED,
         qty_before=qty_before,
         qty_after=qty_after,

@@ -155,6 +155,7 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
         db.add(StockMovement(
             product_id=src_product_id,
             variant_id=src_variant_id,
+            warehouse_id=transfer.from_warehouse_id,
             type=MovementType.TRANSFER_OUT,
             qty_before=qty_before_from,
             qty_after=from_stock.quantity,
@@ -175,6 +176,7 @@ def create_transfer(db: Session, data, user_id: int) -> StockTransfer:
         db.add(StockMovement(
             product_id=dest_product_id,
             variant_id=dest_variant_id,
+            warehouse_id=transfer.to_warehouse_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
@@ -213,6 +215,7 @@ def confirm_transfer(db: Session, transfer_id: int, user_id: int) -> StockTransf
         db.add(StockMovement(
             product_id=item.product_id,
             variant_id=item.variant_id,
+            warehouse_id=transfer.from_warehouse_id,
             type=MovementType.TRANSFER_OUT,
             qty_before=qty_before_from,
             qty_after=from_stock.quantity,
@@ -232,6 +235,7 @@ def confirm_transfer(db: Session, transfer_id: int, user_id: int) -> StockTransf
         db.add(StockMovement(
             product_id=dest_product_id,
             variant_id=dest_variant_id,
+            warehouse_id=transfer.to_warehouse_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
@@ -347,6 +351,7 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
         db.add(StockMovement(
             product_id=src_product_id,
             variant_id=src_variant_id,
+            warehouse_id=transfer.from_warehouse_id,
             type=MovementType.TRANSFER_OUT,
             qty_before=qty_before_from,
             qty_after=from_stock.quantity,
@@ -365,6 +370,7 @@ def update_transfer(db: Session, transfer_id: int, data, user_id: int) -> StockT
         db.add(StockMovement(
             product_id=dest_product_id,
             variant_id=dest_variant_id,
+            warehouse_id=transfer.to_warehouse_id,
             type=MovementType.TRANSFER_IN,
             qty_before=qty_before_to,
             qty_after=to_stock.quantity,
