@@ -365,7 +365,8 @@ def production_alerts(
         shortages.sort(key=lambda x: x["shortage"], reverse=True)
 
     totals = db.query(Product, func.coalesce(func.sum(StockLevel.quantity), 0)).outerjoin(
-        StockLevel, StockLevel.product_id == Product.id,
+        StockLevel,
+        __import__("sqlalchemy").and_(StockLevel.product_id == Product.id, __import__("sqlalchemy").or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True))),
     ).filter(
         Product.company_id == cid,
         Product.product_type == "raw_material",

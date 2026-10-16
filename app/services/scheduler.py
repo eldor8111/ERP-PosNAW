@@ -349,6 +349,7 @@ async def auto_write_off_expired():
                 movement = StockMovement(
                     product_id=batch.product_id,
                     variant_id=batch.variant_id,
+                    warehouse_id=batch.warehouse_id,
                     type=MovementType.EXPIRED,
                     qty_before=qty_before,
                     qty_after=qty_after,

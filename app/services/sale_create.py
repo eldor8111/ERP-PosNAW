@@ -654,6 +654,7 @@ def create_sale(
         new_movements.append(StockMovement(
             product_id=stock_product.id,
             variant_id=stock_variant_id,
+            warehouse_id=item_warehouse_id,
             type=MovementType.OUT,
             qty_before=qty_before,
             qty_after=selected_stock.quantity,

@@ -32,7 +32,9 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
     if db:
         from app.models.inventory import StockLevel
         from sqlalchemy import func
+        from sqlalchemy import or_ as _or_
         q = db.query(func.coalesce(func.sum(StockLevel.quantity), 0)).filter(StockLevel.product_id == product.id)
+        q = q.filter(_or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
         if warehouse_id:
             q = q.filter(StockLevel.warehouse_id == warehouse_id)
         total_qty = q.scalar()
@@ -227,9 +229,11 @@ def list_products(
 
     all_needed_ids = set(product_ids) | source_ids
 
+    from sqlalchemy import or_ as _or_
     all_stock_rows = (
         db.query(StockLevel)
         .filter(StockLevel.product_id.in_(all_needed_ids))
+        .filter(_or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
         .all()
     ) if all_needed_ids else []
 

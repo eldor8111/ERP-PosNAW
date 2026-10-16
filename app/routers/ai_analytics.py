@@ -324,7 +324,8 @@ def get_ai_recommendations(
 
     # Recommendation 2: Low Stock
     low_stock_count = db.query(func.count(Product.id)).join(StockLevel).filter(
-        Product.company_id == current_user.company_id
+        Product.company_id == current_user.company_id,
+        __import__("sqlalchemy").or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)),
     ).group_by(Product.id).having(func.sum(StockLevel.quantity) < 10).count()
     
     if low_stock_count > 0:

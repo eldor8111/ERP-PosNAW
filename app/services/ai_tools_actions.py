@@ -45,6 +45,7 @@ class DraftPurchaseOrderTool(AITool):
             func.sum(StockLevel.quantity).label("current_stock")
         ).join(Product, Product.id == StockLevel.product_id)\
          .filter(Product.company_id == company_id)\
+         .filter(__import__("sqlalchemy").or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))\
          .group_by(StockLevel.product_id).subquery()
 
         results = db.query(

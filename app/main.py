@@ -464,11 +464,17 @@ async def lifespan(app: FastAPI):
     _create_missing_tables(engine)
     # 4. Standart paketlar
     _seed_default_feature_packages()
-    scheduler_task = asyncio.create_task(start_scheduler())
-    admin_bot_task = asyncio.create_task(run_admin_bot_polling())
+    scheduler_task = None
+    admin_bot_task = None
+    if os.environ.get("ENABLE_SCHEDULER", "1") == "1":
+        scheduler_task = asyncio.create_task(start_scheduler())
+    if os.environ.get("ENABLE_ADMIN_BOT", "1") == "1":
+        admin_bot_task = asyncio.create_task(run_admin_bot_polling())
     yield
     # Clean shutdown
     for task in [scheduler_task, admin_bot_task]:
+        if task is None:
+            continue
         task.cancel()
         try:
             await task

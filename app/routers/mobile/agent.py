@@ -298,7 +298,9 @@ def catalog(db: Session = Depends(get_db), current_user: User = Depends(agent_us
     price_type (sale/wholesale/cost) — backend resolve_price bilan bir xil."""
     stock = dict(db.query(StockLevel.product_id, func.coalesce(func.sum(StockLevel.quantity), 0)).join(
         Product, Product.id == StockLevel.product_id,
-    ).filter(Product.company_id == current_user.company_id).group_by(StockLevel.product_id).all())
+    ).filter(Product.company_id == current_user.company_id).filter(
+        __import__("sqlalchemy").or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True))
+    ).group_by(StockLevel.product_id).all())
     products = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.is_deleted == False,  # noqa: E712

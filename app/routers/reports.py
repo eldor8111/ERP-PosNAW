@@ -79,6 +79,8 @@ def _dead_stock_rows(db: Session, company_id: int, months: int, wh_ids: Optional
             Product.id.notin_(sold_by_items),
         )
     )
+    from sqlalchemy import or_ as _or_
+    q = q.filter(_or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
     if wh_ids is not None:
         q = q.filter(StockLevel.warehouse_id.in_(wh_ids))
     return q.group_by(Product.id).having(qty_sum > 0).all()
