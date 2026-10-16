@@ -3,18 +3,29 @@ import uuid
 from typing import Dict, Any, Type, List
 from sqlalchemy.orm import Session
 
+from datetime import datetime, timezone, timedelta
 from app.models.ai_audit import AIAuditLog
+from app.models.pending_action import PendingAction
 from app.models.user import User
+from app.config import settings
 
 class AITool:
     name: str = ""
     description: str = ""
     required_permission: str = ""
     risk_level: str = "LOW" # LOW, MEDIUM, HIGH
+    read_only: bool = False
     parameters: dict = {}
 
     def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
         raise NotImplementedError()
+
+def _sf(val):
+    try: return float(val or 0)
+    except: return 0.0
+
+def _fmt(amount: float) -> str:
+    return f"{amount:,.0f}".replace(",", " ") + " so'm"
 
 def summarize_reply(result: dict) -> str:
     """Audit jurnali uchun javob matni: ba'zi vositalar reply ni dict qaytaradi,
@@ -24,6 +35,129 @@ def summarize_reply(result: dict) -> str:
         return reply
     import json
     return json.dumps(reply, ensure_ascii=False, default=str)
+
+
+def generate_action_card_summary(tool_name: str, kwargs: dict) -> str:
+    """Foydalanuvchiga tasdiqlash kartochkasida ko'rsatiladigan tushunarli xulosa."""
+    kwargs = kwargs or {}
+    if tool_name == "create_product":
+        name = kwargs.get("name", "Noma'lum")
+        price = _sf(kwargs.get("sale_price", 0))
+        return f"Yangi mahsulot yaratish: '{name}' — sotuv narxi: {_fmt(price)}"
+    elif tool_name == "update_product":
+        p_name = kwargs.get("product_name", "Noma'lum")
+        parts = []
+        if kwargs.get("new_name"):
+            parts.append(f"nomi: '{kwargs.get('new_name')}'")
+        if kwargs.get("new_sale_price") is not None:
+            parts.append(f"sotuv narxi: {_fmt(_sf(kwargs.get('new_sale_price')))}")
+        if kwargs.get("new_cost_price") is not None:
+            parts.append(f"tan narxi: {_fmt(_sf(kwargs.get('new_cost_price')))}")
+        details = ", ".join(parts) if parts else "o'zgarishlar bilan"
+        return f"Mahsulotni yangilash: '{p_name}' ({details})"
+    elif tool_name == "create_customer":
+        name = kwargs.get("name", "Noma'lum")
+        phone = kwargs.get("phone")
+        phone_str = f", tel: {phone}" if phone else ""
+        return f"Yangi mijoz qo'shish: '{name}'{phone_str}"
+    elif tool_name == "update_customer":
+        c_name = kwargs.get("customer_name", "Noma'lum")
+        parts = []
+        if kwargs.get("new_name"):
+            parts.append(f"yangi ism: '{kwargs.get('new_name')}'")
+        if kwargs.get("new_phone"):
+            parts.append(f"yangi tel: {kwargs.get('new_phone')}")
+        details = ", ".join(parts) if parts else "o'zgarishlar bilan"
+        return f"Mijoz ma'lumotlarini yangilash: '{c_name}' ({details})"
+    elif tool_name == "create_sale":
+        items = kwargs.get("items") or []
+        pt = kwargs.get("payment_type", "cash")
+        cust = kwargs.get("customer_name")
+        cust_str = f", mijoz: '{cust}'" if cust else ""
+        return f"Sotuv rasmiylashtirish: {len(items)} xil mahsulot, to'lov turi: {pt}{cust_str}"
+    elif tool_name == "record_debt_payment":
+        c_name = kwargs.get("customer_name", "Noma'lum")
+        amount = _sf(kwargs.get("amount", 0))
+        return f"Qarz to'lovi qabul qilish: '{c_name}' dan {_fmt(amount)}"
+    elif tool_name == "record_new_debt":
+        c_name = kwargs.get("customer_name", "Noma'lum")
+        amount = _sf(kwargs.get("amount", 0))
+        return f"Nasiya (qarz) yozish: '{c_name}' ga {_fmt(amount)}"
+    elif tool_name in ("draft_sms_campaign", "send_customer_sms"):
+        recipients = kwargs.get("recipients") or kwargs.get("customer_ids") or []
+        count = kwargs.get("recipient_count") or len(recipients) or kwargs.get("count") or (1 if kwargs.get("customer_id") else 0)
+        msg = kwargs.get("message") or kwargs.get("message_text") or ""
+        msg_preview = (msg[:60] + "...") if len(msg) > 60 else msg
+        target = kwargs.get("target_group", "")
+        target_str = f" ('{target}' guruhi)" if target else ""
+        cnt_str = f"{count} ta mijozga" if count else "mijozlarga"
+        return f"SMS yuborish: {cnt_str}{target_str}. Xabar namunasi: '{msg_preview}'"
+    else:
+        return f"Amal: {tool_name}"
+
+
+def validate_arguments_company_ownership(db: Session, company_id: int, kwargs: dict) -> None:
+    """
+    Argumentlardagi barcha ID'lar (customer_id, product_id, warehouse_id, supplier_id,
+    va items ro'yxati) shu kompaniyaga tegishli ekanini qat'iy tekshiradi.
+    Agar boshqa korxonaga tegishli ID topilsa, PermissionError chiqaradi.
+    """
+    if not kwargs or not isinstance(kwargs, dict):
+        return
+
+    from app.models.customer import Customer
+    from app.models.product import Product
+    from app.models.warehouse import Warehouse
+    from app.models.supplier import Supplier
+
+    # 1. Customer ID
+    cid = kwargs.get("customer_id")
+    if cid:
+        cust = db.query(Customer).filter(Customer.id == cid).first()
+        if not cust or cust.company_id != company_id:
+            raise PermissionError(f"Mijoz (ID={cid}) ushbu korxonaga tegishli emas.")
+
+    # 2. Product ID (to'g'ridan yoki items ichida)
+    pid = kwargs.get("product_id")
+    if pid:
+        prod = db.query(Product).filter(Product.id == pid).first()
+        if not prod or prod.company_id != company_id:
+            raise PermissionError(f"Mahsulot (ID={pid}) ushbu korxonaga tegishli emas.")
+
+    items = kwargs.get("items")
+    if isinstance(items, list):
+        for item in items:
+            if isinstance(item, dict):
+                item_pid = item.get("product_id")
+                if item_pid:
+                    prod = db.query(Product).filter(Product.id == item_pid).first()
+                    if not prod or prod.company_id != company_id:
+                        raise PermissionError(f"Mahsulot (ID={item_pid}) ushbu korxonaga tegishli emas.")
+                item_wid = item.get("warehouse_id")
+                if item_wid:
+                    wh = db.query(Warehouse).filter(Warehouse.id == item_wid).first()
+                    if not wh or wh.company_id != company_id:
+                        raise PermissionError(f"Ombor (ID={item_wid}) ushbu korxonaga tegishli emas.")
+                item_sid = item.get("supplier_id")
+                if item_sid:
+                    sup = db.query(Supplier).filter(Supplier.id == item_sid).first()
+                    if not sup or sup.company_id != company_id:
+                        raise PermissionError(f"Yetkazib beruvchi (ID={item_sid}) ushbu korxonaga tegishli emas.")
+
+    # 3. Warehouse ID
+    wid = kwargs.get("warehouse_id")
+    if wid:
+        wh = db.query(Warehouse).filter(Warehouse.id == wid).first()
+        if not wh or wh.company_id != company_id:
+            raise PermissionError(f"Ombor (ID={wid}) ushbu korxonaga tegishli emas.")
+
+    # 4. Supplier ID
+    sid = kwargs.get("supplier_id")
+    if sid:
+        sup = db.query(Supplier).filter(Supplier.id == sid).first()
+        if not sup or sup.company_id != company_id:
+            raise PermissionError(f"Yetkazib beruvchi (ID={sid}) ushbu korxonaga tegishli emas.")
+
 
 
 class AIToolRegistry:
@@ -100,26 +234,58 @@ class AIToolRegistry:
 
         # Risk check
         if tool_class.risk_level == "HIGH":
+            # 1. Kompaniya ID'lari tekshiruvi (cross-tenant ID tampering oldini olish)
+            try:
+                validate_arguments_company_ownership(db, user.company_id, kwargs)
+            except PermissionError as pe:
+                log.status = "ERROR"
+                log.error = str(pe)
+                db.commit()
+                return {"reply": f"❌ Xavfsizlik xatosi: {str(pe)}"}
+
             confirmation_id = str(uuid.uuid4())
+            ttl_min = getattr(settings, "AI_PENDING_ACTION_TTL_MIN", 10) or 10
+            now = datetime.now(timezone.utc)
+            expires_at = now + timedelta(minutes=ttl_min)
+            card_summary = generate_action_card_summary(name, kwargs)
+
+            pending = PendingAction(
+                id=confirmation_id,
+                company_id=user.company_id,
+                user_id=user.id,
+                tool_name=name,
+                tool_arguments=kwargs,
+                description=card_summary,
+                status="pending",
+                created_at=now,
+                expires_at=expires_at,
+            )
+            db.add(pending)
+
             log.status = "PENDING_CONFIRMATION"
             log.confirmation_id = confirmation_id
             db.commit()
             
             # We return a structured draft indicating confirmation is needed
             return {
-                "reply": "⚠️ Ushbu amalni bajarish uchun tasdiqlash talab qilinadi.",
+                "reply": f"⚠️ Ushbu amalni bajarish uchun tasdiqlash talab qilinadi:\n{card_summary}",
                 "action": {
                     "type": "confirm_action",
                     "confirmation_id": confirmation_id,
+                    "pending_action_id": confirmation_id,
                     "tool_name": name,
-                    "arguments": kwargs
+                    "summary": card_summary,
+                    "expires_at": expires_at.isoformat(),
+                    "arguments": kwargs  # Faqat frontend kartochkasida ko'rsatish uchun
                 }
             }
 
         # Execution for LOW / MEDIUM
         try:
-            tool_instance = tool_class()
-            result = tool_instance.execute(db, user.company_id, user, **kwargs)
+            from app.services.ai_db_context import ai_tenant_context
+            with ai_tenant_context(db, user.company_id, read_only=(tool_class.risk_level == "LOW")):
+                tool_instance = tool_class()
+                result = tool_instance.execute(db, user.company_id, user, **kwargs)
             
             log.status = "SUCCESS"
             log.result_summary = summarize_reply(result)

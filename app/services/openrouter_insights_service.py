@@ -25,7 +25,8 @@ def generate_daily_insight(
     url = "https://openrouter.ai/api/v1/chat/completions"
 
     api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-    model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+    from app.config import settings
+    model = settings.OPENROUTER_MODEL
 
     if not api_key:
         print("[AI Insight] OPENROUTER_API_KEY sozlanmagan")
@@ -61,47 +62,19 @@ def generate_daily_insight(
         "qisqa xulosa va maslahat yozing."
     )
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost",
-        "X-Title": "E-Code ERP POS"
-    }
-
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "max_tokens": 300,
-        "temperature": 0.5
-    }
-
+    from app.ai import get_llm_router
+    router = get_llm_router()
     try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=TIMEOUT
+        resp = router.chat(
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            task_type="fast",
+            temperature=0.5,
+            max_tokens=300,
         )
-
-        if response.status_code != 200:
-            print(
-                f"[AI Insight] HTTP {response.status_code}: "
-                f"{response.text[:2000]}"
-            )
-            return None
-
-        data = response.json()
-        choices = data.get("choices", [])
-
-        if not choices:
-            return None
-
-        content = choices[0].get("message", {}).get("content")
-        return content.strip() if content else None
-
+        if resp.text:
+            return resp.text.strip()
+        return None
     except Exception as e:
         print(f"[AI Insight] Request failed: {e}")
         return None

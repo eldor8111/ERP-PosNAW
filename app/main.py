@@ -245,6 +245,26 @@ def _run_auto_migrations(engine):
         "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_user_id ON ai_audit_logs(user_id);",
         "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_tool_name ON ai_audit_logs(tool_name);",
         "CREATE INDEX IF NOT EXISTS ix_ai_audit_logs_confirmation_id ON ai_audit_logs(confirmation_id);",
+        # ── AI kutilayotgan amallar (app/models/pending_action.py) ──
+        """CREATE TABLE IF NOT EXISTS pending_actions (
+            id                    VARCHAR(50) PRIMARY KEY,
+            company_id            INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            tool_name             VARCHAR(100) NOT NULL,
+            tool_arguments        JSON NOT NULL,
+            description           TEXT,
+            status                VARCHAR(20) NOT NULL DEFAULT 'pending',
+            created_at            TIMESTAMP DEFAULT NOW(),
+            expires_at            TIMESTAMP NOT NULL,
+            executed_at           TIMESTAMP,
+            result_summary        TEXT
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_pending_actions_id ON pending_actions(id);",
+        "CREATE INDEX IF NOT EXISTS ix_pending_actions_company_id ON pending_actions(company_id);",
+        "CREATE INDEX IF NOT EXISTS ix_pending_actions_user_id ON pending_actions(user_id);",
+        "CREATE INDEX IF NOT EXISTS ix_pending_actions_tool_name ON pending_actions(tool_name);",
+        "CREATE INDEX IF NOT EXISTS ix_pending_actions_status ON pending_actions(status);",
+        "CREATE INDEX IF NOT EXISTS ix_pending_actions_expires_at ON pending_actions(expires_at);",
         # ── Xarid va ta'minotchi qarzi (app/services/supplier_ledger.py) ──
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(14,4);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt NUMERIC(18,4);",

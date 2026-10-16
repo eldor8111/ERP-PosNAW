@@ -128,9 +128,10 @@ class DraftPurchaseOrderTool(AITool):
 @AIToolRegistry.register
 class DraftSmsCampaignTool(AITool):
     name = "draft_sms_campaign"
-    description = "Ma'lum mijozlar segmentiga (masalan: passiv mijozlar, qarzkorlar) SMS yuborish uchun kampaniya qoralamasini tayyorlash."
+    description = "Ma'lum mijozlar segmentiga (masalan: passiv mijozlar, qarzkorlar) SMS yuborish uchun kampaniya qoralamasini tayyorlash va tasdiqlash bilan yuborish."
     required_permission = "customers.marketing"
-    risk_level = "MEDIUM"
+    risk_level = "HIGH"
+    read_only = False
     parameters = {
         "type": "object",
         "properties": {
@@ -168,24 +169,77 @@ class DraftSmsCampaignTool(AITool):
             customers = query.all()
         elif target_group == "churn_risk":
             cutoff = datetime.now(timezone.utc) - timedelta(days=45)
-            # Find users who bought >= 3 times but not in last 45 days
             subq_recent = db.query(Sale.customer_id).filter(Sale.company_id == company_id, Sale.created_at >= cutoff).subquery()
             subq_loyal = db.query(Sale.customer_id).filter(Sale.company_id == company_id).group_by(Sale.customer_id).having(func.count(Sale.id) >= 3).subquery()
-            
             query = query.filter(~Customer.id.in_(subq_recent)).filter(Customer.id.in_(subq_loyal))
             customers = query.all()
 
         if not customers:
             return {"reply": f"'{target_group}' guruhiga mos keluvchi telefon raqamiga ega mijozlar topilmadi."}
 
-        recipients = [{"id": c.id, "name": c.name, "phone": c.phone} for c in customers[:50]] # Limit for draft safety
+        recipients = [{"id": c.id, "name": c.name, "phone": c.phone} for c in customers[:50]]
 
+        # Tasdiqlangandan keyin haqiqiy jo'natish (Eskiz orqali) va SMSLog'ga yozish
+        from app.models.sms_log import SMSLog
+        from app.services import eskiz_service
+        import asyncio
+
+        sent, failed = 0, 0
+        for r in recipients:
+            phone = (r.get("phone") or "").strip()
+            if not phone:
+                failed += 1
+                continue
+            try:
+                try:
+                    res = asyncio.run(eskiz_service.send_sms(phone, message_text))
+                except RuntimeError:
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        res = pool.submit(asyncio.run, eskiz_service.send_sms(phone, message_text)).result()
+
+                db.add(SMSLog(
+                    company_id=company_id,
+                    phone=phone,
+                    message=message_text,
+                    status="sent" if res.get("success") else "failed",
+                    eskiz_id=res.get("eskiz_id"),
+                    sms_type="ai_campaign",
+                    error=res.get("error"),
+                ))
+                if res.get("success"):
+                    sent += 1
+                else:
+                    failed += 1
+            except Exception:
+                failed += 1
+
+        db.commit()
         return {
-            "reply": f"{len(recipients)} ta mijoz ('{target_group}' guruhi) uchun SMS kampaniya qoralamasi tayyorlandi. Matn: '{message_text}'. Tasdiqlash uchun ro'yxatni ekranga chiqardim.",
-            "action": {
-                "type": "draft_sms_campaign",
-                "recipients": recipients,
-                "message": message_text,
-                "recipient_count": len(recipients)
-            }
+            "reply": f"✅ {sent} ta mijozga SMS yuborildi." + (f" {failed} tasi yuborilmadi (xato)." if failed else ""),
+            "sent": sent,
+            "failed": failed,
         }
+
+
+@AIToolRegistry.register
+class SendCustomerSmsTool(AITool):
+    name = "send_customer_sms"
+    description = "Mijozlarga SMS xabarnoma yuborish (HIGH xavf darajasi, tasdiqlash talab qilinadi)."
+    required_permission = "customers.marketing"
+    risk_level = "HIGH"
+    read_only = False
+    parameters = {
+        "type": "object",
+        "properties": {
+            "customer_id": {"type": "integer", "description": "Mijoz ID si"},
+            "target_group": {"type": "string", "enum": ["inactive", "churn_risk", "debtors"], "description": "Mijozlar guruhi"},
+            "message_text": {"type": "string", "description": "SMS matni"}
+        },
+        "required": ["message_text"]
+    }
+
+    def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
+        draft = DraftSmsCampaignTool()
+        return draft.execute(db, company_id, user, **kwargs)
+
