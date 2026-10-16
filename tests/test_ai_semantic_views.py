@@ -90,11 +90,11 @@ def seeded_db():
 
         # 4. Omborlar (Kompaniya A da 2 ta: Asosiy va Filial; Kompaniya B da 1 ta)
         conn.execute(text("""
-            INSERT INTO warehouses (id, company_id, name)
+            INSERT INTO warehouses (id, company_id, name, is_active)
             VALUES
-            (2011, 201, 'Ombor A1 Asosiy'),
-            (2012, 201, 'Ombor A2 Filial'),
-            (2021, 202, 'Ombor B1 Asosiy')
+            (2011, 201, 'Ombor A1 Asosiy', true),
+            (2012, 201, 'Ombor A2 Filial', true),
+            (2021, 202, 'Ombor B1 Asosiy', true)
             ON CONFLICT (id) DO NOTHING
         """))
 
