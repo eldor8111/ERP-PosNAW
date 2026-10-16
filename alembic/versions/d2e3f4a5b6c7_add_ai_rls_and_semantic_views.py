@@ -21,25 +21,49 @@ def upgrade() -> None:
     if conn.dialect.name != "postgresql":
         return
 
-    # 1. Rollar yaratish (agar mavjud bo'lmasa)
+    # 1. Rollar yaratish (agar huquq bo'lsa va mavjud bo'lmasa)
     conn.execute(sa.text("""
         DO $$
         BEGIN
-            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_view_owner') THEN
-                CREATE ROLE ai_view_owner WITH NOLOGIN;
-            END IF;
-            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') THEN
-                CREATE ROLE ai_readonly WITH NOLOGIN;
-            END IF;
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_view_owner') THEN
+                    CREATE ROLE ai_view_owner WITH NOLOGIN;
+                END IF;
+            EXCEPTION WHEN insufficient_privilege THEN
+                RAISE NOTICE 'Skipping CREATE ROLE ai_view_owner: insufficient privileges';
+            END;
+
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') THEN
+                    CREATE ROLE ai_readonly WITH NOLOGIN;
+                END IF;
+            EXCEPTION WHEN insufficient_privilege THEN
+                RAISE NOTICE 'Skipping CREATE ROLE ai_readonly: insufficient privileges';
+            END;
         END $$;
     """))
 
-    # 2. ai_readonly xavfsizlik cheklovlari
+    # 2. ai_readonly xavfsizlik cheklovlari (agar rol mavjud bo'lsa)
     conn.execute(sa.text("""
-        ALTER ROLE ai_readonly SET default_transaction_read_only = on;
-        ALTER ROLE ai_readonly SET statement_timeout = '10s';
-        GRANT ai_readonly TO postgres;
-        GRANT ai_view_owner TO postgres;
+        DO $$
+        BEGIN
+            BEGIN
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') THEN
+                    ALTER ROLE ai_readonly SET default_transaction_read_only = on;
+                    ALTER ROLE ai_readonly SET statement_timeout = '10s';
+                END IF;
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'postgres') THEN
+                    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') THEN
+                        GRANT ai_readonly TO postgres;
+                    END IF;
+                    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_view_owner') THEN
+                        GRANT ai_view_owner TO postgres;
+                    END IF;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN
+                RAISE NOTICE 'Skipping role security settings: %', SQLERRM;
+            END;
+        END $$;
     """))
 
     # 3. Asosiy jadvallarda RLS yoqish va AI rollari uchun fail-closed siyosatlar
@@ -321,39 +345,42 @@ def upgrade() -> None:
           AND s.company_id = NULLIF(current_setting('app.company_id', true), '')::integer;
     """))
 
-    # 5. Huquqlar va Egalikni taqsimlash
+    # 5. Huquqlar va Egalikni taqsimlash (agar rollar mavjud bo'lsa)
     conn.execute(sa.text("""
-        GRANT USAGE ON SCHEMA public TO ai_readonly, ai_view_owner;
+        DO $$
+        BEGIN
+            BEGIN
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') AND EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_view_owner') THEN
+                    GRANT USAGE ON SCHEMA public TO ai_readonly, ai_view_owner;
 
-        -- ai_view_owner jadvallarni o'qish huquqiga ega
-        GRANT SELECT ON sales, sale_items, products, customers, stock_levels,
-                        stock_movements, purchase_orders, suppliers, warehouses,
-                        stock_transfers, inventory_counts, currencies TO ai_view_owner;
+                    GRANT SELECT ON sales, sale_items, products, customers, stock_levels,
+                                    stock_movements, purchase_orders, suppliers, warehouses,
+                                    stock_transfers, inventory_counts, currencies TO ai_view_owner;
 
-        -- View egaligini ai_view_owner ga o'tkazish
-        ALTER VIEW ai_v_sales OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_sale_items OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_products OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_customers OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_debts OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_stock_balance OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_stock_movements OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_purchases OWNER TO ai_view_owner;
-        ALTER VIEW ai_v_returns OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_sales OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_sale_items OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_products OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_customers OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_debts OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_stock_balance OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_stock_movements OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_purchases OWNER TO ai_view_owner;
+                    ALTER VIEW ai_v_returns OWNER TO ai_view_owner;
 
-        -- ai_readonly faqat View'larni o'qish huquqiga ega
-        GRANT SELECT ON ai_v_sales, ai_v_sale_items, ai_v_products, ai_v_customers,
-                        ai_v_debts, ai_v_stock_balance, ai_v_stock_movements,
-                        ai_v_purchases, ai_v_returns TO ai_readonly;
+                    GRANT SELECT ON ai_v_sales, ai_v_sale_items, ai_v_products, ai_v_customers,
+                                    ai_v_debts, ai_v_stock_balance, ai_v_stock_movements,
+                                    ai_v_purchases, ai_v_returns TO ai_readonly;
 
-        -- ai_readonly asosiy jadvallardagi RLS policy subquery'lari ishlashi uchun SELECT kerak
-        -- (RLS policies o'zlari tenant izolyatsiyasini ta'minlaydi)
-        GRANT SELECT ON sales, sale_items, products, customers, stock_levels,
-                        stock_movements, purchase_orders, suppliers, warehouses,
-                        stock_transfers, inventory_counts, currencies TO ai_readonly;
+                    GRANT SELECT ON sales, sale_items, products, customers, stock_levels,
+                                    stock_movements, purchase_orders, suppliers, warehouses,
+                                    stock_transfers, inventory_counts, currencies TO ai_readonly;
 
-        -- ai_readonly yozish huquqidan butunlay mahrum
-        REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM ai_readonly;
+                    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM ai_readonly;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN
+                RAISE NOTICE 'Skipping view ownership/role grants: %', SQLERRM;
+            END;
+        END $$;
 
         -- O'zbekcha izohlar (COMMENT ON)
         COMMENT ON VIEW ai_v_sales IS 'AI uchun sotuvlar reyestri (korxona izolyatsiyasi bilan)';

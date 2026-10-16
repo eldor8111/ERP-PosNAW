@@ -21,30 +21,46 @@ def upgrade() -> None:
     if conn.dialect.name != "postgresql":
         return
 
-    # 1. ai_sql_ro LOGIN rolini yaratish va xavfsizlik sozlamalari
+    # 1. ai_sql_ro LOGIN rolini yaratish va xavfsizlik sozlamalari (agar huquq bo'lsa)
     conn.execute(sa.text("""
         DO $$
         BEGIN
-            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_sql_ro') THEN
-                CREATE ROLE ai_sql_ro WITH LOGIN PASSWORD 'ai_sql_ro_pass' NOSUPERUSER NOBYPASSRLS NOINHERIT;
-            ELSE
-                ALTER ROLE ai_sql_ro WITH LOGIN PASSWORD 'ai_sql_ro_pass' NOSUPERUSER NOBYPASSRLS NOINHERIT;
-            END IF;
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_sql_ro') THEN
+                    CREATE ROLE ai_sql_ro WITH LOGIN PASSWORD 'ai_sql_ro_pass' NOSUPERUSER NOBYPASSRLS NOINHERIT;
+                ELSE
+                    ALTER ROLE ai_sql_ro WITH LOGIN PASSWORD 'ai_sql_ro_pass' NOSUPERUSER NOBYPASSRLS NOINHERIT;
+                END IF;
+
+                ALTER ROLE ai_sql_ro SET default_transaction_read_only = on;
+                ALTER ROLE ai_sql_ro SET statement_timeout = '10s';
+                ALTER ROLE ai_sql_ro SET idle_in_transaction_session_timeout = '10s';
+
+                REVOKE ALL ON SCHEMA public FROM ai_sql_ro;
+                GRANT USAGE ON SCHEMA public TO ai_sql_ro;
+                REVOKE ALL ON ALL TABLES IN SCHEMA public FROM ai_sql_ro;
+            EXCEPTION WHEN OTHERS THEN
+                RAISE NOTICE 'Skipping ai_sql_ro role setup: %', SQLERRM;
+            END;
         END $$;
-
-        ALTER ROLE ai_sql_ro SET default_transaction_read_only = on;
-        ALTER ROLE ai_sql_ro SET statement_timeout = '10s';
-        ALTER ROLE ai_sql_ro SET idle_in_transaction_session_timeout = '10s';
-
-        REVOKE ALL ON SCHEMA public FROM ai_sql_ro;
-        GRANT USAGE ON SCHEMA public TO ai_sql_ro;
-        REVOKE ALL ON ALL TABLES IN SCHEMA public FROM ai_sql_ro;
     """))
 
     # 2. set_config EXECUTE huquqini PUBLIC'dan bekor qilish
     conn.execute(sa.text("""
-        REVOKE EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) FROM PUBLIC;
-        GRANT EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) TO postgres, ecode_app, ai_readonly;
+        DO $$
+        BEGIN
+            BEGIN
+                REVOKE EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) FROM PUBLIC;
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ecode_app') THEN
+                    GRANT EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) TO ecode_app;
+                END IF;
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') THEN
+                    GRANT EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) TO ai_readonly;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN
+                RAISE NOTICE 'Skipping set_config revoke/grant: %', SQLERRM;
+            END;
+        END $$;
     """))
 
     # 3. ecode_app roli uchun qolgan 5 ta jadvalda RLS transit siyosatlari

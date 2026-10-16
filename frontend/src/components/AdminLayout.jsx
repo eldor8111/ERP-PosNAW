@@ -652,27 +652,6 @@ export default function AdminLayout() {
           )}
         </main>
       </div>
-
-      {/* ── Creative Floating Executive AI Orb (Bottom-Right) ── */}
-      {!location.pathname.startsWith('/admin/ecode-ai') && !location.pathname.startsWith('/admin/ai') && (
-        <Link
-          to="/admin/ecode-ai"
-          title="E-Code AI Biznes Tahlilchisi"
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 pl-3.5 pr-4 py-2.5 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-indigo-500/35 hover:shadow-2xl hover:shadow-indigo-500/60 hover:scale-106 active:scale-95 transition-all duration-200 cursor-pointer border border-white/25 group"
-        >
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-300 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-400" />
-          </span>
-          <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-white backdrop-blur-xs group-hover:rotate-12 transition-transform">
-            <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-          </div>
-          <div className="flex flex-col text-left">
-            <span className="text-[12px] font-extrabold leading-tight tracking-tight">E-Code AI</span>
-            <span className="text-[9px] text-blue-100/90 leading-none">Copilot</span>
-          </div>
-        </Link>
-      )}
     </div>
   );
 }
