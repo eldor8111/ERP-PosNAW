@@ -446,6 +446,38 @@ def _seed_default_feature_packages():
         print(f"[SEED] feature_packages skip: {e}")
 
 
+def _check_database_role_security(engine):
+    """
+    Tekshiradi: Ilova DB ulanishi superuser yoki BYPASSRLS huquqiga ega emasligini.
+    Serverda ilova faqat superuser bo'lmagan, BYPASSRLS bo'lmagan rol (masalan, ecode_app)
+    bilan ulanishi shart, aks holda Row Level Security (RLS) chetlab o'tiladi.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT current_user, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;")).fetchone()
+            if row:
+                user, is_super, is_bypass = row[0], bool(row[1]), bool(row[2])
+                if is_super or is_bypass:
+                    msg = (
+                        f"[SECURITY WARNING] Ilova bazaga yuqori imtiyozli rol bilan ulangan: "
+                        f"user='{user}', rolsuper={is_super}, rolbypassrls={is_bypass}. "
+                        "Production rejimida ilova faqat superuser bo'lmagan va BYPASSRLS bo'lmagan rol (masalan, ecode_app) "
+                        "bilan ulanishi shart, aks holda Row Level Security (RLS) chetlab o'tiladi!"
+                    )
+                    _log.warning(msg)
+                    is_prod = os.environ.get("ENV", "production").lower() in ("production", "prod")
+                    strict = os.environ.get("STRICT_RLS_CHECK", "0").lower() in ("1", "true")
+                    if is_prod and strict:
+                        raise RuntimeError(f"Ishga tushirish to'xtatildi (STRICT_RLS_CHECK=1): {msg}")
+    except RuntimeError:
+        raise
+    except Exception as e:
+        _log.warning("[SECURITY] DB rol tekshiruvi xatosi: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.admin_tg_bot.bot_manager import main as run_admin_bot_polling
@@ -453,9 +485,14 @@ async def lifespan(app: FastAPI):
     from app.models.bot_session import BotSession
     from app.models.tg_phone_chat import TgPhoneChat
     from app.models.ai_chat_history import AiChatHistory
+
+    # 0. DB roli va RLS xavfsizligi tekshiruvi
+    _check_database_role_security(engine)
+
     BotSession.__table__.create(bind=engine, checkfirst=True)
     TgPhoneChat.__table__.create(bind=engine, checkfirst=True)
     AiChatHistory.__table__.create(bind=engine, checkfirst=True)
+
     # 1. Alembic migratsiyalar
     # _run_alembic_upgrade()
     # 2. Qo'shimcha SQL migratsiyalar (Payme va boshqalar)

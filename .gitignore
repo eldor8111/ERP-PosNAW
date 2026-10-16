@@ -83,3 +83,5 @@ static/uploads/customers/
 node_modules/
 FETCH_HEAD
 static/uploads/
+scratch/
+

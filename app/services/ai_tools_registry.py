@@ -832,3 +832,8 @@ class GetNewCustomersStatTool(AITool):
             "reply": f"👥 {pname.capitalize()} {count} ta yangi mijoz qo'shildi. Jami mijozlar: {total} ta.",
             "action": {"type": "show_data", "data": {"new": count, "total": total}}
         }
+
+
+# Bosqich 4: Semantik AI vositalarini ro'yxatdan o'tkazish
+import app.services.ai_tools_semantic  # noqa: F401
+

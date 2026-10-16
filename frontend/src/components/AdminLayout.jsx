@@ -8,7 +8,7 @@ import { ROLES, ROLE_GROUPS, ROLE_LABELS, ROLE_GRADIENTS } from '../constants/ro
 import { getSettingsMenus } from '../constants/settingsMenus';
 import ECodeLogo, { ECodeIcon } from './ECodeLogo';
 import toast from 'react-hot-toast';
-import { BriefcaseBusiness, CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
+import { BriefcaseBusiness, CircleChevronLeft, Copy, Minus, TextAlignJustify, X, Sparkles } from 'lucide-react';
 import AnnouncementModal from './AnnouncementModal';
 import AnnouncementBanner from './AnnouncementBanner';
 
@@ -20,14 +20,6 @@ function buildNavGroups(t, expiredCount = 0) {
       key: 'sales_group',
       label: t('nav.sales_group'),
       links: [
-        {
-          name: 'AI Copilot ✨',
-          path: '/admin/ai-copilot',
-          // Hozircha faqat Super Admin uchun ko'rinadi — boshqa foydalanuvchilarga
-          // rasman chiqarilmaguncha yashirilgan (dark launch). Backend/route hali ham ishlaydi.
-          roles: [ROLES.SUPER_ADMIN],
-          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
-        },
         {
           name: t('nav.products'),
           path: '/admin/products',
@@ -558,30 +550,44 @@ export default function AdminLayout() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2.5">
-            {/* Tizim faol */}
-            {/* <div className="hidden md:flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1 xl:py-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-700 text-[10px] xl:text-[12px] font-semibold">{t('header.systemActive')}</span>
-            </div> */}
-
-            {/* Kam qoldiq */}
-            {/* {lowStockCount > 0 && (
-              <button
-                onClick={() => navigate('/admin/warehouse')}
-                className="relative flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-2 md:px-3 py-1 xl:py-1.5 hover:bg-amber-100 transition-colors cursor-pointer"
-                title={`${lowStockCount} ${t('header.lowStock')}`}
-              >
-                <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <span className="hidden sm:inline text-amber-700 text-[10px] xl:text-[12px] font-semibold">{t('header.lowStock')}</span>
-                <span className="min-w-[16px] xl:min-w-[18px] h-[16px] xl:h-[18px] px-1 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {lowStockCount > 99 ? '99+' : lowStockCount}
+          {/* Creative Center AI Command Bar */}
+          <div className="hidden md:flex items-center flex-1 max-w-sm lg:max-w-md mx-3">
+            <Link
+              to="/admin/ecode-ai"
+              title="E-Code AI Copilot"
+              className={`w-full flex items-center justify-between px-3.5 py-1.5 rounded-full transition-all duration-200 cursor-pointer shadow-xs group ${
+                location.pathname.startsWith('/admin/ecode-ai') || location.pathname.startsWith('/admin/ai')
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-300'
+                  : 'bg-slate-50/90 hover:bg-indigo-50/60 border border-slate-200/90 hover:border-indigo-400 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                  location.pathname.startsWith('/admin/ecode-ai') || location.pathname.startsWith('/admin/ai')
+                    ? 'bg-white/20 text-white'
+                    : 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white'
+                }`}>
+                  <Sparkles className="w-3 h-3 animate-pulse" />
+                </div>
+                <span className={`text-xs font-semibold truncate ${
+                  location.pathname.startsWith('/admin/ecode-ai') || location.pathname.startsWith('/admin/ai')
+                    ? 'text-white'
+                    : 'text-slate-600 group-hover:text-indigo-950'
+                }`}>
+                  E-Code AI — Savol yoki buyruq bering...
                 </span>
-              </button>
-            )} */}
+              </div>
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 border ${
+                location.pathname.startsWith('/admin/ecode-ai') || location.pathname.startsWith('/admin/ai')
+                  ? 'bg-white/20 text-white border-white/30'
+                  : 'bg-white text-slate-400 border-slate-200 group-hover:text-indigo-600 group-hover:border-indigo-200'
+              }`}>
+                AI
+              </span>
+            </Link>
+          </div>
 
+          <div className="flex items-center gap-1 sm:gap-2.5">
             {/* 🌐 Lang Switcher */}
             <LangSwitcher t={t} lang={lang} setLang={setLang} LANGUAGES={LANGUAGES} />
 
@@ -646,6 +652,27 @@ export default function AdminLayout() {
           )}
         </main>
       </div>
+
+      {/* ── Creative Floating Executive AI Orb (Bottom-Right) ── */}
+      {!location.pathname.startsWith('/admin/ecode-ai') && !location.pathname.startsWith('/admin/ai') && (
+        <Link
+          to="/admin/ecode-ai"
+          title="E-Code AI Biznes Tahlilchisi"
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 pl-3.5 pr-4 py-2.5 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-indigo-500/35 hover:shadow-2xl hover:shadow-indigo-500/60 hover:scale-106 active:scale-95 transition-all duration-200 cursor-pointer border border-white/25 group"
+        >
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-300 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-400" />
+          </span>
+          <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-white backdrop-blur-xs group-hover:rotate-12 transition-transform">
+            <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-[12px] font-extrabold leading-tight tracking-tight">E-Code AI</span>
+            <span className="text-[9px] text-blue-100/90 leading-none">Copilot</span>
+          </div>
+        </Link>
+      )}
     </div>
   );
 }

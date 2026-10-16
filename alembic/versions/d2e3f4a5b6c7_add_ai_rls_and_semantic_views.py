@@ -131,7 +131,8 @@ def upgrade() -> None:
         FROM sales s
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN currencies cur ON s.currency_id = cur.id
-        WHERE s.company_id = NULLIF(current_setting('app.company_id', true), '')::integer;
+        WHERE (s.number NOT LIKE 'R%' AND s.status != 'cancelled' AND s.status != 'refunded')
+          AND s.company_id = NULLIF(current_setting('app.company_id', true), '')::integer;
 
         -- 2. ai_v_sale_items
         CREATE OR REPLACE VIEW ai_v_sale_items AS
@@ -344,6 +345,12 @@ def upgrade() -> None:
         GRANT SELECT ON ai_v_sales, ai_v_sale_items, ai_v_products, ai_v_customers,
                         ai_v_debts, ai_v_stock_balance, ai_v_stock_movements,
                         ai_v_purchases, ai_v_returns TO ai_readonly;
+
+        -- ai_readonly asosiy jadvallardagi RLS policy subquery'lari ishlashi uchun SELECT kerak
+        -- (RLS policies o'zlari tenant izolyatsiyasini ta'minlaydi)
+        GRANT SELECT ON sales, sale_items, products, customers, stock_levels,
+                        stock_movements, purchase_orders, suppliers, warehouses,
+                        stock_transfers, inventory_counts, currencies TO ai_readonly;
 
         -- ai_readonly yozish huquqidan butunlay mahrum
         REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM ai_readonly;

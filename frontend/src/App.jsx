@@ -43,7 +43,7 @@ const Logistics       = lazy(() => import('./pages/admin/Logistics'))
 const FieldStaff      = lazy(() => import('./pages/admin/FieldStaff'))
 const Filiallar       = lazy(() => import('./pages/admin/Filiallar'))
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
-const AICopilot       = lazy(() => import('./pages/admin/AICopilot'))
+const AICopilot       = lazy(() => import('./pages/admin/EcodeAI'))
 const Register        = lazy(() => import('./pages/Register'))
 const Landing         = lazy(() => import('./pages/Landing'))
 const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
@@ -142,6 +142,8 @@ export default function App() {
             <Route path="filiallar" element={<Suspense fallback={<PageLoader />}><Filiallar /></Suspense>} />
             <Route path="tariflar" element={<Suspense fallback={<PageLoader />}><Tariflar /></Suspense>} />
             <Route path="ai-copilot" element={<Suspense fallback={<PageLoader />}><AICopilot /></Suspense>} />
+            <Route path="ecode-ai" element={<Suspense fallback={<PageLoader />}><AICopilot /></Suspense>} />
+            <Route path="ai" element={<Suspense fallback={<PageLoader />}><AICopilot /></Suspense>} />
             <Route path="employees/create" element={
               <PrivateRoute roles={ROLE_GROUPS.MANAGEMENT}>
                 <Suspense fallback={<PageLoader />}><Register /></Suspense>

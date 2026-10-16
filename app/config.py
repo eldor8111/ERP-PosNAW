@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     MARKETPLACE_API_TOKEN: str = ""
     MARKETPLACE_CATEGORIES_TTL: int = 3600  # sekund
 
+    # AI SQL Readonly pool and limits (Bosqich 4)
+    AI_DB_URL_READONLY: str = ""
+    AI_SQL_MAX_ROWS: int = 200
+    AI_SQL_TIMEOUT_SEC: int = 10
+    STRICT_RLS_CHECK: bool = False
+
     class Config:
         env_file = ".env"
         extra = "ignore"
