@@ -8,11 +8,16 @@ Valyuta, qaytarish hujjatlari va vaqt qoidalari → app/utils/report_utils.py
 from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, case, cast, Date as DateType
+from fastapi import APIRouter, Depends, Query, Response
+from sqlalchemy import exists, func, case, cast, Date as DateType, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.branch_context import BranchContext, get_branch_context
 from app.core.dependencies import require_roles
+from app.core.report_scope import (
+    ReportScope, effective_ctx, report_scope_dep, resolve_report_scope, restricted_branch_ids,
+)
+from app.core.roles import DASHBOARD_ROLES, REPORT_ROLES
 from app.database import get_db
 from app.models.customer import Customer
 from app.models.inventory import StockLevel, StockMovement
@@ -22,16 +27,15 @@ from app.models.sale import Sale, SaleItem
 from app.models.batch import Batch
 from app.models.supplier import Supplier
 from app.models.user import User, UserRole
+from app.services import stock_report
 from app.utils.report_utils import (
     _today_range, _date_range, local_today, local_day_start,
     is_return_doc, sale_doc_filter, return_doc_filter, sale_or_return_filter, doc_sign,
     sale_rate, item_revenue_uzs, item_cost_uzs,
-    branch_warehouse_ids, currency_code_map, load_debtors,
+    branch_warehouse_ids, sale_branch_filter, currency_code_map, load_debtors,
 )
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
-
-REPORT_ROLES = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant, UserRole.super_admin)
 
 
 def _code(codes: dict, currency_id) -> str:
@@ -40,32 +44,28 @@ def _code(codes: dict, currency_id) -> str:
 
 # ─── O'lik stok (Dashboard va hisobot uchun umumiy) ──────────────────────────
 
-def _dead_stock_rows(db: Session, company_id: int, months: int, wh_ids: Optional[list]):
-    """N oy davomida sotilmagan, qoldig'i bor mahsulotlar: [(Product, qty)].
-
-    "Sotilgan" — ombordan sotuv bilan chiqqan (StockMovement): tarkibiy (sell)
-    mahsulot sotilganda manba mahsulot shu yerda ko'rinadi. SaleItem ham
-    hisobga olinadi. Oynadan keyin qo'shilgan yangi mahsulotlar kirmaydi.
-    """
+def _dead_stock_query(db: Session, company_id: int, months: int, wh_ids: Optional[list]):
+    """O'lik stok so'rovi `(Product, qty)`: "sotilgan" tekshiruvi ham qoldiq bilan BIR XIL doirada
+    (T2.3: boshqa filialdagi sotuv tanlangan filialdagi yotgan tovarni yashirmaydi). `NOT EXISTS` —
+    NULL xavfsiz va `NOT IN (subquery)` dan tezroq."""
     cutoff = local_day_start(local_today()) - timedelta(days=months * 30)
-    sold_by_movement = (
-        db.query(StockMovement.product_id)
-        .join(Product, Product.id == StockMovement.product_id)
-        .filter(
-            Product.company_id == company_id,
-            StockMovement.reference_type == "sale",
-            StockMovement.created_at >= cutoff,
-        )
-        .distinct()
-        .scalar_subquery()
-    )
-    sold_by_items = (
-        db.query(SaleItem.product_id)
-        .join(Sale, Sale.id == SaleItem.sale_id)
-        .filter(Sale.company_id == company_id, sale_doc_filter(), Sale.created_at >= cutoff)
-        .distinct()
-        .scalar_subquery()
-    )
+    mv_conds = [
+        StockMovement.product_id == Product.id,
+        StockMovement.reference_type == "sale",
+        StockMovement.created_at >= cutoff,
+    ]
+    item_conds = [
+        SaleItem.product_id == Product.id,
+        Sale.company_id == company_id,
+        sale_doc_filter(),
+        Sale.created_at >= cutoff,
+    ]
+    if wh_ids is not None:
+        # StockMovement.warehouse_id NULL bo'lgan eski yozuvlar filial doirasida hisobga olinmaydi (T1.7 backfill)
+        mv_conds.append(StockMovement.warehouse_id.in_(wh_ids))
+        item_conds.append(func.coalesce(SaleItem.warehouse_id, Sale.warehouse_id).in_(wh_ids))
+    sold_by_movement = exists().where(*mv_conds)
+    sold_by_items = exists(select(SaleItem.id).join(Sale, Sale.id == SaleItem.sale_id).where(*item_conds))
     qty_sum = func.sum(StockLevel.quantity)
     q = (
         db.query(Product, qty_sum.label("qty"))
@@ -75,13 +75,29 @@ def _dead_stock_rows(db: Session, company_id: int, months: int, wh_ids: Optional
             Product.is_deleted == False,
             StockLevel.quantity > 0,
             (Product.created_at.is_(None)) | (Product.created_at < cutoff),
-            Product.id.notin_(sold_by_movement),
-            Product.id.notin_(sold_by_items),
+            ~sold_by_movement,
+            ~sold_by_items,
         )
     )
     if wh_ids is not None:
         q = q.filter(StockLevel.warehouse_id.in_(wh_ids))
-    return q.group_by(Product.id).having(qty_sum > 0).all()
+    return q.group_by(Product.id).having(qty_sum > 0)
+
+
+def _dead_stock_rows(db: Session, company_id: int, months: int, wh_ids: Optional[list]):
+    """N oy davomida sotilmagan, qoldig'i bor mahsulotlar: [(Product, qty)].
+
+    "Sotilgan" — ombordan sotuv bilan chiqqan (StockMovement): tarkibiy (sell)
+    mahsulot sotilganda manba mahsulot shu yerda ko'rinadi. SaleItem ham
+    hisobga olinadi. Oynadan keyin qo'shilgan yangi mahsulotlar kirmaydi.
+    """
+    return _dead_stock_query(db, company_id, months, wh_ids).all()
+
+
+def dead_stock_count(db: Session, company_id: int, wh_ids: Optional[list], months: int = 6) -> int:
+    """O'lik stokli mahsulotlar soni — SQL `count(*)` (ro'yxatni Python'ga yuklamaydi)."""
+    sub = _dead_stock_query(db, company_id, months, wh_ids).with_entities(Product.id).subquery()
+    return int(db.query(func.count()).select_from(sub).scalar() or 0)
 
 
 def _batch_avg_costs(db: Session, company_id: int, product_ids: list, wh_ids: Optional[list]) -> dict:
@@ -105,6 +121,27 @@ def _batch_avg_costs(db: Session, company_id: int, product_ids: list, wh_ids: Op
     return result
 
 
+# ─── Filial doirasi (T2.1) ───────────────────────────────────────────────────
+
+@router.get("/scope")
+def get_report_scope(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*REPORT_ROLES)),
+):
+    """Frontend filial selektorini shunga qarab qulflaydi: `restricted` — foydalanuvchi o'z filiali
+    bilan cheklangan, `branch_id` — majburiy filial, `can_select_all` — "Butun korxona" mumkin."""
+    allowed = restricted_branch_ids(db, current_user)
+    if allowed is None:
+        return {"restricted": False, "branch_id": None, "can_select_all": True, "allowed_branch_ids": None}
+    scope = resolve_report_scope(db, current_user, None)
+    return {
+        "restricted": True,
+        "branch_id": scope.branch_id,
+        "can_select_all": False,
+        "allowed_branch_ids": list(allowed),
+    }
+
+
 # ─── Dashboard ───────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
@@ -112,16 +149,26 @@ def get_dashboard(
     warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filtr (None = hammasi)"),
     branch_id: Optional[int] = Query(None, description="Filial bo'yicha filtr"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin)),
+    current_user: User = Depends(require_roles(*DASHBOARD_ROLES)),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
     """Direktor uchun asosiy ko'rsatkichlar"""
+    ctx = effective_ctx(current_user, ctx)  # T2.1: reports.all_branches — kontekst cheklovisiz
     today_start, today_end = _today_range()
     today = local_today()
     cid = current_user.company_id
 
-    wh_ids = [warehouse_id] if warehouse_id else branch_warehouse_ids(db, cid, branch_id)
+    # T2.3: ombor korxonaniki (404), tanlangan filialniki (400) va ruxsat doirasida (403) bo'lishi shart
+    wh_ids = stock_report.resolve_wh_scope(db, current_user, cid, branch_id, warehouse_id, ctx)
     base = [Sale.company_id == cid]
-    if wh_ids is not None:
+    # T1.9: sotuv filtri — ombor aniq berilsa ombor bo'yicha, aks holda Sale.branch_id snapshot'i bo'yicha
+    # (wh_ids qoldiq/dead-stock hisoblari uchun qoladi)
+    if warehouse_id:
+        base.append(Sale.warehouse_id == warehouse_id)
+    elif branch_id:
+        base.append(sale_branch_filter(branch_id))
+    elif wh_ids is not None:
+        # filialga biriktirilgan xodim: doira doim o'z filiali omborlari
         base.append(Sale.warehouse_id.in_(wh_ids))
 
     codes = currency_code_map(db, cid)
@@ -196,22 +243,11 @@ def get_dashboard(
         .all()
     )
 
-    low_q = (
-        db.query(StockLevel, Product)
-        .join(Product, Product.id == StockLevel.product_id)
-        .filter(
-            Product.company_id == cid,
-            Product.is_deleted == False,
-            Product.min_stock > 0,
-            StockLevel.quantity < Product.min_stock,
-        )
-    )
-    if wh_ids is not None:
-        low_q = low_q.filter(StockLevel.warehouse_id.in_(wh_ids))
-    low_stock_count = low_q.count()
-    low_stock_rows = low_q.order_by(StockLevel.quantity).limit(20).all()
+    # T2.3: yagona "kam qoldiq" ta'rifi — mahsulot darajasida (variant va omborlar yig'indisi)
+    low_stock_total = stock_report.low_stock_count(db, cid, wh_ids)
+    low_stock_rows = stock_report.low_stock_products(db, cid, wh_ids, limit=20)
 
-    dead_stock_count = len(_dead_stock_rows(db, cid, 6, wh_ids))
+    dead_stock_total = dead_stock_count(db, cid, wh_ids)
 
     cashier_rows = (
         db.query(
@@ -229,7 +265,7 @@ def get_dashboard(
     )
     cashier_map = {}
     for uid, name, currency_id, cnt, amount, amount_uzs in cashier_rows:
-        entry = cashier_map.setdefault(uid, {"name": name, "count": 0, "totals": {}, "_uzs": 0.0})
+        entry = cashier_map.setdefault(uid, {"cashier_id": uid, "name": name, "count": 0, "totals": {}, "_uzs": 0.0})
         code = _code(codes, currency_id)
         entry["count"] += cnt
         entry["totals"][code] = entry["totals"].get(code, 0.0) + float(amount)
@@ -265,6 +301,7 @@ def get_dashboard(
 
     return {
         "warehouse_id": warehouse_id,
+        "scope": {"branch_id": branch_id, "warehouse_id": warehouse_id},
         "today": {
             "sales": today_by_currency,
             "orders": today_count,
@@ -281,19 +318,24 @@ def get_dashboard(
             for r in top_rows
         ],
         "low_stock": [
-            {"product_id": p.id, "name": p.name, "qty": float(s.quantity), "min_stock": p.min_stock}
-            for s, p in low_stock_rows
+            {"product_id": r["product_id"], "name": r["product_name"], "qty": float(r["current_qty"]),
+             "min_stock": r["min_stock"],
+             "warehouses": [{"warehouse_id": w["warehouse_id"], "name": w["name"], "qty": float(w["qty"])}
+                            for w in r["warehouses"]]}
+            for r in low_stock_rows
         ],
         "inventory": {
             "product_count": product_count,
-            "low_stock_count": low_stock_count,
-            "dead_stock_count": dead_stock_count,
+            "product_count_scope": "company",   # mahsulotlar soni filialga bog'lanmagan
+            "low_stock_count": low_stock_total,
+            "dead_stock_count": dead_stock_total,
         },
         "cashier_performance": cashier_perf,
         "debts": {
             "total_debt": debt_by_currency,
             "debtor_count": len(debtors),
             "overdue_count": overdue_debtor_count,
+            "scope": "company",   # qarz hali filialsiz (T2.6 gacha)
         },
         "monthly_trend": monthly_trend,
     }
@@ -305,21 +347,21 @@ def get_dashboard(
 def sales_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     include_returns: bool = Query(True, description="Qaytarish hujjatlarini ham ko'rsatish"),
     limit: int = Query(1000, ge=1, le=5000),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """Sotuvlar ro'yxati. Qisman/to'liq qaytarilgan sotuvlar ham kiradi (status bilan);
     qaytarish hujjatlari manfiy summa bilan. Summalar sotuv valyutasida."""
     start, end = _date_range(date_from, date_to)
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1: cheklangan menejer uchun majburan o'z filiali
 
     base_filters = [Sale.company_id == cid, Sale.created_at >= start, Sale.created_at < end]
-    wh_ids = branch_warehouse_ids(db, cid, branch_id)
-    if wh_ids is not None:
-        base_filters.append(Sale.warehouse_id.in_(wh_ids))
+    if branch_id:  # T1.9: Sale.branch_id snapshot'i
+        base_filters.append(sale_branch_filter(branch_id))
     filters = [*base_filters, sale_or_return_filter() if include_returns else sale_doc_filter()]
 
     total_count = db.query(func.count(Sale.id)).filter(*filters).scalar() or 0
@@ -393,13 +435,14 @@ def sales_report(
 def returns_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """Qaytarish hujjatlari ro'yxati va xulosa (sotuv valyutasida)"""
     start, end = _date_range(date_from, date_to)
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1
 
     q = (
         db.query(Sale, User)
@@ -412,9 +455,8 @@ def returns_report(
             return_doc_filter(),
         )
     )
-    wh_ids = branch_warehouse_ids(db, cid, branch_id)
-    if wh_ids is not None:
-        q = q.filter(Sale.warehouse_id.in_(wh_ids))
+    if branch_id:  # T1.9: Sale.branch_id snapshot'i
+        q = q.filter(sale_branch_filter(branch_id))
     rows = q.order_by(Sale.created_at.desc()).limit(500).all()
 
     items = []
@@ -449,77 +491,93 @@ def returns_report(
 
 @router.get("/inventory")
 def inventory_report(
+    response: Response,
+    branch_id: Optional[int] = Query(None, description="Faqat shu filial omborlari"),
+    warehouse_id: Optional[int] = Query(None, description="Faqat shu ombor"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(5000, ge=1, le=20000),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
-    """Ombor qoldiqlari hisoboti — qiymat haqiqiy batch narxida (FIFO)"""
-    q = (
-        db.query(StockLevel, Product)
-        .join(Product, Product.id == StockLevel.product_id)
-        .filter(Product.is_deleted == False)
-    )
-    q = q.filter(Product.company_id == current_user.company_id)
-    rows = q.order_by(StockLevel.quantity).all()
-
-    batch_value_sq = (
-        db.query(
-            Batch.product_id,
-            func.sum(Batch.quantity * Batch.purchase_price).label("total_cost"),
-            func.sum(Batch.quantity).label("total_qty"),
-        )
-        .filter(Batch.company_id == current_user.company_id, Batch.quantity > 0)
-        .group_by(Batch.product_id)
-        .all()
-    )
-    batch_avg_cost: dict = {}
-    for row in batch_value_sq:
-        if row.total_qty and float(row.total_qty) > 0:
-            batch_avg_cost[row.product_id] = float(row.total_cost) / float(row.total_qty)
-
+    """Ombor qoldiqlari hisoboti: qator = (mahsulot, variant, ombor). Qiymat — shu ombor partiyalari
+    o'rtacha tannarxida (yo'q bo'lsa korxona o'rtachasi, so'ng Product.cost_price; `cost_basis`).
+    Jami qatorlar soni `X-Total-Count` sarlavhasida."""
+    ctx = effective_ctx(current_user, ctx)  # T2.1: reports.all_branches huquqi
+    cid = current_user.company_id
+    wh_ids = stock_report.resolve_wh_scope(db, current_user, cid, branch_id, warehouse_id, ctx)
+    total, rows = stock_report.inventory_rows(db, cid, wh_ids, skip, limit)
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
     result = []
-    for s, p in rows:
-        qty = float(s.quantity)
-        unit_cost = batch_avg_cost.get(p.id, float(p.cost_price))
+    for r in rows:
+        p, w = r["product"], r["warehouse"]
         result.append({
             "product_id": p.id,
             "product_name": p.name,
             "sku": p.sku,
-            "quantity": qty,
+            "variant_id": r["variant_id"],
+            "variant_name": r["variant_name"],
+            "warehouse_id": w.id,
+            "warehouse_name": w.name,
+            "branch_id": w.branch_id,
+            "branch_name": r["branch_name"],
+            "quantity": r["quantity"],
             "min_stock": p.min_stock,
-            "cost_price": unit_cost,
+            "cost_price": r["unit_cost"],
+            "cost_basis": r["cost_basis"],
             "sale_price": float(p.sale_price),
-            "value": round(qty * unit_cost, 2),
-            "is_low": qty <= p.min_stock,
+            "value": r["value"],
+            "is_low": r["is_low"],   # mahsulot darajasidagi bayroq (doiradagi jami qoldiq bo'yicha)
         })
     return result
+
+
+@router.get("/inventory/summary")
+def inventory_summary(
+    branch_id: Optional[int] = Query(None, description="Faqat shu filial omborlari"),
+    warehouse_id: Optional[int] = Query(None, description="Faqat shu ombor"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    ctx: BranchContext = Depends(get_branch_context),
+):
+    """Qoldiq xulosasi: jami qiymat/miqdor, mahsulot soni, ombor va filial kesimida."""
+    ctx = effective_ctx(current_user, ctx)  # T2.1: reports.all_branches huquqi
+    cid = current_user.company_id
+    wh_ids = stock_report.resolve_wh_scope(db, current_user, cid, branch_id, warehouse_id, ctx)
+    return stock_report.inventory_summary(db, cid, wh_ids)
 
 
 # ─── Kam qoldiq ogohlantirish ─────────────────────────────────────────────────
 
 @router.get("/stock-alert")
 def stock_alert(
+    branch_id: Optional[int] = Query(None, description="Faqat shu filial omborlari"),
+    warehouse_id: Optional[int] = Query(None, description="Faqat shu ombor"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
-    """Minimal qoldiqqa yetgan mahsulotlar"""
-    q = (
-        db.query(StockLevel, Product)
-        .join(Product, Product.id == StockLevel.product_id)
-        .filter(Product.is_deleted == False, StockLevel.quantity <= Product.min_stock)
-    )
-    q = q.filter(Product.company_id == current_user.company_id)
-    rows = q.order_by(StockLevel.quantity).all()
+    """Minimal qoldiqqa yetgan mahsulotlar (mahsulot darajasida; yagona kam qoldiq ta'rifi)"""
+    ctx = effective_ctx(current_user, ctx)  # T2.1: reports.all_branches huquqi
+    cid = current_user.company_id
+    wh_ids = stock_report.resolve_wh_scope(db, current_user, cid, branch_id, warehouse_id, ctx)
+    rows = stock_report.low_stock_products(db, cid, wh_ids)
     return [
         {
-            "product_id": p.id,
-            "product_name": p.name,
-            "sku": p.sku,
-            "barcode": p.barcode,
-            "current_qty": str(s.quantity),
-            "min_stock": p.min_stock,
-            "shortage": str(p.min_stock - s.quantity),
+            "product_id": r["product_id"],
+            "product_name": r["product_name"],
+            "sku": r["sku"],
+            "barcode": r["barcode"],
+            "current_qty": str(r["current_qty"]),
+            "min_stock": r["min_stock"],
+            "shortage": str(r["shortage"]),
+            "warehouses": [
+                {"warehouse_id": w["warehouse_id"], "name": w["name"], "qty": str(w["qty"])}
+                for w in r["warehouses"]
+            ],
         }
-        for s, p in rows
+        for r in rows
     ]
 
 
@@ -531,22 +589,25 @@ def dead_stock_report(
     branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
-    """O'lik stok: N oy davomida sotilmagan mahsulotlar (qiymat UZS, partiya tannarxida)"""
+    """O'lik stok: N oy davomida sotilmagan mahsulotlar (qiymat UZS, partiya tannarxida).
+    Filial berilsa "sotilgan" tekshiruvi ham shu filial doirasida."""
     cid = current_user.company_id
-    wh_ids = branch_warehouse_ids(db, cid, branch_id)
+    ctx = effective_ctx(current_user, ctx)  # T2.1: reports.all_branches
+    wh_ids = stock_report.resolve_wh_scope(db, current_user, cid, branch_id, None, ctx)
     rows = _dead_stock_rows(db, cid, months, wh_ids)
 
     product_ids = [p.id for p, _ in rows]
     avg_costs = _batch_avg_costs(db, cid, product_ids, wh_ids)
     last_sold = {}
     if product_ids:
-        last_sold = dict(
-            db.query(StockMovement.product_id, func.max(StockMovement.created_at))
-            .filter(StockMovement.product_id.in_(product_ids), StockMovement.reference_type == "sale")
-            .group_by(StockMovement.product_id)
-            .all()
+        ls_q = db.query(StockMovement.product_id, func.max(StockMovement.created_at)).filter(
+            StockMovement.product_id.in_(product_ids), StockMovement.reference_type == "sale",
         )
+        if wh_ids is not None:
+            ls_q = ls_q.filter(StockMovement.warehouse_id.in_(wh_ids))
+        last_sold = dict(ls_q.group_by(StockMovement.product_id).all())
 
     items = []
     for p, qty in rows:
@@ -578,14 +639,15 @@ def dead_stock_report(
 def purchases_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """Xarid hisoboti — ta'minotchi bo'yicha, UZS da (chegirma ayirilgan).
     Qoralama va bekor qilingan buyurtmalar hisobga olinmaydi."""
     start, end = _date_range(date_from, date_to)
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1
 
     # PurchaseOrder.total_amount qatorlarning UZS tannarxidan yig'iladi
     net_amount = PurchaseOrder.total_amount - func.coalesce(PurchaseOrder.discount_amount, 0)
@@ -630,14 +692,15 @@ def purchases_report(
 def product_sales_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """Har bir mahsulot qancha sotilgani: sotilgan, qaytarilgan va sof miqdor;
     tushum va foyda UZS da, qaytarishlar ayirilgan ("Foyda" tabi bilan bir xil hisob)."""
     start, end = _date_range(date_from, date_to)
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1
 
     sold_qty = func.sum(case((is_return_doc(), 0), else_=SaleItem.quantity))
     returned_qty = func.sum(case((is_return_doc(), SaleItem.quantity), else_=0))
@@ -663,9 +726,8 @@ def product_sales_report(
             sale_or_return_filter(),
         )
     )
-    wh_ids = branch_warehouse_ids(db, cid, branch_id)
-    if wh_ids is not None:
-        q = q.filter(Sale.warehouse_id.in_(wh_ids))
+    if branch_id:  # T1.9: Sale.branch_id snapshot'i
+        q = q.filter(sale_branch_filter(branch_id))
     rows = q.group_by(Product.id, Product.name, Product.sku).all()
 
     result = []

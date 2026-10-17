@@ -15,6 +15,7 @@ TOG'IRLANGAN XATOLAR:
   8. CheckPerformTransaction da keraksiz detail.receipt_type olib tashlandi
 """
 import base64
+import hmac
 import os
 import time
 import logging
@@ -32,9 +33,29 @@ from app.database import get_db  # type: ignore
 from app.models.billing import BalanceLog  # type: ignore
 from app.models.company import Company  # type: ignore
 from app.models.payme_transaction import PaymeTransaction  # type: ignore
-from app.models.user import User  # type: ignore
+from app.models.user import User, UserStatus  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+# T0.18: to'lov orqali ham faollashmaydigan agent holatlari
+_AGENT_LOCKED_STATUSES = (UserStatus.blocked, UserStatus.inactive)
+
+
+def _agent_is_locked(user: User) -> bool:
+    st = user.status
+    st_val = st.value if hasattr(st, "value") else str(st or "")
+    return st_val in {s.value for s in _AGENT_LOCKED_STATUSES}
+
+
+def _agent_days_for_amount(amount_tiyin: int) -> int:
+    """Agent obunasi: to'lov summasi (tiyin) bo'yicha beriladigan kunlar."""
+    if amount_tiyin >= 100000000:
+        return 180  # 6 oy
+    if amount_tiyin >= 55000000:
+        return 90   # 3 oy
+    if amount_tiyin >= 20000000:
+        return 30   # 1 oy
+    return max(1, int((amount_tiyin / 20000000) * 30))
 
 router = APIRouter(prefix="/payme", tags=["Payme"])
 
@@ -112,25 +133,21 @@ def _verify_auth(request: Request) -> bool:
         decoded = base64.b64decode(auth[6:]).decode("utf-8")
         parts = decoded.split(":", 1)
         if len(parts) != 2:
-            logger.error("[Payme Auth] Format notogri (colon yoq): %s", decoded)
+            # T0.18: dekodlangan qiymat (login:parol bo'lishi mumkin) logga yozilmaydi
+            logger.error("[Payme Auth] Format notogri (colon yoq), uzunlik=%d", len(decoded))
             return False
         username, password = parts[0], parts[1]
-        
+
         # "Paycom" (sandbox) yoki MERCHANT_ID (production) - ikkalasi ham ok
         valid_user = username in ("Paycom", PAYME_MERCHANT_ID)
-        valid_pass = password == PAYME_SECRET_KEY
-        
+        # T0.18: doimiy vaqtli solishtirish; parol yoki kalit bo'laklari logga tushmaydi
+        valid_pass = hmac.compare_digest(password.encode("utf-8"), PAYME_SECRET_KEY.encode("utf-8"))
+
         if not valid_user or not valid_pass:
             logger.error(
-                "[Payme Auth Debug] FAILED! "
-                "User=%s (Valid:%s), PassLen=%d, KeyLen=%d, "
-                "Pass matches:%s",
+                "[Payme Auth] FAILED! User=%s (Valid:%s), PassLen=%d, KeyLen=%d, Pass matches:%s",
                 username, valid_user, len(password), len(PAYME_SECRET_KEY), valid_pass
             )
-            # Faqat log uchun (haqiqiy parolni logga tushirmaslikka harakat qilamiz, lekin debug uchun oxirgi/bosh harflarini tekshirish mumkin)
-            if not valid_pass:
-                logger.error("[Payme Auth Debug] Received pass starts with: '%s', ends with: '%s'", password[:3], password[-3:])
-                logger.error("[Payme Auth Debug] Expected key starts with: '%s', ends with: '%s'", PAYME_SECRET_KEY[:3], PAYME_SECRET_KEY[-3:])
 
         return valid_user and valid_pass
     except Exception as e:
@@ -187,9 +204,10 @@ async def payme_webhook(request: Request, db: Session = Depends(get_db)):
 
     # 2. Authorization
     if not _verify_auth(request):
+        # T0.18: Authorization sarlavhasi (base64 login:parol) logga yozilmaydi
         logger.warning("[Payme] AUTH FAILED | IP=%s | Header=%s",
                        request.client.host if request.client else "?",
-                       request.headers.get("Authorization", "yoq")[:30])
+                       "bor" if request.headers.get("Authorization") else "yoq")
         return _err(req_id, ERR_UNAUTHORIZED, {
             "ru": "Неверная авторизация.",
             "uz": "Avtorizatsiya xatosi.",
@@ -259,6 +277,9 @@ def _check_perform(req_id: Any, params: dict, db: Session) -> JSONResponse:
         user = db.query(User).filter(User.phone == phone_candidate, User.role.in_(["marketplace_agent", "agent"])).first()
         if not user:
             return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent topilmadi", "ru": "Агент не найден", "en": "Agent not found"})
+        # T0.18: bloklangan/nofaol agent to'lov qila olmaydi
+        if _agent_is_locked(user):
+            return _err(req_id, ERR_UNABLE_TO_PERFORM, {"uz": "Agent bloklangan", "ru": "Агент заблокирован", "en": "Agent is blocked"})
         # 1 oy: 200 000, 3 oy: 550 000, 6 oy: 1 000 000 UZS (tiyinda)
         VALID_AGENT_AMOUNTS = (20000000, 55000000, 60000000, 100000000, 120000000)
         if amount not in VALID_AGENT_AMOUNTS and amount < 20000000:
@@ -333,8 +354,8 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
             "state":       existing.state,
         })
 
-    company_id = 1 # Fallback, actually for agent we can just use 1 or the user's company
-    
+    company_id = None  # T0.18: "or 1" zaxirasi yo'q — aniqlanmasa ERR_ORDER_NOT_FOUND
+
     phone_candidate = agent_phone
     if not phone_candidate and org_code:
         agent_match = db.query(User).filter(
@@ -348,7 +369,12 @@ def _create_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
         user = db.query(User).filter(User.phone == phone_candidate, User.role.in_(["marketplace_agent", "agent"])).first()
         if not user:
             return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent topilmadi", "ru": "Агент не найден"})
-        company_id = user.company_id or 1
+        # T0.18: bloklangan/nofaol agent uchun tranzaksiya ochilmaydi
+        if _agent_is_locked(user):
+            return _err(req_id, ERR_UNABLE_TO_PERFORM, {"uz": "Agent bloklangan", "ru": "Агент заблокирован", "en": "Agent is blocked"})
+        company_id = user.company_id
+        if not company_id:
+            return _err(req_id, ERR_ORDER_NOT_FOUND, {"uz": "Agent korxonasi topilmadi", "ru": "Компания агента не найдена", "en": "Agent company not found"})
         account_identifier = phone_candidate
     else:
         # Korxona topish
@@ -464,14 +490,7 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
             from datetime import timedelta
             now_dt = datetime.now(timezone.utc)
             # Kunlar hisobi
-            if txn.amount >= 100000000:
-                days = 180  # 6 oy
-            elif txn.amount >= 55000000:
-                days = 90   # 3 oy
-            elif txn.amount >= 20000000:
-                days = 30   # 1 oy
-            else:
-                days = max(1, int((txn.amount / 20000000) * 30))
+            days = _agent_days_for_amount(txn.amount)
 
             cur_end = user.subscription_ends_at
             if cur_end and cur_end.tzinfo is None:
@@ -481,7 +500,9 @@ def _perform_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse
             else:
                 user.subscription_ends_at = now_dt + timedelta(days=days)
 
-            user.status = "active"
+            # T0.18: faqat pending agent to'lov bilan faollashadi; blocked/inactive hech qachon o'zgarmaydi
+            if not _agent_is_locked(user) and user.status != UserStatus.active:
+                user.status = UserStatus.active
             user.is_trial = False
             user.paid_amount = (float(user.paid_amount) if user.paid_amount else 0.0) + amount_som
             now_ms = _now_ms()
@@ -581,8 +602,15 @@ def _cancel_transaction(req_id: Any, params: dict, db: Session) -> JSONResponse:
                     is_agent_payment = True
 
             if is_agent_payment and user:
-                user.status = "pending"
-                logger.info("[Payme] CancelTransaction: Agent nofaol qilindi id=%s phone=%s", payme_id, user.phone)
+                # T0.18: status o'zgarmaydi — berilgan kunlar va paid_amount qaytariladi
+                from datetime import timedelta
+                days = _agent_days_for_amount(txn.amount)
+                amount_som = txn.amount / 100
+                cur_end = user.subscription_ends_at
+                if cur_end:
+                    user.subscription_ends_at = cur_end - timedelta(days=days)
+                user.paid_amount = max(0.0, (float(user.paid_amount) if user.paid_amount else 0.0) - amount_som)
+                logger.info("[Payme] CancelTransaction: Agent obunasi qaytarildi id=%s phone=%s (-%d kun)", payme_id, user.phone, days)
             else:
                 company = db.query(Company).filter(Company.id == txn.company_id).first()
                 if company:

@@ -1,0 +1,44 @@
+{
+  "uz": {
+    "warehouse.addWarehouse": "Yangi ombor qo'shish",
+    "warehouse.noWarehouses": "Omborlar topilmadi",
+    "warehouse.notVisibleWarning": "Ombor yaratildi, lekin u sizning filialingiz ro'yxatida ko'rinmaydi (boshqa filialga yoki filialsiz biriktirilgan)",
+    "warehouse.branchRequiredError": "Filialni tanlang",
+    "ombor.statusReceived": "Qabul qilindi",
+    "ombor.statusInTransit": "Yo'lda",
+    "ombor.cancelReceivedConfirm": "Qabul qilingan transfer bekor qilinadi va qoldiq manba omborga qaytariladi. Davom etasizmi?",
+    "ombor.cancelReceived": "Bekor qilish (qoldiqni qaytarish)",
+    "ombor.branchWarehousesList": "Filial omborlari ro'yxati",
+    "ombor.productSearchPlaceholder": "Mahsulot nomi, SKU yoki shtrix-kod bo'yicha qidiring...",
+    "ombor.selectSourceFirst": "Avval manba omborni tanlang",
+    "ombor.stockInSource": "Manbada"
+  },
+  "ru": {
+    "warehouse.addWarehouse": "Новый склад",
+    "warehouse.noWarehouses": "Склады не найдены",
+    "warehouse.notVisibleWarning": "Склад создан, но он не виден в списке вашего филиала (привязан к другому филиалу или без филиала)",
+    "warehouse.branchRequiredError": "Выберите филиал",
+    "ombor.statusReceived": "Принято",
+    "ombor.statusInTransit": "В пути",
+    "ombor.cancelReceivedConfirm": "Принятое перемещение будет отменено, остаток вернётся на склад-источник. Продолжить?",
+    "ombor.cancelReceived": "Отменить (вернуть остаток)",
+    "ombor.branchWarehousesList": "Список складов филиала",
+    "ombor.productSearchPlaceholder": "Поиск по названию, SKU или штрихкоду...",
+    "ombor.selectSourceFirst": "Сначала выберите склад-источник",
+    "ombor.stockInSource": "В источнике"
+  },
+  "en": {
+    "warehouse.addWarehouse": "New Warehouse",
+    "warehouse.noWarehouses": "No warehouses found",
+    "warehouse.notVisibleWarning": "The warehouse was created, but it is not visible in your branch's list (it belongs to another branch or has no branch)",
+    "warehouse.branchRequiredError": "Select a branch",
+    "ombor.statusReceived": "Received",
+    "ombor.statusInTransit": "In transit",
+    "ombor.cancelReceivedConfirm": "The received transfer will be cancelled and the stock returned to the source warehouse. Continue?",
+    "ombor.cancelReceived": "Cancel (return stock)",
+    "ombor.branchWarehousesList": "Branch warehouses list",
+    "ombor.productSearchPlaceholder": "Search by name, SKU or barcode...",
+    "ombor.selectSourceFirst": "Select the source warehouse first",
+    "ombor.stockInSource": "In source"
+  }
+}

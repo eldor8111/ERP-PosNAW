@@ -1,0 +1,20 @@
+{
+  "uz": {
+    "order.pickupAddress": "Olib ketish manzili",
+    "settings.telegramBot.defaultBranch": "Onlayn buyurtmalar uchun standart filial",
+    "settings.telegramBot.defaultBranchDesc": "Mijoz filial tanlamasa va unga filial biriktirilmagan bo'lsa, buyurtma va yangi bot mijozlari shu filialga tushadi.",
+    "settings.telegramBot.defaultBranchAuto": "Avtomatik (birinchi filial)"
+  },
+  "ru": {
+    "order.pickupAddress": "Адрес самовывоза",
+    "settings.telegramBot.defaultBranch": "Филиал по умолчанию для онлайн-заказов",
+    "settings.telegramBot.defaultBranchDesc": "Если клиент не выбрал филиал и ему не назначен филиал, заказы и новые клиенты бота попадут в этот филиал.",
+    "settings.telegramBot.defaultBranchAuto": "Автоматически (первый филиал)"
+  },
+  "en": {
+    "order.pickupAddress": "Pickup address",
+    "settings.telegramBot.defaultBranch": "Default branch for online orders",
+    "settings.telegramBot.defaultBranchDesc": "If the customer does not pick a branch and has none assigned, orders and new bot customers go to this branch.",
+    "settings.telegramBot.defaultBranchAuto": "Automatic (first branch)"
+  }
+}

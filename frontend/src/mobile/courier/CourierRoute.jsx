@@ -39,6 +39,11 @@ export function StopCard({ stop, index, onOpen }) {
           <div className="text-sm text-ink-500 mt-0.5 flex items-start gap-1">
             <MapPin className="size-3.5 mt-0.5 shrink-0" /><span className="line-clamp-2">{stop.address || t('logistics.noAddress')}</span>
           </div>
+          {stop.pickup_branch_name && (
+            <div className="text-xs text-ink-500 mt-0.5">
+              {t('logistics.pickupBranch')}: {stop.pickup_branch_name}{stop.pickup_address ? `, ${stop.pickup_address}` : ''}
+            </div>
+          )}
           <div className="mt-1.5 flex items-center justify-between">
             <span className="text-xs text-ink-300">{stop.source === 'sale' ? `🧾 #${stop.sale_number}` : '🛍 Telegram'}</span>
             <span className={`text-sm font-bold tabular-nums ${stop.collect_amount > 0 ? 'text-ink-900' : 'text-ink-300'}`}>

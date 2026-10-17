@@ -1,0 +1,50 @@
+{
+  "uz": {
+    "promotion.branches": "Filiallar",
+    "promotion.allBranches": "Barcha filiallar",
+    "promotion.autoApply": "Aksiyalarni avtomatik qo'llash",
+    "promotion.autoApplyHint": "Yoqilsa, server sotuvda eng katta chegirmali mos aksiyani o'zi qo'llaydi",
+    "pos.branchPrice": "Filial",
+    "branchPrices.title": "Filial narxlari",
+    "branchPrices.hint": "Bo'sh qoldirilsa korxona narxi qo'llanadi",
+    "branchPrices.branch": "Filial",
+    "branchPrices.retail": "Chakana",
+    "branchPrices.wholesale": "Ulgurji",
+    "branchPrices.reset": "Korxona narxiga qaytarish",
+    "branchPrices.saved": "Filial narxi saqlandi",
+    "branchPrices.removed": "Korxona narxiga qaytarildi",
+    "branchPrices.saveFailed": "Saqlab bo'lmadi"
+  },
+  "ru": {
+    "promotion.branches": "Филиалы",
+    "promotion.allBranches": "Все филиалы",
+    "promotion.autoApply": "Применять акции автоматически",
+    "promotion.autoApplyHint": "Если включено, сервер сам применяет подходящую акцию с наибольшей скидкой при продаже",
+    "pos.branchPrice": "Филиал",
+    "branchPrices.title": "Цены филиалов",
+    "branchPrices.hint": "Если оставить пустым, действует цена компании",
+    "branchPrices.branch": "Филиал",
+    "branchPrices.retail": "Розница",
+    "branchPrices.wholesale": "Опт",
+    "branchPrices.reset": "Вернуть цену компании",
+    "branchPrices.saved": "Цена филиала сохранена",
+    "branchPrices.removed": "Возвращена цена компании",
+    "branchPrices.saveFailed": "Не удалось сохранить"
+  },
+  "en": {
+    "promotion.branches": "Branches",
+    "promotion.allBranches": "All branches",
+    "promotion.autoApply": "Apply promotions automatically",
+    "promotion.autoApplyHint": "When on, the server applies the best matching promotion on a sale by itself",
+    "pos.branchPrice": "Branch",
+    "branchPrices.title": "Branch prices",
+    "branchPrices.hint": "Leave empty to use the company price",
+    "branchPrices.branch": "Branch",
+    "branchPrices.retail": "Retail",
+    "branchPrices.wholesale": "Wholesale",
+    "branchPrices.reset": "Reset to company price",
+    "branchPrices.saved": "Branch price saved",
+    "branchPrices.removed": "Reset to company price",
+    "branchPrices.saveFailed": "Could not save"
+  }
+}

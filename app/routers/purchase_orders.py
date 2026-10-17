@@ -4,7 +4,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.branch_context import (
+    BRANCH_FORBIDDEN, BranchContext, apply_warehouse_scope, get_branch_context,
+)
 from app.core.dependencies import require_roles
+from app.core.report_scope import effective_ctx
 from app.database import get_db
 from app.models.purchase_order import POItem, POStatus, PurchaseOrder
 from app.models.user import User, UserRole
@@ -14,11 +18,20 @@ from app.services.purchase_order_service import (  # type: ignore
     cancel_purchase_order, create_purchase_order, delete_purchase_order, display_amounts,
     receive_purchase_order, update_purchase_order,
 )
+from app.services.warehouse_access import resolve_ctx
 from app.utils.report_utils import _date_range
 
-router = APIRouter(prefix="/purchase-orders", tags=["Purchase Orders"])
+# T1.3: joriy filial konteksti (X-Branch-Id) db.info ga yoziladi — servis ichidagi filial tekshiruvi uchun
+router = APIRouter(prefix="/purchase-orders", tags=["Purchase Orders"], dependencies=[Depends(get_branch_context)])
 
 ALLOWED = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant, UserRole.warehouse)
+
+
+class POListBranchOut(POListOut):
+    """Ro'yxat qatori + ombor va filial (UI "Filial" ustuni uchun)."""
+    warehouse_id: Optional[int] = None
+    branch_id: Optional[int] = None
+    branch_name: Optional[str] = None
 
 
 def _build_po_out(po: PurchaseOrder) -> POOut:
@@ -45,6 +58,8 @@ def _build_po_out(po: PurchaseOrder) -> POOut:
                 id=item.id,
                 product_id=item.product_id,
                 product_name=item.product.name if item.product else "",
+                variant_id=item.variant_id,
+                variant_name=item.variant.name if item.variant else None,
                 qty_ordered=item.qty_ordered,
                 qty_received=item.qty_received,
                 unit_cost=item.unit_cost,
@@ -67,16 +82,24 @@ def _load_po(db: Session, po_id: int, current_user: User) -> PurchaseOrder:
             joinedload(PurchaseOrder.warehouse),
             joinedload(PurchaseOrder.creator),
             joinedload(PurchaseOrder.items).joinedload(POItem.product),
+            joinedload(PurchaseOrder.items).joinedload(POItem.variant),
         )
         .filter(PurchaseOrder.id == po_id, PurchaseOrder.company_id == current_user.company_id)
         .first()
     )
     if not po:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # T1.16: filialga biriktirilgan xodim boshqa filial omboridagi xaridni ko'ra olmaydi (404)
+    ctx = resolve_ctx(db, current_user)
+    ids = None if ctx.bypass else ctx.scope_ids()
+    if ids is not None:
+        wh = po.warehouse
+        if wh is None or wh.branch_id not in ids:
+            raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return po
 
 
-@router.get("", response_model=List[POListOut])
+@router.get("", response_model=List[POListBranchOut])
 def list_purchase_orders(
     status: Optional[POStatus] = Query(None),
     supplier_id: Optional[int] = Query(None),
@@ -89,12 +112,13 @@ def list_purchase_orders(
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
     q = (
         db.query(PurchaseOrder)
         .options(
             joinedload(PurchaseOrder.supplier),
-            joinedload(PurchaseOrder.warehouse),
+            joinedload(PurchaseOrder.warehouse).joinedload(Warehouse.branch),
             joinedload(PurchaseOrder.items),
         )
         .filter(PurchaseOrder.company_id == current_user.company_id)
@@ -104,14 +128,23 @@ def list_purchase_orders(
         q = q.filter(PurchaseOrder.status == status)
     if supplier_id:
         q = q.filter(PurchaseOrder.supplier_id == supplier_id)
+    # T1.16: filialli xodim boshqa filial (yoki uning ombori) so'ralsa 403
+    ctx = effective_ctx(current_user, ctx)  # T2.1: reports.all_branches huquqi — cheklovsiz
+    scope_ids = None if ctx.bypass else ctx.scope_ids()
+    if scope_ids is not None:
+        if branch_id and branch_id not in scope_ids:
+            raise HTTPException(status_code=403, detail=BRANCH_FORBIDDEN)
+        if warehouse_id:
+            wh_branch = db.query(Warehouse.branch_id).filter(
+                Warehouse.id == warehouse_id, Warehouse.company_id == current_user.company_id,
+            ).scalar()
+            if wh_branch not in scope_ids:
+                raise HTTPException(status_code=403, detail="Bu ombor sizning filialingizga tegishli emas")
     if warehouse_id:
         q = q.filter(PurchaseOrder.warehouse_id == warehouse_id)
-    if branch_id:
-        # Filial filtri avval e'tiborsiz qolardi — filial omborlari bo'yicha
-        wh_ids = db.query(Warehouse.id).filter(
-            Warehouse.company_id == current_user.company_id, Warehouse.branch_id == branch_id,
-        )
-        q = q.filter(PurchaseOrder.warehouse_id.in_(wh_ids))
+    # Filial filtri (T1.3): filialga biriktirilgan xodim faqat ruxsat etilgan filial omborlaridagi xaridlarni
+    # ko'radi; `branch_id` faqat shu doirada (admin/director — istalgan korxona filiali) ishlaydi
+    q = apply_warehouse_scope(q, ctx, PurchaseOrder.warehouse_id, branch_id)
     if user_id:
         q = q.filter(PurchaseOrder.created_by == user_id)
     if date_from or date_to:
@@ -123,8 +156,11 @@ def list_purchase_orders(
         amounts = display_amounts(db, po)
         foreign = amounts["currency"] != "UZS"
         res.append(
-            POListOut(
+            POListBranchOut(
                 id=po.id,
+                warehouse_id=po.warehouse_id,
+                branch_id=po.warehouse.branch_id if po.warehouse else None,
+                branch_name=po.warehouse.branch.name if po.warehouse and po.warehouse.branch else None,
                 number=po.number,
                 supplier_name=po.supplier.name if po.supplier else "",
                 warehouse_name=po.warehouse.name if po.warehouse else "",

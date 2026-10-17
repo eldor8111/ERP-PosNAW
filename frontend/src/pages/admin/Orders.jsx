@@ -4,12 +4,24 @@ import toast from 'react-hot-toast';
 import { CheckCircle, Clock, Truck, AlertCircle, X, Package, Download } from 'lucide-react';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import { useLang } from '../../context/LangContext';
+import { useAuth } from '../../context/AuthContext';
+import { canFilterBranch, tBranch } from '../../components/customer/customerProfile';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
+const PAGE_SIZE = 50; // backend GET /orders: guruhlar bo'yicha sahifalash
 
 export default function Orders({ embedded = false }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const tb = (key) => tBranch(t, lang, key);
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const { user: authUser } = useAuth();
+  const showBranchFilter = canFilterBranch(authUser?.role);
   const [groups, setGroups] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [branchFilter, setBranchFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('pending');
   const [detailGroup, setDetailGroup] = useState(null);
@@ -31,11 +43,17 @@ export default function Orders({ embedded = false }) {
   useEffect(() => {
     loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, branchFilter]);
 
   useEffect(() => {
     api.get('/couriers').then(r => setCouriers(r.data || [])).catch(() => {});
   }, []);
+
+  // Filial filtri faqat admin/director uchun
+  useEffect(() => {
+    if (!showBranchFilter) return;
+    api.get('/branches').then(r => setBranches(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  }, [showBranchFilter]);
 
   const assignCourier = async () => {
     if (!assignGroup || !assignCourierId) { toast.error(t('order.selectCourierFirst')); return; }
@@ -54,17 +72,26 @@ export default function Orders({ embedded = false }) {
     }
   };
 
-  const loadOrders = async () => {
-    setLoading(true);
+  // skip=0 — ro'yxatni qayta yuklaydi; skip>0 — "Yana yuklash" (mavjud ro'yxatga qo'shadi)
+  const loadOrders = async (skip = 0) => {
+    if (skip) setLoadingMore(true); else setLoading(true);
     try {
-      const { data } = await api.get('/orders', {
-        params: { status: filter }
-      });
-      setGroups(data);
+      const params = { status: filter, skip, limit: PAGE_SIZE };
+      if (showBranchFilter && branchFilter) params.branch_id = branchFilter;
+      // Ro'yxat har doim yangi (status tez o'zgaradi), shuning uchun kesh o'chirilgan
+      const res = await api.get('/orders', { params, _noCache: true });
+      const data = Array.isArray(res.data) ? res.data : [];
+      setGroups(prev => (skip ? [...prev, ...data] : data));
+      // X-Total-Count o'qilmasa (header ochilmagan) — oxirgi sahifa to'liq bo'lsa yana bor deb hisoblaymiz
+      const hdr = Number(res.headers?.['x-total-count']);
+      const known = Number.isFinite(hdr) && hdr > 0;
+      setTotal(known ? hdr : skip + data.length);
+      setHasMore(known ? skip + data.length < hdr : data.length >= PAGE_SIZE);
     } catch (err) {
       toast.error(t('order.loadError'));
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -116,6 +143,7 @@ export default function Orders({ embedded = false }) {
       group.items.forEach(item => {
         rows.push({
           [t('order.table.customer')]: group.customer_name,
+          [tb('order.table.branch')]: group.branch_name || '',
           [t('courier.phone')]: group.customer_phone,
           [t('order.table.products')]: item.product_name,
           [t('common.quantity')]: item.quantity,
@@ -146,9 +174,14 @@ export default function Orders({ embedded = false }) {
           </div>
         )}
 
+        {/* Filial: admin/director uchun filtr, boshqalarga o'z filiali nomi */}
+        {!showBranchFilter && groups[0]?.branch_name && (
+          <p className="mb-3 text-sm font-medium text-slate-500">{tb('order.table.branch')}: {groups[0].branch_name}</p>
+        )}
+
         {/* Filter */}
         <div className="mb-6 flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {statusOptions.map(opt => (
               <button
                 key={opt.value}
@@ -163,6 +196,17 @@ export default function Orders({ embedded = false }) {
               </button>
             ))}
           </div>
+          {showBranchFilter && (
+            <select
+              value={branchFilter}
+              onChange={e => setBranchFilter(e.target.value)}
+              aria-label={tb('order.filterBranch')}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700"
+            >
+              <option value="">{tb('customer.allBranches')}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
           <button
             onClick={exportExcel}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-lg border border-emerald-200 transition-colors"
@@ -188,6 +232,7 @@ export default function Orders({ embedded = false }) {
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.customer')}</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{tb('order.table.branch')}</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.products')}</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.total')}</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">{t('order.table.status')}</th>
@@ -214,6 +259,7 @@ export default function Orders({ embedded = false }) {
                             {group.courier_name && <span className="ml-1.5 text-purple-500">· {group.courier_name}</span>}
                           </div>
                         </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{group.branch_name || '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-800">
                           {itemsCount === 1 ? (
                             <span>{group.items[0].product_name} <span className="text-slate-400">× {group.items[0].quantity}</span></span>
@@ -259,6 +305,17 @@ export default function Orders({ embedded = false }) {
                   })}
                 </tbody>
               </table>
+              {hasMore && (
+                <div className="p-4 text-center border-t border-slate-100">
+                  <button
+                    onClick={() => loadOrders(groups.length)}
+                    disabled={loadingMore}
+                    className="px-5 py-2 rounded-lg text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+                  >
+                    {loadingMore ? t('order.loading') : `${tb('order.loadMore')} (${groups.length}${total > groups.length ? `/${total}` : ''})`}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -315,6 +372,19 @@ export default function Orders({ embedded = false }) {
 
             <div className="px-6 py-4 border-t border-slate-100">
               {/* Yetkazib berish ma'lumotlari */}
+              {detailGroup.branch_name && (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-slate-500">{tb('order.table.branch')}</span>
+                  <span className="text-sm font-medium text-slate-700">{detailGroup.branch_name}</span>
+                </div>
+              )}
+              {/* T3.13: olib ketish buyurtmasida filial manzili */}
+              {detailGroup.delivery_type !== 'delivery' && detailGroup.pickup_address && (
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <span className="text-sm text-slate-500 shrink-0">{tf('order.pickupAddress', 'Olib ketish manzili')}</span>
+                  <span className="text-sm text-slate-700 text-right">{detailGroup.pickup_address}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-slate-500">{t('order.deliveryType')}</span>
                 <span className="text-sm font-medium text-slate-700">

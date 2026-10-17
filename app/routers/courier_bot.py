@@ -117,6 +117,17 @@ async def courier_bot_webhook(
 
     # ── Kontakt: telefon orqali ro'yxatdan o'tish ────────────────────────
     if contact:
+        # Kontakt egasi yuboruvchining o'zi bo'lishi shart (forward qilingan /
+        # begona kontakt orqali kuryer akkauntini egallashning oldini oladi).
+        from_id = str((message.get("from") or {}).get("id", ""))
+        contact_uid = contact.get("user_id")
+        if not from_id or contact_uid is None or str(contact_uid) != from_id:
+            bg.add_task(_send_message, token, chat_id,
+                        "❌ Faqat o'zingizning raqamingizni yuboring "
+                        "(tugma orqali o'z kontaktingizni ulashing).",
+                        _build_phone_keyboard())
+            return {"ok": True}
+
         phone_norm = _norm_phone(contact.get("phone_number", ""))
         if not phone_norm:
             bg.add_task(_send_message, token, chat_id,
@@ -140,6 +151,26 @@ async def courier_bot_webhook(
             bg.add_task(_send_message, token, chat_id,
                         "❌ Bu raqam dostavchiklar ro'yxatida topilmadi.\n"
                         "Administrator sizni CRM'da ro'yxatga olganiga ishonch hosil qiling.")
+            return {"ok": True}
+
+        # Band tg_chat_id ni qayta yozmaymiz — avval administrator uzishi kerak.
+        if match.tg_chat_id and str(match.tg_chat_id) != chat_id:
+            bg.add_task(_send_message, token, chat_id,
+                        "❌ Bu dostavchik boshqa Telegram akkauntga bog'langan. "
+                        "Administratorga murojaat qiling.")
+            return {"ok": True}
+
+        # Shu chat_id boshqa faol dostavchikka bog'langan bo'lsa ham rad etamiz.
+        other = db.query(Courier).filter(
+            Courier.company_id == company.id,
+            Courier.tg_chat_id == chat_id,
+            Courier.id != match.id,
+            Courier.is_active == True,  # noqa: E712
+        ).first()
+        if other:
+            bg.add_task(_send_message, token, chat_id,
+                        "❌ Bu Telegram akkaunt boshqa dostavchikka bog'langan. "
+                        "Administratorga murojaat qiling.")
             return {"ok": True}
 
         match.tg_chat_id = chat_id
@@ -208,9 +239,11 @@ def courier_my_orders(
             products_by_id[p.id] = p.name
 
     groups: dict = {}
+    first_orders: dict = {}  # T3.14: olib ketish filiali uchun guruhning birinchi buyurtmasi
     for o in orders:
         key = o.order_group_id or f"single-{o.id}"
         if key not in groups:
+            first_orders[key] = o
             cust = customers_by_id.get(o.customer_id)
             groups[key] = {
                 "group_id": key,
@@ -282,6 +315,17 @@ def courier_my_orders(
         SaleDelivery.delivered_at >= today_start,
     ).count()
 
+    # T3.14: har guruhga olib ketish filiali (pickup_branch_name, pickup_address, ...)
+    from app.routers.logistics import _Stop, _branches_map
+    pickup_stops = {k: _Stop(k, orders=[o]) for k, o in first_orders.items()}
+    for d in deliveries:
+        pickup_stops[f"sale-{d.sale_id}"] = _Stop(f"sale-{d.sale_id}", delivery=d)
+    if pickup_stops:
+        bmap = _branches_map(db, pickup_stops)
+        for k, st in pickup_stops.items():
+            if k in groups:
+                groups[k].update(st.pickup(bmap))
+
     return {
         "courier": {"id": courier.id, "name": courier.name},
         "delivered_today": delivered_today,
@@ -343,8 +387,13 @@ def courier_update_order_status(
 
     # Yetkazilganda (sozlama yoqiq bo'lsa) avtomatik Sale yaratish
     if new_status == OrderStatus.delivered:
+        from app.models.user import User
         from app.services.order_to_sale import maybe_create_sale_for_delivered_group
-        bg.add_task(maybe_create_sale_for_delivered_group, db, orders)
+        # T3.14: kuryerning CRM foydalanuvchisi bo'lsa sotuv shu nomdan, aks holda birinchi admin
+        acting = db.query(User).filter(
+            User.id == courier.user_id, User.company_id == company.id,
+        ).first() if courier.user_id else None
+        bg.add_task(maybe_create_sale_for_delivered_group, db, orders, acting)
 
     return {"message": "Status yangilandi", "status": data.status}
 

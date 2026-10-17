@@ -1,0 +1,20 @@
+{
+  "uz": {
+    "product.pluCode": "PLU kodi (1-99999)",
+    "product.pluHint": "Tarozi kodi; bo'sh qoldirilsa avtomatik beriladi",
+    "product.pluBusy": "PLU kodi band",
+    "product.scaleBranch": "Filial"
+  },
+  "ru": {
+    "product.pluCode": "PLU-код (1-99999)",
+    "product.pluHint": "Код для весов; если оставить пустым, будет присвоен автоматически",
+    "product.pluBusy": "PLU-код занят",
+    "product.scaleBranch": "Филиал"
+  },
+  "en": {
+    "product.pluCode": "PLU code (1-99999)",
+    "product.pluHint": "Scale code; assigned automatically if left empty",
+    "product.pluBusy": "PLU code is already taken",
+    "product.scaleBranch": "Branch"
+  }
+}

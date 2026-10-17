@@ -19,6 +19,7 @@ def _not_negative(v, name):
 
 class POItemCreate(BaseModel):
     product_id: int
+    variant_id: Optional[int] = None  # `parent` mahsulot uchun majburiy (servisda tekshiriladi)
     qty_ordered: Decimal
     unit_cost: Decimal  # UZS (sof, chegirmadan keyin)
     cost_currency: Optional[str] = "UZS"
@@ -42,6 +43,8 @@ class POItemOut(BaseModel):
     id: int
     product_id: int
     product_name: str
+    variant_id: Optional[int] = None
+    variant_name: Optional[str] = None
     qty_ordered: Decimal
     qty_received: Decimal
     unit_cost: Decimal

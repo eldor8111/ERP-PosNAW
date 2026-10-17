@@ -273,6 +273,15 @@ class _MyProductsScreenState extends State<MyProductsScreen> {
                                         ),
                                       ],
 
+                                      // T3.17: tasdiqlangan tovar qaysi omborga qabul qilingani
+                                      if (status == 'approved' && product['warehouse_name'] != null) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Qabul qilindi: ${product['warehouse_name']}',
+                                          style: const TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                                        ),
+                                      ],
+
                                       // Rejection reason if any
                                       if (status == 'rejected' && product['reject_reason'] != null) ...[
                                         const SizedBox(height: 4),

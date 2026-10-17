@@ -24,6 +24,8 @@ class DeliveryRoute(Base):
     route_date = Column(Date, nullable=False, index=True)
     courier_id = Column(Integer, ForeignKey("couriers.id"), nullable=False, index=True)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
+    # T3.14: boshlang'ich (olib ketish) filial; NULL = belgilanmagan / barcha filial
+    origin_branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     status = Column(SQLEnum(DeliveryRouteStatus, native_enum=False, length=20),
                     default=DeliveryRouteStatus.planned, nullable=False)
     note = Column(Text, nullable=True)
@@ -34,6 +36,7 @@ class DeliveryRoute(Base):
 
     courier = relationship("Courier")
     vehicle = relationship("Vehicle")
+    origin_branch = relationship("Branch", foreign_keys=[origin_branch_id])
     stops = relationship("DeliveryRouteStop", back_populates="route",
                          order_by="DeliveryRouteStop.sequence", cascade="all, delete-orphan")
 

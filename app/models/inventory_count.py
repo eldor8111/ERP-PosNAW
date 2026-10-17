@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -16,9 +16,17 @@ class CountStatus(str, enum.Enum):
 
 class InventoryCount(Base):
     __tablename__ = "inventory_counts"
+    # Bitta omborda bir vaqtda faqat bitta ochiq (draft/in_progress) revizya bo'lishi mumkin
+    __table_args__ = (
+        Index(
+            "uq_inventory_counts_one_open_per_wh", "warehouse_id", unique=True,
+            postgresql_where=text("status IN ('draft','in_progress')"),
+            sqlite_where=text("status IN ('draft','in_progress')"),
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    number = Column(String(30), unique=True, nullable=False, index=True)
+    number = Column(String(40), unique=True, nullable=False, index=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
     status = Column(Enum(CountStatus), default=CountStatus.draft)
     note = Column(Text, nullable=True)
@@ -42,6 +50,7 @@ class InventoryCountItem(Base):
     system_qty = Column(Numeric(12, 3), default=0)
     counted_qty = Column(Numeric(12, 3), nullable=True)
     variance = Column(Numeric(12, 3), nullable=True)
+    counted_at = Column(DateTime, nullable=True)  # sanalgan vaqt (system_qty shu paytdagi qoldiq)
 
     variance_reason = Column(Text, nullable=True)
 

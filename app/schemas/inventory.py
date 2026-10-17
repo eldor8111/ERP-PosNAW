@@ -1,8 +1,8 @@
 from datetime import datetime, date
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 class ExpiringBatchOut(BaseModel):
     batch_id: int
@@ -12,9 +12,22 @@ class ExpiringBatchOut(BaseModel):
     days_left: Optional[int] = None
     quantity: Decimal
     is_expired: bool
+    # T1.8: partiya qaysi omborda/filialda turibdi
+    product_id: Optional[int] = None
+    warehouse_id: Optional[int] = None
+    warehouse_name: Optional[str] = None
+    branch_id: Optional[int] = None
 
 class WriteOffExpiredRequest(BaseModel):
-    batch_id: int
+    # T1.8: bitta partiya (batch_id) yoki bir nechta (batch_ids); kamida bittasi kerak
+    batch_id: Optional[int] = None
+    batch_ids: Optional[List[int]] = None
+
+    @model_validator(mode="after")
+    def need_any_batch(self):
+        if self.batch_id is None and not self.batch_ids:
+            raise ValueError("batch_id yoki batch_ids ko'rsatilishi kerak")
+        return self
 
 from app.models.inventory import MovementType
 
@@ -53,9 +66,10 @@ class StockReceiveRequest(BaseModel):
 
 class StockAdjustRequest(BaseModel):
     product_id: int
+    warehouse_id: int
     variant_id: Optional[int] = None
     new_quantity: Decimal
-    reason: str
+    reason: str = Field(..., min_length=3)
 
     @field_validator("new_quantity")
     @classmethod
@@ -74,7 +88,9 @@ class StockLevelOut(BaseModel):
     product_sku: str
     product_barcode: str
     quantity: Decimal
-    min_stock: int
+    # T4.4: samarali qiymatlar — ombor sozlamasi (min_qty/max_qty) yoki mahsulotniki
+    min_stock: float
+    max_stock: Optional[float] = None
     is_low_stock: bool
     updated_at: datetime
 
@@ -97,17 +113,19 @@ class StockMovementOut(BaseModel):
     reason: Optional[str]
     contragent_name: Optional[str] = None
     user_name: Optional[str] = None
+    # T1.7: harakat ombori (eski aniqlanmagan ADJUST harakatlarida None bo'lishi mumkin)
+    warehouse_id: Optional[int] = None
+    warehouse_name: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 class StockMovementUpdate(BaseModel):
-    quantity: Optional[Decimal] = None
+    # Faqat izoh o'zgaradi. quantity/reference_type/reference_id yuborilsa 422 —
+    # harakatni "return_from_customer" + begona mijoz ID ga soxtalashtirish yopildi.
     reason: Optional[str] = None
-    reference_type: Optional[str] = None
-    reference_id: Optional[int] = None
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "forbid"}
 
 
 class ChiqimBatchItem(BaseModel):
@@ -128,6 +146,7 @@ class ChiqimBatchItem(BaseModel):
 
 class ChiqimBatchRequest(BaseModel):
     items: List[ChiqimBatchItem]
+    # Servisda majburiy tekshiriladi (eski mijoz yubormasa — yagona mos ombor olinadi)
     warehouse_id: Optional[int] = None
 
 
@@ -140,6 +159,8 @@ class ChiqimDocumentOut(BaseModel):
     total_qty: Decimal
     item_count: int
     user_name: Optional[str]
+    warehouse_id: Optional[int] = None
+    warehouse_name: Optional[str] = None
 
 
 class ChiqimDetailOut(BaseModel):
@@ -153,6 +174,8 @@ class ChiqimDetailOut(BaseModel):
     quantity: Decimal
     doc_num: Optional[str]
     reason: Optional[str]
+    warehouse_id: Optional[int] = None
+    warehouse_name: Optional[str] = None
 
 
 class SupplierReturnItem(BaseModel):
@@ -171,6 +194,8 @@ class SupplierReturnItem(BaseModel):
 
 class SupplierReturnRequest(BaseModel):
     supplier_id: int
+    # T1.16: servisda majburiy tekshiriladi (ko'p omborli korxonada ko'rsatilmasa 400;
+    # yagona faol ombor bo'lsa avtomatik tanlanadi)
     warehouse_id: Optional[int] = None
     items: List[SupplierReturnItem]
     received_amount: Decimal = Decimal("0")
@@ -194,7 +219,14 @@ class CustomerReturnItem(BaseModel):
     quantity: Decimal
     unit_price: Decimal  # Qaytarish narxi
 
-    @field_validator("quantity", "unit_price")
+    @field_validator("quantity")
+    @classmethod
+    def must_be_positive_qty(cls, v):
+        if v <= 0:
+            raise ValueError("Miqdor musbat bo'lishi kerak")
+        return v
+
+    @field_validator("unit_price")
     @classmethod
     def must_be_positive_val(cls, v):
         if v < 0:
@@ -205,10 +237,84 @@ class CustomerReturnItem(BaseModel):
 class CustomerReturnRequest(BaseModel):
     customer_id: Optional[int] = None
     warehouse_id: int
-    items: List[CustomerReturnItem]
-    # To'lov turi: debt (qarzga yopish), cash (naqd qaytarish), card (karta)
-    payment_type: str = "debt"
+    items: List[CustomerReturnItem] = Field(min_length=1)
+    # To'lov turi: debt (qarzga yopish), cash (naqd qaytarish), card (karta), mixed (aralash)
+    payment_type: Literal["debt", "cash", "card", "mixed"] = "debt"
     paid_cash: Decimal = Decimal("0")
     paid_card: Decimal = Decimal("0")
     wallet_id: Optional[int] = None   # Naqd/karta uchun kassa
     note: Optional[str] = None
+
+    @field_validator("paid_cash", "paid_card")
+    @classmethod
+    def paid_not_negative(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("To'lov summasi manfiy bo'lishi mumkin emas")
+        return v
+
+
+# ─── T4.4: ombor bo'yicha min/max qoldiq va to'ldirish ───
+
+class StockSettingIn(BaseModel):
+    """Ombor x mahsulot chegarasi. Berilmagan maydon o'zgarmaydi, `null` — qiymatni olib tashlaydi.
+    Qiymat tekshiruvlari (manfiy, max < min, manba = ombor) router'da 400 beradi."""
+    min_qty: Optional[Decimal] = None
+    max_qty: Optional[Decimal] = None
+    reorder_qty: Optional[Decimal] = None
+    source_warehouse_id: Optional[int] = None
+
+
+class StockSettingBulkItem(StockSettingIn):
+    product_id: int
+
+
+class StockSettingBulkIn(BaseModel):
+    warehouse_id: int
+    items: List[StockSettingBulkItem] = Field(max_length=1000)
+
+
+class StockSettingOut(BaseModel):
+    product_id: int
+    product_name: str
+    product_sku: Optional[str] = None
+    company_min_stock: Optional[float] = None
+    company_max_stock: Optional[float] = None
+    min_qty: Optional[float] = None
+    max_qty: Optional[float] = None
+    reorder_qty: Optional[float] = None
+    source_warehouse_id: Optional[int] = None
+    current_qty: float = 0
+
+
+class ReplenishmentItem(BaseModel):
+    warehouse_id: int
+    warehouse_name: Optional[str] = None
+    branch_id: Optional[int] = None
+    product_id: int
+    product_name: str
+    sku: Optional[str] = None
+    unit: Optional[str] = None
+    current_qty: float
+    min: float
+    max: Optional[float] = None
+    reorder_qty: Optional[float] = None
+    shortage: float
+    need_qty: float
+    source_warehouse_id: Optional[int] = None
+    source_warehouse_name: Optional[str] = None
+    source_qty: Optional[float] = None
+    source_min: Optional[float] = None
+    transfer_qty: float
+    purchase_needed: float
+
+
+class ReplenishmentTransferItem(BaseModel):
+    product_id: int
+    qty: Decimal
+
+
+class ReplenishmentTransferIn(BaseModel):
+    source_warehouse_id: int
+    destination_warehouse_id: int
+    items: List[ReplenishmentTransferItem] = Field(min_length=1)
+

@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- XSS himoyasining 2-qatlami (asosiysi — esc()). Inline onclick lar ishlashi uchun 'unsafe-inline' vaqtincha;
+     keyingi bosqichda addEventListener ga o'tkazib olib tashlanadi. connect-src: sozlamalardagi API manzili (https/http) uchun ochiq. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: http:; connect-src 'self' https: http:; object-src 'none'; base-uri 'none'; frame-src 'none'">
 <title>ERPPos Kassir</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="pos.css">
@@ -34,10 +37,6 @@
       <div class="ci-top">
         <span class="ci-name" id="companyName">-</span>
         <span class="ci-code" id="companyCode">-</span>
-      </div>
-      <div class="ci-balance">
-        <span style="font-size:10px;color:var(--ink3)">Balans:</span>
-        <span class="ci-balance-val" id="companyBalance">0 so'm</span>
       </div>
     </div>
     <div class="smena-badge" id="smenaBadge" onclick="showSmenaInfo()">
@@ -127,9 +126,11 @@
 
         <!-- Customer -->
         <div class="cart-section">
-          <select class="fsel-sm" id="saleCustomer" style="width:100%" onchange="onCustomerChange()">
-            <option value="">👤 Mijoz tanlang...</option>
-          </select>
+          <!-- Mijoz qidiruvi (GET /customers?search=&limit=20); tanlangan mijoz id si yashirin #saleCustomer da -->
+          <input type="hidden" id="saleCustomer" value="">
+          <input class="fsel-sm" id="saleCustomerSearch" list="saleCustomerList" style="width:100%" autocomplete="off"
+            placeholder="👤 Mijoz (ism yoki telefon)..." oninput="customerSearchInput(this.value)" onchange="customerSearchInput(this.value)">
+          <datalist id="saleCustomerList"></datalist>
         </div>
 
         <div class="cart-items" id="cartItems">
@@ -161,6 +162,10 @@
             <div style="display:flex;gap:6px;align-items:center">
               <input type="number" class="pay-amount-inp" id="payAmountInp" placeholder="0" oninput="calcChange()" style="flex:1">
               <button onclick="fillTotal()" title="Jami summani kiriting" style="padding:8px 12px;background:var(--blue);color:#fff;border:none;border-radius:var(--r-xs);cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap">=JAMI</button>
+            </div>
+            <div id="debtDueWrap" style="display:none;margin-top:8px">
+              <label class="pay-label">Nasiya muddati (ixtiyoriy)</label>
+              <input type="date" class="pay-amount-inp" id="debtDueInp" style="width:100%">
             </div>
             <div class="change-row" id="changeRow" style="display:none">
               <span>Qaytim:</span>
@@ -404,6 +409,10 @@
               </div>
             </div>
             <div class="toggle-row">
+              <span class="toggle-label">Hippo Factory ID (fiskal uchun)</span>
+              <input class="finp-inline" id="settFactoryId" placeholder="Factory ID" autocomplete="off">
+            </div>
+            <div class="toggle-row">
               <span class="toggle-label">Chegirma ruxsati</span>
               <div class="toggle-wrap" onclick="toggleSetting('discount')">
                 <div class="toggle" id="tog-discount"></div>
@@ -451,7 +460,7 @@
             <div class="info-row"><span>Dastur versiyasi</span><span class="mono">1.0.0</span></div>
             <div class="info-row"><span>Backend</span><span class="mono" id="apiStatus">Tekshirilmoqda...</span></div>
             <div class="info-row"><span>Kassa nomi</span><input class="finp-inline" id="settCassaName" value="Kassa #1"></div>
-            <div class="info-row"><span>Filial</span><select class="fsel-inline" id="settBranch"><option>Asosiy filial</option></select></div>
+            <div class="info-row" id="settWarehouseRow" style="display:none"><span>Ombor</span><select class="fsel-inline" id="settWarehouse"></select></div>
           </div>
         </div>
 
@@ -629,6 +638,22 @@
     </div>
     <div class="modal-actions">
       <button class="btn-blue" id="loginBtn" onclick="doLogin()" style="width:100%;padding:12px">Kirish</button>
+    </div>
+  </div>
+</div>
+
+<!-- KO'P KORXONALI LOGIN: korxonani tanlash -->
+<div class="modal" id="companyModal" style="z-index:1100">
+  <div class="modal-inner" style="width:380px">
+    <div class="mhdr" style="background:var(--ink);color:#fff;border-bottom:none">
+      <div class="mtitle" style="color:#fff">Korxonani tanlang</div>
+    </div>
+    <div style="padding:24px;display:flex;flex-direction:column;gap:6px">
+      <div id="companyChoiceList"></div>
+      <div id="companyChoiceError" style="font-size:12px;color:var(--red);font-weight:600;min-height:16px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="cancelCompanyChoice()" style="width:100%;padding:12px">Orqaga</button>
     </div>
   </div>
 </div>

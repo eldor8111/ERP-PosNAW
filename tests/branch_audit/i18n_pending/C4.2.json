@@ -1,0 +1,32 @@
+{
+  "uz": {
+    "tariffs.systemModules": "Tizim modullari",
+    "tariffs.module.pnlCompare": "P&L 2 davr solishtirish:",
+    "tariffs.module.manufacturing": "Ishlab chiqarish:",
+    "tariffs.module.distribution": "Distribyutsiya:",
+    "tariffs.has": "Bor",
+    "tariffs.hasNot": "Yo'q",
+    "settings.menu.payment_terminals": "To'lov terminallari",
+    "settings.menu.payment_reconciliation": "To'lovlarni solishtirish"
+  },
+  "ru": {
+    "tariffs.systemModules": "Модули системы",
+    "tariffs.module.pnlCompare": "Сравнение P&L за 2 периода:",
+    "tariffs.module.manufacturing": "Производство:",
+    "tariffs.module.distribution": "Дистрибуция:",
+    "tariffs.has": "Есть",
+    "tariffs.hasNot": "Нет",
+    "settings.menu.payment_terminals": "Платёжные терминалы",
+    "settings.menu.payment_reconciliation": "Сверка платежей"
+  },
+  "en": {
+    "tariffs.systemModules": "System modules",
+    "tariffs.module.pnlCompare": "P&L 2-period comparison:",
+    "tariffs.module.manufacturing": "Manufacturing:",
+    "tariffs.module.distribution": "Distribution:",
+    "tariffs.has": "Included",
+    "tariffs.hasNot": "Not included",
+    "settings.menu.payment_terminals": "Payment terminals",
+    "settings.menu.payment_reconciliation": "Payment reconciliation"
+  }
+}

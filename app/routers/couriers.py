@@ -27,6 +27,7 @@ class CourierIn(BaseModel):
     phone: str = Field(..., min_length=3, max_length=32)
     transport: Optional[str] = Field(None, max_length=30)
     vehicle_id: Optional[int] = None
+    branch_id: Optional[int] = None  # T3.14: NULL = barcha filial
 
 
 class CourierUpdate(BaseModel):
@@ -34,6 +35,7 @@ class CourierUpdate(BaseModel):
     phone: Optional[str] = Field(None, min_length=3, max_length=32)
     transport: Optional[str] = Field(None, max_length=30)
     vehicle_id: Optional[int] = None
+    branch_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 
@@ -45,6 +47,14 @@ def _check_vehicle(db: Session, company_id: int, vehicle_id: Optional[int]) -> N
         raise HTTPException(status_code=404, detail="Transport topilmadi")
 
 
+def _check_branch(db: Session, company_id: int, branch_id: Optional[int]) -> None:
+    if branch_id is None:
+        return
+    from app.models.branch import Branch
+    if not db.query(Branch).filter(Branch.id == branch_id, Branch.company_id == company_id).first():
+        raise HTTPException(status_code=404, detail="Filial topilmadi")
+
+
 def _courier_out(c: Courier, stats: Optional[dict] = None) -> dict:
     out = {
         "id": c.id,
@@ -52,6 +62,8 @@ def _courier_out(c: Courier, stats: Optional[dict] = None) -> dict:
         "phone": c.phone,
         "transport": c.transport,
         "vehicle_id": c.vehicle_id,
+        "branch_id": c.branch_id,
+        "branch_name": c.branch.name if c.branch else None,
         "is_active": bool(c.is_active),
         "tg_connected": bool(c.tg_chat_id),
         "created_at": c.created_at.isoformat() if c.created_at else None,
@@ -116,12 +128,14 @@ def create_courier(
     check_courier_limit(db, current_user.company_id)
 
     _check_vehicle(db, current_user.company_id, data.vehicle_id)
+    _check_branch(db, current_user.company_id, data.branch_id)
     courier = Courier(
         company_id=current_user.company_id,
         name=data.name.strip(),
         phone=data.phone.strip(),
         transport=(data.transport or "").strip() or None,
         vehicle_id=data.vehicle_id,
+        branch_id=data.branch_id,
         is_active=True,
     )
     db.add(courier)
@@ -145,7 +159,12 @@ def update_courier(
         raise HTTPException(status_code=404, detail="Dostavchik topilmadi")
 
     update_data = data.model_dump(exclude_unset=True)
+    # T3.9: nofaol kuryerni qayta yoqish ham kvotadan o'tadi (o'zi sanalmaydi); o'chirish doim mumkin
+    if update_data.get("is_active") is True and not courier.is_active:
+        from app.services.tariff_guard import check_courier_limit
+        check_courier_limit(db, current_user.company_id, exclude_courier_id=courier.id)
     _check_vehicle(db, current_user.company_id, update_data.get("vehicle_id"))
+    _check_branch(db, current_user.company_id, update_data.get("branch_id"))
     for k, v in update_data.items():
         if k in ("name", "phone", "transport") and isinstance(v, str):
             v = v.strip() or None
@@ -153,6 +172,24 @@ def update_courier(
     db.commit()
     db.refresh(courier)
     return _courier_out(courier)
+
+
+@router.post("/{courier_id}/unlink-telegram")
+def unlink_courier_telegram(
+    courier_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*MANAGE_ROLES)),
+):
+    """Kuryerning Telegram bog'lanishini uzadi (kuryer botda qayta ulanishi mumkin)."""
+    courier = db.query(Courier).filter(
+        Courier.id == courier_id,
+        Courier.company_id == current_user.company_id,
+    ).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Dostavchik topilmadi")
+    courier.tg_chat_id = None
+    db.commit()
+    return {"ok": True}
 
 
 @router.delete("/{courier_id}")

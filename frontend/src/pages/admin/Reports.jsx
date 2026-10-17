@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLang } from '../../context/LangContext';
+import { useAuth } from '../../context/AuthContext';
+import { useBranch } from '../../context/BranchContext';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import BranchSelect from '../../components/BranchSelect';
+import { useReportScope } from '../../hooks/useReportScope';
+import { useBranches } from '../../hooks/useBranches';
+import { exportFileName, sheetHeaderRows, periodText } from '../../utils/exportMeta';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtS = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
@@ -35,8 +41,10 @@ const endOfLastMonth = () => { const d = new Date(); d.setDate(0); return ymd(d)
 
 const MOV_LIMIT = 500;
 const DEAD_MONTHS = [1, 3, 6, 12];
-// Filial filtri qo'llanadigan tablar (qarzlar kompaniya bo'yicha, harakatlarda ombor yozilmaydi)
-const BRANCH_TABS = new Set(['sales', 'profit', 'pl', 'pnl-compare', 'cashier', 'deadstock', 'expenses', 'purchases', 'abc', 'batches', 'product-sales']);
+// Filial filtri qo'llanadigan tablar (qarzlar kompaniya bo'yicha)
+// Backend branch_id=-1 (filialsiz guruh) ni qo'llab-quvvatlaydigan hisobotlar (T2.2)
+const UNASSIGNED_TABS = new Set(['sales', 'profit', 'pl', 'pnl-compare', 'cashier', 'expenses']);
+const BRANCH_TABS = new Set(['sales', 'profit', 'pl', 'pnl-compare', 'cashier', 'deadstock', 'expenses', 'purchases', 'abc', 'batches', 'product-sales', 'movements', 'commissions']);
 const EMPTY_SALES = { items: [], summary: null, total_count: 0, truncated: false };
 
 // Harakat miqdori o'zgarishi: qoldiq farqidan, bo'lmasa turidan
@@ -50,7 +58,8 @@ const movementDelta = (m) => {
 // ─── PDF chop etish (window.print orqali) ─────────────────────────────────────
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
-function printTable(title, headers, rows, totalsRow = null, printLabel = 'Print') {
+// metaLines — sarlavha ostida chiqadigan satrlar (T2.5: "Filial: ...", "Davr: ...")
+function printTable(title, headers, rows, totalsRow = null, printLabel = 'Print', metaLines = []) {
   const headerHtml = headers.map(h => `<th style="border:1px solid #ddd;padding:8px;background:#f3f4f6;font-size:12px">${esc(h)}</th>`).join('');
   const rowsHtml = rows.map((row, i) =>
     `<tr style="background:${i % 2 ? '#f9fafb' : '#fff'}">${row.map(cell =>
@@ -72,6 +81,7 @@ function printTable(title, headers, rows, totalsRow = null, printLabel = 'Print'
       <h2>${esc(title)}</h2>
       <div style="font-size:12px;color:#64748b">${esc(new Date().toLocaleString('uz-UZ'))}</div>
     </div>
+    ${metaLines.length ? `<div style="font-size:12px;color:#475569;margin:-8px 0 12px">${metaLines.map(esc).join(' &middot; ')}</div>` : ''}
     <table><thead><tr>${headerHtml}</tr></thead>
     <tbody>${rowsHtml}${totalsHtml}</tbody></table>
     <div style="margin-top:16px;text-align:center">
@@ -80,9 +90,16 @@ function printTable(title, headers, rows, totalsRow = null, printLabel = 'Print'
   win.document.close();
 }
 
-async function saveSheet(rows, sheetName, fileName) {
+// headerRows — varaq boshidagi qatorlar (T2.5: sarlavha, filial, davr); jadval ulardan keyin boshlanadi
+async function saveSheet(rows, sheetName, fileName, headerRows = []) {
   const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
-  const ws = XLSX.utils.json_to_sheet(rows);
+  let ws;
+  if (headerRows.length) {
+    ws = XLSX.utils.aoa_to_sheet(headerRows);
+    XLSX.utils.sheet_add_json(ws, rows, { origin: headerRows.length + 1 });
+  } else {
+    ws = XLSX.utils.json_to_sheet(rows);
+  }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), fileName);
@@ -201,9 +218,98 @@ function MarginBar({ value, width = 'flex-1 min-w-12' }) {
   );
 }
 
+// ─── Sotuvchi bonusi (T4.7): sof sotuv x foiz = komissiya (faqat hisobot) ───
+const RATE_EDIT_ROLES = ['admin', 'director', 'super_admin'];
+
+function CommissionsTab({ dateFrom, dateTo, branchId, dateFilter, tf }) {
+  const { user } = useAuth();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [drafts, setDrafts] = useState({});   // { [user_id]: foiz matni }
+  const canEdit = RATE_EDIT_ROLES.includes(user?.role);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { date_from: dateFrom, date_to: dateTo };
+      if (branchId) params.branch_id = branchId;
+      const { data } = await api.get('/staff-reports/commissions', { params });
+      setRows(data || []);
+      setDrafts({});
+    } catch (err) {
+      toast.error(err.response?.data?.detail || tf('staff.commission.loadError', "Bonus hisobotini yuklab bo'lmadi"));
+    } finally { setLoading(false); }
+  }, [dateFrom, dateTo, branchId]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveRate = async (r) => {
+    const raw = drafts[r.user_id];
+    if (raw === undefined || Number(raw) === r.percent) return;
+    const v = Number(raw);
+    if (raw === '' || !(v >= 0 && v <= 100)) {
+      toast.error(tf('staff.commission.percentInvalid', "Foiz 0 dan 100 gacha bo'lishi kerak"));
+      return;
+    }
+    try {
+      await api.put(`/staff-reports/commission-rates/${r.user_id}`, { percent: v });
+      toast.success(tf('staff.commission.saved', 'Foiz saqlandi'));
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || tf('staff.commission.saveError', "Foizni saqlab bo'lmadi"));
+    }
+  };
+
+  const money = (map) => Object.entries(map || {}).map(([c, v]) => `${fmt(v.net_sales)} ${c}`).join(' · ') || '—';
+  const bonus = (map) => Object.entries(map || {}).map(([c, v]) => `${fmt(v.commission)} ${c}`).join(' · ') || '—';
+  const heads = [tf('reports.tab.cashier', 'Sotuvchi'), tf('staff.commission.netSales', 'Sof sotuv'),
+    tf('staff.commission.percent', 'Foiz, %'), tf('staff.commission.bonus', 'Bonus')];
+  return (
+    <>
+      <div className="px-6 py-4 border-b border-slate-100">
+        <span className="text-sm font-semibold text-slate-700">{tf('staff.commission.title', 'Sotuvchi bonusi')}</span>
+        <p className="text-xs text-slate-400 mt-0.5">{tf('staff.commission.note', "Sof sotuv qaytarishlar ayirilgan holda. Bu faqat hisobot: maosh yoki to'lov yozuvi yaratilmaydi.")}</p>
+      </div>
+      {dateFilter}
+      {loading ? <Spinner /> : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                {heads.map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {rows.map(r => (
+                <tr key={r.user_id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-5 py-3.5 text-sm font-semibold text-slate-800">{r.user_name}</td>
+                  <td className="px-5 py-3.5 text-sm text-slate-700">{money(r.by_currency)}</td>
+                  <td className="px-5 py-3.5 text-sm">
+                    {canEdit ? (
+                      <input type="number" min="0" max="100" step="0.01"
+                        value={drafts[r.user_id] ?? r.percent}
+                        onChange={e => setDrafts({ ...drafts, [r.user_id]: e.target.value })}
+                        onBlur={() => saveRate(r)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                        className="w-24 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    ) : `${r.percent}%`}
+                  </td>
+                  <td className="px-5 py-3.5 text-sm font-bold text-emerald-600">{bonus(r.by_currency)}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-400">{tf('common.noData', "Ma'lumot yo'q")}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Asosiy komponent ─────────────────────────────────────────────────────────
 export default function Reports() {
   const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 
   // URL orqali kelganda (masalan mahsulot kartochkasidan) — harakatlar tabi va filtrlar
   const [urlInit] = useState(() => {
@@ -221,8 +327,21 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
-  const [branchId, setBranchId] = useState('');
-  const [branches, setBranches] = useState([]);
+  // T1.1: boshlang'ich filial — global joriy filial; header'da almashtirilsa sahifa ham ergashadi
+  const { currentBranchId, version: branchVersion, canSelectAll } = useBranch();
+  const [branchId, setBranchId] = useState(currentBranchId ? String(currentBranchId) : '');
+  const { branches } = useBranches({ includeInactive: true });   // T3.8: yagona filial hooki
+  // T2.1: o'z filiali bilan cheklangan foydalanuvchida boshlang'ich/doimiy qiymat — scope.branch_id
+  const reportScope = useReportScope();
+  useEffect(() => {
+    if (reportScope.restricted && reportScope.branchId) setBranchId(String(reportScope.branchId));
+    else setBranchId(currentBranchId ? String(currentBranchId) : '');
+  }, [currentBranchId, branchVersion, reportScope.restricted, reportScope.branchId]);
+  // "Filialsiz" tanlovi bo'lmagan hisobotga o'tilganda tanlov tozalanadi
+  useEffect(() => {
+    if (branchId === '-1' && !UNASSIGNED_TABS.has(tab)) setBranchId('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   // Ma'lumotlar
   const [salesData, setSalesData] = useState(EMPTY_SALES);
@@ -239,6 +358,8 @@ export default function Reports() {
   const [abcData, setAbcData] = useState([]);
   const [plData, setPlData] = useState(null);
   const [pnlCompareData, setPnlCompareData] = useState(null);
+  const [pnlCompareError, setPnlCompareError] = useState(''); // T2.1/T2.2: 403/404 — sahifa ichidagi xabar (toast o'rniga)
+  const [branchSummary, setBranchSummary] = useState(null);
   const [p1From, setP1From] = useState(firstOfLastMonth());
   const [p1To, setP1To] = useState(endOfLastMonth());
   const [p2From, setP2From] = useState(firstOfMonth());
@@ -255,6 +376,9 @@ export default function Reports() {
   const [fromSellProduct, setFromSellProduct] = useState(urlInit?.fromSell || '');
   const [convRatio, setConvRatio] = useState(urlInit?.ratio || '');
   const [movProductId] = useState(urlInit?.productId || '');
+  // T1.7: harakatlar ombor bo'yicha
+  const [movWarehouseId, setMovWarehouseId] = useState('');
+  const [warehouses, setWarehouses] = useState([]);
 
   const payLabel = (p) => {
     if (!p) return '—';
@@ -262,9 +386,79 @@ export default function Reports() {
     return label === `pay.${p}` ? p : label;
   };
 
+  // T2.5: eksport fayl nomi va sarlavhasi — tanlangan filial va davr bilan
+  const exportInfo = () => {
+    const companyWide = tf('reports.companyWide', "Butun korxona bo'yicha (filial filtri qo'llanmaydi)");
+    let headerBranch = companyWide;
+    let fileBranch = '';
+    if (BRANCH_TABS.has(tab)) {
+      if (!branchId) {
+        headerBranch = t('common.allBranches');
+      } else if (branchId === '-1') {
+        headerBranch = fileBranch = tf('reports.unassignedBranch', 'Filialsiz');
+      } else {
+        const b = branches.find(x => String(x.id) === String(branchId));
+        fileBranch = b ? b.name : `#${branchId}`;
+        headerBranch = b && b.is_active === false ? `${b.name} ${tf('reports.closedSuffix', '(yopilgan)')}` : fileBranch;
+      }
+    }
+    let from = dateFrom;
+    let to = dateTo;
+    let period = '';
+    if (tab === 'movements') { from = movDateFrom; to = movDateTo; }
+    else if (tab === 'pnl-compare') {
+      from = p1From; to = p2To;
+      period = `${p1From} — ${p1To} / ${p2From} — ${p2To}`;
+    } else if (['customer-debts', 'supplier-debts', 'deadstock'].includes(tab)) { from = ''; to = ''; }
+    return {
+      headerBranch, fileBranch, dateFrom: from, dateTo: to,
+      periodText: period || periodText(from, to), period,
+      branchLabel: tf('reports.exportBranch', 'Filial'), periodLabel: tf('reports.exportPeriod', 'Davr'),
+    };
+  };
+  const exportSheet = (rows, sheetName, prefix) => {
+    const info = exportInfo();
+    return saveSheet(
+      rows, sheetName,
+      exportFileName(prefix, { branchName: info.fileBranch, dateFrom: info.dateFrom, dateTo: info.dateTo, ext: 'xlsx' }),
+      sheetHeaderRows({
+        title: sheetName, branchName: info.headerBranch, dateFrom: info.dateFrom, dateTo: info.dateTo,
+        period: info.period, branchLabel: info.branchLabel, periodLabel: info.periodLabel,
+      }),
+    );
+  };
+  const exportPdf = (title, headers, rows, totalsRow, printLabel) => {
+    const info = exportInfo();
+    const lines = [`${info.branchLabel}: ${info.headerBranch}`];
+    if (info.periodText) lines.push(`${info.periodLabel}: ${info.periodText}`);
+    printTable(title, headers, rows, totalsRow, printLabel, lines);
+  };
+
+  // Sotuvlar eksporti: ro'yxat kesilgan bo'lsa (limit=1000) to'liq (limit=5000) qayta so'raladi
+  const SALES_EXPORT_LIMIT = 5000;
+  const fetchAllSales = async () => {
+    if (!salesData.truncated) return salesData.items || [];
+    try {
+      const p = new URLSearchParams({
+        date_from: dateFrom, date_to: dateTo,
+        include_returns: salesIncludeReturns ? 'true' : 'false', limit: String(SALES_EXPORT_LIMIT),
+      });
+      if (branchId) p.set('branch_id', branchId);
+      const r = await api.get(`/reports/sales?${p}`);
+      if (r.data.truncated || Number(r.data.total_count) > SALES_EXPORT_LIMIT) {
+        toast.error(tf('reports.exportLimit', "Davrdagi sotuvlar soni {total} ta, eksport {limit} ta bilan cheklanadi. Davrni qisqartiring.")
+          .replace('{total}', r.data.total_count).replace('{limit}', SALES_EXPORT_LIMIT));
+      }
+      return r.data.items || [];
+    } catch (err) {
+      toast.error(errMsg(err, t('reports.errorOccurred')));
+      return null;
+    }
+  };
+
   // Load branches on mount
   useEffect(() => {
-    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(errMsg(err, t('reports.errorOccurred'))) });
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data || [])).catch(() => setWarehouses([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -327,8 +521,32 @@ export default function Reports() {
           p2_to: p2To,
         });
         if (branchId) p.set('branch_id', branchId);
-        const r = await api.get(`/reports/pnl-compare?${p}`);
-        if (isCurrent()) setPnlCompareData(r.data);
+        if (isCurrent()) setPnlCompareError('');
+        try {
+          // _suppressToast: 403/404 uchun global toast chiqmaydi — xabar sahifa ichida ko'rsatiladi
+          const r = await api.get(`/reports/pnl-compare?${p}`, { _suppressToast: true });
+          if (isCurrent()) setPnlCompareData(r.data);
+        } catch (err) {
+          // T2.5: tarifda yo'q — jadval o'rniga upgrade banneri (xato toast'i chiqmaydi)
+          const d = err?.response?.data?.detail;
+          const st = err?.response?.status;
+          if (st === 403 && d && d.code === 'feature_not_in_tariff') {
+            if (isCurrent()) setPnlCompareData({ has_access: false, rows: null });
+          } else if (st === 403 || st === 404) {
+            // huquq yo'q (403) yoki begona/mavjud bo'lmagan filial (404) — jimgina, sahifa ichida xabar
+            if (isCurrent()) {
+              setPnlCompareData(null);
+              setPnlCompareError(st === 404
+                ? tf('reports.pnlBranchNotFound', "Tanlangan filial topilmadi")
+                : tf('reports.pnlNoAccess', "Bu hisobotni ko'rishga ruxsatingiz yo'q"));
+            }
+          } else {
+            throw err;
+          }
+        }
+      } else if (tab === 'branches') {
+        const r = await api.get(`/reports/branch-summary?${new URLSearchParams({ date_from: dateFrom, date_to: dateTo })}`);
+        if (isCurrent()) setBranchSummary(r.data);
       } else if (tab === 'batches') {
         const r = await api.get(`/reports/batches${qs()}`);
         if (isCurrent()) setBatchData(r.data);
@@ -340,12 +558,18 @@ export default function Reports() {
         if (movSearch) p.set('search', movSearch);
         if (movRefType) p.set('reference_type', movRefType);
         if (movProductId) p.set('product_id', movProductId);
+        if (branchId) p.set('branch_id', branchId);
+        if (movWarehouseId) p.set('warehouse_id', movWarehouseId);
         const r = await api.get(`/inventory/movements?${p}`);
         if (isCurrent()) setMovementsData(r.data);
       }
     } catch (err) {
       if (!isCurrent()) return;
-      toast.error(errMsg(err, t('reports.errorOccurred')));
+      // T2.1: boshqa filial hisobotiga ruxsat yo'q (cheklangan menejer) — tushunarli xabar
+      const noBranchAccess = err?.response?.status === 403 && /hisobotiga ruxsat/.test(String(err?.response?.data?.detail || ''));
+      toast.error(noBranchAccess
+        ? tf('reports.noAccessBranch', "Bu filial hisobotiga ruxsatingiz yo'q")
+        : errMsg(err, t('reports.errorOccurred')));
       // Eski ma'lumot yangi filtr natijasidek ko'rinib qolmasin
       const reset = {
         sales: () => setSalesData(EMPTY_SALES),
@@ -359,6 +583,7 @@ export default function Reports() {
         abc: () => setAbcData([]),
         pl: () => setPlData(null),
         'pnl-compare': () => setPnlCompareData(null),
+        branches: () => setBranchSummary(null),
         batches: () => setBatchData([]),
         'product-sales': () => setProductSalesData([]),
         movements: () => setMovementsData([]),
@@ -367,20 +592,22 @@ export default function Reports() {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [tab, dateFrom, dateTo, branchId, salesIncludeReturns, deadMonths, movDateFrom, movDateTo, movSearch, movRefType, movProductId, p1From, p1To, p2From, p2To, t]);
+  }, [tab, dateFrom, dateTo, branchId, salesIncludeReturns, deadMonths, movDateFrom, movDateTo, movSearch, movRefType, movProductId, movWarehouseId, p1From, p1To, p2From, p2To, t]);
 
   // Tab, filial va tab ichidagi tanlovlar o'zgarganda avtomatik yuklash;
   // sana va qidiruv filtrlari "Qidiruv" tugmasi bilan qo'llanadi.
   const loadRef = useRef(load);
   useEffect(() => { loadRef.current = load; }, [load]);
-  useEffect(() => { loadRef.current(); }, [tab, branchId, salesIncludeReturns, deadMonths, p1From, p1To, p2From, p2To]);
+  useEffect(() => { loadRef.current(); }, [tab, branchId, salesIncludeReturns, deadMonths, movWarehouseId, p1From, p1To, p2From, p2To]);
 
   const tabs = [
     { key: 'sales', label: t('reports.tab.sales'), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
     { key: 'profit', label: t('reports.tab.profit'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
     { key: 'pl', label: t('reports.tab.pl'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
     { key: 'pnl-compare', label: `⚖️ ${t('reports.tab.pnlCompare')}`, icon: 'M3 6l3 18h12l3-18H3zm15 4H6m9 4H9m7 4H8' },
+    ...(canSelectAll ? [{ key: 'branches', label: t('reports.tab.branches'), icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' }] : []),
     { key: 'cashier', label: t('reports.tab.cashier'), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+    { key: 'commissions', label: tf('staff.commission.title', 'Sotuvchi bonusi'), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key: 'deadstock', label: t('reports.tab.deadstock'), icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
     { key: 'expenses', label: t('reports.tab.expenses'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { key: 'purchases', label: t('reports.tab.purchases'), icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
@@ -403,24 +630,32 @@ export default function Reports() {
         <p className="text-slate-500 text-sm mt-0.5">{t('reports.subtitle')}</p>
       </div>
 
-      {/* Branch filter — faqat filial bo'yicha ajratiladigan hisobotlarda */}
-      {branches.length > 0 && BRANCH_TABS.has(tab) && (
-        <div className="flex items-center gap-3">
+      {/* Branch filter — filial bo'yicha ajratiladigan hisobotlarda faol; qolganlarida "Butun korxona" yorlig'i (T2.5) */}
+      {branches.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          {reportScope.restricted && (
+            <span className="text-xs font-medium text-sky-700 bg-sky-50 px-3 py-1 rounded-lg">
+              {tf('reports.scopeRestricted', "Siz faqat o'z filialingiz hisobotini ko'rasiz")}
+            </span>
+          )}
           <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
           <span className="text-sm font-semibold text-slate-500">{t('reports.branchLabel')}</span>
-          <select
+          <BranchSelect
             value={branchId}
-            onChange={e => { setBranchId(e.target.value); }}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="">{`🏢 ${t('common.allBranches')}`}</option>
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-          {branchId && (
+            onChange={setBranchId}
+            branches={branches}
+            allowUnassigned={UNASSIGNED_TABS.has(tab)}
+            disabled={!BRANCH_TABS.has(tab)}
+          />
+          {BRANCH_TABS.has(tab) ? (branchId && !reportScope.restricted && (
             <button onClick={() => setBranchId('')}
               className="text-xs text-slate-400 hover:text-slate-600 underline">{t('admin.dict.clear') || 'Tozalash'}</button>
+          )) : (
+            <span className="text-xs font-medium text-amber-700 bg-amber-50 px-3 py-1 rounded-lg">
+              {tf('reports.companyWide', "Butun korxona bo'yicha (filial filtri qo'llanmaydi)")}
+            </span>
           )}
         </div>
       )}
@@ -454,7 +689,10 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">{t('reports.salesListTitle')}</span>
               <ExportBtns
-                onExcel={() => saveSheet(items.map(s => ({
+                onExcel={async () => {
+                  const all = await fetchAllSales();
+                  if (!all) return;
+                  exportSheet(all.map(s => ({
                   [t('reports.th.number')]: s.number,
                   [t('reports.th.type')]: badgeFor(s)?.label || '',
                   [t('reports.th.cashier')]: s.cashier_name,
@@ -464,20 +702,26 @@ export default function Reports() {
                   [t('reports.th.discount')]: s.discount_amount,
                   [t('reports.th.payment')]: payLabel(s.payment_type),
                   [t('reports.th.date')]: new Date(s.created_at).toLocaleString('uz-UZ'),
-                })), t('reports.tab.sales'), `sotuvlar_${today()}.xlsx`)}
-                onPdf={() => printTable(t('reports.salesReportTitle'),
+                })), t('reports.tab.sales'), 'sotuvlar');
+                }}
+                onPdf={async () => {
+                  const all = await fetchAllSales();
+                  if (!all) return;
+                  exportPdf(t('reports.salesReportTitle'),
                   [t('reports.th.number'), t('reports.th.cashier'), t('reports.th.amount'), t('reports.th.payment'), t('reports.th.date')],
-                  items.map(s => [s.number, s.cashier_name, fmtRowDebt(s.total_amount, s.currency_code), payLabel(s.payment_type), new Date(s.created_at).toLocaleDateString('uz-UZ')]),
+                  all.map(s => [s.number, s.cashier_name, fmtRowDebt(s.total_amount, s.currency_code), payLabel(s.payment_type), new Date(s.created_at).toLocaleDateString('uz-UZ')]),
                   ['', t('reports.total'), fmtDebt(summary.net_by_currency), '', ''],
                   t('common.print')
-                )}
+                  );
+                }}
                 on1c={async () => {
                   try {
                     const saveAs = await loadSaveAs();
                     const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo, format: 'csv', include_returns: 'true' });
                     if (branchId) params.set('branch_id', branchId);
                     const r = await api.get(`/reports/1c-export?${params}`, { responseType: 'blob' });
-                    saveAs(r.data, `1c_export_${today()}.csv`);
+                    const info = exportInfo();
+                    saveAs(r.data, exportFileName('1c_export', { branchName: info.fileBranch, dateFrom: info.dateFrom, dateTo: info.dateTo, ext: 'csv' }));
                   } catch (err) {
                     toast.error(errMsg(err, t('reports.errorOccurred')));
                   }
@@ -562,12 +806,12 @@ export default function Reports() {
                 {uzsNote}
               </div>
               <ExportBtns
-                onExcel={() => saveSheet(profitData.map(r => ({
+                onExcel={() => exportSheet(profitData.map(r => ({
                   [t('reports.th.product')]: r.product_name, 'SKU': r.sku, [t('reports.th.category')]: r.category_name,
                   [t('reports.th.sold')]: r.qty_sold, [t('reports.th.revenue')]: r.revenue, [t('reports.th.cost')]: r.cost,
                   [t('reports.th.profit')]: r.profit, [t('reports.th.marginPct')]: r.margin_pct,
-                })), t('reports.th.profit'), `foyda_${today()}.xlsx`)}
-                onPdf={() => printTable(t('reports.profitByProductTitle'),
+                })), t('reports.th.profit'), 'foyda')}
+                onPdf={() => exportPdf(t('reports.profitByProductTitle'),
                   [t('reports.th.product'), t('reports.th.category'), t('reports.th.sold'), t('reports.th.revenue'), t('reports.th.cost'), t('reports.th.profit'), t('reports.th.margin')],
                   profitData.map(r => [r.product_name, r.category_name, fmt(r.qty_sold), fmtS(r.revenue), fmtS(r.cost), fmtS(r.profit), pct(r.margin_pct)]),
                   [t('reports.total'), '', fmt(sumBy(profitData, 'qty_sold')), fmtS(totalRevenue), fmtS(totalCost), fmtS(totalProfit), pct(totalMargin)],
@@ -629,11 +873,11 @@ export default function Reports() {
                 {uzsNote}
               </div>
               <ExportBtns
-                onExcel={() => saveSheet(productSalesData.map(r => ({
+                onExcel={() => exportSheet(productSalesData.map(r => ({
                   [t('reports.th.product')]: r.product_name, 'SKU': r.sku,
                   [t('reports.th.soldQty')]: r.sold_qty, [t('reports.th.returnedQty')]: r.returned_qty, [t('reports.th.netQty')]: r.total_qty,
                   [t('reports.th.revenue')]: r.total_revenue, [t('reports.th.profit')]: r.total_profit,
-                })), t('reports.tab.productSales'), `mahsulot_sotuv_${today()}.xlsx`)}
+                })), t('reports.tab.productSales'), 'mahsulot_sotuv')}
               />
             </div>
             {dateFilter}
@@ -742,7 +986,7 @@ export default function Reports() {
               {/* Header */}
               <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
                 <span className="text-sm font-bold text-slate-700">{`📦 ${t('reports.movementsReportTitle')}`}</span>
-                <button onClick={() => saveSheet(movementsData.map(m => ({
+                <button onClick={() => exportSheet(movementsData.map(m => ({
                     [t('reports.th.date')]: new Date(m.created_at).toLocaleString('uz-UZ'),
                     [t('reports.th.operation')]: getOp(m).label,
                     [t('reports.th.product')]: m.product_name,
@@ -751,9 +995,10 @@ export default function Reports() {
                     [t('reports.th.change')]: movementDelta(m),
                     [t('reports.th.qtyAfter')]: Number(m.qty_after),
                     [t('reports.th.contragent')]: m.contragent_name || '',
+                    [t('movements.warehouse')]: m.warehouse_name || '',
                     [t('reports.th.unit')]: m.product_unit || t('reports.unitPiece'),
                     [t('reports.th.user')]: m.user_name || '',
-                  })), t('reports.tab.movements'), `mahsulot_harakatlar_${today()}.xlsx`)}
+                  })), t('reports.tab.movements'), 'mahsulot_harakatlar')}
                   className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   {t('reports.excel')}
@@ -843,6 +1088,14 @@ export default function Reports() {
                       {REF_TYPES.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">{t('movements.warehouse')}</label>
+                    <select value={movWarehouseId} onChange={e => setMovWarehouseId(e.target.value)}
+                      className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="">{t('movements.allWarehouses')}</option>
+                      {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                  </div>
                   <button onClick={load} disabled={loading}
                     className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
                     {loading ? t('reports.loading') : `🔍 ${t('reports.search')}`}
@@ -879,7 +1132,7 @@ export default function Reports() {
                   <table className="min-w-full">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        {['#', t('reports.th.date'), t('reports.th.operation'), t('reports.productNameLabel'), t('reports.th.qtyBefore'), t('reports.th.change'), t('reports.th.qtyAfter'), t('reports.th.contragent'), t('reports.th.unit'), t('reports.whoLabel')].map(h => (
+                        {['#', t('reports.th.date'), t('reports.th.operation'), t('reports.productNameLabel'), t('reports.th.qtyBefore'), t('reports.th.change'), t('reports.th.qtyAfter'), t('reports.th.contragent'), t('movements.warehouse'), t('reports.th.unit'), t('reports.whoLabel')].map(h => (
                           <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -932,13 +1185,14 @@ export default function Reports() {
                             <td className="px-4 py-3 text-sm text-slate-500 max-w-[140px] truncate">
                               {m.contragent_name || <span className="text-slate-300">—</span>}
                             </td>
+                            <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{m.warehouse_name || <span className="text-slate-300">—</span>}</td>
                             <td className="px-4 py-3 text-xs text-slate-400">{m.product_unit || t('reports.unitPiece')}</td>
                             <td className="px-4 py-3 text-xs text-slate-400">{m.user_name || '—'}</td>
                           </tr>
                         );
                       })}
                       {movementsData.length === 0 && (
-                        <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-slate-400">{t('reports.noDataChangeFilters')}</td></tr>
+                        <tr><td colSpan={11} className="px-6 py-12 text-center text-sm text-slate-400">{t('reports.noDataChangeFilters')}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -959,7 +1213,7 @@ export default function Reports() {
               <ExportBtns
                 onPdf={() => {
                   if (!plData) return;
-                  printTable(t('reports.plTitleWithPeriod', { from: plData.period?.from, to: plData.period?.to }),
+                  exportPdf(t('reports.plTitleWithPeriod', { from: plData.period?.from, to: plData.period?.to }),
                     [t('reports.th.indicator'), t('reports.th.amount'), t('reports.th.percent')],
                     [
                       [t('reports.pl.grossRevenue'), fmtS(plData.gross_revenue), ''],
@@ -967,6 +1221,7 @@ export default function Reports() {
                       [t('reports.pl.netRevenue'), fmtS(plData.revenue), '100%'],
                       [t('reports.pl.cogsFifo'), fmtS(plData.cogs), pct(plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0)],
                       [t('finance.grossProfit'), fmtS(plData.gross_profit), pct(plData.gross_margin_pct)],
+                      [tf('reports.pl.otherIncome', 'Boshqa kirim'), fmtS(plData.other_income || 0), ''],
                       [t('reports.pl.expensesNegative'), fmtS(plData.expenses?.total), ''],
                       ...(plData.expenses?.by_category || []).map(c => [`  • ${c.name}`, fmtS(c.total), '']),
                       [t('finance.netProfit'), fmtS(plData.net_profit), pct(plData.net_margin_pct)],
@@ -989,6 +1244,7 @@ export default function Reports() {
                     { label: t('reports.pl.netRevenue'), value: plData.revenue, signed: true, cls: 'font-semibold text-slate-800', pctV: 100, bg: 'bg-slate-50' },
                     { label: t('reports.pl.cogsFifo'), value: plData.cogs, cls: 'text-red-500', pctV: plData.revenue > 0 ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
                     { label: t('finance.grossProfit'), value: plData.gross_profit, signed: true, cls: `font-bold ${plData.gross_profit >= 0 ? 'text-blue-600' : 'text-red-600'}`, pctV: plData.gross_margin_pct, bg: 'bg-blue-50' },
+                    { label: tf('reports.pl.otherIncome', 'Boshqa kirim'), value: plData.other_income || 0, cls: 'text-emerald-600', pctV: plData.revenue > 0 ? (plData.other_income || 0) / plData.revenue * 100 : 0, bg: '' },
                     { label: t('reports.pl.expensesNegative'), value: plData.expenses?.total || 0, cls: 'text-red-500', pctV: plData.revenue > 0 ? (plData.expenses?.total || 0) / plData.revenue * 100 : 0, bg: '' },
                     { label: t('finance.netProfit'), value: plData.net_profit, signed: true, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pctV: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
                   ].map(row => (
@@ -1021,6 +1277,81 @@ export default function Reports() {
           </>
         )}
 
+        {/* ── Filiallar taqqoslash (konsolidatsiya) ── */}
+        {tab === 'branches' && (() => {
+          const d = branchSummary;
+          const bsRows = d ? [...(d.rows || []), ...(d.unassigned ? [d.unassigned] : []), ...(d.total ? [d.total] : [])] : [];
+          const isTotal = (r) => !!d && r === d.total;
+          const nameOf = (r) => {
+            if (isTotal(r)) return t('reports.total');
+            if (r.branch_id === -1) return tf('reports.unassigned', 'Filialsiz');
+            return r.is_active === false ? `${r.branch_name} ${tf('reports.closedSuffix', '(yopilgan)')}` : r.branch_name;
+          };
+          const cols = [
+            [tf('reports.exportBranch', 'Filial'), null],
+            [tf('reports.bs.revenue', 'Tushum'), 'gross_revenue'],
+            [t('reports.th.salesCount'), 'check_count'],
+            [t('reports.th.avgCheck'), 'avg_check'],
+            [t('reports.th.returns'), 'returns'],
+            [t('reports.grossProfit'), 'gross_profit'],
+            [t('reports.tab.expenses'), 'expenses'],
+            [t('reports.netProfit'), 'net_profit'],
+          ];
+          const bsTitle = tf('reports.bs.title', 'Filiallar taqqoslash (konsolidatsiya)');
+          return (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+              <div>
+                <span className="text-base font-bold text-slate-800">{bsTitle}</span>
+                {uzsNote}
+              </div>
+              <ExportBtns
+                onExcel={() => d && exportSheet(bsRows.map(r => Object.fromEntries(
+                  cols.map(([h, k]) => [h, k ? r[k] : nameOf(r)]))), t('reports.tab.branches'), 'filiallar')}
+                onPdf={() => d && exportPdf(bsTitle,
+                  cols.map(([h]) => h),
+                  bsRows.map(r => cols.map(([, k]) => (k ? fmt(r[k]) : nameOf(r)))),
+                  null, t('common.print'))}
+              />
+            </div>
+            {dateFilter}
+            {d && d.reconciled === false && (
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs font-medium text-amber-800">
+                {tf('reports.reconcileWarning', "Diqqat: filiallar yig'indisi butun korxona natijasiga teng emas. Ba'zi yozuvlar hech bir guruhga bog'lanmagan.")}
+              </div>
+            )}
+            {loading ? <Spinner /> : d ? (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        {cols.map(([h], i) => (
+                          <th key={h} className={`px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {bsRows.map(r => (
+                        <tr key={isTotal(r) ? 'total' : r.branch_id}
+                          className={isTotal(r) ? 'bg-sky-50 font-bold' : r.branch_id === -1 ? 'bg-slate-50/60 text-slate-500 italic' : 'hover:bg-slate-50'}>
+                          {cols.map(([h, k], i) => (
+                            <td key={h} className={`px-5 py-3.5 text-sm tabular-nums ${i === 0 ? 'text-left text-slate-800' : 'text-right'} ${k === 'net_profit' && Number(r[k]) < 0 ? 'text-red-600' : ''}`}>
+                              {k ? fmt(r[k]) : nameOf(r)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="px-6 py-3 text-xs text-slate-400">{tf('reports.bs.debtNote', "Qarz ustuni hozircha qo'shilmagan: qarz modeli filial kesimida yuritilmaydi.")}</p>
+              </>
+            ) : <div className="py-12 text-center text-sm text-slate-400">{t('common.noData')}</div>}
+          </>
+          );
+        })()}
+
         {/* ── P&L Solishtirish (Ikki davr tahlili) ── */}
         {tab === 'pnl-compare' && (
           <>
@@ -1032,7 +1363,7 @@ export default function Reports() {
               </div>
               <ExportBtns
                 onExcel={() => {
-                  if (!pnlCompareData) return;
+                  if (!pnlCompareData?.rows) return;
                   const d = pnlCompareData;
                   const rows = [
                     { [t('reports.th.indicator')]: t('reports.realization'), [t('reports.p1Label')]: d.rows.gross_revenue?.p1, [t('reports.p2Label')]: d.rows.gross_revenue?.p2, [t('reports.diffAmount')]: d.rows.gross_revenue?.diff, [t('reports.diffPercent')]: d.rows.gross_revenue?.diff_pct ? `${d.rows.gross_revenue.diff_pct}%` : '—' },
@@ -1050,10 +1381,10 @@ export default function Reports() {
                     { [t('reports.th.indicator')]: t('reports.netProfit'), [t('reports.p1Label')]: d.rows.net_profit?.p1, [t('reports.p2Label')]: d.rows.net_profit?.p2, [t('reports.diffAmount')]: d.rows.net_profit?.diff, [t('reports.diffPercent')]: d.rows.net_profit?.diff_pct ? `${d.rows.net_profit.diff_pct}%` : '—' },
                     { [t('reports.th.indicator')]: t('reports.netMargin'), [t('reports.p1Label')]: `${d.rows.net_margin_pct?.p1}%`, [t('reports.p2Label')]: `${d.rows.net_margin_pct?.p2}%`, [t('reports.diffAmount')]: `${d.rows.net_margin_pct?.diff}%`, [t('reports.diffPercent')]: '—' },
                   ];
-                  saveSheet(rows, 'P&L_Solishtirish', `pnl_solishtirish_${today()}.xlsx`);
+                  exportSheet(rows, 'P&L_Solishtirish', 'pnl_solishtirish');
                 }}
                 onPdf={() => {
-                  if (!pnlCompareData) return;
+                  if (!pnlCompareData?.rows) return;
                   const d = pnlCompareData;
                   const printRows = [
                     [t('reports.realization'), fmtS(d.rows.gross_revenue?.p1), fmtS(d.rows.gross_revenue?.p2), fmtS(d.rows.gross_revenue?.diff), d.rows.gross_revenue?.diff_pct ? `${d.rows.gross_revenue.diff_pct}%` : '—'],
@@ -1068,7 +1399,7 @@ export default function Reports() {
                     [t('reports.netProfit'), fmtS(d.rows.net_profit?.p1), fmtS(d.rows.net_profit?.p2), fmtS(d.rows.net_profit?.diff), d.rows.net_profit?.diff_pct ? `${d.rows.net_profit.diff_pct}%` : '—'],
                     [t('reports.netMargin'), `${d.rows.net_margin_pct?.p1}%`, `${d.rows.net_margin_pct?.p2}%`, `${d.rows.net_margin_pct?.diff}%`, '—'],
                   ];
-                  printTable(t('reports.pnlCompareTitle'),
+                  exportPdf(t('reports.pnlCompareTitle'),
                     [t('reports.th.indicator'), `${t('reports.p1Label')} (${p1From} — ${p1To})`, `${t('reports.p2Label')} (${p2From} — ${p2To})`, t('reports.diffAmount'), t('reports.diffPercent')],
                     printRows, null, t('common.print')
                   );
@@ -1146,8 +1477,7 @@ export default function Reports() {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">💡</span>
                   <div>
-                    <h4 className="text-xs font-bold text-amber-900">Ushbu hisobot Distribyutor tariflariga mo'ljallangan</h4>
-                    <p className="text-[11px] text-amber-700 mt-0.5">Siz hozirda demo ko'rinishida ko'rmoqdasiz. To'liq va cheksiz analitika uchun Distribyutor paketiga ulaning.</p>
+                    <h4 className="text-xs font-bold text-amber-900">{tf('reports.pnlNotInTariff', "Bu hisobot tarifingizda yo'q. Foydalanish uchun tarifni yangilang.")}</h4>
                   </div>
                 </div>
                 <a href="/admin/tariffs" className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl whitespace-nowrap shadow-xs">
@@ -1156,7 +1486,12 @@ export default function Reports() {
               </div>
             )}
 
-            {loading ? <Spinner /> : pnlCompareData ? (
+            {/* T2.1/T2.2: 403/404 — sahifa ichidagi qisqa xabar */}
+            {!loading && !pnlCompareData && pnlCompareError && (
+              <div className="mx-6 mt-4 p-4 rounded-2xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">{pnlCompareError}</div>
+            )}
+
+            {loading ? <Spinner /> : pnlCompareData && pnlCompareData.has_access === false ? null : pnlCompareData ? (
               <div className="p-6 space-y-6">
                 {/* 4 Top KPI Cards */}
                 {pnlCompareData.tabs && (
@@ -1303,12 +1638,12 @@ export default function Reports() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
               <span className="text-sm font-semibold text-slate-700">{t('reports.cashierReportTitle')}</span>
               <ExportBtns
-                onExcel={() => saveSheet(cashierData.map(r => ({
+                onExcel={() => exportSheet(cashierData.map(r => ({
                   [t('shift.cashier')]: r.cashier_name, [t('reports.th.salesCount')]: r.sales_count,
                   [t('reports.th.returns')]: r.returns_count, [`${t('reports.th.returns')} (${t('reports.th.amount')})`]: fmtDebt(r.returns_amount),
                   [t('reports.th.totalAmount')]: fmtDebt(r.total_amount), [t('reports.th.avgCheck')]: fmtDebt(r.avg_check), [t('reports.th.discount')]: fmtDebt(r.total_discount),
-                })), t('shift.cashier'), `kassir_${today()}.xlsx`)}
-                onPdf={() => printTable(t('reports.cashierReportTitle'),
+                })), t('shift.cashier'), 'kassir')}
+                onPdf={() => exportPdf(t('reports.cashierReportTitle'),
                   [t('shift.cashier'), t('reports.th.salesCount'), t('reports.th.returns'), t('reports.th.totalAmount'), t('reports.th.avgCheck')],
                   cashierData.map(r => [r.cashier_name, r.sales_count, r.returns_count ? `${r.returns_count} (${fmtDebt(r.returns_amount)})` : '0', fmtDebt(r.total_amount), fmtDebt(r.avg_check)]),
                   null,
@@ -1365,6 +1700,10 @@ export default function Reports() {
           </>
         )}
 
+        {tab === 'commissions' && (
+          <CommissionsTab dateFrom={dateFrom} dateTo={dateTo} branchId={branchId} dateFilter={dateFilter} tf={tf} />
+        )}
+
         {/* ── O'lik stok ── */}
         {tab === 'deadstock' && (
           <>
@@ -1373,15 +1712,15 @@ export default function Reports() {
               <ExportBtns
                 onExcel={() => {
                   if (!deadStockData) return;
-                  saveSheet(deadStockData.items.map(i => ({
+                  exportSheet(deadStockData.items.map(i => ({
                     [t('reports.th.product')]: i.product_name, 'SKU': i.sku,
                     [t('reports.th.qty')]: i.quantity, [t('reports.th.cost')]: i.cost_price, [t('reports.th.value')]: i.value,
                     [t('reports.th.lastSold')]: i.last_sold_at ? new Date(i.last_sold_at).toLocaleDateString('uz-UZ') : t('reports.neverSold'),
-                  })), t('reports.tab.deadstock'), `olik_stok_${today()}.xlsx`);
+                  })), t('reports.tab.deadstock'), 'olik_stok');
                 }}
                 onPdf={() => {
                   if (!deadStockData) return;
-                  printTable(t('reports.deadStockReportTitle'),
+                  exportPdf(t('reports.deadStockReportTitle'),
                     [t('reports.th.product'), 'SKU', t('reports.th.qty'), t('reports.th.cost'), t('reports.th.value'), t('reports.th.lastSold')],
                     deadStockData.items.map(i => [i.product_name, i.sku, fmt(i.quantity), fmtS(i.cost_price), fmtS(i.value),
                       i.last_sold_at ? new Date(i.last_sold_at).toLocaleDateString('uz-UZ') : t('reports.neverSold')]),
@@ -1457,14 +1796,14 @@ export default function Reports() {
               <ExportBtns
                 onExcel={() => {
                   if (!expenseData) return;
-                  saveSheet(expenseData.items.map(e => ({
+                  exportSheet(expenseData.items.map(e => ({
                     [t('reports.th.category')]: e.category, [t('reports.th.amount')]: e.amount,
                     [t('reports.th.comment')]: e.description, [t('reports.th.date')]: new Date(e.created_at).toLocaleDateString('uz-UZ'),
-                  })), t('reports.tab.expenses'), `xarajatlar_${today()}.xlsx`);
+                  })), t('reports.tab.expenses'), 'xarajatlar');
                 }}
                 onPdf={() => {
                   if (!expenseData) return;
-                  printTable(t('reports.expensesReportTitle'),
+                  exportPdf(t('reports.expensesReportTitle'),
                     [t('reports.th.category'), t('reports.th.amount'), t('reports.th.comment'), t('reports.th.date')],
                     expenseData.items.map(e => [e.category, fmtS(e.amount), e.description, new Date(e.created_at).toLocaleDateString('uz-UZ')]),
                     [t('reports.total'), fmtS(expenseData.total), '', ''],
@@ -1516,11 +1855,11 @@ export default function Reports() {
                 {uzsNote}
               </div>
               <ExportBtns
-                onExcel={() => saveSheet(purchasesData.map(r => ({
+                onExcel={() => exportSheet(purchasesData.map(r => ({
                   [t('purchase.supplier')]: r.supplier_name, [t('common.phone')]: r.phone,
                   [t('reports.th.poCount')]: r.po_count, [t('reports.th.totalAmount')]: r.total_amount,
-                })), t('reports.tab.purchases'), `xaridlar_${today()}.xlsx`)}
-                onPdf={() => printTable(t('reports.purchasesReportTitle'),
+                })), t('reports.tab.purchases'), 'xaridlar')}
+                onPdf={() => exportPdf(t('reports.purchasesReportTitle'),
                   [t('purchase.supplier'), t('common.phone'), t('reports.th.poCount'), t('reports.th.totalAmount')],
                   purchasesData.map(r => [r.supplier_name, r.phone, r.po_count, fmtS(r.total_amount)]),
                   [t('reports.total'), '', sumBy(purchasesData, 'po_count'), fmtS(sumBy(purchasesData, 'total_amount'))],
@@ -1575,15 +1914,15 @@ export default function Reports() {
                 onExcel={() => {
                   if (!customerDebts) return;
                   const codes = Object.keys(customerDebts.total_debt || {});
-                  saveSheet(customerDebts.items.map(c => ({
+                  exportSheet(customerDebts.items.map(c => ({
                     [t('sale.customer')]: c.customer_name, [t('common.phone')]: c.phone,
                     ...Object.fromEntries(codes.map(code => [`${t('reports.th.debt')} (${curLabel(code)})`, c.debts?.[code] || 0])),
                     [t('reports.th.limit')]: c.debt_limit, [t('reports.th.usagePct')]: c.usage_pct ?? '',
-                  })), t('reports.tab.customerDebts'), `debitorlar_${today()}.xlsx`);
+                  })), t('reports.tab.customerDebts'), 'debitorlar');
                 }}
                 onPdf={() => {
                   if (!customerDebts) return;
-                  printTable(t('reports.customerDebtsTitle'),
+                  exportPdf(t('reports.customerDebtsTitle'),
                     [t('sale.customer'), t('common.phone'), t('reports.th.debt'), t('reports.th.limit'), t('reports.th.usage')],
                     customerDebts.items.map(c => [c.customer_name, c.phone, fmtDebt(c.debts), c.debt_limit > 0 ? fmtS(c.debt_limit) : '—', c.usage_pct == null ? '—' : pct(c.usage_pct)]),
                     [t('reports.total'), '', fmtDebt(customerDebts.total_debt), '', ''],
@@ -1649,15 +1988,15 @@ export default function Reports() {
                 onExcel={() => {
                   if (!supplierDebts) return;
                   const codes = Object.keys(supplierDebts.total_debt || {});
-                  saveSheet(supplierDebts.items.map(s => ({
+                  exportSheet(supplierDebts.items.map(s => ({
                     [t('purchase.supplier')]: s.supplier_name, [t('common.phone')]: s.phone,
                     ...Object.fromEntries(codes.map(code => [`${t('reports.th.debt')} (${curLabel(code)})`, s.debts?.[code] || 0])),
                     [t('finance.paymentTerms')]: `${s.payment_terms ?? 0} ${t('reports.daysUnit')}`,
-                  })), t('reports.tab.supplierDebts'), `kreditorlar_${today()}.xlsx`);
+                  })), t('reports.tab.supplierDebts'), 'kreditorlar');
                 }}
                 onPdf={() => {
                   if (!supplierDebts) return;
-                  printTable(t('reports.supplierDebtsTitle'),
+                  exportPdf(t('reports.supplierDebtsTitle'),
                     [t('purchase.supplier'), t('common.phone'), t('reports.th.debt'), t('finance.paymentTerms')],
                     supplierDebts.items.map(s => [s.supplier_name, s.phone, fmtDebt(s.debts), `${s.payment_terms ?? 0} ${t('reports.daysUnit')}`]),
                     [t('reports.total'), '', fmtDebt(supplierDebts.total_debt), ''],
@@ -1712,12 +2051,12 @@ export default function Reports() {
                 <p className="text-xs text-slate-400 mt-0.5">{t('reports.abcXyzLegend')}</p>
               </div>
               <ExportBtns
-                onExcel={() => saveSheet(abcData.map(r => ({
+                onExcel={() => exportSheet(abcData.map(r => ({
                   [t('reports.th.product')]: r.product_name, 'SKU': r.sku,
                   [t('reports.th.revenue')]: r.revenue, [t('reports.th.frequency')]: r.frequency, [t('reports.th.qty')]: r.qty,
                   'ABC': r.abc, 'XYZ': r.xyz, [t('reports.th.group')]: r.group,
-                })), 'ABC-XYZ', `abc_xyz_${today()}.xlsx`)}
-                onPdf={() => printTable(t('reports.abcXyzTitle'),
+                })), 'ABC-XYZ', 'abc_xyz')}
+                onPdf={() => exportPdf(t('reports.abcXyzTitle'),
                   [t('reports.th.product'), t('reports.th.revenue'), t('reports.th.frequency'), 'ABC', 'XYZ', t('reports.th.group')],
                   abcData.map(r => [r.product_name, fmtS(r.revenue), r.frequency, r.abc, r.xyz, r.group]),
                   null,
@@ -1779,13 +2118,13 @@ export default function Reports() {
                 <p className="text-xs text-slate-400 mt-0.5">{t('reports.batchesDesc')}</p>
               </div>
               <ExportBtns
-                onExcel={() => saveSheet(batchData.map(r => ({
+                onExcel={() => exportSheet(batchData.map(r => ({
                   [t('reports.th.product')]: r.product_name, Lot: r.lot_number,
                   [t('reports.th.cost')]: r.purchase_price, [t('reports.th.initialQty')]: r.initial_quantity,
                   [t('reports.th.remaining')]: r.remaining_quantity, [t('reports.th.sold')]: r.sold_qty,
                   [t('reports.th.revenue')]: r.revenue, [t('reports.th.profit')]: r.profit, [t('reports.th.marginPct')]: r.margin_pct,
-                })), t('reports.tab.batches'), `partiyalar_${today()}.xlsx`)}
-                onPdf={() => printTable(t('reports.batchesFifoTitle'),
+                })), t('reports.tab.batches'), 'partiyalar')}
+                onPdf={() => exportPdf(t('reports.batchesFifoTitle'),
                   [t('reports.th.product'), 'Lot', t('reports.th.cost'), t('reports.th.remaining'), t('reports.th.sold'), t('reports.th.revenue'), t('reports.th.profit')],
                   batchData.map(r => [r.product_name, r.lot_number, fmtS(r.purchase_price), fmt(r.remaining_quantity), fmt(r.sold_qty), fmtS(r.revenue), fmtS(r.profit)]),
                   [t('reports.total'), '', '', '', fmt(sumBy(batchData, 'sold_qty')), fmtS(sumBy(batchData, 'revenue')), fmtS(sumBy(batchData, 'profit'))],

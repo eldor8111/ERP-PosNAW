@@ -3,9 +3,10 @@ export const PERMISSIONS = {
   customers: { label: 'Mijozlar', desc: "Mijozlar ro'yxati va qarzlari" },
   sotuv: { label: 'Sotuv (POS)', desc: "POS va Chakana savdo oynasi" },
   shifts: { label: 'Smenalar', desc: "Kassir smenalarini boshqarish" },
-  filiallar: { label: 'Filiallar', desc: "Filiallar o'rtasida tovar ko'chirish" },
+  filiallar: { label: 'Filiallar', desc: "Filiallar sahifasi: filial va omborlarni boshqarish" },
   purchases: { label: "Xarid va Ta'minotchilar", desc: "Yangi mol kelishi va ta'minotchilar bilan hisob-kitob" },
   warehouse: { label: 'Omborxona', desc: "Ombordagi tovarlar qoldig'i va harakati" },
+  ombor: { label: "Ombor va ko'chirish", desc: "Omborlar, qoldiq va omborlar o'rtasida tovar ko'chirish" },
   operations: { label: 'Operatsiyalar', desc: "Barcha operatsiyalar (Tranzaksiyalar) tarixi" },
   finance: { label: 'Moliya', desc: "Moliyaviy ko'rsatkichlar va foyda/zarar" },
   'chiqim-tolovlar': { label: "Chiqim to'lovlar", desc: "Kassadan qilingan barcha chiqimlar" },
@@ -15,4 +16,5 @@ export const PERMISSIONS = {
   employees: { label: 'Xodimlar', desc: "Xodimlarni qo'shish va huquqlarini sozlash" },
   settings: { label: 'Sozlamalar', desc: "Do'kon va kvitansiya sozlamalari" },
   tariflar: { label: 'Tariflar', desc: "Tizim tariflari va to'lovlar tarixi" },
+  approvals: { label: 'Tasdiqlashlar', desc: "Chegirma, xarajat va qaytarishni tasdiqlash" },
 };

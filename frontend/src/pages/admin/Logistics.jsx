@@ -15,6 +15,8 @@ const inputCls = 'w-full px-3 py-2.5 border border-line rounded-xl text-sm bg-su
 const ROUTE_COLOR = { planned: 'neutral', in_progress: 'warning', completed: 'success', cancelled: 'danger' };
 const STOP_COLOR = { pending: 'neutral', confirmed: 'neutral', preparing: 'neutral', assigned: 'brand', on_way: 'warning', delivered: 'success', cancelled: 'danger' };
 const FUEL_TYPES = ['petrol', 'diesel', 'gas', 'electric'];
+// Yangi kalit eski tilda bo'lmasa zaxira matn ko'rsatiladi
+const tfWith = (t) => (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 
 function Modal({ title, onClose, children, wide }) {
   return (
@@ -62,6 +64,11 @@ function StopRow({ stop, index, t, children }) {
             </a>
           )}
         </div>
+        {stop.pickup_branch_name && (
+          <div className="text-xs text-ink-500 mt-0.5 truncate">
+            🏬 {tfWith(t)('logistics.pickupBranch', 'Olib ketish')}: <b>{stop.pickup_branch_name}</b>{stop.pickup_address ? `, ${stop.pickup_address}` : ''}
+          </div>
+        )}
         {stop.planned_date && <div className="text-[11px] text-ink-300 mt-0.5">📅 {stop.planned_date}{stop.note ? ` · ${stop.note}` : ''}</div>}
         <div className="text-xs text-ink-300 mt-0.5 flex items-center gap-3 flex-wrap">
           {stop.phone && <span className="flex items-center gap-1"><Phone className="size-3" />{stop.phone}</span>}
@@ -91,22 +98,31 @@ const IconBtn = ({ onClick, disabled, title, children, danger }) => (
 );
 
 /* ── Yangi marshrut ─────────────────────────────────────────────────────── */
-function CreateRouteModal({ couriers, vehicles, onClose, onCreated }) {
+function CreateRouteModal({ couriers, vehicles, branches, onClose, onCreated }) {
   const { t } = useLang();
+  const tf = tfWith(t);
   const [available, setAvailable] = useState(null);
+  const [known, setKnown] = useState({}); // filtr almashganda ham tanlangan to'xtovlar ko'rinib turishi uchun
+  const [branchFilter, setBranchFilter] = useState('');
   const [selected, setSelected] = useState([]); // tartiblangan group_key'lar
-  const [form, setForm] = useState({ route_date: today(), courier_id: '', vehicle_id: '', note: '' });
+  const [form, setForm] = useState({ route_date: today(), courier_id: '', vehicle_id: '', origin_branch_id: '', note: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.get('/logistics/available-orders').then(r => setAvailable(r.data)).catch(() => setAvailable([]));
-  }, []);
+    setAvailable(null);
+    api.get('/logistics/available-orders', { params: branchFilter ? { branch_id: branchFilter } : {} })
+      .then(r => { setAvailable(r.data); setKnown(k => ({ ...k, ...Object.fromEntries(r.data.map(a => [a.group_key, a])) })); })
+      .catch(() => setAvailable([]));
+  }, [branchFilter]);
 
-  const byKey = Object.fromEntries((available || []).map(a => [a.group_key, a]));
+  const byKey = known;
   const toggle = (k) => setSelected(s => s.includes(k) ? s.filter(x => x !== k) : [...s, k]);
   const onCourier = (id) => {
     const c = couriers.find(x => String(x.id) === id);
-    setForm(f => ({ ...f, courier_id: id, vehicle_id: c?.vehicle_id ? String(c.vehicle_id) : f.vehicle_id }));
+    setForm(f => ({
+      ...f, courier_id: id, vehicle_id: c?.vehicle_id ? String(c.vehicle_id) : f.vehicle_id,
+      origin_branch_id: f.origin_branch_id || (c?.branch_id ? String(c.branch_id) : ''),
+    }));
   };
 
   const submit = async () => {
@@ -117,9 +133,12 @@ function CreateRouteModal({ couriers, vehicles, onClose, onCreated }) {
         route_date: form.route_date,
         courier_id: Number(form.courier_id),
         vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null,
+        origin_branch_id: form.origin_branch_id ? Number(form.origin_branch_id) : null,
         note: form.note || null,
         group_keys: selected,
       });
+      // Boshqa filial buyurtmalari bo'lsa rad etilmaydi, faqat ogohlantiriladi
+      if (data.warnings?.length) toast(data.warnings.join('\n'), { icon: '⚠️', duration: 9000 });
       onCreated(data);
     } catch (e) { toast.error(errMsg(e, t)); }
     finally { setSaving(false); }
@@ -147,6 +166,23 @@ function CreateRouteModal({ couriers, vehicles, onClose, onCreated }) {
             </select>
           </Field>
         </div>
+
+        {branches.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={tf('logistics.originBranch', "Boshlang'ich filial")}>
+              <select value={form.origin_branch_id} onChange={e => setForm(f => ({ ...f, origin_branch_id: e.target.value }))} className={inputCls}>
+                <option value="">—</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+            <Field label={tf('logistics.branchFilter', 'Buyurtmalar filiali')}>
+              <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className={inputCls}>
+                <option value="">{t('common.allBranches')}</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
@@ -222,6 +258,7 @@ function RouteDetailModal({ route: initial, onClose, onChanged }) {
           <Badge color={ROUTE_COLOR[route.status]}>{t(`logistics.status.${route.status}`)}</Badge>
           <span className="text-ink-500">{route.route_date}</span>
           <span className="flex items-center gap-1.5 text-ink-900 font-medium"><Truck className="size-4 text-ink-300" />{route.courier_name}{route.vehicle_plate ? ` · ${route.vehicle_plate}` : ''}</span>
+          {route.origin_branch_name && <span className="text-ink-500">🏬 {tfWith(t)('logistics.originBranch', "Boshlang'ich filial")}: <b className="text-ink-900">{route.origin_branch_name}</b></span>}
           <span className="text-ink-500 tabular-nums">{route.stops_delivered}/{route.stops_total} {t('logistics.delivered')}</span>
           <span className="text-ink-500 tabular-nums">{t('logistics.toCollect')}: <b className="text-ink-900">{fmt(route.total_collect ?? route.total_amount + route.total_fee)}</b></span>
         </div>
@@ -276,7 +313,7 @@ function RouteDetailModal({ route: initial, onClose, onChanged }) {
 }
 
 /* ── Marshrutlar tab ────────────────────────────────────────────────────── */
-function RoutesTab({ couriers, vehicles }) {
+function RoutesTab({ couriers, vehicles, branches }) {
   const { t } = useLang();
   const [date, setDate] = useState(today());
   const [routes, setRoutes] = useState(null);
@@ -323,7 +360,7 @@ function RoutesTab({ couriers, vehicles }) {
       />
 
       {showCreate && (
-        <CreateRouteModal couriers={couriers} vehicles={vehicles} onClose={() => setShowCreate(false)}
+        <CreateRouteModal couriers={couriers} vehicles={vehicles} branches={branches} onClose={() => setShowCreate(false)}
           onCreated={(r) => { setShowCreate(false); setDate(r.route_date); load(); setDetail(r); }} />
       )}
       {detail && <RouteDetailModal key={detail.id} route={detail} onClose={() => setDetail(null)} onChanged={load} />}
@@ -425,12 +462,14 @@ export default function Logistics() {
   const [tab, setTab] = useState('routes');
   const [couriers, setCouriers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [branches, setBranches] = useState([]);
 
   const loadVehicles = useCallback(() => {
     api.get('/logistics/vehicles').then(r => setVehicles(r.data)).catch(() => {});
   }, []);
   useEffect(() => {
     api.get('/couriers').then(r => setCouriers(r.data)).catch(() => {});
+    api.get('/branches', { _suppressToast: true }).then(r => setBranches((r.data || []).filter(b => b.is_active !== false))).catch(() => {});
     loadVehicles();
   }, [loadVehicles]);
 
@@ -455,7 +494,7 @@ export default function Logistics() {
         ))}
       </div>
 
-      {tab === 'routes' && <RoutesTab couriers={couriers} vehicles={vehicles} />}
+      {tab === 'routes' && <RoutesTab couriers={couriers} vehicles={vehicles} branches={branches} />}
       {tab === 'vehicles' && <VehiclesTab vehicles={vehicles} reload={loadVehicles} />}
     </div>
   );

@@ -2,11 +2,25 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { useLang } from '../../context/LangContext';
+import { useBranch } from '../../context/BranchContext';
+
+// T2.9: kalit lug'atga hali qo'shilmagan bo'lsa - o'zbekcha zaxira matn
+const tfWith = (t, key, fallback, vars) => {
+  const s = t(key, vars);
+  if (s !== key) return s;
+  return Object.entries(vars || {}).reduce((acc, [k, v]) => acc.replace(`{${k}}`, v ?? ''), fallback);
+};
 
 // ─── Markdown-light renderer ──────────────────────────────────────────────
 function renderText(text) {
   if (!text) return '';
-  return text
+  // XSS himoyasi: avval HTML belgilarini escape qilamiz, keyin faqat o'zimizning teglarni qo'shamiz
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/\n/g, '<br/>');
@@ -81,21 +95,25 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, supplier_id: supplierId ? Number(supplierId) : null } : it));
   };
 
+  // T2.9: qoralama omborlar kesimida kelsa - har elementda ombor bor, umumiy tanlagich kerak emas
+  const itemsHaveWarehouse = items.length > 0 && items.every(it => it.warehouse_id);
+
   const allHaveSupplier = items.every(it => it.supplier_id);
   const totalCost = items.reduce((s, it) => s + (Number(it.unit_cost) || 0) * (Number(it.suggested_qty) || 0), 0);
 
   const submit = async () => {
-    if (!warehouseId) { toast.error(t('aiCopilot.selectWarehouse')); return; }
+    if (!itemsHaveWarehouse && !warehouseId) { toast.error(t('aiCopilot.selectWarehouse')); return; }
     if (!allHaveSupplier) { toast.error(t('aiCopilot.selectSupplierForAll')); return; }
     setSubmitting(true);
     try {
       const res = await api.post('/ai/actions/purchase-order', {
-        warehouse_id: Number(warehouseId),
+        warehouse_id: itemsHaveWarehouse ? Number(items[0].warehouse_id) : Number(warehouseId),
         items: items.map(it => ({
           product_id: it.product_id,
           quantity: it.suggested_qty,
           unit_cost: it.unit_cost,
           supplier_id: it.supplier_id,
+          ...(it.warehouse_id ? { warehouse_id: Number(it.warehouse_id) } : {}),
         })),
       });
       onDone(msgId, res.data.reply);
@@ -112,9 +130,12 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
       <div className="font-bold text-blue-700 text-xs mb-2">📋 {t('aiCopilot.poDraftTitle', { count: items.length })}</div>
       <div className="max-h-56 overflow-y-auto space-y-1.5 mb-3">
         {items.map((it, idx) => (
-          <div key={it.product_id} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2">
+          <div key={`${it.product_id}-${it.warehouse_id || 0}`} className="bg-white rounded-lg border border-slate-200 px-2.5 py-2 flex items-center gap-2">
             <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-slate-700 truncate">{it.product_name}</div>
+              {it.warehouse_name && (
+                <div className="text-[10px] text-blue-500 truncate">{tfWith(t, 'aiCopilot.poWarehouse', 'Ombor: {name}', { name: it.warehouse_name })}</div>
+              )}
               <div className="text-[10px] text-slate-400">{t('aiCopilot.qtyTimesPrice', { qty: it.suggested_qty, price: fmtSom(it.unit_cost) })}</div>
             </div>
             {it.supplier_name ? (
@@ -133,11 +154,13 @@ function PurchaseOrderDraftPanel({ action, msgId, onDone }) {
         ))}
       </div>
       <div className="flex items-center gap-2 mb-3">
-        <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none">
-          <option value="">{t('aiCopilot.warehousePlaceholder')}</option>
-          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-        </select>
-        <span className="text-xs font-bold text-slate-600 whitespace-nowrap">{t('aiCopilot.approxTotal', { amount: fmtSom(totalCost) })}</span>
+        {!itemsHaveWarehouse && (
+          <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none">
+            <option value="">{t('aiCopilot.warehousePlaceholder')}</option>
+            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        )}
+        <span className={`text-xs font-bold text-slate-600 whitespace-nowrap ${itemsHaveWarehouse ? 'flex-1' : ''}`}>{t('aiCopilot.approxTotal', { amount: fmtSom(totalCost) })}</span>
       </div>
       <button
         onClick={submit}
@@ -292,6 +315,9 @@ const QUICK_PROMPTS = [
 // ─── Main Component ───────────────────────────────────────────────────────
 export default function AICopilot() {
   const { t } = useLang();
+  const { assignedBranchId, currentBranchId } = useBranch();
+  const [branches, setBranches] = useState([]);
+  const [branchId, setBranchId] = useState(() => (currentBranchId ? String(currentBranchId) : ''));
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -314,14 +340,24 @@ export default function AICopilot() {
 
   useEffect(() => { scrollToBottom(); }, [messages, loading]);
 
-  // Load stats on mount
+  // Filialga bog'lanmagan foydalanuvchi uchun filial tanlagich
+  useEffect(() => {
+    if (assignedBranchId) return;
+    api.get('/branches', { _suppressToast: true })
+      .then(r => setBranches((Array.isArray(r.data) ? r.data : []).filter(b => b.is_active !== false)))
+      .catch(() => {});
+  }, [assignedBranchId]);
+
+  // Load stats on mount and when the branch scope changes
   useEffect(() => {
     const loadStats = async () => {
+      setStatsLoading(true);
+      const params = branchId ? { branch_id: Number(branchId) } : {};
       try {
         const [summaryRes, debtRes, recRes] = await Promise.all([
-          api.get('/ai/daily-summary').catch(() => null),
-          api.get('/ai/debt-analytics').catch(() => null),
-          api.get('/ai/recommendations').catch(() => null),
+          api.get('/ai/daily-summary', { params }).catch(() => null),
+          api.get('/ai/debt-analytics', { params }).catch(() => null),
+          api.get('/ai/recommendations', { params }).catch(() => null),
         ]);
         if (summaryRes) setStats(summaryRes.data);
         if (debtRes) setDebtStats(debtRes.data);
@@ -333,7 +369,9 @@ export default function AICopilot() {
       }
     };
     loadStats();
-  }, []);
+  }, [branchId]);
+
+  const scopeLabel = stats?.scope?.label || tfWith(t, 'aiCopilot.scopeAll', 'Butun korxona', {});
 
   // Send message
   const sendMessage = async (text) => {
@@ -354,6 +392,7 @@ export default function AICopilot() {
       const res = await api.post('/ai/chat', {
         message: trimmed,
         conversation_id: conversationId,
+        ...(branchId ? { branch_id: Number(branchId) } : {}),
       });
       const data = res.data;
 
@@ -522,6 +561,20 @@ export default function AICopilot() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
+            {tfWith(t, 'aiCopilot.scopeBadge', 'Doira: {scope}', { scope: scopeLabel })}
+          </span>
+          {!assignedBranchId && branches.length > 0 && (
+            <select
+              value={branchId}
+              onChange={e => setBranchId(e.target.value)}
+              title={tfWith(t, 'aiCopilot.scopeSelect', 'Filialni tanlang', {})}
+              className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none bg-white"
+            >
+              <option value="">{tfWith(t, 'aiCopilot.scopeAll', 'Butun korxona', {})}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
           <button
             onClick={clearChat}
             className="text-xs text-slate-500 hover:text-red-500 bg-slate-50 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-slate-200 font-medium transition-all flex items-center gap-1.5"
@@ -558,7 +611,7 @@ export default function AICopilot() {
             loading={statsLoading}
             label={t('aiCopilot.totalDebts')}
             value={debtStats ? `${fmt(debtStats.total_debt)} ${t('purchase.somUnit')}` : '—'}
-            sub={debtStats ? t('aiCopilot.debtorsCount', { count: debtStats.total_debtors || 0 }) : ''}
+            sub={debtStats ? `${t('aiCopilot.debtorsCount', { count: debtStats.total_debtors || 0 })} · ${tfWith(t, 'aiCopilot.debtAllCompany', 'butun korxona', {})}` : ''}
             icon={<svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard

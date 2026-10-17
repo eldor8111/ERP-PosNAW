@@ -7,95 +7,30 @@ import { toast } from '../../utils/toast';
 import api from '../../api/axios';
 import { getReceiptSettings, saveReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import { useActiveShift } from '../../hooks/useActiveShift';
+import CustomerPicker from '../../components/CustomerPicker';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
-import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
+import ShiftCloseModal from '../../components/ShiftCloseModal';
 import { registerReceipt, fiscalizeAndPrint } from '../../api/hippoLocal';
+import { parseScaleBarcode, findScaleProduct } from '../../utils/scale';
+import { useApprovalFlow, ApprovalModal } from './Approvals'; // T4.6: menejer tasdig'i
 
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const cleanNum = (str) => Number(String(str).replace(/\D/g, ''));
 const parseAmt = (str) => parseInt(String(str || '').replace(/\D/g, ''), 10) || 0;
+// Sodiqlik kartasi: faqat raqamlar (server app/utils/loyalty_card.py normalize_card bilan bir xil)
+const normCard = (s) => String(s || '').replace(/\D/g, '');
 
-/* ── Customer combobox ── */
-function CustSearch({ customers, value, onChange, placeholder }) {
-  const { t } = useLang();
-  const ph = placeholder || t('pos.customerSearch');
-const [q, setQ] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const selected = customers.find(c => String(c.id) === String(value));
-  const filtered = q.trim()
-    ? customers.filter(c => matchesSearch(c.name, q) || (c.phone && c.phone.includes(q)) || (c.card_number && c.card_number.includes(q))).slice(0, 12)
-    : customers.slice(0, 12);
-
-  useEffect(() => {
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  const select = (c) => { onChange(c ? c.id : ''); setQ(''); setOpen(false); };
-
-  const handleInputChange = (e) => {
-    const input = e.target.value;
-    setQ(input);
-    setOpen(true);
-    if (!input) {
-      onChange('');
-      return;
-    }
-    // Agar barcode bo'lsa (13 raqam), avtomatik topib select qil
-    if (/^\d{13}$/.test(input)) {
-      const match = customers.find(c => c.card_number === input);
-      if (match) {
-        select(match);
-        return;
-      }
-    }
-  };
-
-  return (
-    <div className="relative w-full" ref={ref}>
-      <div className="flex items-center border-[2px] border-slate-300 rounded-xl bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/20 transition-all pr-2">
-        <div className="pl-3 text-slate-400">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-        </div>
-        <input
-          value={open ? q : (selected ? selected.name : '')}
-          onChange={handleInputChange}
-          onFocus={() => setOpen(true)}
-          placeholder={ph}
-          className="w-full px-3 py-3 text-base font-bold text-slate-700 outline-none bg-transparent placeholder:text-slate-400"
-        />
-        {selected && <button onClick={() => select(null)} className="text-slate-400 hover:text-red-500 font-bold p-1">×</button>}
-      </div>
-      {open && (
-        <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">{t('pos.customerNotFound')}</div> : filtered.map(c => (
-            <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
-              <div>
-                <div className="text-sm font-bold text-slate-800">{c.name}</div>
-                {c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}
-              </div>
-              {hasAnyDebt(c) && (
-                <div className="flex flex-col items-end gap-1">
-                  {getDebtEntries(c).map(({ currency, amount }) => (
-                    <span key={currency} className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">
-                      {t('common.debt')}: {fmt(amount)} {currency}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+/* Mijoz tanlash: T3.8 — serverdagi qidiruv (components/CustomerPicker.jsx); `customers` — oflayn zaxira */
 
 export default function PosKassa() {
   const { t } = useLang();
+  // Kalit lug'atda bo'lmasa o'zbekcha zaxira matn (T2.12 kalitlari umumiy lug'atga keyin qo'shiladi)
+  const tf = (key, fallback, vars) => {
+    const s = t(key, vars);
+    if (s !== key) return s;
+    return Object.entries(vars || {}).reduce((a, [k, v]) => a.split(`{${k}}`).join(String(v)), fallback);
+  };
 const navigate = useNavigate();
   // Keshdan darhol o'qish — faqat joriy foydalanuvchi company_id ga mos kelsa
   const currentUser = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
@@ -111,7 +46,17 @@ const navigate = useNavigate();
     } catch { return []; }
   };
 
-  const [products, setProducts] = useState(() => readCache('pos_cache_products'));
+  // T1.17: qoldiq tanlangan ombor (filial) bo'yicha; kesh kaliti korxona/filial/ombor bilan ajratiladi
+  const branchKey = (() => { try { return localStorage.getItem('current_branch_id') || ''; } catch { return ''; } })();
+  const whMemKey = `pos_warehouse:${currentCompanyId ?? ''}:${branchKey}`;
+  const [warehouseId, setWarehouseId] = useState(() => { try { return localStorage.getItem(whMemKey) || ''; } catch { return ''; } });
+  const [posWarehouses, setPosWarehouses] = useState([]);
+  const [posBranchId, setPosBranchId] = useState(null);   // T3.18: terminal tanlash uchun joriy filial
+  // T4.2: filial rekvizitlari va filial chek shabloni — server javobini (yoki oflayn navbatni) kutmasdan chop etish uchun
+  const [branchInfo, setBranchInfo] = useState(() => {
+    try { return branchKey ? JSON.parse(localStorage.getItem(`pos_branch_info:${currentCompanyId ?? ''}:${branchKey}`) || 'null') : null; } catch { return null; }
+  });
+  const [products, setProducts] = useState(() => readCache(`pos_cache_products:${currentCompanyId ?? ''}:${branchKey}:${warehouseId}`));
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState(() => readCache('pos_cache_categories'));
   const [refreshing, setRefreshing] = useState(false);
@@ -119,9 +64,14 @@ const navigate = useNavigate();
   // Savat va UI holatlari
   const [cart, setCart] = useState([]);
   const [custId, setCustId] = useState('');
+  // T3.19: tanlangan mijozning individual narxlari { [product_id]: price }
+  const [custPrices, setCustPrices] = useState({});
   // Tanlangan mijozning YANGI (backenddan) qarz malumoti - ro'yxatdagi
   // nusxa sahifa ochilgandagi holat bolib, eskirgan bolishi mumkin.
   const [freshCust, setFreshCust] = useState(null);
+  // Keshbek / ball bilan to'lash (T2.12): so'm va ball miqdori (matn)
+  const [redeemCash, setRedeemCash] = useState('');
+  const [redeemPts, setRedeemPts] = useState('');
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [variantParent, setVariantParent] = useState(null);
@@ -131,18 +81,17 @@ const navigate = useNavigate();
   const [isPaying, setIsPaying] = useState(false);
 
   // Buyurtma raqami generatori
-  const orderIdRef = useRef(Math.floor(Math.random() * 900000) + 100000);
-  const [orderId, setOrderId] = useState(() => orderIdRef.current);
 
   // Yangi mahsulot qo'shish modali
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [newProd, setNewProd] = useState({ name:'', barcode:'', sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
   const [savingProd, setSavingProd] = useState(false);
-  const { hasShift, reload: reloadShift } = useActiveShift();
+  const { shift: activeShift, hasShift, reload: reloadShift } = useActiveShift();
   const [showShiftModal, setShowShiftModal] = useState(false);
+  const [showShiftClose, setShowShiftClose] = useState(false);   // T3.1: POS ichidan smenani yopish
 
   // Sync hooks
-  const { isOnline, submitSaleOrQueue, fetchProducts, fetchCustomers, fetchCategories } = usePosSync({
+  const { isOnline, syncing, pendingCount, submitSaleOrQueue, fetchProducts, fetchPosContext, fetchCustomers, fetchCategories } = usePosSync({
     onSyncSuccess: (count) => {
       toast.success(`✅ ${t('pos.offlineSalesSynced', { count })}`);
     },
@@ -157,6 +106,23 @@ const navigate = useNavigate();
     }
   });
 
+  // T4.3: narx filiali — ombor tanlangan bo'lsa server uning filialidan oladi, aks holda kassir filiali (branch_id)
+  const posPriceParams = (wid, bid) => (wid ? { warehouse_id: wid } : (bid ? { branch_id: bid } : {}));
+
+  // Ombor almashtirish: qoldiq yangi ombor bo'yicha qayta yuklanadi, savatdagi max_stock yangilanadi
+  const changeWarehouse = (wid) => {
+    setWarehouseId(wid);
+    try { if (wid) localStorage.setItem(whMemKey, wid); else localStorage.removeItem(whMemKey); } catch { /* ignore */ }
+    setRefreshing(true);
+    fetchProducts(posPriceParams(wid, posBranchId)).then(prods => {
+      setProducts(prods);
+      setCart(prev => prev.map(i => {
+        const p = prods.find(x => x.id === i.product_id);
+        return p ? { ...i, max_stock: p.stock_quantity } : i;
+      }));
+    }).finally(() => setRefreshing(false));
+  };
+
   const savePosSettings = (updates) => {
     const next = { ...posSettings, ...updates };
     setPosSettings(next);
@@ -169,9 +135,24 @@ const navigate = useNavigate();
     if (settings.defaultCustomer && !custId) setCustId(settings.defaultCustomer);
 
     setRefreshing(true);
+    // Ombor kontekstini olib, qoldiqni tanlangan (default) ombor bo'yicha yuklash
+    const loadProductsForWarehouse = async () => {
+      const posCtx = await fetchPosContext();
+      const whs = posCtx?.warehouses || [];
+      setPosWarehouses(whs);
+      setPosBranchId(posCtx?.branch_id ?? null);
+      let wid = warehouseId;
+      if (posCtx) {
+        wid = whs.some(w => String(w.id) === String(warehouseId)) ? String(warehouseId) : '';
+        if (!wid) wid = posCtx.default_warehouse_id ? String(posCtx.default_warehouse_id) : (whs.length === 1 ? String(whs[0].id) : '');
+      }
+      setWarehouseId(wid);
+      try { if (wid) localStorage.setItem(whMemKey, wid); else localStorage.removeItem(whMemKey); } catch { /* ignore */ }
+      return fetchProducts(posPriceParams(wid, posCtx?.branch_id ?? null));
+    };
     Promise.all([
       fetchCategories(),
-      fetchProducts(),
+      loadProductsForWarehouse(),
       fetchCustomers(),
     ]).then(([cats, prods, custs]) => {
       setCategories(cats);
@@ -199,16 +180,112 @@ const navigate = useNavigate();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Mijoz tanlanganda yangi qarz/bonus malumotini fonda olamiz - chekda
-  // eskirgan qarz chop etilmasligi uchun.
+  // T4.2: joriy filial rekvizitlari + filial chek shabloni (bo'sh shablon = korxona shabloni). Xato bo'lsa lokal kesh qoladi.
   useEffect(() => {
-    if (!custId) { setFreshCust(null); return; }
+    if (!posBranchId) return;
+    api.get(`/branches/${posBranchId}/receipt_templates`, { _suppressToast: true }).then(r => {
+      const info = { ...(r.data?.branch || {}), receipt_templates: r.data?.receipt_templates || {} };
+      setBranchInfo(info);
+      try { localStorage.setItem(`pos_branch_info:${currentCompanyId ?? ''}:${posBranchId}`, JSON.stringify(info)); } catch { /* ignore */ }
+    }).catch(() => { /* oflayn: kesh ishlatiladi */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posBranchId]);
+
+  // Mijozni tanlash: serverdan topilgan (500 talik ro'yxatda yo'q) mijoz ro'yxatga qo'shiladi
+  const addCustomerToList = (c) => setCustomers(prev => (prev.some(x => x.id === c.id) ? prev : [c, ...prev]));
+  const pickCustomer = (id, c) => {
+    if (c) addCustomerToList(c);
+    setCustId(id);
+  };
+
+  // T3.19: narx hal qilish — backend resolve_item_pricing bilan bir xil: maxsus narx > narx turi > sotuv narxi
+  const selectedCust = customers.find(c => String(c.id) === String(custId)) || null;
+  const priceCtxRef = useRef({ prices: {}, cust: null });
+  priceCtxRef.current = { prices: custPrices, cust: selectedCust };
+  const priceFor = (p, ctx = priceCtxRef.current) => {
+    const special = ctx.prices?.[p.id];
+    if (special != null && Number(special) > 0) return Number(special);
+    const pt = ctx.cust?.price_type;
+    if (pt === 'wholesale') return Number(p.wholesale_price || p.sale_price) || 0;
+    if (pt === 'cost') return Number(p.cost_price || p.sale_price) || 0;
+    return Number(p.sale_price) || 0;
+  };
+  // Mijozning doimiy chegirma foizi (qatorda chegirma bo'lmasa oldindan qo'yiladi)
+  const custDiscountPct = (ctx = priceCtxRef.current) => {
+    const v = Number(ctx.cust?.discount_percent) || 0;
+    return v > 0 ? v : 0;
+  };
+
+  useEffect(() => {
+    setCustPrices({});
+    if (!custId || !isOnline) return undefined;
     let cancelled = false;
-    api.get(`/customers/${custId}/cashback`)
+    api.get(`/customers/${custId}/prices`, { _silent: true, _suppressToast: true })
+      .then(r => {
+        if (cancelled) return;
+        const map = {};
+        (Array.isArray(r.data) ? r.data : []).forEach(row => { map[row.product_id] = Number(row.price); });
+        setCustPrices(map);
+      })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [custId]);
+
+  // Mijoz / uning narxlari o'zgarganda savat qatorlari narxi va chegirmasi qayta hisoblanadi
+  useEffect(() => {
+    const ctx = { prices: custPrices, cust: selectedCust };
+    const pct = custDiscountPct(ctx);
+    setCart(prev => {
+      let changed = false;
+      const next = prev.map(it => {
+        if (it.price_manual) return it;
+        const prod = products.find(x => x.id === it.product_id);
+        let out = it;
+        if (prod) {
+          const np = priceFor(prod, ctx);
+          if (np !== it.unit_price) out = { ...out, unit_price: np };
+        }
+        // Avto-chegirma (mijoz foizi): faqat o'zi qo'ygan bo'lsa yangilanadi/olib tashlanadi
+        if (out.auto_discount && pct <= 0) out = { ...out, discount_type: 'sum', discount_val: 0, auto_discount: false };
+        else if (out.auto_discount && pct > 0) out = { ...out, discount_type: 'pct', discount_val: pct };
+        else if (!out.discount_val && pct > 0) out = { ...out, discount_type: 'pct', discount_val: pct, auto_discount: true };
+        if (out !== it) changed = true;
+        return out;
+      });
+      return changed ? next : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [custId, custPrices, selectedCust?.price_type, selectedCust?.discount_percent]);
+
+  // Mijoz tanlanganda yangi qarz/bonus malumotini fonda olamiz - chekda
+  // eskirgan qarz chop etilmasligi uchun. T2.12: sodiqlik qoidalari (filial) ham shu javobda keladi.
+  const loadFreshCust = (id) => api.get(`/customers/${id}/cashback`, { params: warehouseId ? { warehouse_id: warehouseId } : {} });
+  useEffect(() => {
+    setRedeemCash('');
+    setRedeemPts('');
+    if (!custId) { setFreshCust(null); return undefined; }
+    let cancelled = false;
+    loadFreshCust(custId)
       .then(r => { if (!cancelled) setFreshCust(r.data); })
       .catch(() => { if (!cancelled) setFreshCust(null); });
     return () => { cancelled = true; };
-  }, [custId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [custId, warehouseId]);
+
+  // T2.12: sodiqlik kartasi bo'yicha mijozni topish (lokal ro'yxat, so'ng server: GET /customers?card=)
+  const findCustomerByCard = async (code) => {
+    const digits = normCard(code);
+    if (digits.length < 6) return null;
+    const local = customers.find(c => c.card_number && normCard(c.card_number) === digits);
+    if (local) return local;
+    if (!isOnline) return null;
+    try {
+      const r = await api.get('/customers', { params: { card: digits, limit: 1 } });
+      const list = Array.isArray(r.data) ? r.data : (r.data.items || []);
+      return list[0] || null;
+    } catch { return null; }
+  };
 
   // Global Skaner Listener
   useEffect(() => {
@@ -229,20 +306,12 @@ const navigate = useNavigate();
            e.stopPropagation();
            if (isInput) { e.target.blur(); e.target.value = ''; e.target.dispatchEvent(new Event('input', { bubbles: true })); }
 
-           // Tarozi barkodi logikasi
-           if (code.length === 13 && (code.startsWith('20') || code.startsWith('21') || code.startsWith('22'))) {
-             const itemCode = code.substring(2, 7);
-             const weightGram = parseInt(code.substring(7, 12), 10) || 0;
-             const weightKg = weightGram / 1000;
-             
-             const scaleProduct = products.find(x => {
-               const rawPlu = x.sku && String(x.sku).trim() ? String(x.sku).trim().replace(/\\D/g, '') : String(x.id);
-               const pCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(x.id).padStart(5, '0');
-               return pCode === itemCode || x.barcode === itemCode;
-             });
-             
+           // Tarozi barkodi (T3.12): PLU bo'yicha — eksport fayllari bilan bir xil plu_code
+           const scale = parseScaleBarcode(code);
+           if (scale) {
+             const scaleProduct = findScaleProduct(products, scale.plu);
              if (scaleProduct) {
-               addToCart(scaleProduct, weightKg);
+               addToCart(scaleProduct, scale.weightKg);
                return;
              }
            }
@@ -257,22 +326,68 @@ const navigate = useNavigate();
              return;
            }
 
-           // Oddiy mahsulot barkodiga to'g'ri kelmadi — uzun kod bo'lsa (Data Matrix
-           // markirovka kodlari odatda 20+ belgi), savatdagi kodi to'liq bo'lmagan
-           // markirovkali qatorga biriktiramiz, aks holda yangi mahsulot modalini ochamiz.
-           if (code.length >= 20) {
-             const pendingIdx = findPendingMarkingIdx();
-             if (pendingIdx >= 0) {
-               addMarkingCode(pendingIdx, code);
+           // Lokal ro'yxatda topilmadi
+           const handleNotFound = () => {
+             // Oddiy mahsulot barkodiga to'g'ri kelmadi — uzun kod bo'lsa (Data Matrix
+             // markirovka kodlari odatda 20+ belgi), savatdagi kodi to'liq bo'lmagan
+             // markirovkali qatorga biriktiramiz, aks holda yangi mahsulot modalini ochamiz.
+             if (code.length >= 20) {
+               const pendingIdx = findPendingMarkingIdx();
+               if (pendingIdx >= 0) {
+                 addMarkingCode(pendingIdx, code);
+                 return;
+               }
+               toast.error(t('pos.markingScannedNoProduct'));
                return;
              }
-             toast.error(t('pos.markingScannedNoProduct'));
+
+             // Topilmadi — yangi mahsulot qo'shish modalini och
+             const openNewProduct = () => {
+               setNewProd({ name:'', barcode: code, sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
+               setShowNewProduct(true);
+             };
+             // T2.12: tartib — tarozi mahsulot -> oddiy mahsulot -> mijoz kartasi -> yangi mahsulot
+             const afterLocalMiss = () => {
+               if (/^\d{6,19}$/.test(code)) {
+                 findCustomerByCard(code).then(cust => {
+                   if (cust) {
+                     pickCustomer(cust.id, cust);
+                     toast.success(tf('pos.cardCustomerFound', 'Mijoz topildi: {name}', { name: cust.name }));
+                   } else {
+                     openNewProduct();
+                   }
+                 });
+                 return;
+               }
+               openNewProduct();
+             };
+             // T3.11: lokal ro'yxatda yo'q (ro'yxatga sig'magan tovar) — onlayn bo'lsa serverdan shtrix-kod bo'yicha;
+             // faqat 404 bo'lsa "yangi mahsulot" modali (dublikat mahsulot yaratilmasin)
+             if (isOnline) {
+               api.get('/products/barcode/' + encodeURIComponent(code))
+                 .then(r => {
+                   if (r.data && r.data.id != null) addToCart(r.data);
+                   else afterLocalMiss();
+                 })
+                 .catch(err => {
+                   if (err.response?.status === 404) afterLocalMiss();
+                   else toast.error(err.response?.data?.detail || err.message || t('common.error'));
+                 });
+               return;
+             }
+             afterLocalMiss();
+           };
+           // Tarozi PLU si lokal ro'yxatda yo'q (masalan, ro'yxatga sig'magan tovar): serverdan PLU bo'yicha
+           if (scale && isOnline) {
+             api.get('/products/barcode/' + String(scale.plu).padStart(5, '0'))
+               .then(r => {
+                 if (r.data && r.data.id != null) addToCart(r.data, scale.weightKg);
+                 else handleNotFound();
+               })
+               .catch(() => handleNotFound());
              return;
            }
-
-           // Topilmadi — yangi mahsulot qo'shish modalini och
-           setNewProd({ name:'', barcode: code, sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
-           setShowNewProduct(true);
+           handleNotFound();
          }
          return;
       }
@@ -280,7 +395,7 @@ const navigate = useNavigate();
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [products, cart, showCheckout, showNewProduct]);
+  }, [products, cart, showCheckout, showNewProduct, customers, isOnline]);
 
   // Yangi mahsulotni bazaga saqlash va savatga qo'shish
   const saveNewProduct = async () => {
@@ -295,7 +410,10 @@ const navigate = useNavigate();
         cost_price: Number(newProd.cost_price) || 0,
         unit: newProd.unit || 'dona',
         category_id: newProd.category_id ? Number(newProd.category_id) : null,
-        stock_quantity: Number(newProd.stock_quantity) || 0,
+        // T1.5: backend `initial_stock` / `initial_warehouse_id` kutadi (`stock_quantity` tashlab yuborilardi);
+        // qoldiq kassirning tanlangan (default) omboriga yoziladi
+        initial_stock: Number(newProd.stock_quantity) || 0,
+        initial_warehouse_id: warehouseId ? Number(warehouseId) : undefined,
         status: 'active',
       };
       const res = await api.post('/products/', payload);
@@ -343,9 +461,10 @@ const navigate = useNavigate();
         product_name: p.name,
         sku: p.sku || '',
         unit: p.unit || 'dona',
-        unit_price: Number(p.sale_price) || 0,
-        discount_type: 'sum',
-        discount_val: 0,
+        unit_price: priceFor(p),
+        discount_type: custDiscountPct() > 0 ? 'pct' : 'sum',
+        discount_val: custDiscountPct(),
+        auto_discount: custDiscountPct() > 0,
         mxik_code: p.mxik_code || '',
         package_code: p.parent_code || p.package_code || '',
         barcode: p.barcode || '',
@@ -353,7 +472,7 @@ const navigate = useNavigate();
         requires_marking: !!p.requires_marking,
         marking_codes: [],
         vat_rate_type: p.vat_rate_type || 'nds_12',
-        qty_ordered: 1,
+        qty_ordered: overrideQty !== undefined ? overrideQty : 1,
         max_stock: p.stock_quantity
       }, ...prev];
     });
@@ -436,6 +555,8 @@ const navigate = useNavigate();
     setCart(prev => {
       const next = [...prev];
       const item = next[idx];
+      // T3.19: avto-chegirma (mijoz foizi) qo'lda tahrirlansa — oddiy summa chegirmasiga o'tadi
+      if (item.auto_discount) { item.auto_discount = false; item.discount_type = 'sum'; }
       // Chegirma [0, narx x miqdor] oralig'ida bo'lishi shart - aks holda
       // manfiy summali sotuv yuzaga keladi (backend baribir rad etadi,
       // oflaynda esa savdo sinxronlanmay qolardi).
@@ -471,6 +592,34 @@ const navigate = useNavigate();
   const [fiskalPending, setFiskalPending] = useState(null);
   const [isFiskalizing, setIsFiskalizing] = useState(false);
 
+  // T3.18: filial to'lov terminallari va fiskal qurilmalari (serverdan; xato bo'lsa bo'sh = eski xatti-harakat)
+  const [terminals, setTerminals] = useState([]);
+  const [fiscalDevices, setFiscalDevices] = useState([]);
+  useEffect(() => {
+    if (!isOnline) return;
+    api.get('/payment-terminals/mine', { _silent: true, _suppressToast: true })
+      .then(r => setTerminals(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get('/fiscal-devices/mine', { _silent: true, _suppressToast: true })
+      .then(r => setFiscalDevices(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
+  const REF_PROVIDERS = ['click', 'payme', 'uzum'];
+  // Joriy filial terminallari (filial aniqlangan bo'lsa); butun korxona terminallari (branch_id yo'q) hammada
+  const providerTerminals = (type) => terminals.filter(x =>
+    x.provider === type && x.is_active !== false && (!posBranchId || !x.branch_id || x.branch_id === posBranchId));
+  const referenceRequired = (p) => {
+    if (!REF_PROVIDERS.includes(p.type)) return false;
+    const sel = p.terminal_id ? terminals.find(x => String(x.id) === String(p.terminal_id)) : null;
+    if (sel) return !!sel.require_reference;
+    return providerTerminals(p.type).some(x => x.require_reference);
+  };
+  // Serverda ro'yxatdan o'tgan qurilma bo'lsa: boshqa filial qurilmasi (localStorage'da qolib ketgan) ishlatilmaydi
+  const resolveFactoryId = (stored) => {
+    if (!fiscalDevices.length) return stored;
+    if (stored && fiscalDevices.some(d => d.factory_id === stored)) return stored;
+    return fiscalDevices.length === 1 ? fiscalDevices[0].factory_id : null;
+  };
+
 
   const handleNumClick = (val) => {
     setPayments(prev => {
@@ -497,13 +646,28 @@ const navigate = useNavigate();
     });
   };
 
+  // Keshbek / ball bilan to'lash (T2.12): faqat mijoz tanlangan, online va balans bor bo'lsa
+  const loyal = freshCust && String(freshCust.customer_id) === String(custId) ? freshCust : null;
+  const pointValue = Number(loyal?.point_value || 1) || 1;
+  const bonusAvail = Math.floor(Number(loyal?.bonus_balance || 0));
+  const pointsAvail = Number(loyal?.loyalty_points || 0);
+  const canRedeem = !!(custId && isOnline && loyal && loyal.loyalty_enabled !== false && (bonusAvail > 0 || pointsAvail > 0));
+  const maxRedeemUzs = Math.floor(totalNet * (Number(loyal?.max_redeem_percent ?? 100)) / 100);
+  const redeemCashAmt = canRedeem ? Math.min(parseAmt(redeemCash), bonusAvail, maxRedeemUzs) : 0;
+  const redeemPtsCnt = canRedeem
+    ? Math.min(parseAmt(redeemPts), pointsAvail, Math.floor(Math.max(0, maxRedeemUzs - redeemCashAmt) / pointValue))
+    : 0;
+  const redeemUzs = redeemCashAmt + redeemPtsCnt * pointValue;
+  // Keshbek/ball chekdan ayiriladi; qolgan qism pul (yoki qarz) bilan to'lanadi
+  const payableNet = Math.max(0, totalNet - redeemUzs);
+
   // Qaytish hisoblash
   const finalPaid = payments.reduce((s, p) => s + parseAmt(p.amount), 0);
-  const isEnough = finalPaid >= totalNet;
-  const changeAmt = isEnough ? (finalPaid - totalNet) : 0;
-  const remaining = isEnough ? 0 : (totalNet - finalPaid);
+  const isEnough = finalPaid >= payableNet;
+  const changeAmt = isEnough ? (finalPaid - payableNet) : 0;
+  const remaining = isEnough ? 0 : (payableNet - finalPaid);
 
-  const checkout = async (isDebtConfirm = false) => {
+  const checkout = async (isDebtConfirm = false, approvalId = null) => {
     if (!cart.length) return toast.warn(t('pos.emptyCart'));
     if (!hasShift) { setShowShiftModal(true); return; }
 
@@ -520,6 +684,13 @@ const navigate = useNavigate();
       return;
     }
 
+    // T3.18: click/payme to'lovida terminal talab qilsa tranzaksiya raqami majburiy
+    const missingRef = payments.find(p => parseAmt(p.amount) > 0 && referenceRequired(p) && !String(p.reference || '').trim());
+    if (missingRef) {
+      toast.error(tf('pos.referenceRequired', 'Tranzaksiya raqamini kiriting'));
+      return;
+    }
+
     // Pul yetarli emas va mijoz tanlanmagan → xato
     if (!isEnough && !custId) {
       toast.error(t('pos.customerRequiredForDebt'));
@@ -533,18 +704,42 @@ const navigate = useNavigate();
     }
     
     setIsPaying(true);
-    let receiptPrintedThisAttempt = false;
     try {
       let mainType = 'debt';
       if (finalPaid > 0) {
-         if (payments.length === 1) mainType = payments[0].type;
+         if (payments.length === 1 && redeemUzs === 0) mainType = payments[0].type;
          else mainType = 'mixed';
+      } else if (redeemUzs > 0 && payableNet <= 0) {
+         mainType = 'cashback';
       }
 
+      // Har to'lov turi alohida yuboriladi (uzcard, humo, payme, click, bank terminal bo'yicha ajraladi).
+      // Qaytim (berilgan − sotuv summasi) oxirgi naqd qatorlardan ayiriladi: Transaction,
+      // KassaMovement va kassa balansi haqiqatan olingan pulga teng bo'ladi.
+      const payRows = payments
+        .map(p => ({ type: p.type, amount: parseAmt(p.amount), reference: String(p.reference || '').trim(), terminal_id: p.terminal_id ? Number(p.terminal_id) : null }))
+        .filter(p => p.amount > 0);
+      let changeLeft = Math.max(0, finalPaid - payableNet);
+      for (let i = payRows.length - 1; i >= 0 && changeLeft > 0; i--) {
+         if (payRows[i].type !== 'cash') continue;
+         const cut = Math.min(payRows[i].amount, changeLeft);
+         payRows[i].amount -= cut;
+         changeLeft -= cut;
+      }
+      const paymentsPayload = payRows
+        .filter(p => p.amount > 0)
+        .map(p => ({
+          type: p.type, amount: p.amount, currency: 'UZS',
+          // T3.18: provayder tranzaksiya raqami va terminal (faqat click/payme/uzum)
+          ...(REF_PROVIDERS.includes(p.type) && p.reference ? { reference: p.reference } : {}),
+          ...(REF_PROVIDERS.includes(p.type) && p.terminal_id ? { terminal_id: p.terminal_id } : {}),
+        }));
+
+      // Eski serverlar uchun paid_cash/paid_card (ular payments'ni bilmaydi)
       let pCash = 0, pCard = 0;
-      payments.forEach(p => {
-         if (p.type === 'cash') pCash += parseAmt(p.amount);
-         else if (['card', 'uzcard', 'humo', 'payme', 'click'].includes(p.type)) pCard += parseAmt(p.amount);
+      paymentsPayload.forEach(p => {
+         if (p.type === 'cash') pCash += p.amount;
+         else pCard += p.amount;
       });
 
       const payload = {
@@ -552,55 +747,83 @@ const navigate = useNavigate();
           product_id: c.product_id,
           quantity: c.qty_ordered,
           unit_price: c.unit_price,
+          // T3.19: faqat kassir narxni qo'lda o'zgartirgan qator true; aks holda server ro'yxat narxini hal qiladi
+          price_manual: c.price_manual === true,
           discount: c.discount_type === 'pct'
              ? c.unit_price * c.qty_ordered * (c.discount_val / 100)
              : c.discount_val,
           marking_codes: c.marking_codes && c.marking_codes.length ? c.marking_codes : undefined,
         })),
         payment_type: mainType,
-        paid_amount: finalPaid > totalNet ? totalNet : finalPaid,
-        paid_cash: pCash > totalNet && mainType === 'cash' ? totalNet : pCash,
+        // paid_amount keshbek/ballni o'z ichiga olmaydi (server: paid_amount + paid_cashback + ball*qiymat < jami => qarz)
+        paid_amount: finalPaid > payableNet ? payableNet : finalPaid,
+        paid_cash: pCash,
         paid_card: pCard,
+        payments: paymentsPayload.length ? paymentsPayload : undefined,
+        paid_cashback: redeemCashAmt > 0 ? redeemCashAmt : undefined,
+        loyalty_points_used: redeemPtsCnt > 0 ? redeemPtsCnt : undefined,
         discount_amount: totalDiscount,
-        note: isDebtConfirm && debtNote ? debtNote : t('pos.retailSaleNote', { orderId }),
+        note: isDebtConfirm && debtNote ? debtNote : (t('pos.retailSaleNoteShort') === 'pos.retailSaleNoteShort' ? 'Chakana sotuv' : t('pos.retailSaleNoteShort')),
         customer_id: Number(custId) || null,
         debt_due_date: isDebtConfirm && debtDueDate ? debtDueDate : null,
+        // Ekranda ko'ringan qoldiq ombori = sotuv yechadigan ombor (T1.17)
+        warehouse_id: warehouseId ? Number(warehouseId) : undefined,
+        // T4.6: menejer tasdiqlagan so'rov (limitdan oshgan chegirma/narx)
+        approval_id: approvalId || undefined,
       };
 
-      // Chekni darhol print qilish (API kutilmaydi — tez ishlash uchun)
-      if (posSettings.autoPrint) {
-        const settings = getReceiptSettings();
-        const templateType = posSettings.template || (posSettings.paper === '58mm' ? '58' : '80');
-        const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
-        const selectedCust = customers.find(c => String(c.id) === String(custId));
-        // Yangi (backenddan olingan) qarz malumotini afzal koramiz - royxatdagi
-        // nusxa sahifa ochilgandan beri eskirgan bolishi mumkin.
-        const fresh = freshCust && String(freshCust.customer_id) === String(custId) ? freshCust : null;
-        const debtSource = fresh || selectedCust;
-        const debtBalances = debtSource
-          ? ((debtSource.debt_balances && Object.keys(debtSource.debt_balances).length > 0)
-              ? debtSource.debt_balances
-              : { UZS: Number(debtSource.debt_balance || 0) })
-          : null;
-        const localMeta = {
-          id: orderId, number: orderId,
-          cashier_name: 'Kassa',
-          created_at: new Date().toISOString(),
-          total_amount: totalNet,
-          paid_amount: finalPaid > totalNet ? totalNet : finalPaid,
-          discount_amount: totalDiscount,
-          payment_types_array: payments.map(p => ({ type: p.type, amount: parseAmt(p.amount) })),
-          items: cart,
-          contractor_name: selectedCust ? selectedCust.name : undefined,
-          customer_name: selectedCust ? selectedCust.name : undefined,
-          before_debt_balances: debtBalances,
-          before_debt: debtBalances ? (debtBalances['UZS'] || 0) : 0,
-        };
-        printReceiptHtml(buildReceiptHtml(localMeta, templateType, tmplCfg));
-        receiptPrintedThisAttempt = true;
-      }
-
       const result = await submitSaleOrQueue(payload, false);
+
+      // T3.7: chek faqat sotuv serverga yoki oflayn navbatga yozilgandan KEYIN chop etiladi:
+      // raqam bazadagi sale.number (oflaynda OFL-XXXXXXXX), kassir va filial rekvizitlari server javobidan.
+      try {
+        if (posSettings.autoPrint) {
+          const settings = getReceiptSettings();
+          const templateType = posSettings.template || (posSettings.paper === '58mm' ? '58' : '80');
+          const companyTmpl = settings['r' + templateType] || settings[templateType] || {};
+          // T4.2: filial shabloni bo'lsa korxona shabloni ustidan yoziladi (sotuv boshqa filialniki bo'lsa — qo'llanmaydi)
+          const sameBranch = !result?.data?.branch_id || !branchInfo?.id || result.data.branch_id === branchInfo.id;
+          const branchTmpl = (sameBranch && (branchInfo?.receipt_templates?.['r' + templateType] || branchInfo?.receipt_templates?.[templateType])) || {};
+          const tmplCfg = { ...companyTmpl, ...branchTmpl };
+          const selectedCust = customers.find(c => String(c.id) === String(custId));
+          // Yangi (backenddan olingan) qarz malumotini afzal koramiz - royxatdagi
+          // nusxa sahifa ochilgandan beri eskirgan bolishi mumkin.
+          const fresh = freshCust && String(freshCust.customer_id) === String(custId) ? freshCust : null;
+          const debtSource = fresh || selectedCust;
+          const debtBalances = debtSource
+            ? ((debtSource.debt_balances && Object.keys(debtSource.debt_balances).length > 0)
+                ? debtSource.debt_balances
+                : { UZS: Number(debtSource.debt_balance || 0) })
+            : null;
+          const saved = result?.offline ? null : (result?.data || null);
+          const localMeta = {
+            id: saved?.id ?? result?.localNumber,
+            number: saved?.number || result?.localNumber,
+            cashier_name: saved?.cashier_name || currentUser?.name || '',
+            // T4.2: server javobi (oflayn rejimda yo'q) bo'lmasa — sahifa yuklanganda olingan filial rekvizitlari
+            branch_name: saved?.branch_name || branchInfo?.name,
+            branch_address: saved?.branch_address || branchInfo?.address,
+            branch_phone: saved?.branch_phone || branchInfo?.phone,
+            branch_legal_name: saved?.branch_legal_name || branchInfo?.legal_name,
+            branch_stir: saved?.branch_stir || branchInfo?.stir,
+            company_name: saved?.company_name,
+            created_at: new Date().toISOString(),
+            total_amount: payableNet,
+            paid_amount: finalPaid > payableNet ? payableNet : finalPaid,
+            discount_amount: totalDiscount,
+            payment_types_array: payments.map(p => ({ type: p.type, amount: parseAmt(p.amount) })),
+            items: cart,
+            contractor_name: selectedCust ? selectedCust.name : undefined,
+            customer_name: selectedCust ? selectedCust.name : undefined,
+            before_debt_balances: debtBalances,
+            before_debt: debtBalances ? (debtBalances['UZS'] || 0) : 0,
+          };
+          printReceiptHtml(buildReceiptHtml(localMeta, templateType, tmplCfg));
+        }
+      } catch (printErr) {
+        // Sotuv allaqachon saqlangan — chop etish xatosi savat tozalanishiga xalaqit bermasin
+        console.error('Chek chop etishda xato:', printErr);
+      }
 
       // Savat va to'lovni tozalamiz
       const cartSnap     = [...cart];
@@ -609,12 +832,14 @@ const navigate = useNavigate();
 
       setCart([]);
       setPayments([{ type: 'cash', amount: '' }]);
+      setRedeemCash('');
+      setRedeemPts('');
+      if (custId && !result?.offline) loadFreshCust(custId).then(r => setFreshCust(r.data)).catch(() => {});
       setActiveInputIdx(0);
       setShowDebtModal(false);
       setDebtDueDate('');
       setDebtNote('');
       setShowCheckout(false);
-      setOrderId(Math.floor(Math.random() * 900000) + 100000);
 
       if (result?.offline) {
         toast.warning(t('pos.offlineSaleSaved'));
@@ -624,25 +849,33 @@ const navigate = useNavigate();
 
       // Fiskalizatsiya yoqilgan bo'lsa — tasdiqlash modalini ko'rsatamiz
       const fiskalEnabled = JSON.parse(localStorage.getItem('fiskalSend') || 'false');
-      const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
+      const factoryId     = resolveFactoryId(JSON.parse(localStorage.getItem('fiskalId') || 'null'));
       if (fiskalEnabled && factoryId && !result?.offline) {
-        setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap });
+        // T3.18: saleId — fiskallangach natijani PATCH /sales/{id}/fiscal bilan serverga yozish uchun
+        setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap, saleId: result?.data?.id ?? null });
       }
 
     } catch (e) {
-      const detail = e.response?.data?.detail || t('auth.errGeneral');
-      toast.error(detail);
-      if (receiptPrintedThisAttempt) {
-        window.alert(
-          t('pos.receiptPrintedButSaleFailed') + '\n\n' +
-          detail +
-          '\n\n' + t('pos.doNotGiveReceiptToCustomer')
-        );
+      const raw = e.response?.data?.detail;
+      // T4.6: detail obyekt bo'lishi mumkin ({code, message, ...})
+      if (raw && typeof raw === 'object') {
+        if (e.response?.status === 403 && raw.code === 'approval_required') {
+          setShowDebtModal(false);
+          approvalFlow.begin(raw, { isDebtConfirm });
+          return;
+        }
+        if (raw.code === 'approval_invalid') approvalFlow.close();
+        toast.error(raw.message || t('auth.errGeneral'));
+        return;
       }
+      toast.error(raw || t('auth.errGeneral'));
     } finally {
       setIsPaying(false);
     }
   };
+
+  // T4.6: tasdiq so'rovi/kutish/qayta yuborish (Approvals.jsx); tasdiqlansa sotuv approval_id bilan qayta yuboriladi
+  const approvalFlow = useApprovalFlow((requestId, ctx) => checkout(ctx?.isDebtConfirm, requestId));
 
   return (
     <div className={`font-sans select-none bg-slate-200 flex overflow-hidden w-full h-[calc(100vh-65px)]`}>
@@ -650,6 +883,13 @@ const navigate = useNavigate();
         <ShiftOpenModal
           onOpened={() => { reloadShift(); setShowShiftModal(false); }}
           onCancel={() => setShowShiftModal(false)}
+        />
+      )}
+      {showShiftClose && activeShift && (
+        <ShiftCloseModal
+          shift={activeShift}
+          onClosed={() => { setShowShiftClose(false); reloadShift(); }}
+          onCancel={() => setShowShiftClose(false)}
         />
       )}
 
@@ -698,14 +938,35 @@ const navigate = useNavigate();
                 onClick={async () => {
                   setIsFiskalizing(true);
                   try {
-                    const { factoryId, cartSnap, paymentsSnap, discount } = fiskalPending;
-                    await fiscalizeAndPrint({
+                    const { factoryId, cartSnap, paymentsSnap, discount, saleId } = fiskalPending;
+                    const { fiscal } = await fiscalizeAndPrint({
                       factoryId,
                       cart:          cartSnap,
                       payments:      paymentsSnap,
                       discountAmount: discount,
                     });
                     toast.success('✅ ' + t('pos.fiscalReceiptSent'));
+                    // T3.18: natijani serverga yozish (xato bo'lsa sotuv bekor qilinmaydi, faqat ogohlantirish)
+                    const sign = fiscal?.fiscal_sign ?? fiscal?.FiscalSign;
+                    if (saleId && sign) {
+                      const seq = Number(fiscal?.receipt_seq ?? fiscal?.receipt_number ?? fiscal?.ReceiptSeq);
+                      const txId = fiscal?.transaction_id ?? fiscal?.TransactionID;
+                      const body = {
+                        fiscal_sign: String(sign),
+                        fiscal_qr_url: fiscal?.qr_code_url ?? fiscal?.QRCodeURL ?? undefined,
+                        fiscal_receipt_seq: Number.isFinite(seq) && seq >= 0 ? seq : undefined,
+                        fiscal_transaction_id: txId != null ? String(txId) : undefined,
+                        fiscal_at: new Date().toISOString().slice(0, 19),
+                        fiscal_factory_id: factoryId,
+                      };
+                      try {
+                        await api.patch(`/sales/${saleId}/fiscal`, body, { _suppressToast: true });
+                      } catch (patchErr) {
+                        toast.warning('⚠️ ' + tf('pos.fiscalSaveFailed', "Fiskal chek berildi, lekin natija serverga yozilmadi: {message}", {
+                          message: patchErr?.response?.data?.detail || patchErr?.message || t('pos.unknown'),
+                        }));
+                      }
+                    }
                   } catch (err) {
                     toast.error('⚠️ ' + t('pos.fiscalError', { message: err?.message || t('pos.unknown') }));
                   } finally {
@@ -738,6 +999,17 @@ const navigate = useNavigate();
           </div>
           <div className="flex gap-2">
             {!isOnline && <span className="bg-red-500 font-bold px-2.5 py-1 rounded text-xs animate-pulse">{t('pos.offlineBadge')}</span>}
+            {pendingCount > 0 && (
+              <span className="bg-amber-500 font-bold px-2.5 py-1 rounded text-xs" title={tf('pos.pendingBadge', 'Yuborilmagan sotuvlar: {count}', { count: pendingCount })}>
+                {syncing ? '⏳ ' : ''}{tf('pos.pendingBadge', 'Yuborilmagan sotuvlar: {count}', { count: pendingCount })}
+              </span>
+            )}
+            {activeShift && (
+              <button onClick={() => setShowShiftClose(true)}
+                className="px-2.5 h-8 bg-red-500/80 hover:bg-red-500 rounded-lg text-xs font-bold transition-colors">
+                {tf('shift.closeAction', 'Smenani yopish')}
+              </button>
+            )}
             <button onClick={() => setShowSettings(true)} className="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </button>
@@ -746,7 +1018,7 @@ const navigate = useNavigate();
 
         {/* CUSTOMER SELECTOR */}
         <div className="p-1 px-2 border-b border-slate-200 bg-slate-50 shrink-0">
-           <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder={t('pos.customerSearch')} />
+           <CustomerPicker variant="pos" customers={customers} value={custId} onChange={pickCustomer} onResolve={addCustomerToList} isOnline={isOnline} placeholder={t('pos.customerSearch')} />
         </div>
 
         {/* CART LIST */}
@@ -808,7 +1080,7 @@ const navigate = useNavigate();
                    </button>
                    <div className="text-right mt-0.5">
                      {item.discount_val > 0 && <div className="text-[10px] text-slate-400 line-through">{fmt(item.unit_price * item.qty_ordered)}</div>}
-                     <div className="font-black text-[13px] text-slate-800 leading-none mt-1">{fmt((item.unit_price * item.qty_ordered) - item.discount_val)}</div>
+                     <div className="font-black text-[13px] text-slate-800 leading-none mt-1">{fmt((item.unit_price * item.qty_ordered) - (item.discount_type === 'pct' ? item.unit_price * item.qty_ordered * (item.discount_val / 100) : item.discount_val))}</div>
                    </div>
                 </div>
               </div>
@@ -856,6 +1128,16 @@ const navigate = useNavigate();
              />
              {search && <button onClick={()=>setSearch('')} className="text-slate-400 hover:text-red-500 font-bold text-2xl px-2">&times;</button>}
            </div>
+           {posWarehouses.length > 1 && (
+             <select
+               value={warehouseId}
+               onChange={e => changeWarehouse(e.target.value)}
+               title={t('pos.stockLabel')}
+               className="border-[2px] border-slate-300 rounded-2xl bg-slate-50 px-3 py-3 font-bold text-slate-700 outline-none focus:border-blue-500 max-w-[220px]"
+             >
+               {posWarehouses.map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
+             </select>
+           )}
            
            <button onClick={()=>{if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen();}} className="ml-auto w-12 h-12 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-colors shadow-sm">
              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
@@ -904,8 +1186,8 @@ const navigate = useNavigate();
                   )}
                   <h3 className="font-extrabold text-slate-800 text-base leading-tight mb-auto z-10 line-clamp-3">{p.name}</h3>
                   <div className="z-10 mt-2">
-                    <div className="text-xl font-black text-blue-700 tracking-tight">{fmt(p.sale_price)}</div>
-                    <div className="text-xs font-bold text-slate-400 mt-1">{t('pos.stockLabel')} <span className={p.stock_quantity<=p.min_stock?'text-red-500':'text-emerald-500'}>{p.stock_quantity>0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : t('pos.zeroStock')}</span></div>
+                    <div className="text-xl font-black text-blue-700 tracking-tight">{fmt(p.sale_price)}{p.price_source === 'branch' && <span title={t('pos.branchPrice') === 'pos.branchPrice' ? 'Filial narxi' : t('pos.branchPrice')} className="ml-1.5 align-middle text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{t('pos.branchPrice') === 'pos.branchPrice' ? 'Filial' : t('pos.branchPrice')}</span>}</div>
+                    <div className="text-xs font-bold text-slate-400 mt-1">{t('pos.stockLabel')} <span title={posWarehouses.find(w => String(w.id) === String(warehouseId))?.name || ''} className={p.stock_quantity<=p.min_stock?'text-red-500':'text-emerald-500'}>{p.stock_quantity>0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : t('pos.zeroStock')}</span></div>
                   </div>
                 </button>
               ))}
@@ -952,13 +1234,14 @@ const navigate = useNavigate();
                  <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 mb-6 flex flex-col relative z-0 max-h-[300px] overflow-y-auto">
                     <div className="flex justify-between items-end mb-1 leading-none">
                        <span className="font-bold text-slate-400 uppercase tracking-widest text-sm">{t('pos.amountDue')}</span>
-                       <span className="font-black text-2xl text-slate-700">{fmt(totalNet)}</span>
+                       <span className="font-black text-2xl text-slate-700">{fmt(payableNet)}</span>
                     </div>
 
                     {payments.map((p, idx) => (
-                      <div key={idx} className={`mt-2 flex gap-3 items-center bg-white border-[3px] ${activeInputIdx===idx?'border-blue-500 ring-4 ring-blue-500/20':'border-slate-200'} rounded-2xl px-4 py-3 cursor-pointer transition-all`} onClick={()=>setActiveInputIdx(idx)}>
+                      <div key={idx}>
+                      <div className={`mt-2 flex gap-3 items-center bg-white border-[3px] ${activeInputIdx===idx?'border-blue-500 ring-4 ring-blue-500/20':'border-slate-200'} rounded-2xl px-4 py-3 cursor-pointer transition-all`} onClick={()=>setActiveInputIdx(idx)}>
                          <select value={p.type} onChange={e => {
-                            const next = [...payments]; next[idx].type = e.target.value; setPayments(next);
+                            const next = [...payments]; next[idx].type = e.target.value; next[idx].reference = ''; next[idx].terminal_id = ''; setPayments(next);
                          }} className="bg-transparent font-black text-slate-600 outline-none uppercase cursor-pointer">
                             <option value="cash">{t('pos.paymentCash')}</option>
                             <option value="card">{t('pos.paymentCard')}</option>
@@ -974,6 +1257,30 @@ const navigate = useNavigate();
                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                          )}
+                      </div>
+                      {/* T3.18: provayder to'lovi — terminal (bir nechta bo'lsa) va tranzaksiya raqami */}
+                      {REF_PROVIDERS.includes(p.type) && (providerTerminals(p.type).length > 0 || p.type !== 'uzum') && (
+                        <div className="mt-1 flex gap-2 items-center px-1">
+                          {providerTerminals(p.type).length > 1 && (
+                            <select value={p.terminal_id || ''} onChange={e => {
+                              const next = [...payments]; next[idx].terminal_id = e.target.value; setPayments(next);
+                            }} className="bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600 outline-none">
+                              <option value="">{tf('pos.terminalSelect', 'Terminal')}</option>
+                              {providerTerminals(p.type).map(x => (
+                                <option key={x.id} value={x.id}>{x.label || x.merchant_id || `#${x.id}`}</option>
+                              ))}
+                            </select>
+                          )}
+                          <input
+                            type="text"
+                            maxLength={64}
+                            value={p.reference || ''}
+                            onChange={e => { const next = [...payments]; next[idx].reference = e.target.value; setPayments(next); }}
+                            placeholder={tf('pos.referencePlaceholder', 'Tranzaksiya raqami') + (referenceRequired(p) ? ' *' : '')}
+                            className={`flex-1 bg-white border rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 ${referenceRequired(p) && !String(p.reference || '').trim() ? 'border-amber-400' : 'border-slate-200'}`}
+                          />
+                        </div>
+                      )}
                       </div>
                     ))}
 
@@ -1007,7 +1314,7 @@ const navigate = useNavigate();
                           setPayments(prev => { 
                              const nxt = [...prev]; 
                              const otherSum = nxt.reduce((s, p, i) => i === activeInputIdx ? s : s + parseAmt(p.amount), 0);
-                             nxt[activeInputIdx].amount = String(Math.max(0, totalNet - otherSum));
+                             nxt[activeInputIdx].amount = String(Math.max(0, payableNet - otherSum));
                              return nxt; 
                           });
                        }} className="flex-1 bg-blue-50 hover:bg-blue-100 border-[3px] border-blue-200 text-blue-600 rounded-2xl flex items-center justify-center active:scale-95 transition-all font-black text-sm uppercase px-2 text-center leading-tight">{t('pos.exactAmount')}</button>
@@ -1020,10 +1327,55 @@ const navigate = useNavigate();
                   <div className="bg-white rounded-3xl p-6 shadow-xl shadow-slate-200/50 border border-slate-100 flex-1 flex flex-col">
                      
                      <div className="space-y-4 mb-6">
+                        {/* Keshbek / ball bilan to'lash (T2.12) — faqat mijoz tanlangan va online bo'lsa */}
+                        {canRedeem && (
+                          <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 space-y-3">
+                            <div className="flex justify-between items-center text-amber-700 font-bold text-sm">
+                              <span>{tf('pos.cashbackAvailable', 'Mavjud keshbek / ball')}</span>
+                              <span>{fmt(bonusAvail)} UZS · {fmt(pointsAvail)}</span>
+                            </div>
+                            {bonusAvail > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="flex-1 text-sm font-black text-slate-600">{tf('pos.payWithCashback', "Keshbek bilan to'lash")}</span>
+                                <input
+                                  inputMode="numeric"
+                                  value={redeemCash ? fmt(redeemCashAmt) : ''}
+                                  onChange={e => setRedeemCash(e.target.value.replace(/\D/g, ''))}
+                                  placeholder="0"
+                                  className="w-36 text-right text-lg font-black border-2 border-amber-300 rounded-xl px-3 py-2 outline-none focus:border-amber-500 bg-white"
+                                />
+                                <button type="button" onClick={() => setRedeemCash(String(Math.min(bonusAvail, maxRedeemUzs)))}
+                                  className="px-3 py-2 text-xs font-black rounded-xl bg-amber-200 text-amber-800 hover:bg-amber-300">MAX</button>
+                              </div>
+                            )}
+                            {pointsAvail > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="flex-1 text-sm font-black text-slate-600">
+                                  {tf('pos.payWithPoints', "Ball bilan to'lash")} <span className="text-xs text-slate-400">(1 = {fmt(pointValue)} UZS)</span>
+                                </span>
+                                <input
+                                  inputMode="numeric"
+                                  value={redeemPts ? fmt(redeemPtsCnt) : ''}
+                                  onChange={e => setRedeemPts(e.target.value.replace(/\D/g, ''))}
+                                  placeholder="0"
+                                  className="w-36 text-right text-lg font-black border-2 border-amber-300 rounded-xl px-3 py-2 outline-none focus:border-amber-500 bg-white"
+                                />
+                                <button type="button" onClick={() => setRedeemPts(String(Math.min(pointsAvail, Math.floor(Math.max(0, maxRedeemUzs - redeemCashAmt) / pointValue))))}
+                                  className="px-3 py-2 text-xs font-black rounded-xl bg-amber-200 text-amber-800 hover:bg-amber-300">MAX</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <div className="flex justify-between items-center text-slate-500 font-bold">
                           <span className="uppercase text-sm tracking-widest">{t('pos.totalBill')}</span>
                           <span className="text-xl">{fmt(totalNet)} UZS</span>
                         </div>
+                        {redeemUzs > 0 && (
+                          <div className="flex justify-between items-center text-amber-600 font-bold">
+                            <span className="uppercase text-sm tracking-widest">{tf('pos.cashbackAndPoints', 'Keshbek / ball')}</span>
+                            <span className="text-xl">− {fmt(redeemUzs)} UZS</span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center text-emerald-600 font-black border-t-2 border-dashed border-slate-200 pt-4">
                           <span className="uppercase text-lg tracking-widest">{t('pos.entered')}</span>
                           <span className="text-2xl">{fmt(finalPaid)} UZS</span>
@@ -1288,6 +1640,9 @@ const navigate = useNavigate();
            </div>
         </div>
       )}
+
+      {/* T4.6: limitdan oshgan chegirma/narx — menejer tasdig'i */}
+      <ApprovalModal flow={approvalFlow} />
 
       {showDebtModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">

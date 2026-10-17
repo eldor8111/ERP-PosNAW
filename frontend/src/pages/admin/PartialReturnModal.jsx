@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Check } from 'lucide-react';
 import api from '../../api/axios';
 import { toast } from 'react-hot-toast';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import { useLang } from '../../context/LangContext';
+import { useApprovalFlow, ApprovalModal } from './Approvals'; // T4.6: menejer tasdig'i
 
 function fmt(n) {
   if (!n) return '0';
@@ -63,7 +64,10 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
     }, 0);
   };
 
-  const submitReturn = async () => {
+  // Bir urinish uchun bitta kalit: sekin tarmoqda qayta bosilsa server dublikat yaratmaydi
+  const idemKeyRef = useRef(null);
+
+  const submitReturn = async (approvalId = null) => {
     const returnItems = items
       .filter(item => item.returnQty > 0)
       .map(item => ({
@@ -81,10 +85,19 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
       const payload = {
         items: returnItems,
         payment_type: paymentType,
-        note: t('partialReturn.title', { number: sale.number })
+        note: t('partialReturn.title', { number: sale.number }),
+        // T4.6: limitdan katta qaytarish uchun menejer tasdiqlagan so'rov
+        approval_id: approvalId || undefined,
       };
 
-      await api.post(`/sales/${sale.id}/return-items`, payload);
+      if (!idemKeyRef.current) {
+        idemKeyRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+      const resp = await api.post(`/sales/${sale.id}/return-items`, payload, { headers: { 'Idempotency-Key': idemKeyRef.current }, _suppressToast: true });
+      const saved = resp?.data;
+      idemKeyRef.current = null;
 
       if (printReceipt) {
         try {
@@ -116,6 +129,14 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
             payment_types_array: [{ type: paymentType, amount: totalRefund }],
             items: returnedItems,
             customer_name: sale?.customer_name || undefined,
+            // T3.7: asl sotuv filialining rekvizitlari (SaleOut dan)
+            branch_name: sale?.branch_name,
+            branch_address: sale?.branch_address,
+            branch_phone: sale?.branch_phone,
+            company_name: sale?.company_name,
+            // T4.2: filial yuridik nomi va STIR (server javobi, bo'lmasa asl sotuvdan)
+            branch_legal_name: saved?.branch_legal_name || sale?.branch_legal_name,
+            branch_stir: saved?.branch_stir || sale?.branch_stir,
           };
           printReceiptHtml(buildReceiptHtml(meta, templateType, tmplCfg));
         } catch { /* chek chop etilmasa ham qaytarish bekor bo'lmasin */ }
@@ -124,11 +145,27 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
       toast.success(t('partialReturn.returnSuccess'));
       onSuccess();
     } catch (error) {
-      toast.error(error.response?.data?.detail || t('auth.errGeneral'));
+      // 4xx — hujjat yaratilmagan, keyingi urinishga yangi kalit; tarmoq xatosida kalit saqlanadi
+      if (error.response && error.response.status >= 400 && error.response.status < 500) idemKeyRef.current = null;
+      const raw = error.response?.data?.detail;
+      // T4.6: detail obyekt bo'lishi mumkin ({code, message, ...})
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        if (error.response?.status === 403 && raw.code === 'approval_required') {
+          approvalFlow.begin(raw, {});
+          return;
+        }
+        if (raw.code === 'approval_invalid') approvalFlow.close();
+        toast.error(raw.message || t('auth.errGeneral'));
+      } else {
+        toast.error(raw || t('auth.errGeneral'));
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // T4.6: tasdiq so'rovi/kutish/qayta yuborish (Approvals.jsx); tasdiqlansa qaytarish approval_id bilan qayta yuboriladi
+  const approvalFlow = useApprovalFlow((requestId) => submitReturn(requestId));
 
   const curr = sale?.currency_code || sale?.currency || 'UZS';
   const currLabel = curr === 'USD' ? '$' : "so'm";
@@ -246,7 +283,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
             {t('admin.dict.cancel')}
           </button>
           <button
-            onClick={submitReturn}
+            onClick={() => submitReturn()}
             disabled={loading || totalRefund <= 0}
             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-2"
           >
@@ -255,6 +292,7 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
           </button>
         </div>
       </div>
+      <ApprovalModal flow={approvalFlow} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from pydantic import BaseModel  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 
+from app.core.audit import log_action  # type: ignore
 from app.core.dependencies import get_current_user, get_current_user_allow_expired  # type: ignore
 from app.database import get_db  # type: ignore
 from app.models.billing import Tariff, BalanceLog  # type: ignore
@@ -61,6 +62,24 @@ def require_admin_or_super_allow_expired(user: User = Depends(get_current_user_a
     return user
 
 
+# Obuna sotib olish / sinovni faollashtirish — korxona egasi roli (director ham kiradi)
+BILLING_OWNER_ROLES = (UserRole.super_admin, UserRole.admin, UserRole.director)
+
+
+def require_billing_owner(user: User = Depends(get_current_user)) -> User:
+    """Admin, Direktor yoki Super Admin rolini talab qiladi"""
+    if user.role not in BILLING_OWNER_ROLES:
+        raise HTTPException(status_code=403, detail="Faqat Admin, Direktor yoki Super Admin uchun")
+    return user
+
+
+def require_billing_owner_allow_expired(user: User = Depends(get_current_user_allow_expired)) -> User:
+    """Admin, Direktor yoki Super Admin rolini talab qiladi (obuna muddati tugasa ham ruxsat beradi)"""
+    if user.role not in BILLING_OWNER_ROLES:
+        raise HTTPException(status_code=403, detail="Faqat Admin, Direktor yoki Super Admin uchun")
+    return user
+
+
 def _tariff_out(t: Tariff) -> dict:
     return {
         "id": t.id,
@@ -86,6 +105,18 @@ def _tariff_out(t: Tariff) -> dict:
         "bhm_percent": float(t.bhm_percent) if t.bhm_percent is not None else None,
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
+
+
+def _over_limit_items(db: Session, company_id, tariff: Tariff) -> list:
+    """Joriy foydalanish YANGI tarif limitidan oshadigan resurslar (T3.9). Korxona allaqachon shu tarifda
+    bo'lsa (uzaytirish) bo'sh ro'yxat: mavjud yozuvlar o'chirilmaydi va qayta tasdiq so'ralmaydi."""
+    if not company_id:
+        return []
+    from app.services.tariff_guard import usage_warnings
+    comp = db.query(Company).filter(Company.id == company_id).first()
+    if comp is None or comp.tariff_id == tariff.id:
+        return []
+    return usage_warnings(db, company_id, tariff)
 
 
 def _company_billing_out(c: Company, db: Session = None) -> dict:
@@ -160,13 +191,17 @@ def get_tariff_quote(
         tariff_id: int,
         months: int = 1,
         db: Session = Depends(get_db),
+        user: User = Depends(get_current_user_allow_expired),
 ):
-    """Muayyan tarif va oylar soni bo'yicha narx va chegirma hisoboti"""
+    """Muayyan tarif va oylar soni bo'yicha narx va chegirma hisoboti.
+    `usage_warnings` — joriy foydalanish shu tarif limitidan oshsa (T3.9; hech narsa bloklanmaydi)."""
     t = db.query(Tariff).filter(Tariff.id == tariff_id, Tariff.is_active == True).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
     from app.services.tariff_guard import calculate_subscription_price
-    return calculate_subscription_price(t, months)
+    quote = calculate_subscription_price(t, months)
+    quote["usage_warnings"] = _over_limit_items(db, user.company_id, t)
+    return quote
 
 
 class TariffCreate(BaseModel):
@@ -299,6 +334,21 @@ def get_my_company_billing(
     return _company_billing_out(c, db)
 
 
+@router.get("/my-company/usage")
+def get_my_company_usage(
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user_allow_expired),
+):
+    """Tarif limitlari va joriy foydalanish ("ishlatilgan / limit"); `limit=null` — cheksiz (T3.9)"""
+    if not user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    c = db.query(Company).filter(Company.id == user.company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    from app.services.tariff_guard import build_usage_report
+    return build_usage_report(db, c)
+
+
 # ─── Korxonalar billing ma'lumotlari ─────────────────────────────────────────
 
 @router.get("/companies")
@@ -366,23 +416,39 @@ def activate_trial(
 @router.post("/activate-my-trial")
 def activate_my_trial(
         db: Session = Depends(get_db),
-        user: User = Depends(get_current_user),
+        user: User = Depends(require_billing_owner),
 ):
     """O'z korxonasi uchun 7 kunlik bepul sinov faollashtirish — har bir korxona bir marta"""
     if not user.company_id:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
-    c = db.query(Company).filter(Company.id == user.company_id).first()
+    c = db.query(Company).filter(Company.id == user.company_id).with_for_update().first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
     if c.is_trial:
         raise HTTPException(status_code=400, detail="Sinov muddati allaqachon ishlatilgan")
 
+    now = datetime.now(timezone.utc)
+
+    # Faol obuna mavjud bo'lsa sinov uni qisqartirib yubormasligi kerak
+    ends = c.subscription_ends_at
+    if ends and ends.tzinfo is None:
+        ends = ends.replace(tzinfo=timezone.utc)
+    if ends and ends > now:
+        raise HTTPException(status_code=400, detail="Faol obuna mavjud. Sinovni faollashtirib bo'lmaydi")
+
+    # Sinov yoki pullik obuna oldin ishlatilgan bo'lsa qayta sinov berilmaydi
+    used_before = db.query(BalanceLog.id).filter(
+        BalanceLog.company_id == c.id,
+        BalanceLog.log_type.in_(("trial", "subscription")),
+    ).first()
+    if used_before:
+        raise HTTPException(status_code=400, detail="Sinov yoki pullik obuna allaqachon ishlatilgan")
+
     # Sinov tarifini topamiz
     trial_tariff = db.query(Tariff).filter(Tariff.is_active == True, Tariff.price_per_month <= 0).first()
 
-    now = datetime.now(timezone.utc)
     c.subscription_ends_at = now + timedelta(days=7)
     c.subscription_starts_at = now
     c.is_trial = True
@@ -454,6 +520,7 @@ def top_up_balance(
 class SubscribeRequest(BaseModel):
     tariff_id: int
     months: int = 1  # necha oylik obuna
+    confirm_over_limit: bool = False  # joriy foydalanish yangi tarifdan oshsa ham davom etish (T3.9)
 
 
 @router.post("/companies/{company_id}/subscribe")
@@ -491,6 +558,9 @@ def activate_subscription(
     base = current_end if (current_end and current_end > now) else now
     extra_days = tariff.duration_days * data.months
 
+    # T3.9: yangi tarif limitidan oshgan foydalanish — faqat ogohlantirish (super admin bloklanmaydi)
+    warnings = _over_limit_items(db, c.id, tariff)
+
     # Balansdan chiqarish va obunani yangilash
     c.balance = current_balance - total_price
     c.tariff_id = tariff.id
@@ -519,6 +589,7 @@ def activate_subscription(
         "message": f"Obuna {c.subscription_ends_at.strftime('%d.%m.%Y')} gacha faollashtirildi",
         "charged": total_price,
         "discount_percent": quote["discount_percent"],
+        "warnings": warnings,
     }
 
 
@@ -526,13 +597,14 @@ def activate_subscription(
 def subscribe_my_company(
         data: SubscribeRequest,
         db: Session = Depends(get_db),
-        user: User = Depends(get_current_user_allow_expired),
+        user: User = Depends(require_billing_owner_allow_expired),
 ):
     """Foydalanuvchi o'z korxonasi uchun balansdan obunani faollashtiradi"""
     if not user.company_id:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
-    c = db.query(Company).filter(Company.id == user.company_id).first()
+    # FOR UPDATE: parallel so'rovlarda balans ikki marta yechilmasligi uchun
+    c = db.query(Company).filter(Company.id == user.company_id).with_for_update().first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
@@ -563,6 +635,12 @@ def subscribe_my_company(
                 detail="Sizda allaqachon faol tarif mavjud. Amaldagi tarif tugamaguncha boshqa tarifni sotib ololmaysiz."
             )
 
+    # T3.9: joriy foydalanish yangi tarif limitidan oshsa — tasdiqsiz 409 (mavjud filial/omborlar
+    # o'chirilmaydi, faqat yangisini yaratish bloklanadi)
+    over_items = _over_limit_items(db, c.id, tariff)
+    if over_items and not data.confirm_over_limit:
+        raise HTTPException(status_code=409, detail={"code": "over_limit", "items": over_items})
+
     base = current_end if (current_end and current_end > now) else now
     extra_days = tariff.duration_days * data.months
 
@@ -587,6 +665,10 @@ def subscribe_my_company(
         created_at=now,
     )
     db.add(log)
+    log_action(
+        db, "billing.subscribe", "company", c.id, user.id,
+        new_values={"tariff_id": tariff.id, "months": data.months, "amount": total_price},
+    )
     db.commit()
     db.refresh(c)
     return {

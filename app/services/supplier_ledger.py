@@ -28,16 +28,10 @@ def _d(v) -> Decimal:
 
 
 def currency_rate(db: Session, company_id: Optional[int], code: Optional[str]) -> Decimal:
-    """Kompaniyaning valyuta kursi (UZS = 1). Boshqa kompaniya kursi olinmaydi."""
-    code = (code or "UZS").strip().upper()
-    if code == "UZS":
-        return Decimal("1")
-    from app.models.currency import Currency
-    q = db.query(Currency).filter(Currency.code == code)
-    q = q.filter(or_(Currency.company_id == company_id, Currency.company_id.is_(None)))
-    obj = q.order_by(Currency.company_id.is_(None)).first()  # avval kompaniyaniki
-    rate = _d(obj.rate) if obj and obj.rate else Decimal("1")
-    return rate if rate > 0 else Decimal("1")
+    """Kompaniyaning valyuta kursi (UZS = 1). Boshqa kompaniya kursi olinmaydi.
+    T2.7: yagona mantiq `currency_service.get_rate` da (shu yerda alias)."""
+    from app.services.currency_service import get_rate
+    return get_rate(db, company_id, code)
 
 
 def balances(supplier) -> dict:
@@ -129,39 +123,72 @@ def reverse_allocation(db: Session, supplier, allocation: dict) -> None:
 # ─── Kassa ───────────────────────────────────────────────────────────────────
 
 def _company_wallet(db: Session, wallet_id: Optional[int], company_id: int):
-    if not wallet_id:
+    # Yagona yordamchiga yo'naltirildi (korxona bo'yicha tekshiruv + qator qulfi).
+    # Avvalgi xatti-harakat saqlanadi: nofaol kassa ham qabul qilinadi.
+    from app.services.wallet_access import get_company_wallet
+    return get_company_wallet(db, wallet_id, company_id, for_update=True, require_active=False)
+
+
+def _warehouse_branch_id(db: Session, user, warehouse_id: Optional[int]) -> Optional[int]:
+    """Ombor filiali — faqat `user.company_id` doirasidagi ombor va filial (begona korxona e'tiborga olinmaydi)."""
+    if not warehouse_id:
         return None
-    from app.models.moliya import Wallet
-    wallet = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == company_id).first()
-    if not wallet:
-        raise HTTPException(status_code=404, detail="Kassa (hamyon) topilmadi")
-    return wallet
-
-
-def resolve_branch(db: Session, user, warehouse_id: Optional[int] = None) -> Optional[int]:
-    """Tranzaksiya filiali: foydalanuvchi filiali → ombor filiali → kompaniyaning birinchi filiali."""
-    if getattr(user, "branch_id", None):
-        return user.branch_id
     from app.models.branch import Branch
     from app.models.warehouse import Warehouse
-    if warehouse_id:
-        wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id, Warehouse.company_id == user.company_id).first()
-        if wh and wh.branch_id:
-            return wh.branch_id
-    br = db.query(Branch).filter(Branch.company_id == user.company_id).order_by(Branch.id).first()
-    return br.id if br else None
+    row = (
+        db.query(Warehouse.branch_id)
+        .join(Branch, Branch.id == Warehouse.branch_id)
+        .filter(
+            Warehouse.id == warehouse_id,
+            Warehouse.company_id == user.company_id,
+            Branch.company_id == user.company_id,
+            Branch.is_active == True,  # noqa: E712  (T1.12: yopilgan filialga yozilmaydi)
+        )
+        .first()
+    )
+    return row[0] if row else None
+
+
+def resolve_branch(
+    db: Session, user, warehouse_id: Optional[int] = None, *, prefer_warehouse: bool = False,
+) -> Optional[int]:
+    """Tranzaksiya filiali.
+
+    Standart (`prefer_warehouse=False`): foydalanuvchi filiali (T1.2: joriy korxona bo'yicha) →
+    ombor filiali → korxonaning asosiy filiali (T0.7/T1.4).
+    `prefer_warehouse=True` (T1.16, xarid to'lovi va ta'minotchidan qaytim): ombor filiali
+    (Warehouse.company_id == user.company_id) → foydalanuvchi filiali → korxonaning asosiy filiali,
+    ya'ni xarajat tovar kirgan ombor filialiga yoziladi."""
+    from fastapi import HTTPException
+    from app.core.branch_context import effective_branch_id
+    from app.services.branch_attribution import NO_ACTIVE_BRANCH, NO_BRANCH, resolve_money_branch_id
+    # T2.2: yagona `resolve_money_branch_id` (ombor filiali -> foydalanuvchi filiali -> asosiy filial);
+    # standart tartibda foydalanuvchi filiali omborni bosib o'tadi
+    if not prefer_warehouse:
+        eff = effective_branch_id(db, user)
+        if eff:
+            return eff
+    try:
+        return resolve_money_branch_id(db, user, warehouse_id=warehouse_id)
+    except HTTPException as exc:
+        if exc.status_code == 400 and exc.detail in (NO_BRANCH, NO_ACTIVE_BRANCH):
+            return None
+        raise
 
 
 def record_cash(
     db: Session, *, user, direction: str, amount, currency: str, payment_type: str,
     wallet_id: Optional[int], reference_type: str, reference_id: int, description: str,
     meta: Optional[dict] = None, warehouse_id: Optional[int] = None, created_at: Optional[datetime] = None,
+    prefer_warehouse: bool = False,
 ):
     """Ta'minotchi bilan pul harakati: Transaction + KassaMovement (+ UZS bo'lsa hamyon balansi).
 
     direction: "out" (biz to'ladik) yoki "in" (ta'minotchi pul qaytardi).
     """
+    from app.core.branch_context import effective_branch_id
     from app.models.moliya import Transaction, KassaMovement, KassaSession
+    from app.services.branch_helpers import fallback_active_branch_id_or_400
 
     amount = _d(amount)
     code = (currency or "UZS").strip().upper() or "UZS"
@@ -169,7 +196,13 @@ def record_cash(
     wallet = _company_wallet(db, wallet_id, user.company_id)
 
     tx = Transaction(
-        branch_id=resolve_branch(db, user, warehouse_id),
+        # T1.2: joriy filial korxona bo'yicha; topilmasa T0.7 markaziy aniqlash (400 fallback).
+        # T1.16: prefer_warehouse=True bo'lsa xarajat avval ombor filialiga yoziladi
+        branch_id=(
+            (_warehouse_branch_id(db, user, warehouse_id) if prefer_warehouse else None)
+            or effective_branch_id(db, user)
+            or fallback_active_branch_id_or_400(db, user, warehouse_id=warehouse_id)
+        ),
         company_id=user.company_id,
         type="expense" if direction == "out" else "income",
         amount=amount,
@@ -265,3 +298,102 @@ def pay_supplier(db: Session, supplier, *, user, amount, currency: str = "UZS", 
                new_values={"amount": str(amount), "currency": code, "transaction_id": tx.id,
                            "debt_balances": supplier.debt_balances})
     return tx
+
+
+# ─── Hisobot: kreditorlik filial kesimida (T2.6) ─────────────────────────────
+
+def debt_by_branch(db: Session, company_id: int, branch_id: Optional[int] = None, branch_ids=None) -> dict:
+    """Ta'minotchi qarzi (kreditorlik) filial kesimida: `PurchaseOrder.supplier_debt` (>0) xarid OMBORI
+    filiali bo'yicha jamlanadi (`Warehouse.branch_id`). Jurnal yuritilmaydi — qarz hamon korxona darajasida.
+
+    Supplier darajasidagi umumiy to'lovlar xaridlarga taqsimlanmagani uchun `unallocated_payments` =
+    `Supplier.debt_balances` jami - `sum(PO.supplier_debt)` (valyuta bo'yicha, ishorali: manfiy — xaridga
+    bog'lanmagan to'lov) ham qaytadi, shunda jami haqiqiy balans bilan mos tushadi.
+
+    `branch_id`: aniq filial; `-1` — filialsiz ombor; `branch_ids` — ruxsat etilgan filiallar to'plami.
+    Qaytaradi: {"by_branch", "unassigned", "suppliers": [{supplier, branch_id, debts, debt_uzs}],
+    "unallocated_payments", "unallocated_payments_uzs"}.
+    """
+    from collections import defaultdict
+    from sqlalchemy import func
+    from app.models.branch import Branch
+    from app.models.purchase_order import POStatus, PurchaseOrder
+    from app.models.supplier import Supplier
+    from app.models.warehouse import Warehouse
+    from app.services.currency_service import rate_map, to_uzs
+
+    rates = rate_map(db, company_id)
+    cur_expr = func.coalesce(PurchaseOrder.supplier_debt_currency, PurchaseOrder.currency, "UZS")
+    po_rows = (
+        db.query(PurchaseOrder.supplier_id, Warehouse.branch_id, cur_expr, func.sum(PurchaseOrder.supplier_debt))
+        .join(Warehouse, Warehouse.id == PurchaseOrder.warehouse_id)
+        .join(Supplier, Supplier.id == PurchaseOrder.supplier_id)
+        .filter(
+            PurchaseOrder.company_id == company_id, Supplier.company_id == company_id,
+            Supplier.is_active == True,  # noqa: E712
+            PurchaseOrder.supplier_debt > 0, PurchaseOrder.status != POStatus.cancelled,
+        )
+        .group_by(PurchaseOrder.supplier_id, Warehouse.branch_id, cur_expr)
+        .all()
+    )
+    po_total: dict = defaultdict(lambda: ZERO)
+    recs: dict = {}
+    for sid, br, cur, total in po_rows:
+        code = (str(cur or "UZS")).strip().upper() or "UZS"
+        po_total[code] += _d(total)
+        rec = recs.setdefault((sid, br), {"supplier_id": sid, "branch_id": br, "debts": {}})
+        rec["debts"][code] = rec["debts"].get(code, ZERO) + _d(total)
+
+    # Umumiy balans (faol ta'minotchilar) va xaridlarga bog'lanmagan qism
+    bal_total: dict = defaultdict(lambda: ZERO)
+    suppliers = {s.id: s for s in db.query(Supplier).filter(Supplier.company_id == company_id, Supplier.is_active == True).all()}  # noqa: E712
+    for s in suppliers.values():
+        for code, amt in balances(s).items():
+            bal_total[code] += amt
+    unallocated = {c: bal_total.get(c, ZERO) - po_total.get(c, ZERO) for c in set(bal_total) | set(po_total)}
+    unallocated = {c: v for c, v in unallocated.items() if abs(v) >= EPS}
+
+    def _keep(b) -> bool:
+        if branch_id == -1:
+            return b is None
+        if branch_id:
+            return b == branch_id
+        if branch_ids is not None:
+            return b in branch_ids
+        return True
+
+    rows = []
+    for rec in recs.values():
+        if not _keep(rec["branch_id"]) or rec["supplier_id"] not in suppliers:
+            continue
+        rec["supplier"] = suppliers[rec["supplier_id"]]
+        rec["debt_uzs"] = float(round(sum((to_uzs(v, c, rates) for c, v in rec["debts"].items()), ZERO), 2))
+        rec["debts"] = {c: float(round(v, 2)) for c, v in rec["debts"].items()}
+        rows.append(rec)
+    rows.sort(key=lambda r: r["debt_uzs"], reverse=True)
+
+    names = {b.id: b.name for b in db.query(Branch.id, Branch.name).filter(Branch.company_id == company_id).all()}
+
+    def _agg(rs, b, name) -> dict:
+        total: dict = {}
+        uzs = ZERO
+        for r in rs:
+            for code, amt in r["debts"].items():
+                total[code] = total.get(code, ZERO) + _d(amt)
+                uzs += to_uzs(amt, code, rates)
+        return {"branch_id": b, "branch_name": name,
+                "total_debt": {c: float(round(v, 2)) for c, v in total.items()},
+                "debt_uzs": float(round(uzs, 2)), "supplier_count": len({r["supplier_id"] for r in rs})}
+
+    grouped: dict = defaultdict(list)
+    for r in rows:
+        grouped[r["branch_id"]].append(r)
+    by_branch = [_agg(rs, b, names.get(b) or f"Filial #{b}") for b, rs in grouped.items() if b is not None]
+    by_branch.sort(key=lambda x: x["debt_uzs"], reverse=True)
+    return {
+        "by_branch": by_branch,
+        "unassigned": _agg(grouped.get(None, []), None, None),
+        "suppliers": rows,
+        "unallocated_payments": {c: float(round(v, 2)) for c, v in unallocated.items()},
+        "unallocated_payments_uzs": float(round(sum((to_uzs(v, c, rates) for c, v in unallocated.items()), ZERO), 2)),
+    }

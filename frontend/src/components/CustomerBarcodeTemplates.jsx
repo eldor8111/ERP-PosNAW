@@ -8,8 +8,23 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import api, { getCurrentBranchId } from '../api/axios';
+import { useLang } from '../context/LangContext';
 
 const LS_KEY = 'customer_barcode_saved_templates';
+
+// T3.7: shablonlar serverda (GET/POST/DELETE /label-templates?kind=customer); localStorage faqat
+// server javob bermaganda zaxira va eski shablonlarni serverga ko'chirish uchun. Barcha chaqiruvlar try/catch da.
+const readLocalTemplates = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+};
+const writeLocalTemplates = (list) => {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(list)); return true; } catch { return false; }
+};
+const fromServerTemplate = (r) => ({ ...(r.config || {}), id: r.id, name: r.name, branch_id: r.branch_id ?? null, _server: true });
 const MM_TO_PX = 3.7795;
 
 function mmToPx(mm) {
@@ -204,6 +219,8 @@ function LabelPreview({ tpl, customer, scale = 1, options = {} }) {
 }
 
 export default function CustomerBarcodePrintModal({ customer, onClose }) {
+  const { t: tr } = useLang();
+  const tf = (key, fallback) => { const v = tr(key); return v === key ? fallback : v; };
   const [selectedTpl, setSelectedTpl] = useState(BUILT_IN_TEMPLATES[4]); // 50×30 default
   const [qty, setQty] = useState(1);
 
@@ -216,9 +233,13 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
 
   const [companyName, setCompanyName] = useState('');
 
-  const [savedTemplates, setSavedTemplates] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
-  });
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [serverOk, setServerOk] = useState(false);          // server javob berdimi (aks holda localStorage zaxira)
+  const [legacyLocal, setLegacyLocal] = useState(() => readLocalTemplates());
+  const [migrating, setMigrating] = useState(false);
+  const [saveBranchOnly, setSaveBranchOnly] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const currentBranchId = getCurrentBranchId();
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
 
@@ -231,6 +252,27 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
   const [companyNamePos, setCompanyNamePos] = useState('up');
   const [customerNamePos, setCustomerNamePos] = useState('up');
   const [cashbackPos, setCashbackPos] = useState('down');
+
+  // T3.7: shablonlar serverdan (korxona + joriy filial), do'kon nomi Company.name dan oldindan to'ldiriladi
+  const loadServerTemplates = () => {
+    const bid = getCurrentBranchId();
+    return api.get('/label-templates', { params: { kind: 'customer', ...(bid ? { branch_id: bid } : {}) }, _noCache: true })
+      .then(res => {
+        setSavedTemplates((Array.isArray(res.data) ? res.data : []).map(fromServerTemplate));
+        setServerOk(true);
+      })
+      .catch(() => {
+        setSavedTemplates(readLocalTemplates());
+        setServerOk(false);
+      });
+  };
+  useEffect(() => {
+    loadServerTemplates();
+    api.get('/billing/my-company')
+      .then(res => { const n = res.data?.name; if (n) setCompanyName(prev => prev || n); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (window.JsBarcode) return;
@@ -258,12 +300,12 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
     cashbackPos,
   };
 
-  const handleSave = () => {
-    if (!saveName.trim()) return;
-    const newTpl = {
-      ...selectedTpl,
-      id: `saved-${Date.now()}`,
-      name: saveName.trim(),
+  const handleSave = async () => {
+    const name = saveName.trim();
+    if (!name) return;
+    const { id: _id, name: _name, ...tplBase } = selectedTpl;
+    const config = {
+      ...tplBase,
       description: `${selectedTpl.size} mm — saqlangan shablon`,
       _opts: {
         fontSize, customerNameSize, cashbackSize, cardNumberSize, barcodeSize, barcodeHeight,
@@ -271,22 +313,64 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
         companyNamePos, customerNamePos, cashbackPos,
       },
     };
-    const updated = [...savedTemplates, newTpl];
-    setSavedTemplates(updated);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    setSaveError('');
+    try {
+      const res = await api.post('/label-templates', {
+        name, kind: 'customer', config,
+        branch_id: saveBranchOnly && currentBranchId ? currentBranchId : null,
+      });
+      setSavedTemplates(prev => [...prev, fromServerTemplate(res.data)]);
+      setServerOk(true);
+    } catch (e) {
+      if (e.response && e.response.status < 500) {
+        setSaveError(e.response.data?.detail || tf('labelTemplates.saveError', "Shablonni saqlab bo'lmadi"));
+        return;
+      }
+      // Server yetib bo'lmadi — localStorage zaxira (u ham bloklangan bo'lishi mumkin)
+      const updated = [...savedTemplates, { ...config, id: `saved-${Date.now()}`, name }];
+      setSavedTemplates(updated);
+      writeLocalTemplates(updated);
+    }
     setSaveModalOpen(false);
     setSaveName('');
+    setSaveBranchOnly(false);
   };
 
-  const handleDeleteSaved = (id, e) => {
+  const handleDeleteSaved = async (id, e) => {
     e.stopPropagation();
-    const updated = savedTemplates.filter(t => t.id !== id);
+    const tpl = savedTemplates.find(x => String(x.id) === String(id));
+    if (tpl && tpl._server) {
+      try { await api.delete(`/label-templates/${tpl.id}`); } catch (err) { console.error('Shablonni o\'chirishda xato:', err); return; }
+      setSavedTemplates(prev => prev.filter(x => String(x.id) !== String(id)));
+      return;
+    }
+    const updated = savedTemplates.filter(x => String(x.id) !== String(id));
     setSavedTemplates(updated);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    writeLocalTemplates(updated);
+  };
+
+  /* Eski localStorage shablonlarini serverga ko'chirish; faqat to'liq muvaffaqiyatdan keyin kalit o'chiriladi */
+  const handleMigrateLegacy = async () => {
+    setMigrating(true);
+    let allOk = true;
+    for (const old of legacyLocal) {
+      const { id: _id, name: oldName, ...config } = old;
+      try {
+        await api.post('/label-templates', { name: String(oldName || 'Shablon').slice(0, 100), kind: 'customer', branch_id: null, config });
+      } catch (err) {
+        if (err.response?.status !== 409) allOk = false;   // 409 — shu nomli shablon serverda allaqachon bor
+      }
+    }
+    if (allOk) {
+      try { localStorage.removeItem(LS_KEY); } catch { /* bloklangan bo'lishi mumkin */ }
+      setLegacyLocal([]);
+    }
+    await loadServerTemplates();
+    setMigrating(false);
   };
 
   const handleLoadSaved = (id) => {
-    const tpl = savedTemplates.find(t => t.id === id);
+    const tpl = savedTemplates.find(x => String(x.id) === String(id));
     if (!tpl) return;
     setSelectedTpl(tpl);
     const o = tpl._opts || {};
@@ -375,6 +459,17 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {serverOk && legacyLocal.length > 0 && (
+              <button
+                type="button"
+                onClick={handleMigrateLegacy}
+                disabled={migrating}
+                className="px-3 py-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 rounded-xl transition-colors border border-blue-200"
+                title={tf('labelTemplates.migrateHint', "Bu kompyuterdagi eski shablonlarni serverga ko'chirish")}
+              >
+                {tf('labelTemplates.migrate', "Shablonlarni serverga ko'chirish")} ({legacyLocal.length})
+              </button>
+            )}
             {savedTemplates.length > 0 && (
               <div className="relative flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-xl px-1 py-1">
                 <svg className="w-4 h-4 text-amber-500 ml-1 shrink-0" fill="currentColor" viewBox="0 0 24 24">
@@ -588,6 +683,13 @@ export default function CustomerBarcodePrintModal({ customer, onClose }) {
               onChange={e => setSaveName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
             />
+            {currentBranchId ? (
+              <label className="flex items-center gap-2 text-xs text-slate-600 mb-4 cursor-pointer">
+                <input type="checkbox" checked={saveBranchOnly} onChange={e => setSaveBranchOnly(e.target.checked)} />
+                <span>{tf('labelTemplates.onlyThisBranch', 'Faqat shu filial uchun')}</span>
+              </label>
+            ) : null}
+            {saveError && <p className="text-xs text-red-600 mb-3">{saveError}</p>}
             <div className="flex gap-3">
               <button type="button" onClick={() => setSaveModalOpen(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50">Bekor</button>
               <button type="button" onClick={handleSave} disabled={!saveName.trim()} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors">⭐ Saqlash</button>

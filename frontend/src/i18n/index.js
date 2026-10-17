@@ -21,10 +21,26 @@ export function getStoredLang() {
 }
 
 // Translate function: t('key', { name: 'John' })
+// Ko'plik (T3.5): vars.count uzatilsa `key.one/few/many/other` qidiriladi (Intl.PluralRules);
+// topilmasa eski `key` ishlatiladi.
+const _pluralRules = {};
+function pluralRule(lang, count) {
+  try {
+    const pr = _pluralRules[lang] || (_pluralRules[lang] = new Intl.PluralRules(lang));
+    return pr.select(Number(count));
+  } catch {
+    return 'other';
+  }
+}
+
 export function createTranslator(lang) {
   const dict = translations[lang] || translations.uz;
   return function t(key, vars) {
-    let str = dict[key] ?? translations.uz[key] ?? key;
+    let str;
+    if (vars && vars.count !== undefined && vars.count !== null) {
+      str = dict[`${key}.${pluralRule(lang, vars.count)}`];
+    }
+    str = str ?? dict[key] ?? translations.uz[key] ?? key;
     if (vars) {
       Object.entries(vars).forEach(([k, v]) => {
         str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), v ?? '');

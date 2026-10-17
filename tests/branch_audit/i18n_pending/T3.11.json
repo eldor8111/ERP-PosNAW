@@ -1,0 +1,17 @@
+{
+  "uz": {
+    "pos.logoutPendingConfirm": "Yuborilmagan {count} ta oflayn sotuv bor. Chiqsangiz ular qurilmada saqlanadi, lekin serverga yuborilmaydi. Baribir chiqasizmi?",
+    "pos.logoutBlockedPending": "Yuborilmagan oflayn sotuvlar bor ({count} ta). Internetga ulanib sinxronlang, so'ng chiqing.",
+    "pos.pendingBadge": "Yuborilmagan sotuvlar: {count}"
+  },
+  "ru": {
+    "pos.logoutPendingConfirm": "Есть неотправленные офлайн-продажи: {count}. Если выйти, они останутся на устройстве, но не будут отправлены на сервер. Всё равно выйти?",
+    "pos.logoutBlockedPending": "Есть неотправленные офлайн-продажи ({count}). Подключитесь к интернету, синхронизируйте и затем выходите.",
+    "pos.pendingBadge": "Неотправленные продажи: {count}"
+  },
+  "en": {
+    "pos.logoutPendingConfirm": "There are {count} unsynced offline sales. If you log out they stay on this device but will not be sent to the server. Log out anyway?",
+    "pos.logoutBlockedPending": "There are unsynced offline sales ({count}). Connect to the internet and sync before logging out.",
+    "pos.pendingBadge": "Unsynced sales: {count}"
+  }
+}

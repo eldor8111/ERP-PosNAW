@@ -1,8 +1,12 @@
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.dependencies import get_current_user, require_roles
+from app.database import get_db
 from app.models.user import User, UserRole
+from app.routers.fiscal_devices import allowed_factory_ids, ensure_factory_access, fiscal_device_for_user
 from app.schemas.hippo import (
     RegisterReceiptRequest,
     UpdateSettingsRequestModel,
@@ -20,9 +24,32 @@ from app.utils.hippo_client import (
     HippoConnectionError,
 )
 
-# Kassa (POS) fiskal amaliyotlari uchun tizimga kirgan bo'lish shart —
-# bundan oldin bu router butunlay ochiq (autentifikatsiyasiz) edi.
-router = APIRouter(prefix="/hippo", tags=["Hippo Fiskalizatsiya"], dependencies=[Depends(get_current_user)])
+def _hippo_enabled():
+    """T3.18: server kommunikatori o'chiq bo'lsa (HIPPO_SERVER_ENABLED=false) /hippo/* umuman yo'q (404).
+    Tekshiruv so'rov paytida bajariladi (sozlama o'zgarsa qayta ishga tushirish shart emas)."""
+    if not settings.HIPPO_SERVER_ENABLED:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+# Kassa (POS) fiskal amaliyotlari: flag yoqilgan bo'lishi + POS roli (admin/director/manager/cashier) shart.
+# super_admin require_roles dan har doim o'tadi. factory_id li endpointlar qo'shimcha ravishda
+# fiscal_devices ro'yxati bo'yicha tekshiriladi (korxona/filialga biriktirilmagan qurilma — 403).
+router = APIRouter(
+    prefix="/hippo",
+    tags=["Hippo Fiskalizatsiya"],
+    dependencies=[
+        Depends(_hippo_enabled),
+        Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.cashier)),
+    ],
+)
+
+
+def _filter_by_factory(rows, db: Session, user: User):
+    """Kommunikator ro'yxatidan foydalanuvchi korxonasi/filialidagi qurilmalar yozuvlarini qoldiradi."""
+    allowed = allowed_factory_ids(db, user)
+    if allowed is None or not isinstance(rows, list):
+        return rows
+    return [r for r in rows if isinstance(r, dict) and str(r.get("factory_id", r.get("factoryId", ""))) in allowed]
 
 LOGO_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 LOGO_MAX_SIZE = 5 * 1024 * 1024  # 5 MB
@@ -59,15 +86,18 @@ def health():
 # -- Fiscal module ----------------------------------------------------------
 
 @router.get("/fiscal-modules")
-def get_fiscal_modules():
+def get_fiscal_modules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
-        return hippo_service.get_fiscal_modules()
+        return _filter_by_factory(hippo_service.get_fiscal_modules(), db, current_user)
     except HippoClientError as exc:
         _map_exception(exc)
 
 
 @router.post("/fiscal-modules/{factory_id}/sync")
-def sync_fiscal_module(factory_id: str):
+def sync_fiscal_module(factory_id: str = Depends(fiscal_device_for_user)):
     try:
         return hippo_service.sync_fiscal_module(factory_id)
     except HippoClientError as exc:
@@ -75,7 +105,7 @@ def sync_fiscal_module(factory_id: str):
 
 
 @router.get("/fiscal-modules/info")
-def get_fiscal_module_info(factory_id: str = Query(...)):
+def get_fiscal_module_info(factory_id: str = Depends(fiscal_device_for_user)):
     try:
         return hippo_service.get_fiscal_module_info(factory_id)
     except HippoClientError as exc:
@@ -83,7 +113,7 @@ def get_fiscal_module_info(factory_id: str = Query(...)):
 
 
 @router.get("/fiscal-modules/memory-info")
-def get_fiscal_module_memory_info(factory_id: str = Query(...)):
+def get_fiscal_module_memory_info(factory_id: str = Depends(fiscal_device_for_user)):
     try:
         return hippo_service.get_fiscal_module_memory_info(factory_id)
     except HippoClientError as exc:
@@ -93,7 +123,12 @@ def get_fiscal_module_memory_info(factory_id: str = Query(...)):
 # -- Receipts -------------------------------------------------------------
 
 @router.post("/receipt/register")
-def register_receipt(request: RegisterReceiptRequest):
+def register_receipt(
+    request: RegisterReceiptRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_factory_access(db, current_user, request.factory_id)
     try:
         return hippo_service.register_receipt(request)
     except HippoClientError as exc:
@@ -101,7 +136,7 @@ def register_receipt(request: RegisterReceiptRequest):
 
 
 @router.get("/receipt")
-def get_receipt(factory_id: str = Query(...), receipt_index: int = Query(0)):
+def get_receipt(factory_id: str = Depends(fiscal_device_for_user), receipt_index: int = Query(0)):
     try:
         return hippo_service.get_receipt(factory_id, receipt_index)
     except HippoClientError as exc:
@@ -117,15 +152,18 @@ def print_receipt(local_id: int):
 
 
 @router.get("/receipts")
-def list_receipts():
+def list_receipts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
-        return hippo_service.list_receipts()
+        return _filter_by_factory(hippo_service.list_receipts(), db, current_user)
     except HippoClientError as exc:
         _map_exception(exc)
 
 
 @router.get("/receipts/current-shift")
-def get_current_shift(factory_id: str = Query(...)):
+def get_current_shift(factory_id: str = Depends(fiscal_device_for_user)):
     try:
         return hippo_service.get_current_shift(factory_id)
     except HippoClientError as exc:
@@ -135,7 +173,12 @@ def get_current_shift(factory_id: str = Query(...)):
 # -- Z-report ----------------------------------------------------------------
 
 @router.post("/z-report/open")
-def open_z_report(request: ZReportRequest):
+def open_z_report(
+    request: ZReportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_factory_access(db, current_user, request.factory_id)
     try:
         return hippo_service.open_z_report(request.factory_id)
     except HippoClientError as exc:
@@ -143,7 +186,12 @@ def open_z_report(request: ZReportRequest):
 
 
 @router.post("/z-report/close")
-def close_z_report(request: ZReportRequest):
+def close_z_report(
+    request: ZReportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_factory_access(db, current_user, request.factory_id)
     try:
         return hippo_service.close_z_report(request.factory_id)
     except HippoClientError as exc:
@@ -151,7 +199,7 @@ def close_z_report(request: ZReportRequest):
 
 
 @router.get("/z-report")
-def get_z_report(factory_id: str = Query(...), index: int = Query(0)):
+def get_z_report(factory_id: str = Depends(fiscal_device_for_user), index: int = Query(0)):
     try:
         return hippo_service.get_z_report(factory_id, index)
     except HippoClientError as exc:
@@ -159,7 +207,12 @@ def get_z_report(factory_id: str = Query(...), index: int = Query(0)):
 
 
 @router.post("/z-report/unacknowledged")
-def get_unacknowledged_z_reports(request: ZReportRequest):
+def get_unacknowledged_z_reports(
+    request: ZReportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_factory_access(db, current_user, request.factory_id)
     try:
         return hippo_service.get_unacknowledged_z_report_indexes(request.factory_id)
     except HippoClientError as exc:
@@ -169,7 +222,12 @@ def get_unacknowledged_z_reports(request: ZReportRequest):
 # -- Sync -------------------------------------------------------------------
 
 @router.post("/sync/receipts")
-def sync_receipts(request: SyncRequestModel):
+def sync_receipts(
+    request: SyncRequestModel,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_factory_access(db, current_user, request.factory_id)
     try:
         return hippo_service.sync_receipts(request.factory_id, request.items_count)
     except HippoClientError as exc:
@@ -177,7 +235,12 @@ def sync_receipts(request: SyncRequestModel):
 
 
 @router.post("/sync/z-reports")
-def sync_z_reports(request: SyncRequestModel):
+def sync_z_reports(
+    request: SyncRequestModel,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_factory_access(db, current_user, request.factory_id)
     try:
         return hippo_service.sync_z_reports(request.factory_id, request.items_count)
     except HippoClientError as exc:
@@ -197,7 +260,8 @@ def get_settings():
 @router.put("/settings")
 def update_settings(
     data: UpdateSettingsRequestModel,
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+    # Kommunikator butun platforma uchun bitta — sozlamalarni faqat super_admin o'zgartiradi (T3.18)
+    current_user: User = Depends(require_roles(UserRole.super_admin)),
 ):
     try:
         return hippo_service.update_settings(data)
@@ -208,7 +272,7 @@ def update_settings(
 @router.post("/settings/logo")
 def upload_logo(
     file: UploadFile = File(...),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director)),
+    current_user: User = Depends(require_roles(UserRole.super_admin)),
 ):
     if file.content_type not in LOGO_ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="Faqat JPEG, PNG yoki WEBP rasm qabul qilinadi")

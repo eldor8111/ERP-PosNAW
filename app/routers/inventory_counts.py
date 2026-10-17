@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.audit import log_action_for
 from app.core.dependencies import require_roles
 from app.database import get_db
 from app.models.inventory_count import CountStatus, InventoryCount, InventoryCountItem
@@ -12,13 +13,22 @@ from app.schemas.inventory_count import (
     CountCreate, CountItemUpdate, InventoryCountListOut, InventoryCountOut, CountItemOut
 )
 from app.services.inventory_count_service import (
-    create_inventory_count, finalize_inventory_count,
-    start_inventory_count, update_count_items,
+    create_inventory_count, finalize_inventory_count, find_open_count,
+    open_count_conflict, revert_inventory_count, start_inventory_count, update_count_items,
 )
 
 router = APIRouter(prefix="/inventory-counts", tags=["Inventory Counts"])
 
 ALLOWED = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.manager)
+
+
+def _write_cid(user: User) -> Optional[int]:
+    """Yozuvchi amallar uchun korxona: None faqat super_admin'da; korxonasiz oddiy foydalanuvchiga ruxsat yo'q."""
+    if user.role == UserRole.super_admin:
+        return None
+    if user.company_id is None:
+        raise HTTPException(status_code=403, detail="Korxona aniqlanmadi")
+    return user.company_id
 
 
 def _load_count(db: Session, count_id: int, company_id: Optional[int] = None) -> Optional[InventoryCount]:
@@ -77,7 +87,7 @@ def _build_count_out(c: InventoryCount) -> InventoryCountOut:
 def list_counts(
     status: Optional[CountStatus] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50),
+    limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
@@ -124,17 +134,26 @@ def create_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    count = create_inventory_count(db, data, current_user.id)
+    cid = _write_cid(current_user)
+    count = create_inventory_count(db, data, current_user.id, cid)
+    items_created = getattr(count, "_items_created", 0)
     db.commit()
-    cid = None if current_user.role == UserRole.super_admin else current_user.company_id
-    c = _load_count(db, count.id, cid)
+    # T3.8: faqat ombor kerak — qatorlarni (items) qayta yuklamaymiz, item_count yaratilgan qatorlar soni
+    c = (
+        db.query(InventoryCount)
+        .options(joinedload(InventoryCount.warehouse))
+        .filter(InventoryCount.id == count.id)
+        .first()
+    )
+    if not c:
+        raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
     return InventoryCountListOut(
         id=c.id,
         number=c.number,
         warehouse_name=c.warehouse.name,
         status=c.status,
         created_at=c.created_at,
-        item_count=len(c.items),
+        item_count=items_created,
     )
 
 
@@ -157,10 +176,12 @@ def start_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    start_inventory_count(db, count_id)
+    cid = _write_cid(current_user)
+    start_inventory_count(db, count_id, cid)
     db.commit()
-    cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count_id, cid)
+    if not c:
+        raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
     return InventoryCountListOut(
         id=c.id,
         number=c.number,
@@ -178,10 +199,12 @@ def update_items(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    update_count_items(db, count_id, items, current_user.id)
+    cid = _write_cid(current_user)
+    update_count_items(db, count_id, items, current_user.id, cid)
     db.commit()
-    cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count_id, cid)
+    if not c:
+        raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
     return InventoryCountListOut(
         id=c.id,
         number=c.number,
@@ -198,10 +221,12 @@ def finalize_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
 ):
-    finalize_inventory_count(db, count_id, current_user.id)
+    cid = _write_cid(current_user)
+    finalize_inventory_count(db, count_id, current_user.id, cid)
     db.commit()
-    cid = None if current_user.role == UserRole.super_admin else current_user.company_id
     c = _load_count(db, count_id, cid)
+    if not c:
+        raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
     return InventoryCountListOut(
         id=c.id,
         number=c.number,
@@ -224,26 +249,13 @@ def revert_count(
         raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
 
     if c.status == CountStatus.completed:
-        from app.models.inventory import StockMovement, StockLevel
-        movements = db.query(StockMovement).filter(
-            StockMovement.reference_type == "revision",
-            StockMovement.reference_id == count_id
-        ).all()
-        for mov in movements:
-            net_change = mov.qty_after - mov.qty_before
-            if net_change != 0:
-                stock_q = db.query(StockLevel).filter(
-                    StockLevel.product_id == mov.product_id,
-                    StockLevel.warehouse_id == c.warehouse_id
-                )
-                stock_q = stock_q.filter(StockLevel.variant_id == mov.variant_id) if mov.variant_id is not None \
-                    else stock_q.filter(StockLevel.variant_id.is_(None))
-                stock = stock_q.with_for_update().first()
-                if stock:
-                    stock.quantity -= net_change
-            db.delete(mov)
-        
-        c.status = CountStatus.in_progress
+        # Qaytarilgach revizya yana ochiq bo'ladi — shu omborda boshqa ochiq revizya bo'lmasligi shart
+        other = find_open_count(db, c.warehouse_id, exclude_id=c.id)
+        if other:
+            raise open_count_conflict(other)
+
+        # T1.19: harakatlar o'chirilmaydi — storno (revision_revert) yoziladi
+        revert_inventory_count(db, c, current_user.id)
         db.commit()
     
     return InventoryCountListOut(
@@ -267,30 +279,24 @@ def delete_count(
     if not c:
         raise HTTPException(status_code=404, detail="Inventarizatsiya topilmadi")
 
+    # T1.19: yakunlangan revizyani o'chirib bo'lmaydi (kamomad yashiriladi) — avval qaytarish (revert) kerak
+    if c.status == CountStatus.completed:
+        raise HTTPException(
+            status_code=400,
+            detail="Yakunlangan revizyani o'chirib bo'lmaydi, avval bekor qiling (revert)",
+        )
+
+    snapshot = {"number": c.number, "warehouse_id": c.warehouse_id, "status": c.status.value
+                if hasattr(c.status, "value") else c.status}
+    log_action_for(
+        db, current_user, "COUNT_DELETE", "inventory_count", count_id,
+        old_values=snapshot, branch_id=c.warehouse.branch_id if c.warehouse else None,
+        company_id=c.warehouse.company_id if c.warehouse else None,
+    )
+
     # Items ni o'chirish
     db.query(InventoryCountItem).filter(InventoryCountItem.count_id == count_id).delete()
-    
-    if c.status == CountStatus.completed:
-        from app.models.inventory import StockMovement, StockLevel
-        movements = db.query(StockMovement).filter(
-            StockMovement.reference_type == "revision",
-            StockMovement.reference_id == count_id
-        ).all()
-        for mov in movements:
-            net_change = mov.qty_after - mov.qty_before
-            if net_change != 0:
-                stock_q = db.query(StockLevel).filter(
-                    StockLevel.product_id == mov.product_id,
-                    StockLevel.warehouse_id == c.warehouse_id
-                )
-                stock_q = stock_q.filter(StockLevel.variant_id == mov.variant_id) if mov.variant_id is not None \
-                    else stock_q.filter(StockLevel.variant_id.is_(None))
-                stock = stock_q.with_for_update().first()
-                if stock:
-                    stock.quantity -= net_change
-            db.delete(mov)
-        
+
     db.delete(c)
     db.commit()
     return {"status": "deleted", "id": count_id}
-

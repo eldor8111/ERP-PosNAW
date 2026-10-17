@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, BigInteger, String, Numeric, ForeignKey, UniqueConstraint, JSON, DateTime  # type: ignore
+from sqlalchemy import Column, Integer, BigInteger, String, Numeric, ForeignKey, UniqueConstraint, CheckConstraint, Index, JSON, DateTime, Boolean, true  # type: ignore
 from sqlalchemy.orm import relationship
 
 from app.database import Base  # type: ignore
@@ -57,6 +57,13 @@ class Customer(Base):
     visit_radius_m = Column(Integer, nullable=True)
     photo_url = Column(String(300), nullable=True)
 
+    # T0.26: tarixi (sotuv/buyurtma) bor mijoz jismonan o'chirilmaydi — arxivlanadi.
+    # Arxivlanganda phone/card_number/tg_chat_id/agent_id NULL qilinadi (unique
+    # cheklovlar bilan to'qnashmasligi uchun), eski qiymatlar deleted_meta'da qoladi.
+    is_active = Column(Boolean, nullable=False, default=True, server_default=true())
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_meta = Column(JSON, nullable=True)
+
     branch = relationship("Branch", back_populates="customers")
     orders = relationship("Order", back_populates="customer")
 
@@ -64,14 +71,15 @@ class Customer(Base):
         UniqueConstraint('company_id', 'phone', name='uq_company_customer_phone'),
         UniqueConstraint('company_id', 'tg_chat_id', name='uq_company_customer_tg_chat_id'),
         UniqueConstraint('company_id', 'card_number', name='uq_company_customer_card_number'),
+        CheckConstraint("price_type IN ('sale', 'wholesale', 'cost')", name='ck_customers_price_type'),
+        CheckConstraint("cashback_percent >= 0 AND cashback_percent <= 100", name='ck_customers_cashback_0_100'),
+        CheckConstraint("loyalty_points >= 0", name='ck_customers_loyalty_nonneg'),
+        Index('ix_customers_company_active', 'company_id', 'is_active'),
     )
 
     @property
     def tier(self):
-        if self.loyalty_points >= 10000:
-            return "Gold"
-        elif self.loyalty_points >= 5000:
-            return "Silver"
-        elif self.loyalty_points >= 1000:
-            return "Bronze"
-        return "Standard"
+        # Sukut chegaralar (1000/5000/10000); korxona sozlamasidagi chegaralar API darajasida
+        # loyalty_service.tier_for(points, rules) bilan hisoblanadi (T2.12).
+        from app.services.loyalty_service import tier_for, DEFAULT_TIERS
+        return tier_for(self.loyalty_points or 0, DEFAULT_TIERS)

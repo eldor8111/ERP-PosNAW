@@ -3,9 +3,12 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { Banknote, CreditCard, Gem, HandCoins, Landmark, PiggyBank } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
+import { tOr } from '../../utils/shiftBalances'; // T4.6
 
 const fmt = v => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDate = d => d ? new Date(d).toLocaleString('uz-UZ') : '—';
+// t(key) topilmasa zaxira matn (yangi kalitlar i18n lug'atiga keyin qo'shiladi)
+const tfOr = (t, key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 
 const PT_CONFIG = {
   cash: { labelKey: 'finance.cash', icon: <Banknote className='w-5 h-5 text-emerald-500' />, bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
@@ -15,6 +18,8 @@ const PT_CONFIG = {
   click: { labelKey: 'kassa.ptClick', icon: <CreditCard className='w-5 h-5 text-yellow-500' />, bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400', dot: 'bg-yellow-400' },
   payme: { labelKey: 'kassa.ptPayme', icon: <CreditCard className='w-5 h-5 text-red-500' />, bg: 'bg-red-500/15', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-400' },
   uzum: { labelKey: 'kassa.ptUzum', icon: <CreditCard className='w-5 h-5 text-orange-500' />, bg: 'bg-orange-500/15', border: 'border-orange-500/30', text: 'text-orange-400', dot: 'bg-orange-400' },
+  bank: { labelKey: 'kassa.ptBank', icon: <Landmark className='w-5 h-5 text-indigo-500' />, bg: 'bg-indigo-500/15', border: 'border-indigo-500/30', text: 'text-indigo-400', dot: 'bg-indigo-400' },
+  visa: { labelKey: 'kassa.ptVisa', icon: <CreditCard className='w-5 h-5 text-sky-500' />, bg: 'bg-sky-500/15', border: 'border-sky-500/30', text: 'text-sky-400', dot: 'bg-sky-400' },
   keshbek: { labelKey: 'kassa.ptKeshbek', icon: <HandCoins className='w-5 h-5 text-blue-500' />, bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-400' },
 };
 const getBalanceValue = (val) => {
@@ -59,17 +64,43 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 
-function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
+// T2.7: valyuta tanlagichi (xarajat / kirim / chiqim). Korxonada faqat bitta valyuta bo'lsa ko'rinmaydi.
+// Backend (`/kassa/do-expense`, `/invest`, `/withdraw`) `currency` ni qabul qiladi va kurs bo'yicha so'm
+// ekvivalentini (`amount_uzs`) o'zi saqlaydi; bu yerda faqat taxminiy ekvivalent ko'rsatiladi.
+function CurrencyField({ currencies, value, amount, onChange, t, selectClass }) {
+  if (!Array.isArray(currencies) || currencies.length < 2) return null;
+  const cur = currencies.find(c => c.code === value);
+  const rate = Number(cur?.rate) || 0;
+  const eq = value !== 'UZS' && rate > 0 && Number(amount) > 0 ? Math.round(Number(amount) * rate) : null;
+  return (
+    <div>
+      <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.currency')}</label>
+      <select className={selectClass} value={value} onChange={e => onChange(e.target.value)}>
+        {currencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+      </select>
+      {eq !== null && (
+        <p className="text-xs text-slate-500 mt-1.5 tabular-nums">
+          {Number(amount).toLocaleString('uz-UZ')} {value} &asymp; {eq.toLocaleString('uz-UZ')} {t('common.sum')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
   const { t } = useLang();
   const [modal, setModal] = useState(null);
   const [history, setHistory] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [currencies, setCurrencies] = useState([]); // T2.7: faol valyutalar (GET /currencies/active)
   const [saving, setSaving] = useState(false);
   const [directionFilter, setDirectionFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState();
   const [closeResult, setCloseResult] = useState(null); // Z-report farqi
   const [pendingTransfers, setPendingTransfers] = useState([]);
   const [editExpense, setEditExpense] = useState(null);
+  const [pendingExpenses, setPendingExpenses] = useState([]); // T4.6: tasdiq kutayotgan xarajatlar
+  const [editForm, setEditForm] = useState({ name: '', branch_id: '' }); // T1.10: kassani tahrirlash (nom + filial)
 
   const filteredHistory = (history?.items && Array.isArray(history.items) ? history.items : []).filter(it => {
     if (directionFilter !== 'all' && it.direction !== directionFilter) return false;
@@ -92,6 +123,11 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
   const loadHistory = useCallback(async () => {
     const r = await api.get(`/kassa/${kassa.id}/history`, { params: { limit: 30 } });
     setHistory(r.data);
+    // T4.6: tasdiq kutayotgan xarajatlarda kassa harakati yo'q — alohida ro'yxat ("Kutilmoqda")
+    try {
+      const pr = await api.get(`/kassa/${kassa.id}/expenses`, { params: { status: 'pending', limit: 20 }, _silent: true, _suppressToast: true });
+      setPendingExpenses(Array.isArray(pr.data?.items) ? pr.data.items : []);
+    } catch { setPendingExpenses([]); }
   }, [kassa.id]);
 
   const loadCategories = useCallback(async () => {
@@ -121,6 +157,12 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
     setCloseResult(null);
     if (type === 'history') await loadHistory();
     if (type === 'expense') await loadCategories();
+    if (['open', 'expense', 'invest', 'withdraw'].includes(type)) {
+      try {
+        const r = await api.get('/currencies/active', { _suppressToast: true });
+        setCurrencies(Array.isArray(r.data) ? r.data : []);
+      } catch { setCurrencies([]); }
+    }
     setModal(type);
   };
 
@@ -128,7 +170,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
     setSaving(true);
     try {
       if (action === 'open') {
-        await api.post(`/kassa/${kassa.id}/open`, { opening_balance: Number(form.opening_balance) || 0, note: form.note });
+        await api.post(`/kassa/${kassa.id}/open`, { opening_balance: Number(form.opening_balance) || 0, currency: form.currency ?? 'UZS', note: form.note });
         toast.success(t('kassa.opened'));
       } else if (action === 'close') {
         // Blind Close: kassir kiritgan summani yuborish, hisoblanganni ko'rsatmasdan
@@ -155,47 +197,50 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
           // modal ochiq qoladi, faqat natija ko'rsatiladi
         }
       } else if (action === 'invest') {
-        await api.post(`/kassa/${kassa.id}/invest`, { amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
+        await api.post(`/kassa/${kassa.id}/invest`, { amount: Number(form.amount), payment_type: form.payment_type, currency: form.currency || 'UZS', description: form.description });
         toast.success(t('kassa.investAdded'));
       } else if (action === 'withdraw') {
-        await api.post(`/kassa/${kassa.id}/withdraw`, { amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
+        await api.post(`/kassa/${kassa.id}/withdraw`, { amount: Number(form.amount), payment_type: form.payment_type, currency: form.currency || 'UZS', description: form.description });
         toast.success(t('kassa.withdrawn'));
       } else if (action === 'expense') {
-        await api.post('/kassa/do-expense', { wallet_id: kassa.id, category_id: Number(form.category_id), amount: Number(form.amount), payment_type: form.payment_type, description: form.description });
-        toast.success(t('kassa.expenseDone'));
+        const exRes = await api.post('/kassa/do-expense', { wallet_id: kassa.id, category_id: Number(form.category_id), amount: Number(form.amount), payment_type: form.payment_type, currency: form.currency || 'UZS', description: form.description }, { _suppressToast: true });
+        // T4.6: limitdan katta xarajat 202 + status=pending — balans o'zgarmaydi, menejer tasdig'i kutiladi
+        if (exRes.status === 202 || exRes.data?.status === 'pending') toast.success(tOr(t, 'approvals.kassa.sentForApproval', 'Tasdiqlashga yuborildi'));
+        else toast.success(t('kassa.expenseDone'));
       } else if (action === 'transfer') {
         if (!form.receiver_wallet_id) { toast.error(t('kassa.enterReceiverKassa')); return; }
         
-        const promises = [];
+        const lines = [];
         PT_KEYS.forEach(ptype => {
           if (form.transfer_amounts?.[ptype]) {
             Object.entries(form.transfer_amounts[ptype]).forEach(([curr, amount]) => {
               const numAmount = Number(amount);
               if (numAmount > 0) {
-                promises.push(api.post(`/kassa/${kassa.id}/transfer/out`, {
-                  receiver_wallet_id: Number(form.receiver_wallet_id),
-                  amount: numAmount,
-                  currency: curr,
-                  payment_type: ptype,
-                  note: form.note,
-                }));
+                lines.push({ payment_type: ptype, currency: curr, amount: numAmount });
               }
             });
           }
         });
 
-        if (promises.length === 0) {
+        if (lines.length === 0) {
           toast.error(t('kassa.enterAtLeastOneAmount'));
           return;
         }
 
-        await Promise.all(promises);
-        toast.success(t('kassa.transferSuccess'));
+        // T0.35: hamma qatorlar bitta atomar so'rovda; o'tkazma qabul qilinguncha "pending"
+        await api.post(`/kassa/${kassa.id}/transfer/out-batch`, {
+          receiver_wallet_id: Number(form.receiver_wallet_id),
+          note: form.note,
+          lines,
+        });
+        toast.success(t('kassa.transferPending'));
       }
       if (action !== 'close') setModal(null);
       onRefresh();
     } catch (e) {
-      toast.error(e.response?.data?.detail || t('common.error'));
+      // T4.6: detail obyekt bo'lishi mumkin ({code: 'limit_exceeded', message, ...})
+      const d = e.response?.data?.detail;
+      toast.error((d && typeof d === 'object' && !Array.isArray(d) ? d.message : d) || t('common.error'));
     } finally { setSaving(false); }
   };
 
@@ -253,6 +298,24 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
               <span className='leading-none'>{isOpen ? t('kassa.statusOpen') : t('kassa.statusClosed')}</span>
             </span>
+
+            {/* T1.10: filial belgisi (ko'p filialli korxonada) va shaxsiy kassa belgisi */}
+            {kassa.is_personal ? (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200">{t('kassa.personal')}</span>
+            ) : (
+              (branches.length > 1 || kassa.branch_id) && (
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${kassa.branch_id ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                  {kassa.branch_id ? (kassa.branch_name || `${t('kassa.branch')} #${kassa.branch_id}`) : t('kassa.branchUnset')}
+                </span>
+              )
+            )}
+            {kassa.is_default && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">{tfOr(t, 'kassa.defaultForMe', 'Standart kassa')}</span>
+            )}
+            {!kassa.is_personal && (
+              <button type="button" onClick={() => { setEditForm({ name: kassa.name, branch_id: kassa.branch_id ?? '' }); setModal('edit'); }}
+                className="text-[11px] font-semibold text-slate-400 hover:text-blue-600">✎ {t('kassa.editKassa')}</button>
+            )}
           </div>
 
           <div className="text-right">
@@ -278,6 +341,9 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               <div className="min-w-0">
                 <span className="font-semibold text-slate-900 tabular-nums">{Number(tr.amount).toLocaleString('uz-UZ')} {tr.currency === 'UZS' ? t('common.sum') : tr.currency}</span>
                 <span className="text-slate-500"> — {tr.sender_name}{tr.note ? ` · ${tr.note}` : ''}</span>
+                {(tr.sent_at || tr.created_at) && (
+                  <span className="block text-[11px] text-slate-400" title={tfOr(t, 'kassa.sentAt', 'Yuborilgan')}>{fmtDate(tr.sent_at || tr.created_at)}</span>
+                )}
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <button onClick={() => decideTransfer(tr, true)} className="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">{t('kassa.accept')}</button>
@@ -357,6 +423,8 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('kassa.initialCashBalance')}</label>
               <input type="number" className={field} value={form.opening_balance} onChange={e => setForm({ ...form, opening_balance: e.target.value })} placeholder="0" />
             </div>
+            <CurrencyField currencies={currencies} value={form.currency || 'UZS'} amount={form.opening_balance}
+              onChange={v => setForm({ ...form, currency: v })} t={t} selectClass={field} />
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
               <input className={field} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder={t('common.optional')} />
@@ -524,7 +592,7 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                   >
                     <option value="">{t('kassa.selectKassa')}</option>
                     {allKassalar.filter(k => k.id !== kassa.id).map(k => (
-                      <option key={k.id} value={k.id}>{k.name} {!k.is_open ? `(${t('kassa.statusClosed')})` : ''}</option>
+                      <option key={k.id} value={k.id}>{k.name}{k.branch_name ? ` · ${k.branch_name}` : ''} {!k.is_open ? `(${t('kassa.statusClosed')})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -661,6 +729,8 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.amount')} *</label>
               <input type="number" min="1" className={field} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
             </div>
+            <CurrencyField currencies={currencies} value={form.currency || 'UZS'} amount={form.amount}
+              onChange={v => setForm({ ...form, currency: v })} t={t} selectClass={field} />
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
               <input className={field} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder={t('common.optional')} />
@@ -699,6 +769,8 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
               <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.amount')} *</label>
               <input type="number" min="1" className={field} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
             </div>
+            <CurrencyField currencies={currencies} value={form.currency || 'UZS'} amount={form.amount}
+              onChange={v => setForm({ ...form, currency: v })} t={t} selectClass={field} />
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1.5">{t('common.note')}</label>
               <input className={field} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder={t('common.optional')} />
@@ -712,6 +784,31 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
       )}
 
       {/* History modal */}
+      {modal === 'edit' && (
+        <Modal title={t('kassa.editKassa')} onClose={() => setModal(null)}>
+          <form onSubmit={async (e) => {
+            e.preventDefault(); setSaving(true);
+            try {
+              // branch_id: '' -> null (umumiy kassa); PATCH faqat yuborilgan maydonlarni o'zgartiradi
+              await api.patch(`/kassa/${kassa.id}`, { name: editForm.name, branch_id: editForm.branch_id === '' ? null : Number(editForm.branch_id) });
+              toast.success(t('kassa.kassaUpdated')); setModal(null); onRefresh();
+            } catch (ex) { toast.error(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
+          }} className="space-y-4">
+            <div><label className="text-xs font-semibold text-slate-600 block mb-1">{t('kassa.kassaName')} *</label>
+              <input required className={field} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+            <div><label className="text-xs font-semibold text-slate-600 block mb-1">{t('kassa.branch')}</label>
+              <select className={field} value={editForm.branch_id} onChange={e => setEditForm({ ...editForm, branch_id: e.target.value })}>
+                <option value="">{t('kassa.branchUnset')}</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select></div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setModal(null)} className={cancelBtn}>{t('common.cancel')}</button>
+              <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">{saving ? '...' : t('common.save')}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {modal === 'history' && filteredHistory && (
         <Modal title={t('kassa.kassaHistory')} onClose={() => setModal(null)} wide>
           <div className="space-y-6">
@@ -755,9 +852,40 @@ function KassaCard({ kassa, onRefresh, allKassalar = [] }) {
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('common.balance')}</p>
                   <p className="text-sm font-extrabold text-slate-800 mt-0.5 tabular-nums">{fmt(history.summary.balance)}</p>
                 </div>
+                {/* T2.8: jami UZS da; boshqa valyutalar alohida (turli valyutalar qo'shilmaydi) */}
+                {Object.entries(history.summary || {}).filter(([cur, v]) => cur !== 'UZS' && v && typeof v === 'object').map(([cur, v]) => (
+                  <div key={cur} className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                    {cur}: +{fmt(v.total_in)} / −{fmt(v.total_out)} = {fmt(v.balance)}
+                  </div>
+                ))}
               </div>
 
             </div>
+
+            {/* T4.6: tasdiq kutayotgan xarajatlar (kassa balansiga hali kirmagan) */}
+            {pendingExpenses.length > 0 && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-3">
+                  {tOr(t, 'approvals.kassa.pendingTitle', 'Tasdiq kutilayotgan xarajatlar')}
+                </p>
+                <div className="space-y-2">
+                  {pendingExpenses.map(pe => (
+                    <div key={pe.id} className="flex items-center justify-between gap-3 bg-white rounded-xl border border-amber-100 px-4 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-700 truncate">{pe.category || '—'}{pe.description ? ` · ${pe.description}` : ''}</p>
+                        <p className="text-[12px] text-slate-400">{fmtDate(pe.created_at)}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-black tabular-nums text-slate-800">{fmt(pe.amount)} {pe.currency || 'UZS'}</span>
+                        <span className="px-2.5 py-1 rounded-full text-[12px] font-bold bg-amber-100 text-amber-700">
+                          {tOr(t, 'approvals.kassa.pendingBadge', 'Kutilmoqda')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Table */}
             <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
@@ -912,13 +1040,14 @@ function ExpenseCategoriesTab() {
   const [saving, setSaving] = useState(false);
   const [showAddCat, setShowAddCat] = useState(false);
 
-  const load = () => api.get('/finance/expense-categories').then(r => setList(r.data)).catch(() => { });
+  // T2.2: xarajat oynasi bilan bitta manba - /kassa/categories (Moliya bilan bir xil korxona ro'yxati)
+  const load = () => api.get('/kassa/categories').then(r => setList(r.data)).catch(() => { });
   useEffect(() => { load(); }, []);
 
   const save = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      await api.post('/finance/expense-categories', form);
+      await api.post('/kassa/categories', form);
       setForm({ name: '', description: '' });
       setShowAddCat(false);
       load();
@@ -976,9 +1105,118 @@ function ExpenseCategoriesTab() {
   );
 }
 
+/* ── Kunlik yopilishlar (T1.11): GET /kassa/sessions — filial va sana bo'yicha Z-jamlama ── */
+function SessionsTab({ branches }) {
+  const { t } = useLang();
+  // i18n kaliti hali qo'shilmagan bo'lsa (t() kalitni qaytaradi) — o'zbekcha zaxira matn
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const [rows, setRows] = useState([]);
+  const [totals, setTotals] = useState({});
+  const [total, setTotal] = useState(0);
+  const [branchId, setBranchId] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [loading, setLoading] = useState(false);
+  const PAGE = 50;
+
+  const params = (skip) => {
+    const p = new URLSearchParams({ skip: String(skip), limit: String(PAGE) });
+    if (branchId) p.set('branch_id', branchId);
+    if (dateFrom) p.set('date_from', dateFrom);
+    if (dateTo) p.set('date_to', dateTo);
+    return p.toString();
+  };
+
+  const load = useCallback(async (append = false) => {
+    setLoading(true);
+    try {
+      const r = await api.get(`/kassa/sessions?${params(append ? rows.length : 0)}`);
+      setRows(prev => (append ? [...prev, ...(r.data.items || [])] : (r.data.items || [])));
+      setTotals(r.data.totals?.difference || {});
+      setTotal(r.data.total || 0);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally { setLoading(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, dateFrom, dateTo, rows.length]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(false); }, [branchId, dateFrom, dateTo]);
+
+  // {ptype: {cur: v}} -> qatorlar; kamomad (>0) qizil, ortiqcha (<0) ko'k
+  const diffLines = (map) => Object.entries(map || {}).flatMap(([ptype, cm]) =>
+    Object.entries(cm || {}).map(([cur, v]) => ({ key: `${ptype}-${cur}`, ptype, cur, v: Number(v) || 0 })));
+
+  const renderDiff = (map) => {
+    const lines = diffLines(map).filter(l => l.v !== 0);
+    if (lines.length === 0) return <span className="text-slate-400">—</span>;
+    return lines.map(l => (
+      <div key={l.key} className={l.v > 0 ? 'text-red-600 font-semibold' : 'text-blue-600 font-semibold'}>
+        {l.ptype} {l.cur}: {l.v > 0 ? '-' : '+'}{fmt(Math.abs(l.v))}
+      </div>
+    ));
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        {branches.length > 1 && (
+          <select className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm" value={branchId} onChange={e => setBranchId(e.target.value)}>
+            <option value="">{t('kassa.allBranches')}</option>
+            {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
+          </select>
+        )}
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm" />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm" />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{tf('kassa.totalDifference', 'Umumiy farq')}</div>
+        <div className="text-sm">{renderDiff(totals)}</div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <th className="px-4 py-3">{tf('kassa.kassa', 'Kassa')}</th>
+              <th className="px-4 py-3">{t('kassa.branch')}</th>
+              <th className="px-4 py-3">{tf('kassa.sessionOpened', 'Ochilgan')}</th>
+              <th className="px-4 py-3">{tf('kassa.sessionClosed', 'Yopilgan')}</th>
+              <th className="px-4 py-3">{tf('kassa.sessionDifference', 'Farq')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {rows.map(r => (
+              <tr key={r.id}>
+                <td className="px-4 py-3 font-medium text-slate-800">{r.wallet_name || `#${r.wallet_id}`}</td>
+                <td className="px-4 py-3 text-slate-500">{branches.find(b => b.id === r.branch_id)?.name || (r.branch_id ? `#${r.branch_id}` : '—')}</td>
+                <td className="px-4 py-3 text-slate-600">{fmtDate(r.opened_at)}</td>
+                <td className="px-4 py-3 text-slate-600">{r.status === 'closed' ? fmtDate(r.closed_at) : '—'}</td>
+                <td className="px-4 py-3">{r.status === 'closed' ? renderDiff(r.difference_summary) : <span className="text-slate-400">—</span>}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && !loading && (
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">—</td></tr>
+            )}
+          </tbody>
+        </table>
+        {rows.length < total && (
+          <div className="p-3 text-center border-t border-slate-100">
+            <button onClick={() => load(true)} disabled={loading} className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-60">
+              {loading ? '...' : `${tf('common.loadMore', 'Yana yuklash')} (${rows.length}/${total})`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 const TABS = [
   { id: 'kassalar', labelKey: 'kassa.tabKassalar' },
+  { id: 'sessions', labelKey: 'kassa.tabSessions', fallback: 'Kunlik yopilishlar' },
   { id: 'categories', labelKey: 'finance.expenseCategories' },
 ];
 
@@ -987,20 +1225,28 @@ export default function Kassa() {
   const [tab, setTab] = useState('kassalar');
   const [kassalar, setKassalar] = useState([]);
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ name: '', type: 'cash', opening_balance: '' });
+  const [newForm, setNewForm] = useState({ name: '', type: 'cash', opening_balance: '', branch_id: '' });
   const [saving, setSaving] = useState(false);
+  const [branches, setBranches] = useState([]);       // T1.10: kassa filiali tanlovi (GET /branches)
+  const [branchFilter, setBranchFilter] = useState(''); // '' = barcha filiallar
 
   const load = async () => {
     await api.get('/kassa').then(r => setKassalar(r.data)).catch(() => { });
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    api.get('/branches', { _suppressToast: true }).then(r => setBranches(Array.isArray(r.data) ? r.data : [])).catch(() => { });
+  }, []);
 
   const createKassa = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      await api.post('/kassa', { name: newForm.name, type: newForm.type, opening_balance: Number(newForm.opening_balance) || 0 });
-      setShowNew(false); setNewForm({ name: '', type: 'cash', opening_balance: '' }); load(); toast.success(t('kassa.kassaCreated'));
+      await api.post('/kassa', {
+        name: newForm.name, type: newForm.type, opening_balance: Number(newForm.opening_balance) || 0,
+        branch_id: newForm.branch_id === '' ? null : Number(newForm.branch_id),
+      });
+      setShowNew(false); setNewForm({ name: '', type: 'cash', opening_balance: '', branch_id: '' }); load(); toast.success(t('kassa.kassaCreated'));
     } catch (ex) { toast.error(ex.response?.data?.detail || t('common.error')); } finally { setSaving(false); }
   };
 
@@ -1016,6 +1262,9 @@ export default function Kassa() {
     ? `0 ${t('common.sum')}`
     : Object.entries(totalBalance).map(([c, v]) => `${Number(v).toLocaleString('uz-UZ')} ${c === 'UZS' ? t('common.sum') : c}`).join(' + ');
   const totalOpen = kassalar.filter(k => k.is_open).length;
+  const filteredKassalar = branchFilter === '' ? kassalar : kassalar.filter(k => String(k.branch_id ?? '') === branchFilter);
+  // T2.8: foydalanuvchining standart (is_default) kassasi ro'yxat boshida — hech narsa "data[0]" deb tanlanmaydi
+  const shownKassalar = [...filteredKassalar].sort((a, b) => Number(!!b.is_default) - Number(!!a.is_default));
 
   return (
     <div className="space-y-6">
@@ -1059,14 +1308,23 @@ export default function Kassa() {
         {TABS.map(tabItem => (
           <button key={tabItem.id} onClick={() => setTab(tabItem.id)}
             className={`px-5 py-2 text-sm cursor-pointer font-bold rounded-lg transition-all ${tab === tabItem.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-            {t(tabItem.labelKey)}
+            {t(tabItem.labelKey) === tabItem.labelKey && tabItem.fallback ? tabItem.fallback : t(tabItem.labelKey)}
           </button>
         ))}
       </div>
 
       {tab === 'kassalar' && (
         <div className="grid grid-cols-1 gap-5">
-          {kassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} allKassalar={kassalar} />)}
+          {branches.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500">{t('kassa.branch')}:</span>
+              <select className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}>
+                <option value="">{t('kassa.allBranches')}</option>
+                {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
+          {shownKassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} allKassalar={kassalar} branches={branches} />)}
           {kassalar.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
               <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>
@@ -1076,6 +1334,8 @@ export default function Kassa() {
           )}
         </div>
       )}
+
+      {tab === 'sessions' && <SessionsTab branches={branches} />}
 
       {tab === 'categories' && <ExpenseCategoriesTab />}
 
@@ -1090,6 +1350,11 @@ export default function Kassa() {
                 <option value="cash">{t('kassa.cashKassa')}</option>
                 <option value="card">{t('kassa.terminal')}</option>
                 <option value="bank">{t('kassa.bankAccount')}</option>
+              </select></div>
+            <div><label className="text-xs font-semibold text-slate-600 block mb-1">{t('kassa.branch')}</label>
+              <select className={inp} value={newForm.branch_id} onChange={e => setNewForm({ ...newForm, branch_id: e.target.value })}>
+                <option value="">{t('kassa.branchUnset')}</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select></div>
             <div><label className="text-xs font-semibold text-slate-600 block mb-1">{t('kassa.initialBalanceSum')}</label>
               <input type="number" min="0" className={inp} value={newForm.opening_balance} onChange={e => setNewForm({ ...newForm, opening_balance: e.target.value })} placeholder="0" /></div>

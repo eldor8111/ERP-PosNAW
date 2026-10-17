@@ -19,7 +19,7 @@ class PurchaseOrder(Base):
     __tablename__ = "purchase_orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    number = Column(String(30), unique=True, nullable=False, index=True)
+    number = Column(String(40), unique=True, nullable=False, index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
@@ -66,3 +66,4 @@ class POItem(Base):
 
     po = relationship("PurchaseOrder", back_populates="items")
     product = relationship("Product")
+    variant = relationship("ProductVariant")

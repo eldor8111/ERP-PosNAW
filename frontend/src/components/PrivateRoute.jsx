@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { isPageAllowed } from '../utils/permissions'
 
 export default function PrivateRoute({ children, roles }) {
   const { user } = useAuth()
@@ -17,7 +18,7 @@ export default function PrivateRoute({ children, roles }) {
     // pathParts[0] == 'admin', pathParts[1] == module name (e.g., 'finance', 'customers')
     if (pathParts.length >= 2 && pathParts[0] === 'admin') {
       const permKey = pathParts[1];
-      if (user.permissions[permKey] === false) {
+      if (!isPageAllowed(user, permKey)) {
         return <Navigate to="/admin" replace />
       }
     }

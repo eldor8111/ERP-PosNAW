@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import { useLang } from '../../context/LangContext';
-import { matchesSearch } from '../../utils/translit';
 import toast from 'react-hot-toast';
+import BranchSelect from '../../components/BranchSelect';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 const fmtCurr = (v, curr) => {
@@ -20,6 +20,10 @@ const positiveDebts = (c) => {
   return Number(c?.debt_balance) > 0 ? [['UZS', c.debt_balance]] : [];
 };
 const newPayRow = (currency = 'UZS', amount = '') => ({ id: Date.now() + Math.random(), payType: 'cash', payAmount: amount, currency });
+const PAGE_LIMIT = 1000;
+const CUST_PAGE = 50;   // T3.8: mijoz tanlash ro'yxati sahifa hajmi
+// t(key) topilmasa zaxira matn (yangi kalitlar i18n lug'atiga keyin qo'shiladi)
+const tfOr = (t, key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 
 export default function KirimTolovlar() {
@@ -36,6 +40,9 @@ export default function KirimTolovlar() {
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
+  // T2.5: filial filtri ('' — barcha, '-1' — filialsiz)
+  const [branchId, setBranchId] = useState('');
+  const [branches, setBranches] = useState([]);
 
   // Edit modal state
   const [editItem, setEditItem] = useState(null);
@@ -51,6 +58,9 @@ export default function KirimTolovlar() {
   const [wallets, setWallets] = useState([]);
   const [currencies, setCurrencies] = useState([{ code: 'UZS', rate: 1 }]);
   const [custSearch, setCustSearch] = useState('');
+  const [custDq, setCustDq] = useState('');              // debounce qilingan qidiruv (serverga ketadi)
+  const [custTotal, setCustTotal] = useState(0);         // T3.8: serverdagi jami mijozlar (sahifalash uchun)
+  const [custLoading, setCustLoading] = useState(false);
   const [onlyDebtors, setOnlyDebtors] = useState(true);
   const [payCustomer, setPayCustomer] = useState(null);
   const [otherSourceName, setOtherSourceName] = useState('');
@@ -60,11 +70,19 @@ export default function KirimTolovlar() {
   const [paySaving, setPaySaving] = useState(false);
   const [payError, setPayError] = useState('');
 
-  const loadData = async () => {
+  // T2.8: jamilar (summary) butun davr bo'yicha serverdan keladi; jadval sahifalanadi (skip/limit)
+  const loadData = async (append = false) => {
     setLoading(true);
     try {
-      const res = await api.get(`/finance/payments/income?date_from=${dateFrom}&date_to=${dateTo}`);
-      setData(res.data);
+      const skip = append ? (data?.items?.length || 0) : 0;
+      const res = await api.get('/finance/payments/income', {
+        params: { date_from: dateFrom, date_to: dateTo, skip, limit: PAGE_LIMIT, ...(branchId ? { branch_id: branchId } : {}) },
+      });
+      if (append && data?.items) {
+        setData({ ...res.data, items: [...data.items, ...(res.data.items || [])] });
+      } else {
+        setData(res.data);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -72,10 +90,18 @@ export default function KirimTolovlar() {
     }
   };
 
-  useEffect(() => { loadData(); }, [dateFrom, dateTo]);
+  useEffect(() => { loadData(); }, [dateFrom, dateTo, branchId]);
+
+  // T2.5: filial ro'yxati (yopilganlari ham — eski to'lovlarni filtrlash uchun)
+  useEffect(() => {
+    api.get('/branches', { params: { include_inactive: true }, _suppressToast: true })
+      .then(r => setBranches(Array.isArray(r.data) ? r.data : [])).catch(() => setBranches([]));
+  }, []);
 
   const summaryData = useMemo(() => {
     if (!data?.items) return {};
+    // Server jamisi (butun davr, limitdan mustaqil) bo'lsa — shuni ishlatamiz
+    if (data.summary_by_currency && typeof data.summary_by_currency === 'object') return data.summary_by_currency;
     const res = {};
     data.items.forEach(i => {
       const cur = i.currency_code || 'UZS';
@@ -97,7 +123,7 @@ export default function KirimTolovlar() {
       }
     });
     return res;
-  }, [data?.items]);
+  }, [data?.items, data?.summary_by_currency]);
 
   const groupedItems = useMemo(() => {
     if (!data?.items || !Array.isArray(data.items)) return [];
@@ -207,13 +233,11 @@ export default function KirimTolovlar() {
     setPayRows([newPayRow()]);
     setPayNote('');
     setPayError('');
-    const [cRes, wRes, curRes] = await Promise.all([
-      api.get('/customers', { params: { limit: 2000 } }).catch(() => ({ data: [] })),
+    setCustomers([]); setCustTotal(0); setCustDq('');
+    const [wRes, curRes] = await Promise.all([
       api.get('/finance/wallets').catch(() => ({ data: [] })),
       api.get('/currencies/active').catch(() => ({ data: [] })),
     ]);
-    const custs = Array.isArray(cRes.data) ? cRes.data : (cRes.data?.items || []);
-    setCustomers(custs);
     const ws = Array.isArray(wRes.data) ? wRes.data : [];
     setWallets(ws);
     setPayWallet(ws.length > 0 ? String(ws[0].id) : '');
@@ -223,6 +247,38 @@ export default function KirimTolovlar() {
   };
 
   const closePay = () => { if (!paySaving) setPayOpen(false); };
+
+  // T3.8: mijozlar serverdan sahifalab (skip/limit + total) va qidiruv/qarzdorlar filtri serverda
+  const custParams = (skip) => ({
+    skip, limit: CUST_PAGE,
+    ...(custDq ? { search: custDq } : {}),
+    ...(onlyDebtors ? { min_debt: 0.0001 } : {}),
+  });
+  useEffect(() => {
+    const timer = setTimeout(() => setCustDq(custSearch.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [custSearch]);
+  useEffect(() => {
+    if (!payOpen || paySourceType !== 'customer') return undefined;
+    let alive = true;
+    setCustLoading(true);
+    api.get('/customers/paginated', { params: custParams(0), _suppressToast: true })
+      .then(r => { if (alive) { setCustomers(r.data?.items || []); setCustTotal(Number(r.data?.total) || 0); } })
+      .catch(() => { if (alive) { setCustomers([]); setCustTotal(0); } })
+      .finally(() => { if (alive) setCustLoading(false); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payOpen, paySourceType, custDq, onlyDebtors]);
+  const loadMoreCustomers = async () => {
+    setCustLoading(true);
+    try {
+      const r = await api.get('/customers/paginated', { params: custParams(customers.length), _suppressToast: true });
+      const items = r.data?.items || [];
+      setCustomers(prev => [...prev, ...items.filter(c => !prev.some(x => x.id === c.id))]);
+      setCustTotal(Number(r.data?.total) || 0);
+    } catch { /* ro'yxat o'zgarishsiz qoladi */ }
+    finally { setCustLoading(false); }
+  };
 
   const pickCustomer = (c) => {
     setPayCustomer(c);
@@ -251,20 +307,26 @@ export default function KirimTolovlar() {
     let done = 0;
     try {
       if (paySourceType === 'customer') {
-        for (const row of valid) {
-          await api.post(`/customers/${payCustomer.id}/pay-debt`, {
+        // Atomik: barcha qatorlar BITTA so'rovda (backend `payments[]` ni bir tranzaksiyada qayta ishlaydi),
+        // xato bo'lsa hech biri saqlanmaydi
+        await api.post(`/customers/${payCustomer.id}/pay-debt`, {
+          payments: valid.map(row => ({
             amount: Number(row.payAmount),
             currency: row.currency || 'UZS',
             payment_type: row.payType,
-            reason: payNote.trim() || t('customer.customerDebtPaymentReason') || "Mijoz qarz to'lovi",
-            wallet_id: payWallet ? Number(payWallet) : null,
-          });
-          done += 1;
-        }
+          })),
+          reason: payNote.trim() || t('customer.customerDebtPaymentReason') || "Mijoz qarz to'lovi",
+          wallet_id: payWallet ? Number(payWallet) : null,
+        });
+        done = valid.length;
       } else {
+        // Filial: tanlangan kassaniki, bo'lmasa filtrda tanlangan filial (serverda foydalanuvchi filialiga tushadi)
+        const w = wallets.find(x => String(x.id) === String(payWallet));
+        const txBranch = w?.branch_id ?? (branchId && branchId !== '-1' ? Number(branchId) : undefined);
         for (const row of valid) {
           await api.post('/finance/transactions', {
             type: 'income',
+            ...(txBranch ? { branch_id: txBranch } : {}),
             amount: Number(row.payAmount),
             currency_code: row.currency || 'UZS',
             payment_type: row.payType,
@@ -291,12 +353,11 @@ export default function KirimTolovlar() {
     }
   };
 
-  const filteredCustomers = useMemo(() => {
-    let list = customers;
-    if (onlyDebtors) list = list.filter(c => positiveDebts(c).length > 0);
-    if (custSearch.trim()) list = list.filter(c => matchesSearch(`${c.name || ''} ${c.phone || ''}`, custSearch));
-    return list;
-  }, [customers, onlyDebtors, custSearch]);
+  // Qidiruv va qarzdorlar filtri serverda; klient faqat valyuta kesimidagi qarzni qayta tekshiradi
+  const filteredCustomers = useMemo(
+    () => (onlyDebtors ? customers.filter(c => positiveDebts(c).length > 0) : customers),
+    [customers, onlyDebtors],
+  );
 
   return (
     <div className="space-y-6">
@@ -304,6 +365,8 @@ export default function KirimTolovlar() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">{t('kirimTolov.title')}</h1>
         <div className="flex items-center gap-3">
+          {/* T2.5: filial filtri — tanlangan branch_id so'rovga parametr sifatida yuboriladi */}
+          <BranchSelect value={branchId} onChange={setBranchId} branches={branches} allowUnassigned />
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
             className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
@@ -395,7 +458,7 @@ export default function KirimTolovlar() {
                       <td className="px-2 py-3 text-center border-x border-slate-50">{renderTypeAmounts(pt => pt === 'uzum')}</td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-1 rounded-md text-xs bg-blue-50 text-blue-600 border border-blue-100">
-                          {g.reference_type === 'customer_payment' ? t('kirimTolov.sourceDebtPayment') : g.reference_type === 'sale' ? t('kirimTolov.sourceSale') : t('kirimTolov.sourceSupplierReturn')}
+                          {g.reference_type === 'customer_payment' ? t('kirimTolov.sourceDebtPayment') : g.reference_type === 'sale' ? t('kirimTolov.sourceSale') : g.reference_type === 'shift' ? t('kirimTolov.sourceShift') : t('kirimTolov.sourceSupplierReturn')}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{g.wallet}</td>
@@ -415,7 +478,7 @@ export default function KirimTolovlar() {
                       <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{new Date(g.created_at).toLocaleString('uz-UZ')}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          {g.reference_type !== 'sale' ? (
+                          {!['sale', 'shift'].includes(g.reference_type) ? (
                             <>
                               <button
                                 onClick={() => openEdit(g)}
@@ -431,7 +494,7 @@ export default function KirimTolovlar() {
                               </button>
                             </>
                           ) : (
-                            <span className="text-xs text-slate-400 italic">{t('kirimTolov.fromSalesSection')}</span>
+                            <span className="text-xs text-slate-400 italic">{g.reference_type === 'sale' ? t('kirimTolov.fromSalesSection') : t('kirimTolov.fromRelatedSection')}</span>
                           )}
                         </div>
                       </td>
@@ -446,7 +509,17 @@ export default function KirimTolovlar() {
         </div>
       </div>
 
-      {/* Summary cards */}
+      {data?.items && Number(data.total) > data.items.length && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm text-amber-800">
+          <span>{tfOr(t, 'kirimTolov.showingCount', "Ko'rsatilmoqda")}: {data.items.length} / {data.total}</span>
+          <button type="button" disabled={loading} onClick={() => loadData(true)}
+            className="px-3 py-1 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">
+            {tfOr(t, 'kirimTolov.loadMore', 'Yana yuklash')}
+          </button>
+        </div>
+      )}
+
+      {/* Summary cards (butun davr bo'yicha) */}
       {data?.items && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -669,7 +742,7 @@ export default function KirimTolovlar() {
                       {t('kirimTolov.onlyDebtors')}
                     </label>
                     <div className="max-h-56 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50">
-                      {filteredCustomers.length > 0 ? filteredCustomers.slice(0, 200).map(c => (
+                      {filteredCustomers.length > 0 ? filteredCustomers.map(c => (
                         <button key={c.id} type="button" onClick={() => pickCustomer(c)}
                           className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-blue-50 transition-colors">
                           <span className="min-w-0">
@@ -682,7 +755,13 @@ export default function KirimTolovlar() {
                               : <span className="text-emerald-600">{t('kirimTolov.noDebt')}</span>}
                           </span>
                         </button>
-                      )) : <div className="py-6 text-center text-sm text-slate-400">{t('common.noData')}</div>}
+                      )) : <div className="py-6 text-center text-sm text-slate-400">{custLoading ? '…' : t('common.noData')}</div>}
+                      {customers.length < custTotal && (
+                        <button type="button" onClick={loadMoreCustomers} disabled={custLoading}
+                          className="w-full py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-50">
+                          {custLoading ? '…' : `${t('kirimTolov.loadMore')} (${customers.length}/${custTotal})`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -709,7 +788,7 @@ export default function KirimTolovlar() {
                     <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
                       className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">{t('kirimTolov.mainWallet')}</option>
-                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmtNum(w.balance)} {t('common.sum')}</option>)}
+                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name}{w.balance !== undefined ? ` — ${fmtNum(w.balance)} ${t('common.sum')}` : ''}</option>)}
                     </select>
                   </div>
 

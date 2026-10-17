@@ -7,6 +7,7 @@ import {
 import { useLang } from '../../context/LangContext';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import { Link } from 'react-router-dom';
+import BranchSelect from '../../components/BranchSelect';
 
 function AlertCard({ icon: Icon, color, title, count, desc }) {
   const colors = {
@@ -33,26 +34,50 @@ function AlertCard({ icon: Icon, color, title, count, desc }) {
 
 export default function Alerts() {
   const { t } = useLang();
+  // yangi kalit lug'atda hali bo'lmasa — o'zbekcha zaxira matn
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
   const [lowStock, setLowStock] = useState([]);
+  // T2.3: kam qoldiq ro'yxati sahifalab yuklanadi (limit=500, skip); jami son — /inventory/low-stock-count (sidebar nishoni bilan bir xil)
+  const LOW_STOCK_PAGE = 500;
+  const [lowStockTotal, setLowStockTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [expiring, setExpiring] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('expiring');
   const features = useCompanyFeatures();
   const [raw, setRaw] = useState({ shortages: [], low_stock: [] });
   const [distributors, setDistributors] = useState([]);
+  // T1.8: yaroqlilik muddati ro'yxatini ombor bo'yicha filtrlash
+  const [warehouses, setWarehouses] = useState([]);
+  const [whFilter, setWhFilter] = useState('');
+  // T2.3: filial bo'yicha filtr (kam qoldiq va yaroqlilik muddati)
+  const [branches, setBranches] = useState([]);
+  const [branchFilter, setBranchFilter] = useState('');
+
+  useEffect(() => {
+    api.get('/inventory/warehouses', { params: branchFilter ? { branch_id: branchFilter } : {}, _silent: true })
+      .then(r => setWarehouses(r.data || [])).catch(() => setWarehouses([]));
+  }, [branchFilter]);
+
+  useEffect(() => {
+    api.get('/branches', { _silent: true }).then(r => setBranches(r.data || [])).catch(() => setBranches([]));
+  }, []);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [ls, exp, rw, dist] = await Promise.all([
-        api.get('/inventory/stock?low_stock_only=true&limit=200').then(r => r.data).catch(() => []),
-        api.get('/inventory/expiring-batches').then(r => r.data).catch(() => []),
+      const [ls, lsCount, exp, rw, dist] = await Promise.all([
+        // Yagona "kam qoldiq" ta'rifi: mahsulot darajasida, omborlar bo'yicha qoldiq bilan
+        api.get('/inventory/low-stock', { params: { limit: LOW_STOCK_PAGE, ...(branchFilter ? { branch_id: branchFilter } : {}) } }).then(r => r.data).catch(() => []),
+        api.get('/inventory/low-stock-count', { params: branchFilter ? { branch_id: branchFilter } : {}, _silent: true }).then(r => Number(r.data?.count) || 0).catch(() => 0),
+        api.get('/inventory/expiring-batches', { params: { ...(whFilter ? { warehouse_id: whFilter } : {}), ...(branchFilter ? { branch_id: branchFilter } : {}) } }).then(r => r.data).catch(() => []),
         features?.manufacturing
           ? api.get('/production/alerts', { _silent: true }).then(r => r.data).catch(() => null) : null,
         features?.distribution
           ? api.get('/customers/distributors-report', { params: { days: 30 }, _silent: true }).then(r => r.data.items).catch(() => []) : [],
       ]);
       setLowStock(ls);
+      setLowStockTotal(Math.max(lsCount, ls.length));
       setExpiring(exp);
       setRaw(rw || { shortages: [], low_stock: [] });
       // Limitdan oshgan yoki 90% ga yetgan distribyutorlar
@@ -63,7 +88,24 @@ export default function Alerts() {
     }
   };
 
-  useEffect(() => { if (features !== null) load(); }, [features]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (features !== null) load(); }, [features, whFilter, branchFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Yana yuklash" — keyingi sahifa (skip = hozir yuklangan soni)
+  const loadMoreLowStock = async () => {
+    setLoadingMore(true);
+    try {
+      const r = await api.get('/inventory/low-stock', {
+        params: { limit: LOW_STOCK_PAGE, skip: lowStock.length, ...(branchFilter ? { branch_id: branchFilter } : {}) },
+      });
+      const more = Array.isArray(r.data) ? r.data : [];
+      setLowStock(prev => {
+        const seen = new Set(prev.map(x => x.product_id));
+        return [...prev, ...more.filter(x => !seen.has(x.product_id))];
+      });
+      if (more.length === 0) setLowStockTotal(lowStock.length); // boshqa qolmagan — tugma yo'qoladi
+    } catch { /* global xato toast'i ko'rsatadi */ } finally { setLoadingMore(false); }
+  };
+  const onBranchFilter = (v) => { setBranchFilter(v); setWhFilter(''); };
   const rawCount = raw.shortages.length + raw.low_stock.length;
 
   const expired = expiring.filter(e => e.is_expired);
@@ -81,7 +123,12 @@ export default function Alerts() {
   const writeOff = async (batchId) => {
     if (!window.confirm(t('alert.confirmWriteOff'))) return;
     try {
-      await api.post('/inventory/write-off-expired', { batch_ids: [batchId] });
+      // T1.8: backend `batch_id` (yoki `batch_ids`) kutadi
+      const res = await api.post('/inventory/write-off-expired', { batch_id: batchId });
+      const skipped = res?.data?.skipped || [];
+      if (skipped.length > 0) {
+        alert(`${t('alert.writeOffDone')}: ${(res.data.written_off || []).length}. ${t('alert.writeOffSkipped')}: ${skipped.map(s => s.reason).join('; ')}`);
+      }
       load();
     } catch(e) {
       alert(e?.response?.data?.detail || t('alert.genericError'));
@@ -96,6 +143,9 @@ export default function Alerts() {
           <h1 className="text-2xl font-bold text-slate-800">{t('alert.title')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">{t('alert.subtitle')}</p>
         </div>
+        {branches.length > 1 && (
+          <BranchSelect value={branchFilter} onChange={onBranchFilter} branches={branches} />
+        )}
         <button
           onClick={load}
           disabled={loading}
@@ -111,14 +161,14 @@ export default function Alerts() {
         <AlertCard icon={PackageX}     color="red"     title={t('alert.expiredTitle')}     count={expired.length}      desc={t('alert.expiredDesc')} />
         <AlertCard icon={AlertTriangle} color="amber"  title={t('alert.soonExpiringTitle')}      count={soonExpiring.length} desc={t('alert.soonExpiringDesc')} />
         <AlertCard icon={Clock}        color="blue"    title={t('alert.reminderTitle')}          count={willExpire.length}   desc={t('alert.reminderDesc')} />
-        <AlertCard icon={Box}          color={lowStock.length > 0 ? 'amber' : 'emerald'} title={t('alert.lowStockTitle')} count={lowStock.length} desc={t('alert.lowStockDesc')} />
+        <AlertCard icon={Box}          color={lowStock.length > 0 ? 'amber' : 'emerald'} title={t('alert.lowStockTitle')} count={lowStockTotal} desc={t('alert.lowStockDesc')} />
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-5 w-fit">
         {[
           { id: 'expiring', label: `${t('alert.expiryTab')} (${expiring.length})` },
-          { id: 'lowstock', label: `${t('alert.lowStockTab')} (${lowStock.length})` },
+          { id: 'lowstock', label: `${t('alert.lowStockTab')} (${lowStockTotal})` },
           ...(features?.manufacturing ? [{ id: 'raw', label: `${t('alert.rawTab')} (${rawCount})` }] : []),
           ...(features?.distribution ? [{ id: 'dist', label: `${t('alert.distTab')} (${distributors.length})` }] : []),
         ].map(tb => (
@@ -210,7 +260,21 @@ export default function Alerts() {
           </div>
         )
       ) : tab === 'expiring' ? (
-        expiring.length === 0 ? (
+        <>
+        {warehouses.length > 1 && (
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-semibold text-slate-500">{t('alert.warehouse')}:</span>
+            <select
+              value={whFilter}
+              onChange={e => setWhFilter(e.target.value)}
+              className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">{t('alert.allWarehouses')}</option>
+              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </div>
+        )}
+        {expiring.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-slate-400">
             <CheckCircle className="w-12 h-12 mb-3 text-emerald-400" />
             <p className="font-semibold text-slate-600">{t('alert.allProductsValid')}</p>
@@ -246,6 +310,11 @@ export default function Alerts() {
                       <span className="text-xs text-slate-500">
                         {t('common.quantity')}: <b>{item.quantity}</b>
                       </span>
+                      {item.warehouse_name && (
+                        <span className="text-xs text-slate-500">
+                          {t('alert.warehouse')}: <b>{item.warehouse_name}</b>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -263,7 +332,8 @@ export default function Alerts() {
               </div>
             ))}
           </div>
-        )
+        )}
+        </>
       ) : (
         lowStock.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-slate-400">
@@ -273,9 +343,9 @@ export default function Alerts() {
           </div>
         ) : (
           <div className="space-y-2">
-            {lowStock.map((item, i) => (
-              // Bir mahsulot har omborda alohida qator — kalit takrorlansa React eski qatorlarni o'chirolmay qolardi
-              <div key={`${item.product_id}-${item.variant_id || 0}-${item.warehouse_id || 0}-${i}`}
+            {lowStock.map((item) => (
+              // Qator = mahsulot (omborlar bo'yicha qoldiq `warehouses` ichida)
+              <div key={item.product_id}
                 className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl"
               >
                 <div className="flex items-center gap-3">
@@ -286,10 +356,14 @@ export default function Alerts() {
                       {item.variant_name && <span className="text-slate-500 font-normal ml-1">({item.variant_name})</span>}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      {t('alert.warehouse')}: <b>{item.warehouse_name || '—'}</b> &nbsp;|&nbsp;
-                      {t('alert.remaining')}: <b className="text-amber-700">{item.quantity}</b>
+                      {t('alert.remaining')}: <b className="text-amber-700">{Number(item.current_qty)}</b>
                       {item.min_stock > 0 && <> &nbsp;|&nbsp; {t('alert.min')}: <b>{item.min_stock}</b></>}
                     </div>
+                    {(item.warehouses || []).length > 0 && (
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {tf('alert.byWarehouse', "Omborlar bo'yicha")}: {item.warehouses.map(w => `${w.name}: ${Number(w.qty)}`).join(' · ')}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <a href="/admin/ombor" className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-50">
@@ -297,6 +371,17 @@ export default function Alerts() {
                 </a>
               </div>
             ))}
+            {lowStockTotal > lowStock.length && (
+              <div className="flex flex-col items-center gap-2 pt-3">
+                <p className="text-xs text-slate-500">
+                  {lowStock.length} / {lowStockTotal}
+                </p>
+                <button onClick={loadMoreLowStock} disabled={loadingMore}
+                  className="px-5 py-2 text-sm font-semibold text-amber-700 bg-white border border-amber-200 rounded-xl hover:bg-amber-50 disabled:opacity-60">
+                  {loadingMore ? t('common.loading') : tf('alert.loadMore', 'Yana yuklash')}
+                </button>
+              </div>
+            )}
           </div>
         )
       )}

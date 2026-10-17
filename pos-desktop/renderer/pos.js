@@ -2,12 +2,26 @@
 // ERPPos Desktop POS — Renderer Logic (Fixed)
 // ═══════════════════════════════════════════════
 // Support both Electron and Chrome browser
-let ipcRenderer = null;
-try {
-  if (typeof require !== 'undefined') {
-    ipcRenderer = require('electron').ipcRenderer;
-  }
-} catch(e) { /* running in browser — that's fine */ }
+// Electron'da oyna boshqaruvi preload.js orqali (window.posWin); brauzerda yo'q — bu normal.
+
+// XSS himoyasi: innerHTML ga qo'yiladigan barcha server qiymatlari esc() dan o'tadi
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[ch]));
+// Mahsulot rasmi manzili: /static/... bo'lsa apiUrl qo'shiladi, keyin safeUrl dan o'tadi
+const prodImgSrc = (u) => {
+  const v = String(u ?? '');
+  return safeUrl(v.startsWith('/static') ? (CFG.apiUrl + v) : v);
+};
+// Rasm manzili: faqat https://, http://(lokal server), data:image/ yoki nisbiy yo'l; aks holda ''
+const safeUrl = (u) => {
+  const v = String(u ?? '').trim();
+  if (!v) return '';
+  if (/^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/i.test(v)) return esc(v);
+  if (/^https?:\/\/[^\s"'<>]+$/i.test(v)) return esc(v);
+  if (/^\/(?!\/)[^\s"'<>]*$/.test(v)) return esc(v);
+  return '';
+};
 
 const PRODUCTION_API = 'https://savdo.e-code.uz';
 
@@ -21,7 +35,9 @@ let CFG = {
   apiUrl: defaultApiUrl,
   autoPrint: localStorage.getItem('pos_autoPrint') === '1',
   unknownProd: localStorage.getItem('pos_unknownProd') === '1',
-  fiscal: false,
+  // T3.10: fiskal (Hippo) — yoqilsa POST /sales/ va smena yopishda X-Hippo-Factory-Id yuboriladi
+  fiscal: localStorage.getItem('pos_fiskalSend') === '1',
+  fiskalId: localStorage.getItem('pos_fiskalId') || '',
   discount: localStorage.getItem('pos_discount') !== '0',
   credit: localStorage.getItem('pos_credit') === '1',
   requireCustomer: localStorage.getItem('pos_requireCustomer') === '1',
@@ -31,16 +47,26 @@ let CFG = {
 };
 
 let API_TOKEN = localStorage.getItem('pos_token') || '';
+let REFRESH_TOKEN = localStorage.getItem('pos_refresh') || '';
 let AUTH_HEADERS = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_TOKEN}` };
+// Ko'p korxonali login: select-company uchun vaqtinchalik token
+let TEMP_LOGIN_TOKEN = '';
+let _refreshPromise = null;
 
 // ─── State ────────────────────────────────────
 let allProducts = [];
 let categories = [];
 let customers = [];
 let warehouses = [];
+// T1.17: POS qoldig'i tanlangan ombor (filial) bo'yicha; sotuv ham shu ombordan yechiladi
+let posWarehouses = [];
+let posWarehouseId = localStorage.getItem('pos_warehouseId') || '';
+let posCtxLoaded = false;
 let suppliers = [];
 let favorites = JSON.parse(localStorage.getItem('pos_favorites') || '[]');
-let paySystems = JSON.parse(localStorage.getItem('pos_paySystems') || '[]');
+// T3.18: to'lov tizimlari (terminallar) serverdan o'qiladi (GET /payment-terminals/mine); localStorage ishlatilmaydi
+let paySystems = [];
+try { localStorage.removeItem('pos_paySystems'); } catch (e) { /* eski brauzer keshini tozalash */ }
 let settingsToggles = { autoPrint: CFG.autoPrint, unknownProd: CFG.unknownProd, fiscal: CFG.fiscal, discount: CFG.discount, credit: CFG.credit, requireCustomer: CFG.requireCustomer };
 let cart = [];
 let payMethod = 'cash';
@@ -49,6 +75,11 @@ let selectedReturnSale = null;
 let kirimItems = [];
 let currentUserName = '';
 let companyData = null;
+let currentUser = null;
+// Sotuv uchun Idempotency-Key: bir xil payload qayta yuborilsa (timeout'dan keyin) bir xil kalit
+let _saleKey = { sig: '', key: '' };
+// Kirim ro'yxatini ko'ra oladigan rollar (GET /inventory/movements kassirga yopiq)
+const KIRIM_ROLES = ['super_admin', 'admin', 'director', 'manager', 'warehouse', 'accountant'];
 
 // ─── Init ─────────────────────────────────────
 async function init() {
@@ -72,23 +103,71 @@ function startClock() {
 }
 
 // ─── API Helper ───────────────────────────────
-async function api(path, opts = {}) {
-  const base = (document.getElementById('settApiUrl')?.value || CFG.apiUrl).replace(/\/$/, '');
-  const url = base + '/api' + path;
+function setTokens(access, refresh) {
+  API_TOKEN = access || '';
+  if (API_TOKEN) localStorage.setItem('pos_token', API_TOKEN); else localStorage.removeItem('pos_token');
+  if (refresh !== undefined) {
+    REFRESH_TOKEN = refresh || '';
+    if (REFRESH_TOKEN) localStorage.setItem('pos_refresh', REFRESH_TOKEN); else localStorage.removeItem('pos_refresh');
+  }
+  AUTH_HEADERS = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_TOKEN}` };
+}
+
+function apiBase() {
+  return (document.getElementById('settApiUrl')?.value || CFG.apiUrl).replace(/\/$/, '');
+}
+
+// 401 da refresh_token bilan yangi token olish (bir vaqtda bitta so'rov). Muvaffaqiyatsiz bo'lsa false.
+async function tryRefreshToken() {
+  if (!REFRESH_TOKEN) return false;
+  if (!_refreshPromise) {
+    _refreshPromise = (async () => {
+      try {
+        const res = await fetch(apiBase() + '/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: REFRESH_TOKEN }),
+        });
+        if (!res.ok) return false;
+        const d = await res.json();
+        if (!d.access_token) return false;
+        setTokens(d.access_token, d.refresh_token || REFRESH_TOKEN);
+        return true;
+      } catch (_) { return false; }
+      finally { setTimeout(() => { _refreshPromise = null; }, 0); }
+    })();
+  }
+  return _refreshPromise;
+}
+
+// Fiskal sarlavha: faqat POST /sales/ va smena yopishda, toggle yoqilgan va Factory ID kiritilgan bo'lsa
+// (frontend/src/api/axios.js dagi Hippo mantig'iga mos)
+function fiscalHeaders(path, method) {
+  if (String(method || 'GET').toUpperCase() !== 'POST') return {};
+  if (!CFG.fiscal || !CFG.fiskalId) return {};
+  const p = String(path).split('?')[0];
+  const isSale = p === '/sales/' || p === '/sales';
+  const isShiftClose = p === '/shifts/close' || /^\/shifts\/\d+\/close$/.test(p);
+  return (isSale || isShiftClose) ? { 'X-Hippo-Factory-Id': String(CFG.fiskalId) } : {};
+}
+
+async function api(path, opts = {}, _retried = false) {
+  const url = apiBase() + '/api' + path;
   try {
     const res = await fetch(url, {
       ...opts,
-      headers: { ...AUTH_HEADERS, ...(opts.headers || {}) },
+      headers: { ...AUTH_HEADERS, ...fiscalHeaders(path, opts.method), ...(opts.headers || {}) },
     });
     if (res.status === 401) {
-      localStorage.removeItem('pos_token');
-      API_TOKEN = '';
+      if (!_retried && await tryRefreshToken()) return api(path, opts, true);
+      setTokens('', '');
       openLoginModal();
       throw new Error('Sessiya tugadi. Qaytadan kiring.');
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Server xatosi' }));
-      throw new Error(err.detail || res.statusText);
+      const d = err.detail;
+      throw new Error(typeof d === 'string' ? d : (Array.isArray(d) ? d.map(x => x.msg || '').filter(Boolean).join('; ') : '') || res.statusText);
     }
     return res.status === 204 ? null : res.json();
   } catch (e) {
@@ -157,13 +236,13 @@ async function doLogin() {
     }
 
     const data = await res.json();
-    API_TOKEN = data.access_token;
-    localStorage.setItem('pos_token', API_TOKEN);
-    AUTH_HEADERS = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_TOKEN}` };
-
-    closeLoginModal();
-    toast('✅ Muvaffaqiyatli kirildi!', 'ok');
-    loadAllData();
+    // Ko'p korxonali foydalanuvchi: access_token yo'q — avval korxonani tanlash kerak
+    if (data.needs_company_selection) {
+      TEMP_LOGIN_TOKEN = data.temp_token || '';
+      showCompanyChoices(data.companies || []);
+      return;
+    }
+    finishLogin(data);
   } catch (e) {
     errEl.style.whiteSpace = 'pre-line';
     errEl.textContent = e.message;
@@ -173,22 +252,88 @@ async function doLogin() {
   }
 }
 
+// Login muvaffaqiyatli: tokenlar saqlanadi, modal yopiladi, ma'lumotlar yuklanadi
+function finishLogin(data) {
+  if (!data || !data.access_token) throw new Error('Server token qaytarmadi. Qaytadan urinib ko\'ring.');
+  TEMP_LOGIN_TOKEN = '';
+  setTokens(data.access_token, data.refresh_token || '');
+  posCtxLoaded = false; posWarehouses = [];
+  closeCompanyModal();
+  closeLoginModal();
+  toast('✅ Muvaffaqiyatli kirildi!', 'ok');
+  loadAllData();
+}
+
+// Korxona tanlash modali (nomlar textContent bilan — XSS xavfsiz)
+function showCompanyChoices(companies) {
+  const list = document.getElementById('companyChoiceList');
+  const errEl = document.getElementById('companyChoiceError');
+  if (errEl) errEl.textContent = '';
+  list.replaceChildren();
+  companies.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-outline';
+    btn.style.cssText = 'width:100%;text-align:left;padding:12px 14px;margin-bottom:8px';
+    btn.textContent = c.company_name || ("Korxona #" + c.company_id);
+    btn.addEventListener('click', () => selectCompany(c.company_id));
+    list.appendChild(btn);
+  });
+  closeLoginModal();
+  document.getElementById('companyModal').classList.add('show');
+  document.getElementById('loginOverlay').classList.add('show');
+}
+
+function closeCompanyModal() {
+  document.getElementById('companyModal')?.classList.remove('show');
+}
+
+function cancelCompanyChoice() {
+  TEMP_LOGIN_TOKEN = '';
+  closeCompanyModal();
+  openLoginModal();
+}
+
+async function selectCompany(companyId) {
+  const errEl = document.getElementById('companyChoiceError');
+  if (errEl) errEl.textContent = '';
+  try {
+    const res = await fetch(apiBase() + '/api/auth/select-company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ temp_token: TEMP_LOGIN_TOKEN, company_id: Number(companyId) }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((typeof err.detail === 'string' && err.detail) || "Korxonani tanlab bo'lmadi");
+    }
+    finishLogin(await res.json());
+  } catch (e) {
+    if (errEl) errEl.textContent = e.name === 'TypeError' ? "Serverga ulanib bo'lmadi" : e.message;
+  }
+}
+
 function handleLoginKeydown(e) {
   if (e.key === 'Enter') doLogin();
 }
 
 function doLogout() {
-  localStorage.removeItem('pos_token');
-  API_TOKEN = '';
-  AUTH_HEADERS = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' };
+  setTokens('', '');
+  TEMP_LOGIN_TOKEN = '';
+  // Keyingi kirgan korxona uchun eski chek shabloni qolmasin
+  try { localStorage.removeItem('erp_receipt_settings'); } catch (_) {}
+  currentUser = null; companyData = null;
   activeSmena = null;
   cart = [];
+  posCtxLoaded = false; posWarehouseId = ''; posWarehouses = [];
   openLoginModal();
   closeDotMenu();
 }
 
 // ─── Load Data ────────────────────────────────
 async function loadAllData() {
+  // Rol va korxona/filial ma'lumoti boshqa yuklashlar (Kirim, korxona nomi, shablon) uchun kerak
+  await loadCurrentUser();
   await Promise.allSettled([
     loadProducts(),
     loadCategories(),
@@ -200,24 +345,95 @@ async function loadAllData() {
     loadKirimList(),
     loadKassaStats(),
     loadCompanyInfo(),
-    loadCurrentUser(),
+    loadReceiptTemplates(),
+    loadPaySystems(),
   ]);
+}
+
+// Filial default ombori va sotiladigan omborlar (eski serverda endpoint yo'q — jim o'tkaziladi)
+async function loadPosContext() {
+  try {
+    const ctx = await api('/products/pos-context');
+    posWarehouses = Array.isArray(ctx?.warehouses) ? ctx.warehouses : [];
+    const ok = posWarehouses.some(w => String(w.id) === String(posWarehouseId));
+    if (!ok) {
+      posWarehouseId = ctx?.default_warehouse_id ? String(ctx.default_warehouse_id)
+        : (posWarehouses.length === 1 ? String(posWarehouses[0].id) : '');
+    }
+    posCtxLoaded = true;
+  } catch (e) { posWarehouses = []; posWarehouseId = ''; }
+  renderPosWarehouseSelect();
+}
+
+function setPosWarehouse(id) {
+  posWarehouseId = String(id || '');
+  try { localStorage.setItem('pos_warehouseId', posWarehouseId); } catch (_) {}
+  cart = []; renderCart();
+  renderPosWarehouseSelect();
+  loadProducts();
+}
+
+// Ombor tanlagich: sotuv paneli (T1.17) va sozlamalardagi settWarehouse bitta manbadan to'ldiriladi.
+// Bitta ombor bo'lsa avto-tanlanadi va tanlagich ko'rinmaydi; bir nechta bo'lsa tanlash majburiy.
+function renderPosWarehouseSelect() {
+  const fill = (sel) => {
+    sel.replaceChildren();
+    if (!posWarehouseId) {
+      const ph = document.createElement('option');
+      ph.value = ''; ph.textContent = '— Omborni tanlang —';
+      sel.appendChild(ph);
+    }
+    posWarehouses.forEach(w => {
+      const o = document.createElement('option');
+      o.value = String(w.id); o.textContent = w.name;
+      sel.appendChild(o);
+    });
+    sel.value = posWarehouseId;
+  };
+  let sel = document.getElementById('saleWarehouseSel');
+  if (posWarehouses.length <= 1) { if (sel) sel.remove(); }
+  else {
+    if (!sel) {
+      const inp = document.getElementById('saleSearchInput');
+      if (inp && inp.parentNode) {
+        sel = document.createElement('select');
+        sel.id = 'saleWarehouseSel';
+        sel.className = 'fsel-sm';
+        sel.onchange = () => setPosWarehouse(sel.value);
+        inp.parentNode.insertBefore(sel, inp.nextSibling);
+      }
+    }
+    if (sel) fill(sel);
+  }
+  const row = document.getElementById('settWarehouseRow');
+  const ss = document.getElementById('settWarehouse');
+  if (row) row.style.display = posWarehouses.length > 1 ? '' : 'none';
+  if (ss && posWarehouses.length > 1) {
+    fill(ss);
+    ss.onchange = () => setPosWarehouse(ss.value);
+  }
+}
+
+function attachSellSources(list, pool) {
+  list.forEach(p => {
+    if (p.product_type === 'sell' && p.conversion) {
+      const src = pool.find(x => String(x.id) === String(p.conversion.source_product_id));
+      p._sourceStock = src ? Number(src.stock_quantity || 0) : null;
+      p._conversionRatio = Number(p.conversion.ratio || 1);
+      p._sourceProductId = p.conversion.source_product_id;
+    }
+  });
 }
 
 async function loadProducts() {
   try {
-    // pos-list tezroq va product_type qaytaradi
-    const data = await api('/products/pos-list?limit=500');
+    if (!posCtxLoaded) await loadPosContext();
+    // pos-list tezroq va product_type qaytaradi; qoldiq tanlangan ombor bo'yicha
+    const data = await api('/products/pos-list?limit=500'
+      + (posWarehouseId ? '&warehouse_id=' + encodeURIComponent(posWarehouseId) : ''));
     const raw = Array.isArray(data) ? data : (data?.items || []);
     // sell tipli mahsulotlar uchun manba qoldiqlarini biriktirish
-    raw.forEach(p => {
-      if (p.product_type === 'sell' && p.conversion) {
-        const src = raw.find(x => String(x.id) === String(p.conversion.source_product_id));
-        p._sourceStock = src ? Number(src.stock_quantity || 0) : null;
-        p._conversionRatio = Number(p.conversion.ratio || 1);
-        p._sourceProductId = p.conversion.source_product_id;
-      }
-    });
+    attachSellSources(raw, raw);
     allProducts = raw;
     renderSaleGrid(allProducts);
     renderProductsTable(allProducts);
@@ -233,7 +449,7 @@ async function loadProducts() {
       populateCatFilter();
       toast('Mahsulotlar yuklandi ✓', 'ok');
     } catch (e2) {
-      document.getElementById('saleGrid').innerHTML = `<div class="empty-state">⚠️ ${e2.message}</div>`;
+      document.getElementById('saleGrid').innerHTML = `<div class="empty-state">⚠️ ${esc(e2.message)}</div>`;
       toast(e2.message, 'err');
     }
   }
@@ -246,16 +462,58 @@ async function loadCategories() {
   } catch (e) { categories = []; }
 }
 
-async function loadCustomers() {
+// Mijoz tanlash: <input list> + <datalist>; GET /customers?search=&limit=20, 300 ms debounce.
+// Variantlar textContent bilan yoziladi (XSS xavfsiz). Tanlangan mijoz id si yashirin #saleCustomer da.
+let _custTimer = null;
+let _custByLabel = new Map();
+
+function customerLabel(c) {
+  return (c.name || ('#' + c.id)) + (c.phone ? ' | ' + c.phone : '');
+}
+
+function renderCustomerOptions() {
+  const dl = document.getElementById('saleCustomerList');
+  if (!dl) return;
+  dl.replaceChildren();
+  _custByLabel = new Map();
+  customers.forEach(c => {
+    let label = customerLabel(c);
+    if (_custByLabel.has(label)) label += ' #' + c.id;   // bir xil nom+telefon bo'lsa farqlash
+    _custByLabel.set(label, c.id);
+    const o = document.createElement('option');
+    o.value = label;
+    dl.appendChild(o);
+  });
+}
+
+async function loadCustomers(q = '') {
   try {
-    const data = await api('/customers/?limit=200');
+    const data = await api('/customers?limit=20&search=' + encodeURIComponent(q || ''));
     customers = Array.isArray(data) ? data : (data?.items || []);
-    const sel = document.getElementById('saleCustomer');
-    if (sel) {
-      sel.innerHTML = '<option value="">👤 Mijoz (ixtiyoriy)</option>'
-        + customers.map(c => `<option value="${c.id}">${c.name}${c.phone ? ' | ' + c.phone : ''}</option>`).join('');
-    }
-  } catch (e) { customers = []; }
+    renderCustomerOptions();
+  } catch (e) {
+    // T3.8: oflayn/xato — oxirgi yuklangan ro'yxat saqlanadi (klientda qidiriladi), bo'shatilmaydi
+    renderCustomerOptions();
+  }
+}
+
+function customerSearchInput(v) {
+  const hid = document.getElementById('saleCustomer');
+  // Ro'yxatdan aniq variant tanlangan bo'lsa id biriktiriladi, aks holda tanlov bekor
+  const id = _custByLabel.get(v);
+  hid.value = id ? String(id) : '';
+  onCustomerChange();
+  if (id) return;
+  clearTimeout(_custTimer);
+  _custTimer = setTimeout(() => loadCustomers(v.trim()), 300);
+}
+
+function clearCustomer() {
+  const hid = document.getElementById('saleCustomer');
+  const inp = document.getElementById('saleCustomerSearch');
+  if (hid) hid.value = '';
+  if (inp) inp.value = '';
+  onCustomerChange();
 }
 
 async function loadWarehouses() {
@@ -264,7 +522,7 @@ async function loadWarehouses() {
     warehouses = Array.isArray(data) ? data : [];
     const sel = document.getElementById('kirimWarehouse');
     if (sel) sel.innerHTML = '<option value="">— Tanlang —</option>'
-      + warehouses.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+      + warehouses.map(w => `<option value="${esc(w.id)}">${esc(w.name)}</option>`).join('');
   } catch (e) { warehouses = []; }
 }
 
@@ -274,7 +532,7 @@ async function loadSuppliers() {
     suppliers = Array.isArray(data) ? data : (data?.items || []);
     const sel = document.getElementById('kirimSupplier');
     if (sel) sel.innerHTML = '<option value="">— Tanlang —</option>'
-      + suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+      + suppliers.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
   } catch (e) { suppliers = []; }
 }
 
@@ -301,55 +559,75 @@ async function loadCurrentUser() {
   try {
     const user = await api('/auth/me');
     if (user) {
+      currentUser = user;
       currentUserName = user.name || user.username || user.phone || 'Kassir';
+      applyRoleVisibility();
     }
   } catch (e) {
     console.log('User info load error:', e.message);
   }
 }
 
+// Kirim ro'yxati kassirga yopiq (GET /inventory/movements) — kassir roli uchun Kirim tabi yashiriladi
+function canSeeKirim() {
+  return !!currentUser && KIRIM_ROLES.includes(String(currentUser.role || ''));
+}
+
+function applyRoleVisibility() {
+  const show = canSeeKirim();
+  document.querySelectorAll('[data-tab="kirim"]').forEach(el => { el.style.display = show ? '' : 'none'; });
+  const view = document.getElementById('view-kirim');
+  if (view && !show) view.classList.remove('active');
+}
+
+// Sarlavha: "Korxona · Filial · Kassa". Korxona GET /billing/my-company, filial GET /branches/{id}
+// (GET /companies/{id} yo'q; BranchOut da balans yo'q). Nomlar textContent bilan yoziladi.
 async function loadCompanyInfo() {
   try {
-    // Kompaniya va filial ma'lumotlarini olish
-    const user = await api('/auth/me');
-    if (user && user.company_id) {
-      const company = await api(`/companies/${user.company_id}`);
-      companyData = company;
-
-      // Kompaniya ma'lumotlarini ko'rsatish
-      const companyInfoEl = document.getElementById('companyInfo');
-      const companyNameEl = document.getElementById('companyName');
-      const companyCodeEl = document.getElementById('companyCode');
-      const companyBalanceEl = document.getElementById('companyBalance');
-
-      if (companyInfoEl && company) {
-        companyInfoEl.style.display = 'flex';
-        companyNameEl.textContent = company.name || 'Korxona';
-        companyCodeEl.textContent = company.code || company.tin || '-';
-
-        // Balansni olish
-        if (user.branch_id) {
-          try {
-            const branch = await api(`/branches/${user.branch_id}`);
-            if (branch && branch.balance !== undefined) {
-              companyBalanceEl.textContent = fmt(branch.balance) + ' so\'m';
-              companyBalanceEl.style.color = branch.balance >= 0 ? 'var(--green)' : 'var(--red)';
-            }
-          } catch (e) {
-            companyBalanceEl.textContent = '0 so\'m';
-          }
-        } else {
-          companyBalanceEl.textContent = '0 so\'m';
-        }
-      }
+    const user = currentUser || await api('/auth/me');
+    if (!user || !user.company_id) return;
+    let company = null;
+    let branch = null;
+    try { company = await api('/billing/my-company'); } catch (e) { console.log('Company info load error:', e.message); }
+    if (user.branch_id) {
+      try { branch = await api(`/branches/${user.branch_id}`); } catch (e) { console.log('Branch info load error:', e.message); }
     }
+    companyData = { ...(company || {}), branch };
+    renderCompanyHeader();
   } catch (e) {
     console.log('Company info load error:', e.message);
   }
 }
 
+function renderCompanyHeader() {
+  const companyInfoEl = document.getElementById('companyInfo');
+  const companyNameEl = document.getElementById('companyName');
+  const companyCodeEl = document.getElementById('companyCode');
+  if (!companyInfoEl || !companyData || !companyData.name) return;
+  companyInfoEl.style.display = 'flex';
+  const parts = [companyData.name];
+  if (companyData.branch && companyData.branch.name) parts.push(companyData.branch.name);
+  parts.push(CFG.cassaName);
+  companyNameEl.textContent = parts.join(' · ');
+  companyCodeEl.textContent = companyData.org_code || '-';
+}
+
+// Chek shabloni: GET /companies/me/receipt_templates -> localStorage.erp_receipt_settings
+// ({r58, r80, nak, _company_id}); showReceipt shu kalitdan o'qiydi.
+async function loadReceiptTemplates() {
+  try {
+    const data = await api('/companies/me/receipt_templates');
+    const tpl = (data && data.receipt_templates) || {};
+    const stored = { ...tpl, _company_id: currentUser ? currentUser.company_id : null };
+    localStorage.setItem('erp_receipt_settings', JSON.stringify(stored));
+  } catch (e) {
+    console.log('Receipt template load error:', e.message);
+  }
+}
+
 // ─── Tab Switch ───────────────────────────────
 function switchTab(tab) {
+  if (tab === 'kirim' && !canSeeKirim()) { switchTab('sale'); return; }
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const v = document.getElementById('view-' + tab);
@@ -372,7 +650,7 @@ document.addEventListener('click', e => {
 
 // ─── Window Controls ──────────────────────────
 function winCtrl(cmd) {
-  if (ipcRenderer) ipcRenderer.send('win-' + cmd);
+  if (window.posWin) window.posWin.send(cmd);
   else if (cmd === 'close' && confirm('Dasturdan chiqishni istaysizmi?')) window.close();
 }
 
@@ -381,10 +659,15 @@ function populateCatFilter() {
   const sel = document.getElementById('saleCatFilter');
   const catSet = [...new Set(allProducts.map(p => p.category_name || p.cat_name || '').filter(Boolean))];
   sel.innerHTML = '<option value="">Barcha kategoriyalar</option>'
-    + catSet.map(c => `<option value="${c}">${c}</option>`).join('');
+    + catSet.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 }
 
 function saleSearch(q) {
+  applySaleFilter(q);
+  scheduleServerSearch(q);
+}
+
+function applySaleFilter(q) {
   const catFilter = document.getElementById('saleCatFilter').value;
   let list = allProducts;
   if (catFilter) list = list.filter(p => (p.category_name || p.cat_name || '') === catFilter);
@@ -395,25 +678,77 @@ function saleSearch(q) {
   renderSaleGrid(list);
 }
 
-function saleBarcodeKey(e) {
+// Ro'yxat 500 ta bilan cheklangan: qidiruv serverga ham o'tadi (300 ms debounce),
+// topilgan mahsulotlar allProducts ga qo'shiladi (tanlangan ombor qoldig'i bilan).
+let _prodSearchTimer = null;
+function scheduleServerSearch(q) {
+  clearTimeout(_prodSearchTimer);
+  const term = (q || '').trim();
+  if (term.length < 2) return;
+  _prodSearchTimer = setTimeout(async () => {
+    try {
+      const data = await api('/products/pos-list?limit=50&search=' + encodeURIComponent(term)
+        + (posWarehouseId ? '&warehouse_id=' + encodeURIComponent(posWarehouseId) : ''));
+      const found = Array.isArray(data) ? data : (data?.items || []);
+      const have = new Set(allProducts.map(p => String(p.id)));
+      const fresh = found.filter(p => !have.has(String(p.id)));
+      if (!fresh.length) return;
+      attachSellSources(fresh, allProducts.concat(fresh));
+      allProducts = allProducts.concat(fresh);
+      // foydalanuvchi shu orada boshqa narsa yozgan bo'lsa, eskirgan natijani chizmaymiz
+      const cur = document.getElementById('saleSearchInput')?.value.trim();
+      if (cur === term) applySaleFilter(term);
+    } catch (_) { /* qidiruv xatosi sotuvni to'xtatmaydi */ }
+  }, 300);
+}
+
+// Lokal ro'yxatda yo'q shtrix-kod/SKU/PLU: GET /products/barcode/{code}; topilsa allProducts ga qo'shiladi
+async function lookupBarcodeOnServer(code) {
+  try {
+    const p = await api('/products/barcode/' + encodeURIComponent(code));
+    if (!p || p.id == null) return null;
+    const known = allProducts.find(x => String(x.id) === String(p.id));
+    if (known) return known;
+    // Tanlangan ombor qoldig'ini aniqlash uchun pos-list dan nomi bo'yicha ham so'raymiz
+    let item = p;
+    try {
+      const d = await api('/products/pos-list?limit=20&search=' + encodeURIComponent(p.name || code)
+        + (posWarehouseId ? '&warehouse_id=' + encodeURIComponent(posWarehouseId) : ''));
+      const arr = Array.isArray(d) ? d : (d?.items || []);
+      item = arr.find(x => String(x.id) === String(p.id)) || p;
+    } catch (_) { /* ProductOut ning o'zi ishlatiladi */ }
+    attachSellSources([item], allProducts.concat([item]));
+    allProducts = allProducts.concat([item]);
+    return item;
+  } catch (_) { return null; }
+}
+
+async function saleBarcodeKey(e) {
   if (e.key === 'Enter') {
-    const q = e.target.value.trim();
+    const input = e.target;
+    const q = input.value.trim();
     if (!q) return;
     const p = allProducts.find(x => x.barcode === q || x.sku === q);
-    if (p) { addToCartById(p.id, 1); e.target.value = ''; renderSaleGrid(allProducts); }
-    else if (q.length === 13 && (q.startsWith('21') || q.startsWith('22'))) {
+    if (p) { addToCartById(p.id, 1); input.value = ''; renderSaleGrid(allProducts); return; }
+    // T3.12: tarozi shtrix-kodi 20|21|22 + 5 (PLU) + 5 (vazn, gramm) + 1; PLU = mahsulotning plu_code si
+    if (/^\d{13}$/.test(q) && (q.startsWith('20') || q.startsWith('21') || q.startsWith('22'))) {
       const itemCode = q.substring(2, 7);
       const weightGram = parseInt(q.substring(7, 12), 10) || 0;
       const weightKg = weightGram / 1000;
-      const scaleProduct = allProducts.find(x => x.sku === itemCode || x.barcode === itemCode);
+      let scaleProduct = allProducts.find(x => x.plu_code != null && Number(x.plu_code) === Number(itemCode));
+      if (!scaleProduct) scaleProduct = await lookupBarcodeOnServer(itemCode);
       if (scaleProduct) {
         addToCartById(scaleProduct.id, weightKg);
-        e.target.value = ''; renderSaleGrid(allProducts);
+        input.value = ''; renderSaleGrid(allProducts);
       } else {
         toast('Tarozi mahsuloti topilmadi (Kodi: ' + itemCode + ')', 'err');
-        e.target.value = '';
+        input.value = '';
       }
+      return;
     }
+    // Lokal ro'yxatda yo'q (masalan 500 tadan keyingi tovar): serverdan qidiramiz
+    const sp = await lookupBarcodeOnServer(q);
+    if (sp) { addToCartById(sp.id, 1); input.value = ''; renderSaleGrid(allProducts); }
     else saleSearch(q);
   }
 }
@@ -433,8 +768,9 @@ function renderSaleGrid(list) {
   const el = document.getElementById('saleGrid');
   if (!list.length) { el.innerHTML = '<div class="empty-state">Mahsulot topilmadi</div>'; return; }
   el.innerHTML = list.map(p => {
-    const img = p.image_url
-      ? `<img src="${p.image_url.startsWith('/static') ? (CFG.apiUrl + p.image_url) : p.image_url}" alt="">`
+    const imgSrc = prodImgSrc(p.image_url);
+    const img = imgSrc
+      ? `<img src="${imgSrc}" alt="">`
       : `<span style="font-size:28px">📦</span>`;
     const isSell = p.product_type === 'sell';
     const sellQty = _getSellableQty(p);
@@ -448,14 +784,14 @@ function renderSaleGrid(list) {
       } else if (sellQty <= 0) {
         stockLabel = '❌ Xom-ashyo tugagan';
       } else {
-        stockLabel = `🔄 ~${fmt(Math.floor(sellQty))} ${p.unit || 'ta'} sotsa bo'ladi`;
+        stockLabel = `🔄 ~${fmt(Math.floor(sellQty))} ${esc(p.unit || 'ta')} sotsa bo'ladi`;
       }
     } else {
-      stockLabel = `Qoldiq: ${fmt(qty)} ${p.unit || 'dona'}`;
+      stockLabel = `Qoldiq: ${fmt(qty)} ${esc(p.unit || 'dona')}`;
     }
-    return `<div class="prod-card${outOfStock ? ' out-of-stock' : ''}" data-prod-id="${p.id}" onclick="addToCartById(${p.id})">
+    return `<div class="prod-card${outOfStock ? ' out-of-stock' : ''}" data-prod-id="${esc(p.id)}" onclick="addToCartById(${Number(p.id)})">
       <div class="prod-card-img">${img}</div>
-      <div class="prod-card-name">${p.name}${isSell ? ' <span style="font-size:9px;background:#6366f1;color:#fff;border-radius:4px;padding:1px 4px">Tark.</span>' : ''}</div>
+      <div class="prod-card-name">${esc(p.name)}${isSell ? ' <span style="font-size:9px;background:#6366f1;color:#fff;border-radius:4px;padding:1px 4px">Tark.</span>' : ''}</div>
       <div class="prod-card-price">${fmt(p.sale_price)} so'm</div>
       <div class="prod-card-stock" ${colorCls}>${stockLabel}</div>
     </div>`;
@@ -500,7 +836,7 @@ function renderCart() {
   itemsEl.innerHTML = cart.map((item, i) => `
     <div class="cart-item">
       <div class="ci-top">
-        <div class="ci-name">${item.name}</div>
+        <div class="ci-name">${esc(item.name)}</div>
         <button class="ci-remove" onclick="removeFromCart(${i})">✕</button>
       </div>
       <div class="ci-bottom">
@@ -549,6 +885,8 @@ function selectPayMethod(m) {
   payMethod = m;
   document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('pm-' + m)?.classList.add('active');
+  const dueWrap = document.getElementById('debtDueWrap');
+  if (dueWrap) dueWrap.style.display = m === 'debt' ? '' : 'none';
   calcChange();
 }
 
@@ -561,13 +899,26 @@ function fillTotal() {
 
 // ─── CUSTOMER CHANGE ──────────────────────────
 function onCustomerChange() {
-  const sel = document.getElementById('saleCustomer');
-  const hasCustomer = !!sel.value;
-  sel.style.color = hasCustomer ? 'var(--ink)' : (CFG.requireCustomer ? 'var(--red)' : 'var(--ink3)');
-  sel.style.borderColor = (!hasCustomer && CFG.requireCustomer) ? 'var(--red)' : '';
+  const inp = document.getElementById('saleCustomerSearch');
+  if (!inp) return;
+  const hasCustomer = !!document.getElementById('saleCustomer').value;
+  inp.style.color = hasCustomer ? 'var(--ink)' : (CFG.requireCustomer ? 'var(--red)' : 'var(--ink3)');
+  inp.style.borderColor = (!hasCustomer && CFG.requireCustomer) ? 'var(--red)' : '';
 }
 
 // ─── PROCESS SALE ─────────────────────────────
+function newSaleKey() {
+  try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (_) {}
+  return 'pos-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+}
+
+// Bir xil sotuv (payload) qayta yuborilsa (timeout'dan keyin) xuddi shu kalit; savat o'zgarsa yangi kalit
+function saleKeyFor(payload) {
+  const sig = JSON.stringify(payload);
+  if (_saleKey.sig !== sig) _saleKey = { sig, key: newSaleKey() };
+  return _saleKey.key;
+}
+
 async function processSale() {
   if (!cart.length) { toast('Savat bo\'sh', 'warn'); return; }
 
@@ -575,36 +926,59 @@ async function processSale() {
   const customerId = document.getElementById('saleCustomer').value;
   if (CFG.requireCustomer && !customerId) {
     toast('⚠️ Mijoz tanlanmagan! Sozlamalarda "Mijoz tanlanmasa sotmasin" yoqilgan.', 'err');
-    document.getElementById('saleCustomer').focus();
+    document.getElementById('saleCustomerSearch')?.focus();
+    return;
+  }
+  // Nasiya mijozsiz bo'lmaydi (server ham 400 beradi) — so'rov yuborilmaydi
+  if (payMethod === 'debt' && !customerId) {
+    toast('Nasiya uchun mijoz tanlang', 'err');
+    document.getElementById('saleCustomerSearch')?.focus();
+    return;
+  }
+  // Bir nechta ombor bo'lsa, qoldiq va sotuv bitta ombor bo'yicha bo'lishi uchun tanlash majburiy
+  if (posWarehouses.length > 1 && !posWarehouseId) {
+    toast('Avval omborni tanlang', 'warn');
     return;
   }
   const total = getTotal();
   const subTotal = cart.reduce((s, x) => s + x.sale_price * x.qty, 0);
   const discountPct = parseFloat(document.getElementById('discountInp').value) || 0;
   const discountAmount = Math.round(subTotal * discountPct / 100);
-  const paid = parseFloat(document.getElementById('payAmountInp').value) || total;
+  // Nasiyada kiritilmagan summa 0 (qoldiq qarzga yoziladi); naqd/kartada bo'sh summa = jami
+  const enteredPaid = parseFloat(document.getElementById('payAmountInp').value);
+  const paid = payMethod === 'debt' ? (enteredPaid || 0) : (enteredPaid || total);
   if (payMethod === 'cash' && paid < total) { toast('To\'lov yetarli emas', 'err'); return; }
+  if (payMethod === 'debt' && paid >= total) { toast('Nasiya uchun qabul qilingan summa jami summadan kam bo\'lishi kerak', 'err'); return; }
+  const dueDate = document.getElementById('debtDueInp')?.value || '';
 
   const payBtn = document.getElementById('payBtn');
   payBtn.disabled = true;
   try {
-    // customerId already read above
-
     // Payload must match SaleCreate schema exactly
     const payload = {
       items: cart.map(p => ({
         product_id: p.id,
         quantity: p.qty,
-        unit_price: p.sale_price,   // required field name in schema
+        // T3.19: unit_price faqat kassir narxni qo'lda o'zgartirgan bo'lsa yuboriladi; aks holda server
+        // narxni hal qiladi (mijozning individual narxi > narx turi > sotuv narxi) va mijoz chegirmasini qo'llaydi
+        ...(p.price_manual ? { unit_price: p.sale_price, price_manual: true } : {}),
         discount: 0,
       })),
-      payment_type: payMethod,      // 'cash' | 'card' | 'credit'
+      payment_type: payMethod,      // 'cash' | 'card' | 'debt'
       paid_amount: paid,            // required Decimal
       discount_amount: discountAmount,
       note: '',
+      customer_id: customerId ? Number(customerId) : null,
+      ...(payMethod === 'debt' && dueDate ? { debt_due_date: dueDate } : {}),
+      ...(posWarehouseId ? { warehouse_id: Number(posWarehouseId) } : {}),
     };
     const cartSnapshot = [...cart];
-    const result = await api('/sales/', { method: 'POST', body: JSON.stringify(payload) });
+    const result = await api('/sales/', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': saleKeyFor(payload) },
+      body: JSON.stringify(payload),
+    });
+    _saleKey = { sig: '', key: '' };
     toast('✅ Sotuv muvaffaqiyatli saqlandi!', 'ok');
     showReceipt(result || payload, total, paid, cartSnapshot);
 
@@ -612,7 +986,9 @@ async function processSale() {
     cart = [];
     document.getElementById('discountInp').value = '';
     document.getElementById('payAmountInp').value = '';
-    document.getElementById('saleCustomer').value = '';
+    const dueInp = document.getElementById('debtDueInp');
+    if (dueInp) dueInp.value = '';
+    clearCustomer();
     renderCart();
     await loadProducts();
     loadKassaStats();
@@ -641,40 +1017,47 @@ function showReceipt(sale, total, paid, cartItems) {
   }
 
   // Use template settings or defaults
-  const cfg = receiptSettings.r58 || receiptSettings.r80 || {};
-  const company = cfg.company || CFG.cassaName || 'ERPPos';
-  const address = cfg.address || '';
-  const phone = cfg.phone || '';
+  const cfg = (CFG.paperSize === '58mm' ? receiptSettings.r58 : CFG.paperSize === 'A4' ? receiptSettings.nak : receiptSettings.r80)
+    || receiptSettings.r80 || receiptSettings.r58 || {};
+  const branchInfo = (companyData && companyData.branch) || {};
+  const company = cfg.company || sale.company_name || (companyData && companyData.name) || CFG.cassaName || 'ERPPos';
+  // T3.7: sotuv filialining rekvizitlari (server javobi) birinchi o'rinda; shablon/joriy filial — zaxira
+  const address = sale.branch_address || cfg.address || branchInfo.address || '';
+  const phone = sale.branch_phone || cfg.phone || branchInfo.phone || '';
+  const saleBranchName = sale.branch_name || '';
   const inn = cfg.inn || '';
   const header = cfg.header || '';
   const footer = cfg.footer || 'Xarid uchun rahmat!';
   const showCashier = cfg.show_cashier !== false;
   const showDate = cfg.show_date !== false;
   const logo = cfg.logo || '';
-  const logoSize = cfg.logo_size || 40;
+  const logoSize = Number(cfg.logo_size) || 40;
 
   let html = '';
 
   // Logo
   if (logo) {
-    html += `<div class="receipt-center"><img src="${logo}" alt="Logo" style="max-width:120px;height:${logoSize}px;object-fit:contain;margin:0 auto 8px"></div>`;
+    html += `<div class="receipt-center"><img src="${safeUrl(logo)}" alt="Logo" style="max-width:120px;height:${logoSize}px;object-fit:contain;margin:0 auto 8px"></div>`;
   }
 
   // Company Info
   if (company) {
-    html += `<div class="receipt-center" style="font-weight:800;font-size:14px">${company}</div>`;
+    html += `<div class="receipt-center" style="font-weight:800;font-size:14px">${esc(company)}</div>`;
+  }
+  if (saleBranchName) {
+    html += `<div class="receipt-center" style="font-size:11px;color:#666">Filial: ${esc(saleBranchName)}</div>`;
   }
   if (address) {
-    html += `<div class="receipt-center" style="font-size:11px;color:#666">${address}</div>`;
+    html += `<div class="receipt-center" style="font-size:11px;color:#666">${esc(address)}</div>`;
   }
   if (phone) {
-    html += `<div class="receipt-center" style="font-size:11px;color:#666">Tel: ${phone}</div>`;
+    html += `<div class="receipt-center" style="font-size:11px;color:#666">Tel: ${esc(phone)}</div>`;
   }
   if (inn) {
-    html += `<div class="receipt-center" style="font-size:10px;color:#999">STIR: ${inn}</div>`;
+    html += `<div class="receipt-center" style="font-size:10px;color:#999">STIR: ${esc(inn)}</div>`;
   }
   if (header) {
-    html += `<div class="receipt-center" style="font-size:11px;color:#666;font-style:italic;margin-top:4px">${header}</div>`;
+    html += `<div class="receipt-center" style="font-size:11px;color:#666;font-style:italic;margin-top:4px">${esc(header)}</div>`;
   }
 
   html += `<hr class="receipt-sep">`;
@@ -684,7 +1067,7 @@ function showReceipt(sale, total, paid, cartItems) {
     html += `<div class="receipt-row"><span>Sana:</span><span>${now.toLocaleDateString('uz-UZ')}</span></div>`;
     html += `<div class="receipt-row"><span>Vaqt:</span><span>${now.toLocaleTimeString('uz-UZ')}</span></div>`;
   }
-  html += `<div class="receipt-row"><span>Chek #:</span><span>${sale.id || sale.number || Math.floor(Math.random() * 9000 + 1000)}</span></div>`;
+  html += `<div class="receipt-row"><span>Chek #:</span><span>${esc(sale.number || '-')}</span></div>`;
 
   html += `<hr class="receipt-sep">`;
 
@@ -693,7 +1076,7 @@ function showReceipt(sale, total, paid, cartItems) {
     const name = item.name || item.product_name || '-';
     const qty = item.qty || item.quantity || 1;
     const price = item.sale_price || item.unit_price || item.price || 0;
-    html += `<div class="receipt-row"><span>${name}</span><span>${qty}×${fmt(price)}</span></div>`;
+    html += `<div class="receipt-row"><span>${esc(name)}</span><span>${esc(qty)}×${fmt(price)}</span></div>`;
   });
 
   html += `<hr class="receipt-sep">`;
@@ -709,14 +1092,14 @@ function showReceipt(sale, total, paid, cartItems) {
 
   // Cashier
   if (showCashier && currentUserName) {
-    html += `<div class="receipt-center" style="font-size:10px;color:#999;margin-top:4px">Kassir: ${currentUserName}</div>`;
+    html += `<div class="receipt-center" style="font-size:10px;color:#999;margin-top:4px">Kassir: ${esc(currentUserName)}</div>`;
   }
 
   html += `<hr class="receipt-sep">`;
 
   // Footer
   if (footer) {
-    html += `<div class="receipt-center" style="font-size:10px;color:#999">${footer}</div>`;
+    html += `<div class="receipt-center" style="font-size:10px;color:#999">${esc(footer)}</div>`;
   }
 
   document.getElementById('receiptContent').innerHTML = html;
@@ -737,11 +1120,12 @@ async function searchReturns(q) {
     const list = Array.isArray(data) ? data : (data?.items || []);
     if (!list.length) { document.getElementById('returnSaleList').innerHTML = '<div class="empty-state">Sotuv topilmadi</div>'; return; }
     document.getElementById('returnSaleList').innerHTML = list.map(s => {
-      const safeS = encodeURIComponent(JSON.stringify(s));
+      // encodeURIComponent `'` ni kodlamaydi — onclick='...' dan chiqib ketmasin
+      const safeS = encodeURIComponent(JSON.stringify(s)).replace(/'/g, '%27');
       return `
       <div class="kirim-row" onclick="selectReturnSaleEncoded('${safeS}')">
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:700">#${s.id} — ${s.number || ''} — ${s.cashier_name || 'Kassir'}</div>
+          <div style="font-size:13px;font-weight:700">#${esc(s.id)} — ${esc(s.number || '')} — ${esc(s.cashier_name || 'Kassir')}</div>
           <div style="font-size:11px;color:var(--ink3)">${new Date(s.created_at || s.date).toLocaleDateString('uz-UZ')} · ${fmt(s.total_amount || s.total)} so'm</div>
         </div>
         <span class="badge badge-blue">Tanlash →</span>
@@ -756,47 +1140,62 @@ function selectReturnSaleEncoded(encoded) {
 
 function selectReturnSale(sale) {
   selectedReturnSale = sale;
-  // Try to load full sale items if list view doesn't have them
-  if (!sale.items || !sale.items.length) {
-    api('/sales/' + sale.id).then(full => {
-      selectedReturnSale = full;
-      _renderReturnItems(full.items || []);
-    }).catch(() => _renderReturnItems([]));
-  } else {
-    _renderReturnItems(sale.items);
-  }
+  // Qatorlarda `id` va `returned_quantity` bo'lishi uchun har doim to'liq SaleOut olinadi
+  api('/sales/' + sale.id).then(full => {
+    selectedReturnSale = full;
+    _renderReturnItems(full.items || []);
+  }).catch(e => { toast(e.message, 'err'); _renderReturnItems([]); });
+}
+
+function _returnRemaining(item) {
+  return Math.max(0, Number(item.quantity || 0) - Number(item.returned_quantity || 0));
 }
 
 function _renderReturnItems(items) {
   document.getElementById('returnItemsList').innerHTML = items.length
-    ? items.map((item, i) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+    ? items.map((item, i) => {
+      const left = _returnRemaining(item);
+      const done = Number(item.returned_quantity || 0);
+      return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);${left <= 0 ? 'opacity:.5' : ''}">
         <div>
-          <div style="font-size:13px;font-weight:600">${item.product_name || item.name || '#' + item.product_id}</div>
-          <div style="font-size:11px;color:var(--ink3)">${item.quantity} dona × ${fmt(item.unit_price || item.price)} so'm</div>
+          <div style="font-size:13px;font-weight:600">${esc(item.product_name || item.name || '#' + item.product_id)}</div>
+          <div style="font-size:11px;color:var(--ink3)">${esc(item.quantity)} dona × ${fmt(item.unit_price || item.price)} so'm${done > 0 ? ' · qaytarilgan: ' + esc(done) : ''}</div>
         </div>
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">
-          <input type="checkbox" data-idx="${i}" style="accent-color:var(--blue)" checked> Qaytarish
+          Qaytarish
+          <input type="number" class="ret-qty" data-idx="${i}" min="0" max="${esc(left)}" step="any" value="${esc(left)}" ${left <= 0 ? 'disabled' : ''}
+            style="width:70px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:var(--r-xs);font-family:var(--mono);text-align:center;outline:none">
         </label>
-      </div>`).join('')
+      </div>`;
+    }).join('')
     : '<div class="empty-state">Mahsulotlar topilmadi</div>';
-  document.getElementById('processReturnBtn').disabled = !items.length;
-  toast('Sotuv tanlandi. Qaytariladigan mahsulotlarni belgilang.', 'info');
+  document.getElementById('processReturnBtn').disabled = !items.some(it => _returnRemaining(it) > 0);
+  toast('Sotuv tanlandi. Qaytariladigan miqdorni kiriting.', 'info');
 }
 
 async function processReturn() {
   if (!selectedReturnSale) { toast('Sotuv tanlanmagan', 'warn'); return; }
-  const checks = document.querySelectorAll('#returnItemsList input[type=checkbox]:checked');
   const items = selectedReturnSale.items || [];
-  const returnItems = [...checks].map(cb => items[parseInt(cb.dataset.idx)]).filter(Boolean);
+  const returnItems = [];
+  for (const inp of document.querySelectorAll('#returnItemsList input.ret-qty:not(:disabled)')) {
+    const item = items[parseInt(inp.dataset.idx)];
+    const qty = parseFloat(inp.value) || 0;
+    if (!item || qty <= 0) continue;
+    if (qty > _returnRemaining(item) + 1e-9) {
+      toast('Qaytariladigan miqdor qolgan miqdordan oshmasligi kerak', 'err');
+      return;
+    }
+    returnItems.push({ sale_item_id: item.id, quantity: qty });
+  }
   if (!returnItems.length) { toast('Qaytariladigan mahsulot tanlanmagan', 'warn'); return; }
+  // Pul asl sotuv to'lov turida qaytariladi (nasiya sotuv qarzdan, boshqa aralash turlar naqd)
+  const origType = selectedReturnSale.payment_type;
+  const payment_type = ['cash', 'card', 'debt'].includes(origType) ? origType : 'cash';
   try {
-    await api('/sales/' + selectedReturnSale.id + '/refund', {
+    await api('/sales/' + selectedReturnSale.id + '/return-items', {
       method: 'POST',
-      body: JSON.stringify({
-        items: returnItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
-        reason: 'Qaytarish'
-      })
+      body: JSON.stringify({ items: returnItems, payment_type, note: 'Qaytarish' }),
     });
     toast('✅ Qaytarish muvaffaqiyatli amalga oshirildi', 'ok');
     selectedReturnSale = null;
@@ -805,6 +1204,7 @@ async function processReturn() {
     document.getElementById('returnSearchInp').value = '';
     document.getElementById('processReturnBtn').disabled = true;
     await loadProducts();
+    loadKassaStats();
   } catch (e) { toast(e.message, 'err'); }
 }
 
@@ -829,8 +1229,8 @@ function kirimSearchProd(q) {
     .filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || (p.sku || '').toLowerCase().includes(q.toLowerCase()))
     .slice(0, 10);
   el.innerHTML = list.map(p => `
-    <div class="prod-result-item" data-prod-id="${p.id}" onclick="addKirimItemById(${p.id})">
-      <div><div class="pri-name">${p.name}</div><div class="pri-sku">${p.sku || ''}</div></div>
+    <div class="prod-result-item" data-prod-id="${esc(p.id)}" onclick="addKirimItemById(${Number(p.id)})">
+      <div><div class="pri-name">${esc(p.name)}</div><div class="pri-sku">${esc(p.sku || '')}</div></div>
       <div class="pri-price">${fmt(p.cost_price)} so'm</div>
     </div>`).join('') || '<div class="empty-state" style="padding:16px">Topilmadi</div>';
 }
@@ -862,9 +1262,9 @@ function renderKirimItems() {
     <tbody>
       ${kirimItems.map((item, i) => `
         <tr>
-          <td style="font-size:13px;font-weight:600">${item.name}</td>
-          <td class="r"><input type="number" min="1" value="${item.qty}" style="width:60px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:var(--r-xs);font-family:var(--mono);text-align:center;outline:none" onchange="kirimQty(${i},this.value)"></td>
-          <td class="r"><input type="number" min="0" value="${item.cost}" style="width:90px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:var(--r-xs);font-family:var(--mono);text-align:right;outline:none" onchange="kirimCost(${i},this.value)"></td>
+          <td style="font-size:13px;font-weight:600">${esc(item.name)}</td>
+          <td class="r"><input type="number" min="1" value="${esc(item.qty)}" style="width:60px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:var(--r-xs);font-family:var(--mono);text-align:center;outline:none" onchange="kirimQty(${i},this.value)"></td>
+          <td class="r"><input type="number" min="0" value="${esc(item.cost)}" style="width:90px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:var(--r-xs);font-family:var(--mono);text-align:right;outline:none" onchange="kirimCost(${i},this.value)"></td>
           <td class="c"><button onclick="removeKirimItem(${i})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:16px">✕</button></td>
         </tr>`).join('')}
     </tbody>
@@ -899,29 +1299,26 @@ async function saveKirim() {
 async function loadKirimList() {
   const el = document.getElementById('kirimList');
   if (!el) return;
+  // Endpoint kassirga yopiq (403) — kassir rolida so'rov yuborilmaydi
+  if (!canSeeKirim()) return;
   try {
-    // Try with type filter; fallback without if server doesn't support it yet
-    let data;
-    try {
-      data = await api('/inventory/movements?type=in&limit=30');
-    } catch {
-      data = await api('/inventory/movements?limit=30');
-    }
+    // MovementType katta harfda (IN); faqat xaridga bog'liq kirimlar (reference_type=purchase)
+    const data = await api('/inventory/movements?type=IN&reference_type=purchase&limit=30');
     const list = Array.isArray(data) ? data : (data?.items || []);
     if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:40px">Kirimlar topilmadi</div>'; return; }
     el.innerHTML = list.map(m => `
       <div class="kirim-row">
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:700">${m.reference_type === 'purchase' ? 'Kirim #' + m.reference_id : (m.reason || 'Kirim')} — ${m.product_name || 'Mahsulot #' + m.product_id}</div>
+          <div style="font-size:13px;font-weight:700">${esc(m.reference_type === 'purchase' ? 'Kirim #' + m.reference_id : (m.reason || 'Kirim'))} — ${esc(m.product_name || 'Mahsulot #' + m.product_id)}</div>
           <div style="font-size:11px;color:var(--ink3)">${new Date(m.created_at || m.date).toLocaleDateString('uz-UZ')}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-family:var(--mono);font-weight:700;color:var(--green)">+${m.quantity} dona</div>
-          <div style="font-size:11px;color:var(--ink3)">Qoldiq: ${m.qty_after || '—'}</div>
+          <div style="font-family:var(--mono);font-weight:700;color:var(--green)">+${esc(m.quantity)} dona</div>
+          <div style="font-size:11px;color:var(--ink3)">Qoldiq: ${esc(m.qty_after || '—')}</div>
         </div>
       </div>`).join('');
   } catch (e) {
-    el.innerHTML = `<div class="empty-state" style="padding:40px">⚠️ ${e.message}</div>`;
+    el.innerHTML = `<div class="empty-state" style="padding:40px">⚠️ ${esc(e.message)}</div>`;
   }
 }
 
@@ -934,9 +1331,9 @@ function renderProductsTable(list) {
     const cls = qty <= 0 ? 'badge badge-red' : qty <= (p.min_stock || 5) ? 'badge badge-amber' : 'badge badge-green';
     const label = qty <= 0 ? 'Tugagan' : qty <= (p.min_stock || 5) ? 'Kam' : 'Yetarli';
     return `<tr>
-      <td><span style="font-family:var(--mono);font-size:11px">${p.sku || '-'}</span></td>
-      <td style="font-weight:600">${p.name}</td>
-      <td style="color:var(--ink3)">${p.category_name || '-'}</td>
+      <td><span style="font-family:var(--mono);font-size:11px">${esc(p.sku || '-')}</span></td>
+      <td style="font-weight:600">${esc(p.name)}</td>
+      <td style="color:var(--ink3)">${esc(p.category_name || '-')}</td>
       <td class="r">${fmt(p.cost_price)} so'm</td>
       <td class="r" style="font-weight:700;color:var(--blue)">${fmt(p.sale_price)} so'm</td>
       <td class="r" style="font-weight:700;color:${qty <= 0 ? 'var(--red)' : qty <= 5 ? 'var(--amber)' : 'var(--ink)'}">${fmt(qty)}</td>
@@ -963,8 +1360,8 @@ function favSearch(q) {
   const lq = q.toLowerCase();
   const list = allProducts.filter(p => p.name.toLowerCase().includes(lq) || (p.sku || '').includes(q)).slice(0, 15);
   document.getElementById('favSearchResults').innerHTML = list.map(p => `
-    <div class="prod-result-item" onclick="addFavoriteById(${p.id})">
-      <div><div class="pri-name">${p.name}</div><div class="pri-sku">${p.sku || ''}</div></div>
+    <div class="prod-result-item" onclick="addFavoriteById(${Number(p.id)})">
+      <div><div class="pri-name">${esc(p.name)}</div><div class="pri-sku">${esc(p.sku || '')}</div></div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="pri-price">${fmt(p.sale_price)} so'm</div>
         <button style="background:var(--green);color:#fff;border:none;border-radius:var(--r-xs);padding:4px 10px;font-size:12px;cursor:pointer">Qo'shish</button>
@@ -1001,46 +1398,77 @@ function renderFavorites() {
   el.innerHTML = favorites.map(p => {
     const live = allProducts.find(x => x.id === p.id) || p;
     const qty = Number(live.stock_quantity || 0);
-    const img = live.image_url
-      ? `<img src="${live.image_url.startsWith('/static') ? (CFG.apiUrl + live.image_url) : live.image_url}" alt="">`
+    const imgSrc = prodImgSrc(live.image_url);
+    const img = imgSrc
+      ? `<img src="${imgSrc}" alt="">`
       : `<span style="font-size:28px">📦</span>`;
     const outOfStock = qty <= 0;
     const colorCls = qty <= 0 ? 'color:var(--red)' : qty <= (live.min_stock || 5) ? 'color:var(--amber)' : '';
-    return `<div class="prod-card${outOfStock ? ' out-of-stock' : ''}" style="position:relative" onclick="addToCartById(${p.id});switchTab('sale')">
-      <button onclick="event.stopPropagation();removeFavorite(${p.id})" title="Sevimlilardan o'chirish" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,0.9);border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;z-index:2">✕</button>
+    return `<div class="prod-card${outOfStock ? ' out-of-stock' : ''}" style="position:relative" onclick="addToCartById(${Number(p.id)});switchTab('sale')">
+      <button onclick="event.stopPropagation();removeFavorite(${Number(p.id)})" title="Sevimlilardan o'chirish" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,0.9);border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;z-index:2">✕</button>
       <div class="prod-card-img">${img}</div>
-      <div class="prod-card-name">${live.name}</div>
+      <div class="prod-card-name">${esc(live.name)}</div>
       <div class="prod-card-price">${fmt(live.sale_price)} so'm</div>
-      <div class="prod-card-stock" style="${colorCls}">Qoldiq: ${fmt(qty)} ${live.unit || 'dona'}</div>
+      <div class="prod-card-stock" style="${colorCls}">Qoldiq: ${fmt(qty)} ${esc(live.unit || 'dona')}</div>
     </div>`;
   }).join('');
 }
 
 // ─── KASSA STATS ──────────────────────────────
+// To'lov turlari: "Karta" jamiga kiradiganlari (balances kalitlari)
+const CARD_PAY_TYPES = ['card', 'uzcard', 'humo', 'visa', 'click', 'payme', 'uzum', 'bank'];
+
+function _sumUzs(map, types) {
+  return types.reduce((acc, t) => acc + Number((map && map[t] && map[t].UZS) || 0), 0);
+}
+
 async function loadKassaStats() {
   try {
-    // Load today's sales only
-    const todayParam = '&date_today=true';
-    const data = await api('/sales/?limit=100' + todayParam).catch(() => api('/sales/?limit=100'));
-    const sales = Array.isArray(data) ? data : (data?.items || []);
-    const naqdTotal = sales.filter(s => s.payment_type === 'cash').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
-    const cardTotal = sales.filter(s => s.payment_type === 'card').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+    // Jamlar joriy smenadan (qaytarishlar ayirilgan, 100 tadan ko'p sotuvda ham to'g'ri); smena yo'q bo'lsa nol
+    let shift = null;
+    try { shift = await api('/shifts/current'); } catch (_) { shift = null; }
+    let naqdTotal = 0, cardTotal = 0, returnTotal = 0, salesCount = 0;
+    if (shift && shift.id) {
+      const bal = shift.balances || {};
+      naqdTotal = _sumUzs(bal, ['cash']);
+      cardTotal = _sumUzs(bal, CARD_PAY_TYPES);
+      try {
+        const z = await api('/shifts/' + shift.id + '/z-report');
+        salesCount = Number(z?.sales?.count || 0);
+        returnTotal = _sumUzs(z?.returns?.by_payment, Object.keys(z?.returns?.by_payment || {}));
+      } catch (_) { /* z-hisobot ko'rinmasa — faqat jamlar */ }
+    }
     document.getElementById('kassaNaqdTotal').textContent = fmt(naqdTotal) + ' so\'m';
     document.getElementById('kassaCardTotal').textContent = fmt(cardTotal) + ' so\'m';
-    document.getElementById('kassaSalesCount').textContent = sales.length + ' ta';
-    document.getElementById('kassaReturnTotal').textContent = '0 so\'m';
+    document.getElementById('kassaSalesCount').textContent = salesCount + ' ta';
+    document.getElementById('kassaReturnTotal').textContent = fmt(returnTotal) + ' so\'m';
+
+    // "Bugungi sotuvlar" jadvali (oxirgi 100 ta); jamlar bundan hisoblanmaydi
+    const data = await api('/sales/?limit=100&date_today=true').catch(() => api('/sales/?limit=100'));
+    const sales = Array.isArray(data) ? data : (data?.items || []);
     document.getElementById('kassaSalesTbody').innerHTML = sales.slice(0, 30).map(s => `
       <tr>
         <td>${new Date(s.created_at || s.date).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</td>
-        <td>${s.cashier_name || '—'}</td>
+        <td>${esc(s.cashier_name || '—')}</td>
         <td class="r" style="font-weight:700;font-family:var(--mono)">${fmt(s.total_amount || s.total)} so'm</td>
-        <td><span class="badge ${s.payment_type === 'cash' ? 'badge-green' : 'badge-blue'}">${s.payment_type === 'cash' ? 'Naqd' : s.payment_type === 'card' ? 'Karta' : s.payment_type}</span></td>
-        <td class="c"><button onclick="reprint(${s.id})" style="background:none;border:1.5px solid var(--border2);border-radius:var(--r-xs);padding:3px 8px;cursor:pointer;font-size:12px;color:var(--ink2)">🖨</button></td>
+        <td><span class="badge ${s.payment_type === 'cash' ? 'badge-green' : 'badge-blue'}">${s.payment_type === 'cash' ? 'Naqd' : s.payment_type === 'card' ? 'Karta' : s.payment_type === 'debt' ? 'Nasiya' : esc(s.payment_type)}</span></td>
+        <td class="c"><button onclick="reprint(${Number(s.id)})" style="background:none;border:1.5px solid var(--border2);border-radius:var(--r-xs);padding:3px 8px;cursor:pointer;font-size:12px;color:var(--ink2)">🖨</button></td>
       </tr>`).join('') || '<tr><td colspan="5" class="empty-row">Bugun sotuv yo\'q</td></tr>';
   } catch (e) { console.log('Kassa stats error:', e.message); }
 }
 
-function reprint(id) { toast('Chek qayta chop etildi #' + id, 'info'); }
+// Chekni qayta chop etish: GET /sales/{id} dan chek yig'ib showReceipt ga beriladi
+async function reprint(id) {
+  try {
+    const sale = await api('/sales/' + Number(id));
+    const items = (sale.items || []).map(it => ({
+      name: it.product_name || it.name,
+      qty: it.quantity,
+      sale_price: it.unit_price,
+    }));
+    showReceipt(sale, Number(sale.total_amount || 0), Number(sale.paid_amount || 0), items);
+  } catch (e) { toast(e.message, 'err'); }
+}
 
 // ─── SMENA ────────────────────────────────────
 async function checkSmena() {
@@ -1108,7 +1536,7 @@ function openSmenaModal(mode) {
       <div style="padding:12px;background:var(--green-bg);border:1.5px solid var(--green-border);border-radius:var(--r-sm)">
         <div style="font-size:12px;font-weight:600;color:var(--green)">Smena OCHIQ</div>
         <div style="font-size:13px;color:var(--ink2);margin-top:4px">Boshlangan: ${activeSmena?.opened_at ? new Date(activeSmena.opened_at).toLocaleTimeString('uz-UZ') : '—'}</div>
-        <div style="font-size:13px;color:var(--ink2)">Kassir ID: ${activeSmena?.cashier_id || '—'}</div>
+        <div style="font-size:13px;color:var(--ink2)">Kassir ID: ${esc(activeSmena?.cashier_id || '—')}</div>
       </div>
     `;
     actions.innerHTML = `
@@ -1159,6 +1587,8 @@ function applySettings() {
   if (cn) cn.value = CFG.cassaName;
   const au = document.getElementById('settApiUrl');
   if (au) au.value = CFG.apiUrl;
+  const fid = document.getElementById('settFactoryId');
+  if (fid) fid.value = CFG.fiskalId;
   checkApiStatus();
 }
 
@@ -1171,6 +1601,14 @@ function toggleSetting(key) {
 function saveSettings() {
   CFG.autoPrint = settingsToggles.autoPrint;
   CFG.unknownProd = settingsToggles.unknownProd;
+  // Fiskal: yoqilsa Hippo Factory ID majburiy (POST /sales/ va smena yopishda X-Hippo-Factory-Id ketadi)
+  CFG.fiskalId = (document.getElementById('settFactoryId')?.value || '').trim();
+  if (settingsToggles.fiscal && !CFG.fiskalId) {
+    toast('Fiskalizatsiya uchun Hippo Factory ID kiriting (fiskal o\'chirib qo\'yildi)', 'warn');
+    settingsToggles.fiscal = false;
+    document.getElementById('tog-fiscal')?.classList.remove('on');
+  }
+  CFG.fiscal = settingsToggles.fiscal;
   CFG.discount = settingsToggles.discount;
   CFG.credit = settingsToggles.credit;
   CFG.requireCustomer = settingsToggles.requireCustomer;
@@ -1178,19 +1616,52 @@ function saveSettings() {
   CFG.paperSize = document.getElementById('settPaperSize')?.value || '80mm';
   CFG.cassaName = document.getElementById('settCassaName')?.value || 'Kassa #1';
   CFG.apiUrl = document.getElementById('settApiUrl')?.value || 'http://localhost:8000';
-  Object.entries(CFG).forEach(([k, v]) => localStorage.setItem('pos_' + k, typeof v === 'boolean' ? (v ? '1' : '0') : v));
+  Object.entries(CFG).forEach(([k, v]) => {
+    if (k === 'fiscal') return;   // pos_fiskalSend kaliti ostida saqlanadi
+    localStorage.setItem('pos_' + k, typeof v === 'boolean' ? (v ? '1' : '0') : v);
+  });
+  localStorage.setItem('pos_fiskalSend', CFG.fiscal ? '1' : '0');
+  renderCompanyHeader();
   toast('✅ Sozlamalar saqlandi', 'ok');
   checkApiStatus();
 }
 
 // ─── PAY SYSTEMS ──────────────────────────────
-function openAddPaySystem() { openModal('paySystemModal'); }
-function savePaySystem() {
+// T3.18: serverdagi (kassir filiali uchun) faol to'lov terminallari
+const PAY_PROVIDERS = ['payme', 'click', 'uzum', 'uzcard', 'humo'];
+function canManagePaySystems() {
+  return !!currentUser && ['super_admin', 'admin', 'director'].includes(String(currentUser.role || ''));
+}
+async function loadPaySystems() {
+  try {
+    const rows = await api('/payment-terminals/mine');
+    paySystems = (Array.isArray(rows) ? rows : []).map(r => ({
+      id: r.id,
+      name: r.label || r.merchant_id || ('#' + r.id),
+      type: r.provider,
+      terminal: r.terminal_id || r.merchant_id || '',
+      active: r.is_active !== false,
+    }));
+  } catch (e) { paySystems = []; }
+  renderPaySystems();
+}
+function openAddPaySystem() {
+  if (!canManagePaySystems()) { toast('Terminal qo\'shish faqat admin/direktor uchun (ERP → Sozlamalar)', 'warn'); return; }
+  openModal('paySystemModal');
+}
+async function savePaySystem() {
   const name = document.getElementById('psName').value;
   if (!name) { toast('Nomi kiriting', 'warn'); return; }
-  paySystems.push({ name, type: document.getElementById('psType').value, terminal: document.getElementById('psTerminal').value, active: true });
-  localStorage.setItem('pos_paySystems', JSON.stringify(paySystems));
-  renderPaySystems();
+  const type = document.getElementById('psType').value;
+  if (!PAY_PROVIDERS.includes(type)) { toast('Terminal faqat Payme/Click/Uzum/UzCard/Humo uchun', 'warn'); return; }
+  try {
+    await api('/payment-terminals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: type, label: name, terminal_id: document.getElementById('psTerminal').value || null }),
+    });
+  } catch (e) { toast(e.message || 'Xatolik', 'err'); return; }
+  await loadPaySystems();
   closeModal('paySystemModal');
   toast('✅ To\'lov tizimi qo\'shildi', 'ok');
 }
@@ -1201,18 +1672,21 @@ function renderPaySystems() {
   if (!paySystems.length) { el.innerHTML = '<tr><td colspan="5" class="empty-row">To\'lov tizimlari topilmadi</td></tr>'; return; }
   el.innerHTML = paySystems.map((p, i) => `
     <tr>
-      <td style="font-weight:600">${p.name}</td>
-      <td><span class="badge badge-blue">${p.type}</span></td>
-      <td style="font-family:var(--mono);font-size:12px">${p.terminal || '—'}</td>
+      <td style="font-weight:600">${esc(p.name)}</td>
+      <td><span class="badge badge-blue">${esc(p.type)}</span></td>
+      <td style="font-family:var(--mono);font-size:12px">${esc(p.terminal || '—')}</td>
       <td class="c"><span class="badge badge-green">Faol</span></td>
       <td class="c"><button onclick="removePaySystem(${i})" style="color:var(--red);background:none;border:none;cursor:pointer;font-size:16px">✕</button></td>
     </tr>`).join('');
 }
 
-function removePaySystem(i) {
-  paySystems.splice(i, 1);
-  localStorage.setItem('pos_paySystems', JSON.stringify(paySystems));
-  renderPaySystems();
+async function removePaySystem(i) {
+  const p = paySystems[i];
+  if (!p) return;
+  if (!canManagePaySystems()) { toast('Terminalni o\'chirish faqat admin/direktor uchun', 'warn'); return; }
+  try { await api('/payment-terminals/' + p.id, { method: 'DELETE' }); }
+  catch (e) { toast(e.message || 'Xatolik', 'err'); return; }
+  await loadPaySystems();
 }
 
 // ─── MODAL HELPERS ────────────────────────────

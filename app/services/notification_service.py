@@ -104,6 +104,7 @@ class NotificationService:
         debtors = (
             db.query(Customer)
             .filter(Customer.company_id == company_id)
+            .filter(Customer.is_active.is_(True))  # T0.26: arxivlangan mijozga eslatma yuborilmaydi
             .filter(Customer.debt_balance >= min_debt_amount)
             .all()
         )

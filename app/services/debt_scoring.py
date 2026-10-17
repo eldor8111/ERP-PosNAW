@@ -29,7 +29,7 @@ def safe_float(val):
     except (ValueError, TypeError):
         return 0.0
 
-def calculate_debt_score(customer_id: int, db: Session) -> Dict[str, Any]:
+def calculate_debt_score(customer_id: int, db: Session, sales=None) -> Dict[str, Any]:
     """
     Kredit skoring algoritmi.
     Max bal: 100
@@ -38,15 +38,21 @@ def calculate_debt_score(customer_id: int, db: Session) -> Dict[str, Any]:
       80-100 -> Ishonchli
       50-79  -> O'rtacha
       0-49   -> Xavfli
+
+    `sales` — mijozning ochiq-qarz sotuvlari oldindan yuklangan bo'lsa (T3.8: ro'yxat uchun
+    N+1 yo'q), shu ro'yxat ishlatiladi; berilmasa bazadan olinadi.
     """
     score = 50
     pattern_desc = "Yetarli ma'lumot yo'q"
     
     # 1. Barcha qarz savdolarini olamiz
-    debt_sales = db.query(Sale).filter(
-        Sale.customer_id == customer_id,
-        *_open_debt_filter(),
-    ).all()
+    if sales is not None:
+        debt_sales = list(sales)
+    else:
+        debt_sales = db.query(Sale).filter(
+            Sale.customer_id == customer_id,
+            *_open_debt_filter(),
+        ).all()
 
     # Agar umuman qarzi bo'lmagan bo'lsa (categorize_customers bu kalitlarni kutadi)
     if not debt_sales:
@@ -133,15 +139,24 @@ def categorize_customers(db: Session, company_id: int):
         results = []
         total_debt = 0
         total_overdue = 0
-        
+
+        # T3.8: barcha qarzdorlarning ochiq-qarz sotuvlari BITTA so'rovda (mijoz boshiga so'rov yo'q)
+        sales_by_customer: Dict[int, list] = {}
+        ids = [c.id for c in customers]
+        if ids:
+            for sale in db.query(Sale).filter(Sale.customer_id.in_(ids), *_open_debt_filter()).all():
+                sales_by_customer.setdefault(sale.customer_id, []).append(sale)
+
         for c in customers:
-            score_data = calculate_debt_score(c.id, db)
-            
-            # Eng eski qarzni topish
-            oldest_debt = db.query(Sale).filter(
-                Sale.customer_id == c.id,
-                *_open_debt_filter(),
-            ).order_by(Sale.created_at.asc()).first()
+            c_sales = sales_by_customer.get(c.id, [])
+            score_data = calculate_debt_score(c.id, db, sales=c_sales)
+
+            # Eng eski qarzni topish (shu ro'yxatdan)
+            oldest_debt = min(
+                c_sales,
+                key=lambda x: (x.created_at is None, x.created_at or datetime.min, x.id),
+                default=None,
+            )
             
             due_date = None
             days_remaining = 0

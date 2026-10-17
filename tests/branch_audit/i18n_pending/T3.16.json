@@ -1,0 +1,44 @@
+{
+  "uz": {
+    "settings.adminBot.linkHintBranch": "Avval veb-panelda (Xodimlar) admin, direktor yoki filial menejeri sifatida qo'shilgan bo'lishingiz kerak, so'ng botda /start bosib, kontaktingizni yuboring. Korxonadan bir nechta rahbar ulana oladi. Botdan yangi foydalanuvchi yaratilmaydi.",
+    "settings.adminBot.branchTitle": "Filial bo'yicha xabarlar",
+    "settings.adminBot.branchDesc": "Ko'p filialli korxonada xabar va hisobotlar filial kesimida",
+    "settings.adminBot.notifyBranchManagers": "Filial menejerlariga yuborish",
+    "settings.adminBot.notifyBranchManagersDesc": "Menejer o'z filiali sotuv va xarajat xabarlarini oladi",
+    "settings.adminBot.reportByBranch": "Hisobotda filiallar bo'limi",
+    "settings.adminBot.reportByBranchDesc": "Kunlik hisobotda har bir filial bo'yicha tushum",
+    "settings.adminBot.reportRecipients": "Hisobot oluvchilar",
+    "settings.adminBot.reportRecipientsDesc": "Kunlik hisobot, qarz va muddat eslatmalarini kim oladi",
+    "settings.adminBot.recipientsOwnersAndAdmins": "Direktor va adminlar",
+    "settings.adminBot.recipientsOwners": "Faqat direktor",
+    "settings.adminBot.recipientsAllManagers": "Direktor, adminlar va filial menejerlari"
+  },
+  "ru": {
+    "settings.adminBot.linkHintBranch": "Сначала вас должны добавить в веб-панели (Сотрудники) как администратора, директора или менеджера филиала, затем нажмите /start в боте и отправьте свой контакт. К боту может подключиться несколько руководителей компании. Новые пользователи через бота не создаются.",
+    "settings.adminBot.branchTitle": "Уведомления по филиалам",
+    "settings.adminBot.branchDesc": "В компании с несколькими филиалами сообщения и отчёты формируются в разрезе филиалов",
+    "settings.adminBot.notifyBranchManagers": "Отправлять менеджерам филиалов",
+    "settings.adminBot.notifyBranchManagersDesc": "Менеджер получает уведомления о продажах и расходах своего филиала",
+    "settings.adminBot.reportByBranch": "Раздел по филиалам в отчёте",
+    "settings.adminBot.reportByBranchDesc": "Выручка по каждому филиалу в ежедневном отчёте",
+    "settings.adminBot.reportRecipients": "Получатели отчётов",
+    "settings.adminBot.reportRecipientsDesc": "Кто получает ежедневный отчёт, напоминания о долгах и сроках годности",
+    "settings.adminBot.recipientsOwnersAndAdmins": "Директор и администраторы",
+    "settings.adminBot.recipientsOwners": "Только директор",
+    "settings.adminBot.recipientsAllManagers": "Директор, администраторы и менеджеры филиалов"
+  },
+  "en": {
+    "settings.adminBot.linkHintBranch": "You must first be added in the web panel (Staff) as an admin, director or branch manager, then press /start in the bot and send your contact. Several managers of one company can connect. The bot never creates new users.",
+    "settings.adminBot.branchTitle": "Branch notifications",
+    "settings.adminBot.branchDesc": "In multi-branch companies messages and reports are split by branch",
+    "settings.adminBot.notifyBranchManagers": "Send to branch managers",
+    "settings.adminBot.notifyBranchManagersDesc": "A manager receives sale and expense messages of their own branch",
+    "settings.adminBot.reportByBranch": "Branches section in the report",
+    "settings.adminBot.reportByBranchDesc": "Revenue per branch in the daily report",
+    "settings.adminBot.reportRecipients": "Report recipients",
+    "settings.adminBot.reportRecipientsDesc": "Who receives the daily report, debt and expiry reminders",
+    "settings.adminBot.recipientsOwnersAndAdmins": "Director and admins",
+    "settings.adminBot.recipientsOwners": "Director only",
+    "settings.adminBot.recipientsAllManagers": "Director, admins and branch managers"
+  }
+}

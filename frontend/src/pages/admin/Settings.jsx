@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { saveReceiptSettings } from '../../utils/receiptBuilder';
 import { Search, Zap } from 'lucide-react';
@@ -10,7 +11,10 @@ import RolesTab from './Settings/Roles';
 import UsersTab from './Settings/Users';
 import Promotions from './Promotions';
 import Warehouse from './Warehouse';
+import PaymentReconciliation from './PaymentReconciliation';
+import FiscalCoverage from './FiscalCoverage';
 import useCompanyFeatures, { refreshCompanyFeatures } from '../../hooks/useCompanyFeatures';
+import { useBranches, invalidateBranches } from '../../hooks/useBranches';
 
 // Add placeholder for missing tabs
 const PlaceholderTab = ({ name }) => {
@@ -23,12 +27,25 @@ const PlaceholderTab = ({ name }) => {
   );
 };
 
+// t(key) kalit topilmasa o'zini qaytaradi — shunda o'zbekcha zaxira matn chiqadi
+const trf = (t, key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+
+// T3.7: eski shablonlarda `show_account_name` ham filialni, ham mijozni boshqargan —
+// yangi kalitlar yo'q bo'lsa eski qiymatdan ko'chiramiz (chek oldingidek chiqadi)
+const migrateAccountName = (cfg) => {
+  if (!cfg || cfg.show_account_name === undefined) return cfg;
+  const out = { ...cfg };
+  if (out.show_branch === undefined) out.show_branch = cfg.show_account_name;
+  if (out.show_customer === undefined) out.show_customer = cfg.show_account_name;
+  return out;
+};
+
 // ── Default chek shablon konfiguratsiyalari ───────────────────────────────────
 const defaultReceiptCfg = {
   company: '', address: '', phone: '', inn: '', logo: '', logo_size: 40,
   header: '', footer: 'Xaridingiz uchun rahmat!',
   show_number: true, show_date: true, show_status: false,
-  show_account_name: true, show_employee: true,
+  show_branch: true, show_customer: true, show_employee: true,
   show_ordering_number: false, show_unit: false, show_warehouse: false,
   show_package: false, show_price_per_unit: true, show_discount: true,
   show_price_with_discount: false, show_currency: false,
@@ -44,7 +61,7 @@ const defaultNakladnoyCfg = {
   company: '', inn: '', address: '', phone: '', logo: '', logo_size: 50,
   logo_position: 'center', bank: '', account: '', mfo: '',
   director: '', accountant: '', storekeeper: '', footer_note: '',
-  show_contractor_name: true, show_account_name: true,
+  show_contractor_name: true, show_branch: true,
   show_account_username: false, show_employee: true,
   show_status: false, show_number: true, show_date: true,
   show_ordering_number: true, show_measurement: true,
@@ -112,7 +129,7 @@ function CurrenciesTab() {
       await api.patch(`/currencies/${c.id}`, { rate: newRate });
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || t('error.serverError'));
+      toast.error(err.response?.data?.detail || t('error.serverError'));
     } finally { setUpdatingId(null); }
   };
 
@@ -123,7 +140,7 @@ function CurrenciesTab() {
       await api.patch(`/currencies/${c.id}`, { is_default: true });
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || t('error.serverError'));
+      toast.error(err.response?.data?.detail || t('error.serverError'));
     } finally { setMakingDefaultId(null); }
   };
 
@@ -133,7 +150,7 @@ function CurrenciesTab() {
       await api.delete(`/currencies/${id}`);
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || t('common.error'));
+      toast.error(err.response?.data?.detail || t('common.error'));
     }
   };
 
@@ -252,7 +269,7 @@ function CurrenciesTab() {
                   <button
                     type="button"
                     disabled={c.is_default}  // Asosiy valyutani o'chirish mumkin emas
-                    onClick={() => api.patch(`/currencies/${c.id}`, { is_active: !c.is_active }).then(() => load()).catch(e => alert(e.response?.data?.detail || t('common.error')))}
+                    onClick={() => api.patch(`/currencies/${c.id}`, { is_active: !c.is_active }).then(() => load()).catch(e => toast.error(e.response?.data?.detail || t('common.error')))}
                     title={c.is_default ? t('settings.currencies.cannotDeactivateDefault') : (c.is_active ? t('settings.currencies.deactivate') : t('settings.currencies.activate'))}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${c.is_active ? 'bg-blue-500' : 'bg-slate-200'
                       } ${c.is_default ? 'cursor-not-allowed' : 'cursor-pointer'}`}
@@ -306,6 +323,9 @@ function CurrenciesTab() {
 // ── API Kalitlar tab ──────────────────────────────────────────────────────────
 function ApiKeysTab() {
   const { t } = useLang();
+  // i18n kaliti hali qo'shilmagan bo'lsa (t() kalitni qaytaradi) — o'zbekcha zaxira matn
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const lastUsedLabel = tf('settings.apiKeys.lastUsed', 'Oxirgi ishlatilgan');
   const [keys, setKeys] = useState([]);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -325,7 +345,7 @@ function ApiKeysTab() {
       setName('');
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || t('error.serverError'));
+      toast.error(err.response?.data?.detail || t('error.serverError'));
     } finally { setSaving(false); }
   };
 
@@ -404,7 +424,7 @@ function ApiKeysTab() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              {[t('common.name'), 'Hash (sha256)', ''].map(h => (
+              {[t('common.name'), tf('settings.apiKeys.prefix', 'Kalit'), lastUsedLabel, ''].map(h => (
                 <th key={h} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -415,8 +435,11 @@ function ApiKeysTab() {
                 <td className="px-6 py-4 text-sm font-semibold text-slate-800">{k.name}</td>
                 <td className="px-6 py-4">
                   <code className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                    {k.key_hash.slice(0, 20)}...
+                    {k.key_prefix ? `${k.key_prefix}…` : '—'}
                   </code>
+                </td>
+                <td className="px-6 py-4 text-xs text-slate-500">
+                  {k.last_used_at ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(k.last_used_at) ? k.last_used_at : `${k.last_used_at}Z`).toLocaleString() : '—'}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button
@@ -432,7 +455,7 @@ function ApiKeysTab() {
               </tr>
             ))}
             {keys.length === 0 && (
-              <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-400 text-sm">{t('settings.apiKeys.empty')}</td></tr>
+              <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400 text-sm">{t('settings.apiKeys.empty')}</td></tr>
             )}
           </tbody>
         </table>
@@ -592,6 +615,8 @@ function ToggleSwitch({ checked, onChange, disabled = false }) {
 
 function AdminBotSettingsModal({ companyId, onClose }) {
   const { t } = useLang();
+  // i18n kaliti hali qo'shilmagan bo'lsa (t() kalitni qaytaradi) — o'zbekcha zaxira matn
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
   const [settings, setSettings] = useState({
     notify_instant_sales: true,
     notify_instant_finance: true,
@@ -599,7 +624,12 @@ function AdminBotSettingsModal({ companyId, onClose }) {
     scheduled_time: '21:00',
     notify_expired_products: true,
     expired_days_before: 7,
+    notify_branch_managers: true,
+    report_by_branch: true,
   });
+  // Jadvalli hisobot oluvchilar — korxona sozlamasi (companies.daily_report_recipients)
+  const [recipients, setRecipients] = useState('owners_and_admins');
+  const [initialRecipients, setInitialRecipients] = useState('owners_and_admins');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -614,10 +644,20 @@ function AdminBotSettingsModal({ companyId, onClose }) {
           scheduled_time:         r.data.scheduled_time         ?? '21:00',
           notify_expired_products: r.data.notify_expired_products ?? true,
           expired_days_before:    r.data.expired_days_before    ?? 7,
+          notify_branch_managers: r.data.notify_branch_managers ?? true,
+          report_by_branch:       r.data.report_by_branch       ?? true,
         });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    api.get('/companies')
+      .then(r => {
+        const c = (r.data || []).find(x => x.id === companyId);
+        const v = c?.daily_report_recipients || 'owners_and_admins';
+        setRecipients(v);
+        setInitialRecipients(v);
+      })
+      .catch(() => {});
   }, [companyId]);
 
   const upd = (key, val) => setSettings(s => ({ ...s, [key]: val }));
@@ -626,6 +666,10 @@ function AdminBotSettingsModal({ companyId, onClose }) {
     setSaving(true);
     try {
       await api.put(`/companies/${companyId}/admin-bot/settings`, settings);
+      if (recipients !== initialRecipients) {
+        await api.put(`/companies/${companyId}`, { daily_report_recipients: recipients });
+        setInitialRecipients(recipients);
+      }
       setSaved(true);
       setTimeout(() => { setSaved(false); }, 2500);
       toast.success(t('settings.adminBot.saved'));
@@ -677,7 +721,15 @@ function AdminBotSettingsModal({ companyId, onClose }) {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
+
+              {/* === 0. Botga ulanish yo'riqnomasi (T0.16: faqat veb-panelda qo'shilgan rahbarlar ulanadi) === */}
+              <div className="md:col-span-2 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                <p className="font-semibold">{tf('settings.adminBot.linkHintTitle', 'Botga ulanish')}</p>
+                <p className="text-xs mt-1 text-sky-700">
+                  {tf('settings.adminBot.linkHintBranch', "Avval veb-panelda (Xodimlar) admin, direktor yoki filial menejeri sifatida qo'shilgan bo'lishingiz kerak, so'ng botda /start bosib, kontaktingizni yuboring. Korxonadan bir nechta rahbar ulana oladi. Botdan yangi foydalanuvchi yaratilmaydi.")}
+                </p>
+              </div>
+
               {/* === 1. Joyida yuborish === */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col">
                 <div className="flex items-start justify-between gap-4 mb-4">
@@ -798,6 +850,51 @@ function AdminBotSettingsModal({ companyId, onClose }) {
                 </div>
               </div>
 
+              {/* === 4. Filial bo'yicha xabarlar (T3.16) === */}
+              <div className="md:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{tf('settings.adminBot.branchTitle', "Filial bo'yicha xabarlar")}</p>
+                    <p className="text-xs text-slate-500">{tf('settings.adminBot.branchDesc', "Ko'p filialli korxonada xabar va hisobotlar filial kesimida")}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 cursor-pointer transition-colors">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">{tf('settings.adminBot.notifyBranchManagers', 'Filial menejerlariga yuborish')}</p>
+                      <p className="text-xs text-slate-400">{tf('settings.adminBot.notifyBranchManagersDesc', "Menejer o'z filiali sotuv va xarajat xabarlarini oladi")}</p>
+                    </div>
+                    <PremiumToggle checked={settings.notify_branch_managers} onChange={v => upd('notify_branch_managers', v)} color="blue" />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 cursor-pointer transition-colors">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">{tf('settings.adminBot.reportByBranch', "Hisobotda filiallar bo'limi")}</p>
+                      <p className="text-xs text-slate-400">{tf('settings.adminBot.reportByBranchDesc', "Kunlik hisobotda har bir filial bo'yicha tushum")}</p>
+                    </div>
+                    <PremiumToggle checked={settings.report_by_branch} onChange={v => upd('report_by_branch', v)} color="blue" />
+                  </label>
+
+                  <div className="p-3 rounded-lg border border-slate-100">
+                    <p className="text-sm font-semibold text-slate-700">{tf('settings.adminBot.reportRecipients', 'Hisobot oluvchilar')}</p>
+                    <p className="text-xs text-slate-400 mb-2">{tf('settings.adminBot.reportRecipientsDesc', "Kunlik hisobot, qarz va muddat eslatmalarini kim oladi")}</p>
+                    <select
+                      value={recipients}
+                      onChange={e => setRecipients(e.target.value)}
+                      className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="owners_and_admins">{tf('settings.adminBot.recipientsOwnersAndAdmins', 'Direktor va adminlar')}</option>
+                      <option value="owners">{tf('settings.adminBot.recipientsOwners', 'Faqat direktor')}</option>
+                      <option value="all_managers">{tf('settings.adminBot.recipientsAllManagers', 'Direktor, adminlar va filial menejerlari')}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
             </div>
           )}
         </div>
@@ -859,6 +956,7 @@ function PremiumToggle({ checked, onChange, color = 'blue' }) {
 
 function TelegramBotTab({ companyId }) {
   const { t } = useLang();
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
   const [userBot, setUserBot] = useState(null);
   const [adminBot, setAdminBot] = useState(null);
   const [courierBot, setCourierBot] = useState(null);
@@ -870,6 +968,11 @@ function TelegramBotTab({ companyId }) {
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [shopAllowOutOfStock, setShopAllowOutOfStock] = useState(true);
   const [savingShopSetting, setSavingShopSetting] = useState(false);
+  // T3.13: Mini App / bot buyurtmalari uchun standart filial
+  const [shopDefaultBranch, setShopDefaultBranch] = useState('');
+  // T3.8: filiallar yagona hook'dan (keshlangan)
+  const { branches: shopBranchesAll } = useBranches();
+  const shopBranches = shopBranchesAll.filter(b => b.is_active !== false);
 
   const load = () => {
     api.get('/companies').then(r => {
@@ -881,6 +984,7 @@ function TelegramBotTab({ companyId }) {
            setUserBot(null);
         }
         setShopAllowOutOfStock(co.shop_allow_out_of_stock_orders !== false);
+        setShopDefaultBranch(co.shop_default_branch_id ? String(co.shop_default_branch_id) : '');
         setCourierBot(co.courier_bot_username ? { bot_username: co.courier_bot_username } : null);
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
@@ -925,7 +1029,7 @@ function TelegramBotTab({ companyId }) {
       setSaving(true); setErr('');
       try {
         const res = await api.put(`/companies/${companyId}/admin-bot`, { bot_token: token });
-        toast.success(t('settings.telegramBot.adminConnected'));
+        toast.success(t('settings.telegramBot.adminConnected') + ' ' + tf('settings.telegramBot.adminStartsIn30', "Bot 30 soniya ichida ishga tushadi."));
         setAdminBot(res.data);
         setToken('');
         setShowModal(false);
@@ -981,6 +1085,22 @@ function TelegramBotTab({ companyId }) {
       toast.success(t('settings.saved'));
     } catch (e) {
       setShopAllowOutOfStock(!checked);
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingShopSetting(false);
+    }
+  };
+
+  const handleShopDefaultBranch = async (value) => {
+    if (!companyId) return;
+    const prev = shopDefaultBranch;
+    setShopDefaultBranch(value);
+    setSavingShopSetting(true);
+    try {
+      await api.put(`/companies/${companyId}`, { shop_default_branch_id: value ? Number(value) : null });
+      toast.success(t('settings.saved'));
+    } catch (e) {
+      setShopDefaultBranch(prev);
       toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSavingShopSetting(false);
@@ -1061,6 +1181,24 @@ function TelegramBotTab({ companyId }) {
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${shopAllowOutOfStock ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
+                {/* T3.13: onlayn buyurtmalar uchun standart filial */}
+                {shopBranches.length > 1 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold text-slate-700">{tf('settings.telegramBot.defaultBranch', "Onlayn buyurtmalar uchun standart filial")}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                      {tf('settings.telegramBot.defaultBranchDesc', "Mijoz filial tanlamasa va unga filial biriktirilmagan bo'lsa, buyurtma va yangi bot mijozlari shu filialga tushadi.")}
+                    </p>
+                    <select
+                      value={shopDefaultBranch}
+                      disabled={savingShopSetting}
+                      onChange={e => handleShopDefaultBranch(e.target.value)}
+                      className="mt-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
+                    >
+                      <option value="">{tf('settings.telegramBot.defaultBranchAuto', 'Avtomatik (birinchi filial)')}</option>
+                      {shopBranches.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -1395,7 +1533,7 @@ function NakladnoyPreview({ cfg }) {
       {/* Info satrlari */}
       <div className="text-[7px] mb-1 space-y-0.5">
         {sh('show_contractor_name') && <div><b>{t('settings.receiptPreview.customer')}:</b> Abdullayev Jasur</div>}
-        {sh('show_account_name') && <div><b>{t('settings.nakladnoy.branchLabel')}:</b> Asosiy filial</div>}
+        {sh('show_branch') && <div><b>{t('settings.nakladnoy.branchLabel')}:</b> {trf(t, 'settings.nakladnoyPreview.branchSample', 'Chilonzor filiali')}</div>}
         {sh('show_employee') && <div><b>{t('settings.nakladnoyPreview.employee')}:</b> Sardor</div>}
         {sh('show_status') && <div><b>{t('common.status')}:</b> {t('settings.nakladnoyPreview.statusApproved')}</div>}
       </div>
@@ -1462,7 +1600,7 @@ function LogoUpload({ logo, size, onUpload, onRemove, onSizeChange, positionPick
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) { alert(t('settings.receipt.logoTooLarge')); return; }
+    if (file.size > 500 * 1024) { toast.error(t('settings.receipt.logoTooLarge')); return; }
     const reader = new FileReader();
     reader.onload = () => onUpload(reader.result);
     reader.readAsDataURL(file);
@@ -1572,7 +1710,8 @@ function ReceiptFields({ cfg, upd }) {
               ['show_number', t('settings.receipt.fieldNumber')],
               ['show_date', t('settings.receipt.fieldDate')],
               ['show_status', t('settings.receipt.fieldStatus')],
-              ['show_account_name', t('settings.receipt.fieldBranch')],
+              ['show_branch', t('settings.receipt.fieldBranch')],
+              ['show_customer', trf(t, 'settings.receipt.fieldCustomer', 'Mijoz')],
               ['show_employee', t('settings.receipt.fieldEmployee')],
             ],
           },
@@ -1747,7 +1886,7 @@ function NakladnoyFields({ cfg, upd }) {
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t('settings.nakladnoy.fieldsSectionTitle')}</p>
         <ToggleGroup title={t('settings.receipt.groupHeader')} cfg={cfg} upd={upd} fields={[
           ['show_contractor_name', t('settings.nakladnoy.fieldCustomerName')],
-          ['show_account_name', t('settings.receipt.fieldBranch')],
+          ['show_branch', t('settings.receipt.fieldBranch')],
           ['show_account_username', t('settings.nakladnoy.fieldUsername')],
           ['show_employee', t('settings.nakladnoy.fieldEmployeeName')],
           ['show_status', t('settings.receipt.fieldStatus')],
@@ -1796,6 +1935,9 @@ function NakladnoyFields({ cfg, upd }) {
 // ── Receipt / Nakladnoy settings tab ──────────────────────────────────────────
 function ReceiptTab() {
   const { t } = useLang();
+  const { user } = useAuth();
+  // Chek shablonlarini faqat admin/direktor saqlaydi (backend boshqa rollarga 403 qaytaradi)
+  const canSaveReceipt = ['admin', 'director'].includes(user?.role);
   const [loading, setLoading] = useState(true);
   const [sub, setSub] = useState('58');
   const [cfg58, setCfg58] = useState({ ...defaultReceiptCfg });
@@ -1807,9 +1949,9 @@ function ReceiptTab() {
     api.get('/companies/me/receipt_templates')
       .then(r => {
         const d = r.data?.receipt_templates || {};
-        const r58 = d.r58 ? { ...defaultReceiptCfg, ...d.r58 } : undefined;
-        const r80 = d.r80 ? { ...defaultReceiptCfg, show_qr: true, ...d.r80 } : undefined;
-        const nak = d.nak ? { ...defaultNakladnoyCfg, ...d.nak } : undefined;
+        const r58 = d.r58 ? { ...defaultReceiptCfg, ...migrateAccountName(d.r58) } : undefined;
+        const r80 = d.r80 ? { ...defaultReceiptCfg, show_qr: true, ...migrateAccountName(d.r80) } : undefined;
+        const nak = d.nak ? { ...defaultNakladnoyCfg, ...migrateAccountName(d.nak) } : undefined;
         if (r58) setCfg58(r58);
         if (r80) setCfg80(r80);
         if (nak) setCfgNak(nak);
@@ -1855,7 +1997,7 @@ function ReceiptTab() {
       saveReceiptSettings({ r58: synced58, r80: synced80, nak: syncedNak });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    }).catch(e => alert(e.response?.data?.detail || t('settings.receipt.saveError')));
+    }).catch(e => toast.error(e.response?.data?.detail || t('settings.receipt.saveError')));
   };
 
   const currentCfg = sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak;
@@ -1907,168 +2049,13 @@ function ReceiptTab() {
             {t('settings.saved')}
           </span>
         )}
-        <button onClick={handleSave}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-          {t('settings.receipt.saveSettings')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Filiallar tab ────────────────────────────────────────────────────────────
-function BranchesTab() {
-  const { t } = useLang();
-  const [branches, setBranches] = useState([]);
-  const [form, setForm] = useState({ name: '', address: '', phone: '' });
-  const [editId, setEditId] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const load = () => api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-  useEffect(() => { load(); }, []);
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    setSaving(true); setError('');
-    try {
-      await api.post('/branches', form);
-      setForm({ name: '', address: '', phone: '' });
-      load();
-    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
-    finally { setSaving(false); }
-  };
-
-  const handleSaveEdit = async (id) => {
-    try {
-      await api.patch(`/branches/${id}`, editForm);
-      setEditId(null);
-      load();
-    } catch (err) { alert(err.response?.data?.detail || t('common.error')); }
-  };
-
-  const handleDeactivate = async (id) => {
-    if (!confirm(t('settings.deactivateBranch'))) return;
-    try { await api.patch(`/branches/${id}`, { is_active: false }); load(); }
-    catch (err) { alert(err.response?.data?.detail || t('common.error')); }
-  };
-
-  const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-
-  return (
-    <div className="space-y-6">
-      {/* Add form */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="text-base font-bold text-slate-800 mb-4">{t('settings.addBranch')}</h3>
-        <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('settings.branchName')} *</label>
-            <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder={t('settings.branches.namePlaceholder')} className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.address') || 'Manzil'}</label>
-            <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-              placeholder={t('settings.branches.addressPlaceholder')} className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">{t('admin.dict.phone') || 'Telefon'}</label>
-            <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-              placeholder="+998 90 000 00 00" className={inputCls} />
-          </div>
-          <div className="md:col-span-3 flex justify-end">
-            <button type="submit" disabled={saving}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
-              {saving ? t('common.saving') : `➕ ${t('settings.addBranch')}`}
-            </button>
-          </div>
-        </form>
-        {error && <div className="mt-3 px-4 py-2 bg-red-50 text-red-600 text-sm rounded-xl">{error}</div>}
-      </div>
-
-      {/* List */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <table className="min-w-full">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-              {['#', t('settings.branchName'), t('common.address'), t('settings.phone'), t('common.status'), ''].map(h => (
-                <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {branches.map((b, idx) => (
-              <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3.5 text-sm text-slate-400">{idx + 1}</td>
-                <td className="px-4 py-3.5">
-                  {editId === b.id ? (
-                    <input value={editForm.name ?? b.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                      className="px-2 py-1.5 border border-blue-300 rounded-lg text-sm w-40" />
-                  ) : (
-                    <span className="text-sm font-semibold text-slate-800">{b.name}</span>
-                  )}
-                </td>
-                <td className="px-4 py-3.5">
-                  {editId === b.id ? (
-                    <input value={editForm.address ?? (b.address || '')} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
-                      className="px-2 py-1.5 border border-blue-300 rounded-lg text-sm w-36" />
-                  ) : (
-                    <span className="text-sm text-slate-500">{b.address || '—'}</span>
-                  )}
-                </td>
-                <td className="px-4 py-3.5">
-                  {editId === b.id ? (
-                    <input value={editForm.phone ?? (b.phone || '')} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                      className="px-2 py-1.5 border border-blue-300 rounded-lg text-sm w-32" />
-                  ) : (
-                    <span className="text-sm text-slate-500">{b.phone || '—'}</span>
-                  )}
-                </td>
-                <td className="px-4 py-3.5">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${b.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                    {b.is_active ? t('common.active') : t('common.inactive')}
-                  </span>
-                </td>
-                <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2">
-                    {editId === b.id ? (
-                      <>
-                        <button onClick={() => handleSaveEdit(b.id)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg">{t('admin.dict.save') || 'Saqlash'}</button>
-                        <button onClick={() => setEditId(null)}
-                          className="px-3 py-1.5 border border-slate-200 text-slate-500 text-xs rounded-lg">{t('common.cancel')}</button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => { setEditId(b.id); setEditForm({}); }}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        {b.is_active && (
-                          <button onClick={() => handleDeactivate(b.id)}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title={t('settings.branches.deactivateTitle')}>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                            </svg>
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {branches.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">{t('settings.branchEmpty')}</td></tr>
-            )}
-          </tbody>
-        </table>
+        {canSaveReceipt && (
+          <button onClick={handleSave}
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+            {t('settings.receipt.saveSettings')}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -2076,6 +2063,16 @@ function BranchesTab() {
 
 function FiskalTab() {
   const { t } = useLang();
+  const { user } = useAuth();
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  // T3.18: qurilma-filial biriktirishni faqat admin/direktor boshqaradi; qolganlar faqat o'z filiali qurilmasini ishlatadi
+  const canManage = ['admin', 'director'].includes(user?.role);
+  const [registered, setRegistered]   = useState([]);   // serverdagi fiscal_devices (admin: hammasi, boshqalar: /mine)
+  const [registryLoaded, setRegistryLoaded] = useState(false);
+  const restrictedRef = useRef(false);                   // oddiy rol + ro'yxatdan o'tgan qurilma bor -> faqat shulardan
+  const { branches } = useBranches();
+  const [attachBranch, setAttachBranch] = useState({});  // { [factoryId]: branchId }
+  const [manualId, setManualId]       = useState('');
   const [status, setStatus]           = useState('checking'); // 'checking'|'online'|'offline'
   const [modules, setModules]         = useState([]);
   const [selectedId, setSelectedId]   = useState(() => {
@@ -2096,7 +2093,8 @@ function FiskalTab() {
       setStatus('online');
       setModules(list);
       // Agar hali tanlanmagan bo'lsa, birinchisini avtomatik tanlaymiz
-      if (!selectedId && list.length > 0) {
+      // (T3.18: serverda qurilmalar biriktirilgan oddiy rol uchun — faqat o'z qurilmasi, quyidagi effektda)
+      if (!selectedId && list.length > 0 && !restrictedRef.current) {
         const fid = list[0]?.FactoryID || null;
         setSelectedId(fid);
         localStorage.setItem('fiskalId', JSON.stringify(fid));
@@ -2111,7 +2109,57 @@ function FiskalTab() {
 
   useEffect(() => { refresh(); }, []);
 
+  // T3.18: serverdagi biriktirilgan qurilmalar
+  const loadRegistered = async () => {
+    try {
+      const r = await api.get(canManage ? '/fiscal-devices' : '/fiscal-devices/mine', { _suppressToast: true });
+      const list = Array.isArray(r.data) ? r.data : [];
+      setRegistered(list);
+      restrictedRef.current = !canManage && list.length > 0;
+      if (!canManage && list.length > 0) {
+        // Bitta qurilma bo'lsa avtomatik tanlanadi va o'zgartirib bo'lmaydi; bir nechta bo'lsa — shulardan tanlanadi
+        const cur = (() => { try { return JSON.parse(localStorage.getItem('fiskalId') || 'null'); } catch { return null; } })();
+        if (list.length === 1 || !list.some(d => d.factory_id === cur)) {
+          const fid = list.length === 1 ? list[0].factory_id : null;
+          setSelectedId(fid);
+          localStorage.setItem('fiskalId', JSON.stringify(fid));
+        }
+      }
+    } catch { setRegistered([]); }
+    finally { setRegistryLoaded(true); }
+  };
+  useEffect(() => {
+    loadRegistered();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage]);
+
+  const lockedToRegistry = !canManage && registered.length > 0;
+  const lockedSingle = lockedToRegistry && registered.length === 1;
+  const visibleModules = lockedToRegistry
+    ? registered.map(d => ({ FactoryID: d.factory_id, Description: d.label || '' }))
+    : modules;
+  const branchLabel = (id) => (id ? (branches.find(b => b.id === id)?.name || `#${id}`) : tf('settings.terminals.allBranches', 'Barcha filiallar'));
+  const registeredFor = (fid) => registered.find(d => d.factory_id === fid);
+
+  const attachDevice = async (fid) => {
+    const bid = attachBranch[fid] || manualBranchOf(fid);
+    try {
+      await api.post('/fiscal-devices', { factory_id: fid, branch_id: bid ? Number(bid) : null }, { _suppressToast: true });
+      toast.success(tf('settings.fiscal.attached', 'Fiskal modul filialga biriktirildi'));
+      setManualId('');
+      loadRegistered();
+    } catch (e) { toast.error(e.response?.data?.detail || t('auth.errGeneral')); }
+  };
+  const manualBranchOf = (fid) => (fid === manualId.trim() ? attachBranch.__manual : '');
+  const detachDevice = async (dev) => {
+    try {
+      await api.delete(`/fiscal-devices/${dev.id}`, { _suppressToast: true });
+      loadRegistered();
+    } catch (e) { toast.error(e.response?.data?.detail || t('auth.errGeneral')); }
+  };
+
   const selectModule = (factoryId) => {
+    if (lockedSingle) return;   // T3.18: bitta biriktirilgan qurilma o'zgartirilmaydi
     setSelectedId(factoryId);
     localStorage.setItem('fiskalId', JSON.stringify(factoryId));
   };
@@ -2180,12 +2228,70 @@ function FiskalTab() {
         )}
       </div>
 
+      {/* ── T3.18: modullarni filial/kassaga biriktirish (admin/direktor) ── */}
+      {canManage && registryLoaded && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-700 mb-1">{tf('settings.fiscal.attachTitle', 'Fiskal modullarni filialga biriktirish')}</h3>
+          <p className="text-xs text-slate-400 mb-3">
+            {tf('settings.fiscal.attachDesc', "Ro'yxat bo'lsa, fiskal natija faqat sotuv filialiga biriktirilgan modul bilan qabul qilinadi. Ro'yxat bo'sh bo'lsa cheklov yo'q.")}
+          </p>
+          <div className="space-y-2">
+            {registered.map(d => (
+              <div key={d.id} className="flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+                <div>
+                  <span className="font-black tracking-widest text-slate-800">{d.factory_id}</span>
+                  <span className="ml-2 text-slate-500">{branchLabel(d.branch_id)}</span>
+                </div>
+                <button onClick={() => detachDevice(d)} className="text-red-500 hover:text-red-700 font-semibold">
+                  {tf('common.delete', "O'chirish")}
+                </button>
+              </div>
+            ))}
+            {!registered.length && (
+              <p className="text-xs text-slate-400">{tf('settings.fiscal.noAttached', "Biriktirilgan modul yo'q")}</p>
+            )}
+          </div>
+          <div className="mt-3 space-y-2">
+            {status === 'online' && modules.filter(m => !registeredFor(m.FactoryID)).map(m => (
+              <div key={m.FactoryID} className="flex items-center gap-2 text-xs">
+                <span className="font-black tracking-widest flex-1">{m.FactoryID}</span>
+                <select value={attachBranch[m.FactoryID] || ''} onChange={e => setAttachBranch({ ...attachBranch, [m.FactoryID]: e.target.value })}
+                  className="border border-slate-200 rounded-xl px-2 py-1.5 bg-white">
+                  <option value="">{tf('settings.terminals.allBranches', 'Barcha filiallar')}</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+                <button onClick={() => attachDevice(m.FactoryID)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl">
+                  {tf('settings.fiscal.attach', 'Biriktirish')}
+                </button>
+              </div>
+            ))}
+            <div className="flex items-center gap-2 text-xs">
+              <input value={manualId} onChange={e => setManualId(e.target.value)} maxLength={64}
+                placeholder={tf('settings.fiscal.manualId', "Factory ID (qo'lda)")}
+                className="flex-1 border border-slate-200 rounded-xl px-2 py-1.5" />
+              <select value={attachBranch.__manual || ''} onChange={e => setAttachBranch({ ...attachBranch, __manual: e.target.value })}
+                className="border border-slate-200 rounded-xl px-2 py-1.5 bg-white">
+                <option value="">{tf('settings.terminals.allBranches', 'Barcha filiallar')}</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <button disabled={!manualId.trim()} onClick={() => attachDevice(manualId.trim())}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl disabled:opacity-40">
+                {tf('settings.fiscal.attach', 'Biriktirish')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Fiskal modullar ── */}
       {status === 'online' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <h3 className="text-sm font-bold text-slate-700 mb-3">{t('settings.fiscal.connectedDevices')}</h3>
 
-          {modules.length === 0 ? (
+          {lockedSingle && (
+            <p className="text-xs text-slate-500 mb-2">{tf('settings.fiscal.lockedSingle', "Sizning filialingizga biriktirilgan modul avtomatik tanlangan va o'zgartirilmaydi.")}</p>
+          )}
+          {visibleModules.length === 0 ? (
             <div className="text-center py-6 text-slate-400">
               <svg className="w-10 h-10 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
@@ -2194,7 +2300,7 @@ function FiskalTab() {
             </div>
           ) : (
             <div className="space-y-2">
-              {modules.map((m) => {
+              {visibleModules.map((m) => {
                 const fid = m.FactoryID;
                 const isSelected = fid === selectedId;
                 return (
@@ -2267,6 +2373,342 @@ function FiskalTab() {
         </div>
       )}
 
+      {/* ── T4.2: filial rekvizitlari va fiskal qamrov hisoboti ── */}
+      {canManage && <BranchRequisitesSection />}
+      {(canManage || user?.role === 'accountant') && <FiscalCoverage />}
+
+    </div>
+  );
+}
+
+
+// ── T4.2: filial rekvizitlari (kod, yuridik nom, STIR, soliq rejimi, ish vaqti) va filial chek shabloni ──────
+// Bo'sh qoldirilgan maydon chekda korxona shablonidan olinadi. STIR: 9 xonali (JSHSHIR — 14 xonali).
+const BRANCH_WEEK_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const BRANCH_DAY_FALLBACK = { mon: 'Dushanba', tue: 'Seshanba', wed: 'Chorshanba', thu: 'Payshanba', fri: 'Juma', sat: 'Shanba', sun: 'Yakshanba' };
+const defaultHours = () => Object.fromEntries(BRANCH_WEEK_DAYS.map(d => [d, { open: '09:00', close: '18:00', closed: d === 'sun' }]));
+
+function BranchRequisitesSection() {
+  const { t } = useLang();
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const { branches } = useBranches();
+  const [selId, setSelId] = useState('');
+  const [form, setForm] = useState(null);
+  const [useHours, setUseHours] = useState(false);
+  const [tplAll, setTplAll] = useState({});
+  const [tplType, setTplType] = useState('r80');
+  const [saving, setSaving] = useState(false);
+
+  const select = async (id) => {
+    setSelId(id);
+    setForm(null);
+    if (!id) return;
+    const b = branches.find(x => String(x.id) === String(id));
+    if (!b) return;
+    setForm({
+      code: b.code || '', legal_name: b.legal_name || '', stir: b.stir || '', tax_regime: b.tax_regime || '',
+      address: b.address || '', phone: b.phone || '',
+      hours: { ...defaultHours(), ...(b.working_hours || {}) },
+    });
+    setUseHours(!!b.working_hours);
+    try {
+      const r = await api.get(`/branches/${id}/receipt_templates`, { _suppressToast: true });
+      setTplAll(r.data?.receipt_templates || {});
+    } catch { setTplAll({}); }
+  };
+
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const updDay = (d, k, v) => setForm(f => ({ ...f, hours: { ...f.hours, [d]: { ...f.hours[d], [k]: v } } }));
+
+  const save = async () => {
+    const stir = form.stir.trim();
+    if (stir && !/^(\d{9}|\d{14})$/.test(stir)) {
+      toast.error(tf('branchSettings.stirInvalid', "STIR 9 xonali (JSHSHIR 14 xonali) raqam bo'lishi kerak"));
+      return;
+    }
+    setSaving(true);
+    try {
+      const body = {
+        code: form.code.trim() || null,
+        legal_name: form.legal_name.trim() || null,
+        stir: stir || null,
+        tax_regime: form.tax_regime || null,
+        address: form.address.trim() || null,
+        phone: form.phone.trim() || null,
+        working_hours: useHours ? form.hours : null,
+      };
+      await api.patch(`/branches/${selId}`, body, { _suppressToast: true });
+      invalidateBranches();   // T3.8: boshqa sahifalardagi filial keshi ham yangilansin
+      toast.success(tf('branchSettings.saved', 'Filial sozlamalari saqlandi'));
+    } catch (e) {
+      const d = e.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : tf('branchSettings.saveError', "Saqlab bo'lmadi: kiritilgan qiymatlarni tekshiring"));
+    } finally { setSaving(false); }
+  };
+
+  const tplCfg = tplAll[tplType] || {};
+  const setTplField = (k, v) => setTplAll(a => ({ ...a, [tplType]: { ...(a[tplType] || {}), [k]: v } }));
+  const saveTpl = async () => {
+    setSaving(true);
+    try {
+      const body = { r58: tplAll.r58 || {}, r80: tplAll.r80 || {}, nak: tplAll.nak || {} };
+      // Bo'sh matn maydonlari olib tashlanadi — bo'sh shablon = korxona shabloni
+      Object.keys(body).forEach(k => {
+        body[k] = Object.fromEntries(Object.entries(body[k]).filter(([, v]) => v !== '' && v != null));
+      });
+      const r = await api.put(`/branches/${selId}/receipt_templates`, body, { _suppressToast: true });
+      setTplAll(r.data?.receipt_templates || {});
+      toast.success(tf('branchSettings.tplSaved', 'Filial chek shabloni saqlandi'));
+    } catch (e) {
+      const d = e.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : t('auth.errGeneral'));
+    } finally { setSaving(false); }
+  };
+
+  const inp = 'w-full border border-slate-200 rounded-xl px-2 py-1.5 text-xs bg-white';
+  const lbl = 'flex flex-col gap-1 text-xs text-slate-500';
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <h3 className="text-sm font-bold text-slate-700">{tf('branchSettings.title', 'Filial rekvizitlari')}</h3>
+      <p className="text-xs text-slate-400 mt-0.5 mb-3">
+        {tf('branchSettings.desc', "Yuridik nom, STIR, manzil va telefon shu filial ombori orqali qilingan sotuv chekida chiqadi. Bo'sh maydonlar korxona shablonidan olinadi.")}
+      </p>
+      <select value={selId} onChange={e => select(e.target.value)} className={inp}>
+        <option value="">{tf('branchSettings.pick', 'Filialni tanlang')}</option>
+        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+
+      {form && (
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className={lbl}>{tf('branchSettings.code', 'Filial kodi')}
+              <input className={inp} maxLength={20} value={form.code} onChange={e => upd('code', e.target.value)} />
+            </label>
+            <label className={lbl}>{tf('branchSettings.stir', 'STIR / JSHSHIR')}
+              <input className={inp} maxLength={14} inputMode="numeric" value={form.stir} onChange={e => upd('stir', e.target.value.replace(/\D/g, ''))} />
+            </label>
+            <label className={`${lbl} col-span-2`}>{tf('branchSettings.legalName', 'Yuridik nom')}
+              <input className={inp} maxLength={200} value={form.legal_name} onChange={e => upd('legal_name', e.target.value)} />
+            </label>
+            <label className={lbl}>{tf('branchSettings.taxRegime', 'Soliq rejimi')}
+              <select className={inp} value={form.tax_regime} onChange={e => upd('tax_regime', e.target.value)}>
+                <option value="">{tf('branchSettings.regimeNone', 'Belgilanmagan')}</option>
+                <option value="vat">{tf('branchSettings.regimeVat', "QQS to'lovchi")}</option>
+                <option value="turnover">{tf('branchSettings.regimeTurnover', 'Aylanma soliq')}</option>
+              </select>
+            </label>
+            <label className={lbl}>{tf('branchSettings.phone', 'Telefon')}
+              <input className={inp} maxLength={20} value={form.phone} onChange={e => upd('phone', e.target.value)} />
+            </label>
+            <label className={`${lbl} col-span-2`}>{tf('branchSettings.address', 'Manzil')}
+              <input className={inp} maxLength={200} value={form.address} onChange={e => upd('address', e.target.value)} />
+            </label>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+              <input type="checkbox" checked={useHours} onChange={e => setUseHours(e.target.checked)} />
+              {tf('branchSettings.hours', 'Ish vaqti')}
+            </label>
+            {useHours && (
+              <div className="mt-2 space-y-1">
+                {BRANCH_WEEK_DAYS.map(d => (
+                  <div key={d} className="flex items-center gap-2 text-xs">
+                    <span className="w-24 text-slate-600">{tf(`branchSettings.day.${d}`, BRANCH_DAY_FALLBACK[d])}</span>
+                    <label className="flex items-center gap-1 text-slate-500">
+                      <input type="checkbox" checked={!!form.hours[d].closed} onChange={e => updDay(d, 'closed', e.target.checked)} />
+                      {tf('branchSettings.closed', 'Yopiq')}
+                    </label>
+                    <input type="time" disabled={form.hours[d].closed} value={form.hours[d].open || ''} onChange={e => updDay(d, 'open', e.target.value)} className="border border-slate-200 rounded-lg px-1.5 py-1 disabled:opacity-40" />
+                    <span>–</span>
+                    <input type="time" disabled={form.hours[d].closed} value={form.hours[d].close || ''} onChange={e => updDay(d, 'close', e.target.value)} className="border border-slate-200 rounded-lg px-1.5 py-1 disabled:opacity-40" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button onClick={save} disabled={saving} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl disabled:opacity-50">
+            {t('common.save')}
+          </button>
+
+          <div className="pt-3 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-700 mb-1">{tf('branchSettings.tplTitle', 'Chek shabloni (filial)')}</h4>
+            <p className="text-xs text-slate-400 mb-2">{tf('branchSettings.tplDesc', "Bo'sh qoldirilsa chek korxona shabloni bilan chiqadi.")}</p>
+            <div className="flex gap-1 mb-2">
+              {['r58', 'r80', 'nak'].map(k => (
+                <button key={k} onClick={() => setTplType(k)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold ${tplType === k ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  {k === 'nak' ? tf('branchSettings.tplNak', 'Nakladnoy') : k.slice(1) + ' mm'}
+                </button>
+              ))}
+            </div>
+            <label className={lbl}>{tf('branchSettings.tplHeader', 'Sarlavha matni')}
+              <input className={inp} maxLength={500} value={tplCfg.header || ''} onChange={e => setTplField('header', e.target.value)} />
+            </label>
+            <label className={`${lbl} mt-2`}>{tf('branchSettings.tplFooter', 'Pastki matn')}
+              <input className={inp} maxLength={500} value={tplCfg.footer || ''} onChange={e => setTplField('footer', e.target.value)} />
+            </label>
+            <button onClick={saveTpl} disabled={saving} className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl disabled:opacity-50">
+              {t('common.save')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ── T3.18: To'lov terminallari (Payme/Click/Uzum/Uzcard/Humo) — filial bo'yicha, ichki yozuv ──────────────
+// Sirli kalitlar saqlanmaydi. Sotuvda click/payme/uzum to'lovi shu terminal bo'yicha tranzaksiya raqami bilan yoziladi.
+const TERMINAL_PROVIDERS = ['click', 'payme', 'uzum', 'uzcard', 'humo'];
+
+function PaymentTerminalsSection() {
+  const { t } = useLang();
+  const { user } = useAuth();
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const canManage = ['admin', 'director'].includes(user?.role);
+  const [rows, setRows] = useState([]);
+  const { branches } = useBranches();
+  const [loading, setLoading] = useState(false);
+  const emptyForm = { provider: 'click', branch_id: '', label: '', merchant_id: '', terminal_id: '', require_reference: true };
+  const [form, setForm] = useState(emptyForm);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get(canManage ? '/payment-terminals' : '/payment-terminals/mine', { _suppressToast: true });
+      setRows(Array.isArray(r.data) ? r.data : []);
+    } catch { setRows([]); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage]);
+
+  const branchName = (id) => (id ? (branches.find(b => b.id === id)?.name || `#${id}`) : tf('settings.terminals.allBranches', 'Barcha filiallar'));
+
+  const add = async () => {
+    try {
+      await api.post('/payment-terminals', {
+        provider: form.provider,
+        branch_id: form.branch_id ? Number(form.branch_id) : null,
+        label: form.label || null,
+        merchant_id: form.merchant_id || null,
+        terminal_id: form.terminal_id || null,
+        require_reference: !!form.require_reference,
+      }, { _suppressToast: true });
+      toast.success(tf('settings.terminals.added', "Terminal qo'shildi"));
+      setForm(emptyForm);
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || t('auth.errGeneral')); }
+  };
+
+  const patch = async (row, body) => {
+    try { await api.put(`/payment-terminals/${row.id}`, body, { _suppressToast: true }); load(); }
+    catch (e) { toast.error(e.response?.data?.detail || t('auth.errGeneral')); }
+  };
+
+  const remove = async (row) => {
+    if (!window.confirm(tf('settings.terminals.confirmDelete', "Terminal o'chirilsinmi?"))) return;
+    try { await api.delete(`/payment-terminals/${row.id}`, { _suppressToast: true }); load(); }
+    catch (e) { toast.error(e.response?.data?.detail || t('auth.errGeneral')); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <h3 className="text-base font-bold text-slate-800">{tf('settings.terminals.title', "To'lov terminallari")}</h3>
+        <p className="text-xs text-slate-400 mt-0.5 mb-3">
+          {tf('settings.terminals.desc', "Filial bo'yicha Payme/Click/Uzum terminallari. Terminal bor filialda to'lovda tranzaksiya raqami majburiy bo'lishi mumkin.")}
+        </p>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-slate-400">
+                <th className="py-1">{tf('settings.terminals.provider', 'Provayder')}</th>
+                <th>{tf('settings.terminals.branch', 'Filial')}</th>
+                <th>{tf('settings.terminals.label', 'Nomi')}</th>
+                <th>{tf('settings.terminals.merchant', 'Merchant ID')}</th>
+                <th>{tf('settings.terminals.terminalId', 'Terminal ID')}</th>
+                <th>{tf('settings.terminals.requireRef', 'Raqam majburiy')}</th>
+                <th>{tf('settings.terminals.active', 'Faol')}</th>
+                {canManage && <th />}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} className="border-t border-slate-100">
+                  <td className="py-1.5 font-bold uppercase">{r.provider}</td>
+                  <td>{branchName(r.branch_id)}</td>
+                  <td>{r.label || '—'}</td>
+                  <td>{r.merchant_id || '—'}</td>
+                  <td>{r.terminal_id || '—'}</td>
+                  <td>
+                    <input type="checkbox" checked={!!r.require_reference} disabled={!canManage}
+                      onChange={e => patch(r, { require_reference: e.target.checked })} />
+                  </td>
+                  <td>
+                    <input type="checkbox" checked={r.is_active !== false} disabled={!canManage}
+                      onChange={e => patch(r, { is_active: e.target.checked })} />
+                  </td>
+                  {canManage && (
+                    <td className="text-right">
+                      <button onClick={() => remove(r)} className="text-red-500 hover:text-red-700 font-semibold">
+                        {tf('common.delete', "O'chirish")}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {!rows.length && (
+                <tr><td colSpan={8} className="py-6 text-center text-slate-400">
+                  {loading ? '...' : tf('settings.terminals.empty', "Terminallar yo'q")}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {canManage && (
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-7 gap-2 items-end">
+            <select value={form.provider} onChange={e => setForm({ ...form, provider: e.target.value })}
+              className="border border-slate-200 rounded-xl px-2 py-2 text-xs bg-white">
+              {TERMINAL_PROVIDERS.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+            </select>
+            <select value={form.branch_id} onChange={e => setForm({ ...form, branch_id: e.target.value })}
+              className="border border-slate-200 rounded-xl px-2 py-2 text-xs bg-white">
+              <option value="">{tf('settings.terminals.allBranches', 'Barcha filiallar')}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} maxLength={100}
+              placeholder={tf('settings.terminals.label', 'Nomi')} className="border border-slate-200 rounded-xl px-2 py-2 text-xs" />
+            <input value={form.merchant_id} onChange={e => setForm({ ...form, merchant_id: e.target.value })} maxLength={64}
+              placeholder={tf('settings.terminals.merchant', 'Merchant ID')} className="border border-slate-200 rounded-xl px-2 py-2 text-xs" />
+            <input value={form.terminal_id} onChange={e => setForm({ ...form, terminal_id: e.target.value })} maxLength={64}
+              placeholder={tf('settings.terminals.terminalId', 'Terminal ID')} className="border border-slate-200 rounded-xl px-2 py-2 text-xs" />
+            <label className="flex items-center gap-1 text-xs text-slate-600">
+              <input type="checkbox" checked={form.require_reference}
+                onChange={e => setForm({ ...form, require_reference: e.target.checked })} />
+              {tf('settings.terminals.requireRef', 'Raqam majburiy')}
+            </label>
+            <button onClick={add} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl">
+              {tf('settings.terminals.add', "Qo'shish")}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {canManage && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
+          <PaymentReconciliation />
+        </div>
+      )}
     </div>
   );
 }
@@ -2325,6 +2767,216 @@ function ModulesCard({ companyId }) {
   );
 }
 
+// ── Sodiqlik dasturi (T2.12): ball stavkasi, ball qiymati, daraja chegaralari, filial qoidalari, kredit limit ──
+function LoyaltyCard({ companyId }) {
+  const { t } = useLang();
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const features = useCompanyFeatures();
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [savingBranch, setSavingBranch] = useState(null);
+  const [savingScope, setSavingScope] = useState(false);
+
+  const errText = (e) => {
+    const d = e.response?.data?.detail;
+    if (Array.isArray(d)) return d.map(x => x.msg || '').filter(Boolean).join('; ') || t('auth.errGeneral');
+    return d || t('auth.errGeneral');
+  };
+
+  useEffect(() => {
+    api.get('/loyalty/settings').then(r => setForm(r.data)).catch(e => { if (e.response?.status !== 403) toast.error(errText(e)); });
+    api.get('/loyalty/branch-rules').then(r => setBranches(r.data || [])).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body = {
+        is_enabled: !!form.is_enabled,
+        points_percent: Number(form.points_percent),
+        point_value: Number(form.point_value),
+        default_cashback_percent: Number(form.default_cashback_percent),
+        max_redeem_percent: Number(form.max_redeem_percent),
+        accrue_on_unpaid: !!form.accrue_on_unpaid,
+        return_reverses_loyalty: !!form.return_reverses_loyalty,
+        tier_bronze: parseInt(form.tier_bronze, 10),
+        tier_silver: parseInt(form.tier_silver, 10),
+        tier_gold: parseInt(form.tier_gold, 10),
+      };
+      const r = await api.put('/loyalty/settings', body);
+      setForm(r.data);
+      toast.success(tf('settings.loyalty.saved', 'Sodiqlik sozlamalari saqlandi'));
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveScope = async (value) => {
+    if (!companyId) return;
+    setSavingScope(true);
+    try {
+      await api.put(`/companies/${companyId}`, { credit_limit_scope: value });
+      await refreshCompanyFeatures();
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setSavingScope(false);
+    }
+  };
+
+  const saveBranch = async (row) => {
+    setSavingBranch(row.branch_id);
+    try {
+      const ov = row.cashback_percent_override;
+      const r = await api.put(`/loyalty/branch-rules/${row.branch_id}`, {
+        is_enabled: !!row.is_enabled,
+        cashback_percent_override: ov === '' || ov === null || ov === undefined ? null : Number(ov),
+      });
+      setBranches(prev => prev.map(b => (b.branch_id === row.branch_id ? r.data : b)));
+      toast.success(tf('settings.loyalty.branchSaved', 'Filial qoidasi saqlandi'));
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setSavingBranch(null);
+    }
+  };
+
+  const updateBranch = (id, patch) => setBranches(prev => prev.map(b => (b.branch_id === id ? { ...b, ...patch } : b)));
+
+  const toggle = (on, onClick, disabled) => (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+    </button>
+  );
+
+  const numField = (label, k, { step = '1', min = '0', max, hint } = {}) => (
+    <div key={k}>
+      <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+      <input
+        type="number" step={step} min={min} max={max}
+        value={form[k] ?? ''}
+        onChange={e => set(k, e.target.value)}
+        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      {hint && <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{hint}</p>}
+    </div>
+  );
+
+  if (!form) return null;
+  const scope = features?.credit_limit_scope || 'distributor';
+
+  return (
+    <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
+      <h3 className="text-sm font-bold text-slate-800">{tf('settings.loyalty.title', 'Sodiqlik dasturi')}</h3>
+      <p className="text-[11px] text-slate-400 mt-0.5 mb-4">
+        {tf('settings.loyalty.desc', "Keshbek, ball va kredit limit qoidalari. Sozlama kiritilmasa: 1% ball, 1 ball = 1 so'm, daraja 1000/5000/10000.")}
+      </p>
+
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-700">{tf('settings.loyalty.enabled', 'Sodiqlik dasturi yoqilgan')}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{tf('settings.loyalty.enabledDesc', "O'chirilsa keshbek va ball yig'ilmaydi hamda sarflanmaydi")}</p>
+        </div>
+        {toggle(!!form.is_enabled, () => set('is_enabled', !form.is_enabled))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {numField(tf('settings.loyalty.pointsPercent', "Ball stavkasi (% sotuvdan)"), 'points_percent', { step: '0.1', max: '100' })}
+        {numField(tf('settings.loyalty.pointValue', "1 ball qiymati (so'm)"), 'point_value', { step: '0.01', min: '0.01' })}
+        {numField(tf('settings.loyalty.maxRedeemPercent', "To'lashning maksimal ulushi (%)"), 'max_redeem_percent', { step: '1', max: '100', hint: tf('settings.loyalty.maxRedeemHint', "Chekning ko'pi bilan shuncha foizini keshbek/ball bilan to'lash mumkin") })}
+        {numField(tf('settings.loyalty.defaultCashback', "Yangi mijoz keshbeki (%)"), 'default_cashback_percent', { step: '0.1', max: '100' })}
+        {numField(tf('settings.loyalty.tierBronze', 'Bronza daraja (ball)'), 'tier_bronze')}
+        {numField(tf('settings.loyalty.tierSilver', 'Kumush daraja (ball)'), 'tier_silver')}
+        {numField(tf('settings.loyalty.tierGold', 'Oltin daraja (ball)'), 'tier_gold')}
+      </div>
+
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-700">{tf('settings.loyalty.accrueOnUnpaid', "To'lanmagan (nasiya) qismga ham keshbek")}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{tf('settings.loyalty.accrueOnUnpaidDesc', "O'chirilsa keshbek va ball faqat to'langan qismga hisoblanadi")}</p>
+        </div>
+        {toggle(!!form.accrue_on_unpaid, () => set('accrue_on_unpaid', !form.accrue_on_unpaid))}
+      </div>
+
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-700">{tf('settings.loyalty.returnReverses', "Qaytarishda keshbek/ball ham qaytariladi")}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{tf('settings.loyalty.returnReversesDesc', "POS Vazvrat va qisman qaytarishda mijozning keshbek, ball va jami xaridi kamayadi")}</p>
+        </div>
+        {toggle(!!form.return_reverses_loyalty, () => set('return_reverses_loyalty', !form.return_reverses_loyalty))}
+      </div>
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-60"
+      >
+        {saving ? '...' : tf('settings.loyalty.save', 'Saqlash')}
+      </button>
+
+      <div className="mt-6 pt-5 border-t border-slate-100">
+        <p className="text-xs font-semibold text-slate-700">{tf('settings.loyalty.creditScope', "Kredit limit kimga qo'llanadi")}</p>
+        <p className="text-[11px] text-slate-400 mt-0.5 mb-2 leading-snug">{tf('settings.loyalty.creditScopeDesc', "Qarz limitdan oshsa sotuv (yakunlash va tahrir ham) bloklanadi. Limit 0 bo'lsa cheklov yo'q.")}</p>
+        <select
+          value={scope}
+          disabled={savingScope}
+          onChange={e => saveScope(e.target.value)}
+          className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="distributor">{tf('settings.loyalty.creditScopeDistributor', 'Faqat distribyutorlar')}</option>
+          <option value="all">{tf('settings.loyalty.creditScopeAll', 'Barcha mijozlar')}</option>
+        </select>
+      </div>
+
+      {branches.length > 0 && (
+        <div className="mt-6 pt-5 border-t border-slate-100">
+          <p className="text-xs font-semibold text-slate-700 mb-2">{tf('settings.loyalty.branchRules', 'Filial qoidalari')}</p>
+          <div className="space-y-2">
+            {branches.map(b => (
+              <div key={b.branch_id} className="flex items-center gap-3 flex-wrap">
+                <span className="flex-1 min-w-[120px] text-sm text-slate-700 truncate">{b.branch_name}</span>
+                <label className="flex items-center gap-2 text-[11px] text-slate-500">
+                  {tf('settings.loyalty.branchEnabled', 'Dasturda')}
+                  {toggle(!!b.is_enabled, () => updateBranch(b.branch_id, { is_enabled: !b.is_enabled }))}
+                </label>
+                <input
+                  type="number" min="0" max="100" step="0.1"
+                  value={b.cashback_percent_override ?? ''}
+                  onChange={e => updateBranch(b.branch_id, { cashback_percent_override: e.target.value })}
+                  placeholder={tf('settings.loyalty.branchCashback', 'Keshbek %')}
+                  title={tf('settings.loyalty.branchCashbackHint', "Bo'sh — mijozning shaxsiy foizi ishlatiladi")}
+                  className="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  disabled={savingBranch === b.branch_id}
+                  onClick={() => saveBranch(b)}
+                  className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg disabled:opacity-60"
+                >
+                  {tf('settings.loyalty.save', 'Saqlash')}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Umumiy (kompaniya darajasidagi POS) sozlamalar ───────────────────────────
 function GeneralTab({ companyId }) {
   const { t } = useLang();
@@ -2334,6 +2986,15 @@ function GeneralTab({ companyId }) {
   const [savingFee, setSavingFee] = useState(false);
   const [autoSale, setAutoSale] = useState(false);
   const [savingAutoSale, setSavingAutoSale] = useState(false);
+  // T0.36: Mir-maza buyurtmalari uchun asosiy filial (faqat marketplace_agents yoqilgan korxonada)
+  const features = useCompanyFeatures();
+  const mpEnabled = !!features?.marketplace_agents;
+  const { branches: mpBranchesAll } = useBranches();
+  const mpBranches = mpBranchesAll.filter(b => b.is_active !== false);
+  const [mpBranchId, setMpBranchId] = useState('');
+  const [savingMpBranch, setSavingMpBranch] = useState(false);
+  // i18n kaliti hali qo'shilmagan bo'lsa (t() kalitni qaytaradi) — o'zbekcha zaxira matn
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
 
   useEffect(() => {
     api.get('/companies').then(r => {
@@ -2341,9 +3002,26 @@ function GeneralTab({ companyId }) {
         setPosAllowNegative(r.data[0].pos_allow_negative_stock !== false);
         setDeliveryFee(String(r.data[0].delivery_fee ?? 0));
         setAutoSale(r.data[0].orders_auto_create_sale === true);
+        setMpBranchId(r.data[0].marketplace_default_branch_id ? String(r.data[0].marketplace_default_branch_id) : '');
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
   }, []);
+
+  const saveMpBranch = async (value) => {
+    if (!companyId) return;
+    const prev = mpBranchId;
+    setMpBranchId(value);
+    setSavingMpBranch(true);
+    try {
+      await api.put(`/companies/${companyId}`, { marketplace_default_branch_id: value ? Number(value) : null });
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      setMpBranchId(prev);
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingMpBranch(false);
+    }
+  };
 
   const toggleAutoSale = async (checked) => {
     if (!companyId) return;
@@ -2391,6 +3069,7 @@ function GeneralTab({ companyId }) {
   return (
     <div className="p-6 space-y-4">
       <ModulesCard companyId={companyId} />
+      <LoyaltyCard companyId={companyId} />
       <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
         <h3 className="text-sm font-bold text-slate-800 mb-4">{t('settings.general.posSettings')}</h3>
         <div className="flex items-start justify-between gap-3">
@@ -2452,17 +3131,94 @@ function GeneralTab({ companyId }) {
           </button>
         </div>
       </div>
+
+      {mpEnabled && (
+        <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-slate-800 mb-1">{tf('settings.general.mpDefaultBranch', 'Marketplace buyurtmalari uchun asosiy filial')}</h3>
+          <p className="text-[11px] text-slate-400 mb-3 leading-snug">
+            {tf('settings.general.mpDefaultBranchDesc', "Mir-maza buyurtmalari mijozda filial bo'lmasa shu filialga tushadi. Tanlanmasa — korxonaning birinchi faol filiali.")}
+          </p>
+          <select
+            value={mpBranchId}
+            disabled={savingMpBranch}
+            onChange={e => saveMpBranch(e.target.value)}
+            className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm focus:border-blue-500 outline-none bg-white disabled:opacity-60"
+          >
+            <option value="">{tf('settings.general.mpDefaultBranchNone', 'Tanlanmagan (birinchi faol filial)')}</option>
+            {mpBranches.map(b => (
+              <option key={b.id} value={String(b.id)}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }
 
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import Filiallar from './Filiallar';
 import { getSettingsMenus } from '../../constants/settingsMenus';
 
 // ── Main Settings Component ──────────────────────────────────────────────────
+// ── Smenalar tab (T1.11) ──────────────────────────────────────────────────────
+function ShiftsTab({ companyId }) {
+  const { t } = useLang();
+  // i18n kaliti hali qo'shilmagan bo'lsa (t() kalitni qaytaradi) — o'zbekcha zaxira matn
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const [requireShift, setRequireShift] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get('/companies').then(r => {
+      if (r.data?.length > 0) setRequireShift(r.data[0].pos_require_shift === true);
+    }).catch(e => toast.error(e.response?.data?.detail || e.message));
+  }, []);
+
+  const toggle = async (checked) => {
+    if (!companyId) return;
+    setRequireShift(checked);
+    setSaving(true);
+    try {
+      await api.put(`/companies/${companyId}`, { pos_require_shift: checked });
+      refreshCompanyFeatures();
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      setRequireShift(!checked);
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
+        <h3 className="text-sm font-bold text-slate-800 mb-4">{t('settings.tab.shifts')}</h3>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-700">{tf('shift.requireShiftSetting', 'Savdo uchun smena majburiy')}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+              {tf('shift.requireShiftSettingDesc', "Yoqilsa, ochiq smenasiz sotuv server tomonida ham rad etiladi (POS-desktop va API uchun). Veb-POS hozirgidek doim smena talab qiladi.")}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={saving || !companyId}
+            onClick={() => toggle(!requireShift)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${requireShift ? 'bg-blue-600' : 'bg-slate-200'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${requireShift ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const { t } = useLang();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const tab = searchParams.get('tab') || 'users';
   const [companyId, setCompanyId] = useState(null);
 
@@ -2483,6 +3239,21 @@ export default function Settings() {
       {/* Content Area */}
       <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-8 relative">
         <div className="max-w-6xl mx-auto">
+          {/* T3.1: telefonda tablar sidebar flyout'siz ham ochiladi (flyout faqat hover bilan ishlaydi) */}
+          <div className="md:hidden mb-4">
+            <select
+              value={tab}
+              aria-label={t('settings.title')}
+              onChange={e => {
+                const m = MENUS.find(x => x.id === e.target.value);
+                if (m?.path) navigate(m.path);
+                else setSearchParams({ tab: e.target.value });
+              }}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              {MENUS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
           <div className="mb-6 flex items-center justify-between">
             <h1 className="text-2xl font-bold text-slate-800">{MENUS.find(m => m.id === tab)?.label || t('settings.title')}</h1>
           </div>
@@ -2492,13 +3263,19 @@ export default function Settings() {
             {tab === 'promotions' && <div className="h-full bg-white"><Promotions /></div>}
             {tab === 'warehouse' && <div className="h-full bg-white"><Warehouse /></div>}
             {tab === 'roles' && <RolesTab />}
-            {tab === 'branches' && <BranchesTab />}
+            {tab === 'branches' && <div className="p-4 md:p-6"><Filiallar embedded /></div>}
             {tab === 'currencies' && <CurrenciesTab />}
             {tab === 'api' && <ApiKeysTab />}
             {tab === 'receipt' && <ReceiptTab />}
             {tab === 'tgbot' && <TelegramBotTab companyId={companyId} />}
             {tab === 'password' && <PasswordTab />}
-            {tab === 'fiskal' && <FiskalTab />}
+            {tab === 'fiskal' && (
+              <>
+                <FiskalTab />
+                <div className="mt-6 pt-4 border-t border-slate-100"><PaymentTerminalsSection /></div>
+              </>
+            )}
+            {tab === 'payment_terminals' && <div className="p-4"><PaymentTerminalsSection /></div>}
             
             {/* Placeholders for unfinished tabs */}
             {tab === 'tariffs' && <PlaceholderTab name={t('settings.tab.organization')} />}
@@ -2510,7 +3287,7 @@ export default function Settings() {
             {tab === 'auto_reply' && <PlaceholderTab name={t('settings.tab.autoReply')} />}
             {tab === 'auto_distribute' && <PlaceholderTab name={t('settings.tab.autoDistribute')} />}
             {tab === 'forms' && <PlaceholderTab name={t('settings.tab.forms')} />}
-            {tab === 'shifts' && <PlaceholderTab name={t('settings.tab.shifts')} />}
+            {tab === 'shifts' && <ShiftsTab companyId={companyId} />}
             {tab === 'warehouses' && <PlaceholderTab name={t('settings.tab.warehouseSections')} />}
           </div>
         </div>

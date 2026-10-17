@@ -16,6 +16,8 @@ const MODULES = [
   { id: 'finance', name: 'Moliya', icon: <Wallet className="w-5 h-5" /> },
   { id: 'reports', name: 'Hisobotlar', icon: <FileText className="w-5 h-5" /> },
   { id: 'settings', name: 'Sozlamalar', icon: <Settings className="w-5 h-5" /> },
+  // T4.6: tasdiqlash so'rovlarini hal qilish (chegirma, xarajat, qaytarish); "Tahrirlash" = tasdiqlash huquqi
+  { id: 'approvals', name: 'Tasdiqlashlar', icon: <CheckCircle2 className="w-5 h-5" /> },
 ];
 
 const ACTIONS = [
@@ -27,6 +29,7 @@ const ACTIONS = [
 
 export default function RolesTab() {
   const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingRole, setEditingRole] = useState(null);
@@ -304,6 +307,27 @@ export default function RolesTab() {
                                 </label>
                               );
                             })}
+                            {/* T2.1: hisobotlarda barcha filiallarni ko'rish (reports.all_branches) — menejer shu huquqsiz faqat o'z filialini ko'radi */}
+                            {mod.id === 'reports' && (() => {
+                              const isActive = !!form.permissions?.reports?.all_branches;
+                              return (
+                                <label
+                                  key="all_branches"
+                                  className={`col-span-2 flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all ${isActive ? 'bg-blue-50/50 border-blue-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                  <span className={`text-sm font-semibold transition-colors ${isActive ? 'text-blue-900' : 'text-slate-600'}`}>
+                                    {tf('roles.allBranches', "Barcha filiallarni ko'rish")}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePermission('reports', 'all_branches', !isActive)}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${isActive ? 'bg-blue-600' : 'bg-slate-200'}`}
+                                  >
+                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isActive ? 'translate-x-5' : 'translate-x-1'}`} />
+                                  </button>
+                                </label>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>

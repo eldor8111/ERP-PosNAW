@@ -1,8 +1,10 @@
+import html
 import io
 import random
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request, BackgroundTasks, Depends  # type: ignore
+from sqlalchemy import func, literal_column  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 import httpx
 
@@ -11,6 +13,7 @@ from app.models.bot_session import BotSession  # type: ignore
 from app.models.company import Company  # type: ignore
 from app.models.customer import Customer  # type: ignore
 from app.models.sale import Sale, PaymentType  # type: ignore
+from app.services.shop_branch import default_branch_for_new_customer  # type: ignore
 
 router = APIRouter(prefix="/telegram", tags=["Telegram"])
 
@@ -29,6 +32,17 @@ PAY_EMOJI = {
     PaymentType.debt: "🔖",
     PaymentType.mixed: "💰",
 }
+
+def _clean_name(text: str) -> str:
+    """Mijoz ismini tozalaydi: `<` `>` belgilarini olib tashlaydi (XSS: chek/HTML ga tushmasin)."""
+    t = (text or "").replace("<", "").replace(">", "")
+    return " ".join(t.split())[:200]
+
+
+def _h(value) -> str:
+    """Telegram HTML parse_mode uchun matnni escape qiladi."""
+    return html.escape(str(value if value is not None else ""), quote=False)
+
 
 # ── Telegram API helpers ──────────────────────────────────────────────────────
 
@@ -89,6 +103,7 @@ def _find_customer_by_chat(db: Session, token: str, chat_id: str):
     customer = db.query(Customer).filter(
         Customer.company_id == company.id,
         Customer.tg_chat_id == chat_id,
+        Customer.is_active.is_(True),  # T0.26: arxivlangan mijoz botda ko'rinmaydi
     ).first()
     return company, customer
 
@@ -120,17 +135,15 @@ def _delete_session(db: Session, chat_id: str, token: str):
 
 
 def _generate_card_number(db: Session, company_id: int) -> str:
-    """13 xonali unique loyallik karta raqami."""
-    existing = {
+    """13 xonali unique loyallik karta raqami (`29…`, app.utils.loyalty_card.generate_card_number)."""
+    from app.utils.loyalty_card import generate_card_number
+    existing = [
         r[0] for r in db.query(Customer.card_number).filter(
             Customer.company_id == company_id,
             Customer.card_number.isnot(None),
         ).all()
-    }
-    while True:
-        num = "2" + "".join(str(random.randint(0, 9)) for _ in range(12))
-        if num not in existing:
-            return num
+    ]
+    return generate_card_number(existing)
 
 
 # ── Klaviatura ────────────────────────────────────────────────────────────────
@@ -283,109 +296,40 @@ async def _handle_yordam(db, token, chat_id, company, customer, bg):
     bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
 
 
-async def _handle_order_from_telegram(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks, product_name: str, quantity: int, payment_type: str = "cash"):
-    """Telegram orqali buyurtma qabul qilish."""
-    if not customer or not customer.branch_id:
-        bg.add_task(send_telegram_message, token, chat_id,
-            "❌ Profilingiz topilmadi yoki dokon biriktirilmagan.",
-            _build_main_keyboard(company, chat_id))
-        return
-
-    from app.models.product import Product
-    from app.models.order import Order, OrderStatus
-    from decimal import Decimal
-
-    prod = db.query(Product).filter(
-        Product.name.ilike(f"%{product_name}%"),
-        Product.company_id == company.id
-    ).first()
-
-    if not prod:
-        bg.add_task(send_telegram_message, token, chat_id,
-            f"❌ Mahsulot '{product_name}' topilmadi.",
-            _build_main_keyboard(company, chat_id))
-        return
-
-    if quantity <= 0:
-        bg.add_task(send_telegram_message, token, chat_id,
-            "❌ Miqdor 0 dan katta bo'lishi kerak.",
-            _build_main_keyboard(company, chat_id))
-        return
-
-    try:
-        unit_price = Decimal(str(prod.sale_price))
-        total_amount = unit_price * quantity
-
-        order = Order(
-            customer_id=customer.id,
-            branch_id=customer.branch_id,
-            product_id=prod.id,
-            quantity=quantity,
-            unit_price=unit_price,
-            total_amount=total_amount,
-            status=OrderStatus.pending,
-            payment_type=payment_type,
-        )
-        db.add(order)
-        db.commit()
-        db.refresh(order)
-
-        msg = (
-            f"✅ <b>Buyurtma qabul qilindi!</b>\n\n"
-            f"📦 Mahsulot: {prod.name}\n"
-            f"📊 Miqdor: {quantity}\n"
-            f"💰 Narx: {FMT(order.total_amount)} so'm\n"
-            f"💳 To'lov: {payment_type}\n\n"
-            f"🆔 Buyurtma ID: #{order.id}\n"
-            f"📅 Vaqt: {order.created_at.strftime('%d.%m.%Y %H:%M')}"
-        )
-        bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
-    except Exception as e:
-        db.rollback()
-        bg.add_task(send_telegram_message, token, chat_id,
-            f"❌ Buyurtma xatosi: {str(e)[:100]}",
-            _build_main_keyboard(company, chat_id))
+def _find_customer_by_phone_tail(db: Session, company_id: int, p_clean: str):
+    """Oxirgi 9 raqam bo'yicha mijozni topadi (T3.8: bitta SQL so'rov, mijozlar Python'da aylanilmaydi).
+    Faqat faol mijozlar (T0.26: arxivlangan mijoz qayta bog'lanmaydi)."""
+    tail = p_clean[-9:]
+    q = db.query(Customer).filter(
+        Customer.company_id == company_id, Customer.phone.isnot(None),
+        Customer.is_active.is_(True),
+    )
+    if db.get_bind().dialect.name == "postgresql":
+        # literal_column: ifoda ix_customers_phone_tail funksional indeksi bilan aynan mos tushsin
+        digits = func.regexp_replace(Customer.phone, literal_column(r"'\D'"), literal_column("''"), literal_column("'g'"))
+        return q.filter(func.right(digits, literal_column("9")) == tail).order_by(Customer.id).first()
+    # Postgres bo'lmagan muhit (test/SQLite): regexp_replace yo'q
+    for c in q.order_by(Customer.id).all():
+        c_clean = "".join(filter(str.isdigit, str(c.phone)))
+        if len(c_clean) >= 9 and c_clean[-9:] == tail:
+            return c
+    return None
 
 
 async def _handle_dokon(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
-    """Dokon va mahsulotlarni ko'rish."""
+    """Dokon: katalog Mini App da (filial tanlovi, filial qoldig'i) — bu yerda faqat Mini App tugmasi.
+    T3.13: ombor/qoldiq so'rovlari yo'q (avval barcha omborlar bo'yicha takroriy ro'yxat chiqardi)."""
     if not customer:
         bg.add_task(send_telegram_message, token, chat_id,
             "🏪 Profilingiz topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
             _build_main_keyboard(company, chat_id))
         return
 
-    from app.models.warehouse import Warehouse
-    from app.models.inventory import StockLevel
-    from app.models.product import Product
-
-    msg = f"🏪 <b>Tovarlar do'koni</b>\n\n"
-    msg += "📦 Mavjud mahsulotlar:\n\n"
-
-    warehouses = db.query(Warehouse).filter(Warehouse.company_id == company.id).all()
-    all_products = []
-    for wh in warehouses:
-        stocks = db.query(StockLevel).filter(StockLevel.warehouse_id == wh.id).all()
-        for stock in stocks:
-            if float(stock.quantity or 0) > 0:
-                prod = db.query(Product).filter(Product.id == stock.product_id).first()
-                if prod and prod.company_id == company.id:
-                    all_products.append({
-                        'id': prod.id,
-                        'name': prod.name,
-                        'price': prod.sale_price,
-                        'available': int(float(stock.quantity or 0))
-                    })
-
-    if not all_products:
-        msg += "Hozircha mahsulot yo'q"
-    else:
-        for i, p in enumerate(all_products[:10], 1):
-            msg += f"{i}. {p['name']} — {FMT(p['price'])} so'm (Qoldi: {p['available']})\n"
-        if len(all_products) > 10:
-            msg += f"\n... va {len(all_products) - 10} ta boshqa mahsulot"
-
-    msg += "\n\n💬 Buyurtma uchun mahsulot nomini kiriting"
+    msg = (
+        "🏪 <b>Dokon</b>\n\n"
+        "Mahsulotlar katalogi, filial tanlash va buyurtma berish uchun "
+        "pastdagi <b>🏪 Dokon</b> tugmasini bosing."
+    )
     bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
 
 
@@ -523,17 +467,15 @@ async def telegram_webhook(
 
             # Qidirish FAQAT shu kompaniya uchun bo'lishi kerak!
             found_customer = None
-            for c in db.query(Customer).filter(Customer.company_id == company.id, Customer.phone.isnot(None)).all():
-                c_clean = "".join(filter(str.isdigit, str(c.phone)))
-                if len(c_clean) >= 9 and len(p_clean) >= 9 and c_clean[-9:] == p_clean[-9:]:
-                    found_customer = c
-                    break
+            if len(p_clean) >= 9:
+                found_customer = _find_customer_by_phone_tail(db, company.id, p_clean)
 
             # tg_chat_id bo'yicha ham shu kompaniyadan qidiramiz
             if not found_customer:
                 found_customer = db.query(Customer).filter(
                     Customer.company_id == company.id,
-                    Customer.tg_chat_id == chat_id
+                    Customer.tg_chat_id == chat_id,
+                    Customer.is_active.is_(True),
                 ).first()
 
             session = _get_session(db, chat_id, token)
@@ -552,8 +494,8 @@ async def telegram_webhook(
 
                 cashback = float(found_customer.cashback_percent or 0)
                 welcome = (
-                    f"✅ <b>Assalomu alaykum, {found_customer.name}!</b>\n\n"
-                    f"Profilingiz <b>{company.name}</b> tizimiga ulandi. 🎉\n\n"
+                    f"✅ <b>Assalomu alaykum, {_h(found_customer.name)}!</b>\n\n"
+                    f"Profilingiz <b>{_h(company.name)}</b> tizimiga ulandi. 🎉\n\n"
                     "Loyallik kartangiz:"
                 )
                 background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
@@ -561,7 +503,7 @@ async def telegram_webhook(
                     str(found_customer.name), str(found_customer.card_number or ""), cashback, company)
             elif session and session.temp_name:
                 # Yangi mijoz — ro'yxatdan o'tkazamiz
-                temp_name = session.temp_name
+                temp_name = _clean_name(session.temp_name)
                 card_number = _generate_card_number(db, company.id)
                 try:
                     new_customer = Customer(
@@ -570,6 +512,8 @@ async def telegram_webhook(
                         company_id=company.id,
                         tg_chat_id=chat_id,
                         card_number=card_number,
+                        # T3.13: yangi bot mijozi filialsiz qolmasin (standart yoki yagona filial)
+                        branch_id=default_branch_for_new_customer(db, company),
                     )
                     db.add(new_customer)
                     db.commit()
@@ -577,8 +521,8 @@ async def telegram_webhook(
                     _delete_session(db, chat_id, token)
                     cashback = float(new_customer.cashback_percent or 0)
                     welcome = (
-                        f"✅ <b>Siz <u>{company.name}</u> do'konidan muvaffaqiyatli ro'yxatdan o'tdingiz!</b> 🎉\n\n"
-                        f"👤 Ism: <b>{temp_name}</b>\n"
+                        f"✅ <b>Siz <u>{_h(company.name)}</u> do'konidan muvaffaqiyatli ro'yxatdan o'tdingiz!</b> 🎉\n\n"
+                        f"👤 Ism: <b>{_h(temp_name)}</b>\n"
                         f"📞 Telefon: <b>{phone}</b>\n\n"
                         f"🎫 Loyallik kartangiz tayyor! Har bir xaridingizda keshbek to'planadi."
                     )
@@ -591,8 +535,8 @@ async def telegram_webhook(
                     _delete_session(db, chat_id, token)
                     background_tasks.add_task(
                         send_telegram_message, token, chat_id,
-                        f"✅ <b>Siz <u>{company.name}</u> do'konidan ro'yxatdan o'tdingiz!</b> 🎉\n\n"
-                        f"👤 Ism: <b>{temp_name}</b>\n"
+                        f"✅ <b>Siz <u>{_h(company.name)}</u> do'konidan ro'yxatdan o'tdingiz!</b> 🎉\n\n"
+                        f"👤 Ism: <b>{_h(temp_name)}</b>\n"
                         f"📞 Telefon: <b>{phone}</b>",
                         _build_main_keyboard(company, chat_id),
                     )
@@ -610,10 +554,17 @@ async def telegram_webhook(
         session = _get_session(db, chat_id, token)
         if session and session.step == "awaiting_name" and text and not text.startswith("/"):
             # Ismni saqlaymiz, telefon so'raymiz
-            _upsert_session(db, chat_id, token, step="awaiting_phone", temp_name=text[:200])
+            clean_name = _clean_name(text)
+            if not clean_name:
+                background_tasks.add_task(
+                    send_telegram_message, token, chat_id,
+                    "⚠️ Iltimos, ismingizni oddiy matn bilan kiriting.",
+                )
+                return {"ok": True}
+            _upsert_session(db, chat_id, token, step="awaiting_phone", temp_name=clean_name)
             background_tasks.add_task(
                 send_telegram_message, token, chat_id,
-                f"✍️ Ism qabul qilindi: <b>{text}</b>\n\n"
+                f"✍️ Ism qabul qilindi: <b>{_h(clean_name)}</b>\n\n"
                 f"Endi <b>📞 Telefon raqamni yuborish</b> tugmasini bosing:",
                 _build_phone_keyboard(),
             )

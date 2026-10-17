@@ -3,10 +3,35 @@ import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import { matchesSearch } from '../../utils/translit';
+import BranchSelect from '../../components/BranchSelect';
 
 const fmt = (v, t) => Number(v || 0).toLocaleString('uz-UZ') + " " + (t ? (t('common.sum') || "so'm") : "so'm");
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); };
+
+// Xarajat formasining bo'sh holati (boshlang'ich va muvaffaqiyatli saqlashdan keyingi reset uchun yagona manba).
+// wallet_id '' bo'lsa ham controlled qoladi; branch_id sahifa ochilganda joriy/birinchi filialga to'ldiriladi.
+// eslint-disable-next-line react-refresh/only-export-components
+export const BLANK_EXPENSE = { category_id: '', amount: '', description: '', branch_id: '', wallet_id: '', currency: 'UZS' };
+
+// Xarajat so'rovi tanasi (sof funksiya): bo'sh satrlar yuborilmaydi — wallet_id '' emas, null.
+// eslint-disable-next-line react-refresh/only-export-components
+export const buildExpensePayload = (form) => ({
+  category_id: Number(form.category_id),
+  amount: Number(form.amount),
+  branch_id: form.branch_id ? Number(form.branch_id) : undefined,
+  wallet_id: form.wallet_id ? Number(form.wallet_id) : null,
+  currency: form.currency || 'UZS',
+  description: form.description || '',
+});
+
+// Joriy foydalanuvchining filiali (localStorage.user), bo'lmasa ro'yxatdagi birinchi filial
+const defaultBranchId = (branches) => {
+  let uid = null;
+  try { uid = JSON.parse(localStorage.getItem('user') || '{}')?.branch_id ?? null; } catch { /* ignore */ }
+  if (uid && (!branches.length || branches.some(b => b.id === uid))) return String(uid);
+  return branches.length ? String(branches[0].id) : '';
+};
 
 // ─── Spinner ───────────────────────────────────────────────────────────────────
 const Spinner = () => (
@@ -17,6 +42,7 @@ const Spinner = () => (
 
 export default function Finance() {
   const { t } = useLang();
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
   const [activeTab, setActiveTab] = useState('expenses');
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -31,7 +57,11 @@ export default function Finance() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddCat, setShowAddCat] = useState(false);
   const [showAddWallet, setShowAddWallet] = useState(false);
-  const [form, setForm] = useState({ category_id: '', amount: '', description: '', branch_id: 1, wallet_id: '' });
+  const [form, setForm] = useState(BLANK_EXPENSE);
+  const [formError, setFormError] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [currencies, setCurrencies] = useState([]); // T2.7: faol valyutalar (GET /currencies/active)
+  const [filterBranches, setFilterBranches] = useState([]);
   const [catForm, setCatForm] = useState({ name: '', description: '' });
   const [walletForm, setWalletForm] = useState({ name: '', type: 'cash' });
   const [saving, setSaving] = useState(false);
@@ -40,6 +70,9 @@ export default function Finance() {
   // Sana filtrlari
   const [dateFrom, setDateFrom] = useState(firstOfMonth());
   const [dateTo, setDateTo] = useState(today());
+  // Filial filtri: '' - barcha filiallar, '-1' - filialsiz guruh, aks holda filial id (T2.2)
+  const [branchFilter, setBranchFilter] = useState('');
+  const branchQs = branchFilter ? `&branch_id=${branchFilter}` : '';
 
   // Qarz to'lash modal
   const [payModal, setPayModal] = useState(null); // {type: 'customer'|'supplier', id, name, balance}
@@ -58,24 +91,31 @@ export default function Finance() {
   const [paymeError, setPaymeError] = useState('');
 
   const loadBase = useCallback(async () => {
-    const [cats, bal, wals] = await Promise.all([
+    const [cats, bal, wals, brs, allBrs, curs] = await Promise.all([
       api.get('/finance/expense-categories'),
-      api.get('/finance/cash-balance'),
+      api.get(`/finance/cash-balance${branchFilter ? `?branch_id=${branchFilter}` : ''}`),
       api.get('/finance/wallets').catch(() => ({ data: [] })),
+      api.get('/branches').catch(() => ({ data: [] })),
+      // T2.5: filtr uchun yopilgan filiallar ham (xarajat formasida faqat faollari)
+      api.get('/branches', { params: { include_inactive: true } }).catch(() => ({ data: [] })),
+      api.get('/currencies/active', { _suppressToast: true }).catch(() => ({ data: [] })),
     ]);
     setCategories(cats.data);
     setBalance(bal.data);
     setWallets(wals.data || []);
-  }, []);
+    setBranches(Array.isArray(brs.data) ? brs.data : []);
+    setFilterBranches(Array.isArray(allBrs.data) ? allBrs.data : []);
+    setCurrencies(Array.isArray(curs.data) ? curs.data : []);
+  }, [branchFilter]);
 
   const loadTab = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'expenses') {
-        const r = await api.get(`/finance/expenses?date_from=${dateFrom}&date_to=${dateTo}`);
+        const r = await api.get(`/finance/expenses?date_from=${dateFrom}&date_to=${dateTo}${branchQs}`);
         setExpenses(r.data);
       } else if (activeTab === 'transactions') {
-        const r = await api.get(`/finance/transactions?date_from=${dateFrom}&date_to=${dateTo}`);
+        const r = await api.get(`/finance/transactions?date_from=${dateFrom}&date_to=${dateTo}${branchQs}`);
         setTransactions(r.data);
       } else if (activeTab === 'customer-debts') {
         const r = await api.get('/finance/customer-debts');
@@ -84,7 +124,7 @@ export default function Finance() {
         const r = await api.get('/finance/supplier-debts');
         setSupplierDebts(r.data);
       } else if (activeTab === 'pl') {
-        const r = await api.get(`/finance/profit-loss?date_from=${dateFrom}&date_to=${dateTo}`);
+        const r = await api.get(`/finance/profit-loss?date_from=${dateFrom}&date_to=${dateTo}${branchQs}`);
         setPlData(r.data);
       }
     } catch {
@@ -92,20 +132,38 @@ export default function Finance() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, dateFrom, dateTo]);
+  }, [activeTab, dateFrom, dateTo, branchQs]);
 
-  useEffect(() => { loadBase(); }, []);
-  useEffect(() => { loadTab(); }, [activeTab]);
+  // Forma ochilganda filial standart qiymati: joriy foydalanuvchi filiali yoki GET /branches ning birinchisi
+  useEffect(() => {
+    if (!branches.length) return;
+    setForm(f => (f.branch_id ? f : { ...f, branch_id: defaultBranchId(branches) }));
+  }, [branches, showAddExpense]);
+
+  // Tanlangan filialga mos kassalar (filialsiz/umumiy kassalar ham)
+  const formWallets = wallets.filter(w => !form.branch_id || w.branch_id == null || String(w.branch_id) === String(form.branch_id));
+
+  useEffect(() => { loadBase(); }, [branchFilter]);
+  useEffect(() => { loadTab(); }, [activeTab, branchFilter]);
 
   const addExpense = async (e) => {
     e.preventDefault();
+    setFormError('');
+    if (!form.wallet_id) {
+      // Kassa tanlanmagan — so'rov yuborilmaydi
+      setFormError(tf('finance.selectWallet', 'Kassani tanlang'));
+      return;
+    }
     setSaving(true);
     try {
-      await api.post('/finance/expenses', form);
+      await api.post('/finance/expenses', buildExpensePayload(form));
       setShowAddExpense(false);
-      setForm({ category_id: '', amount: '', description: '', branch_id: 1 });
+      setForm({ ...BLANK_EXPENSE, branch_id: defaultBranchId(branches) });
       loadBase();
       loadTab();
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      setFormError(typeof d === 'string' ? d : (Array.isArray(d) && d[0]?.msg) || t('common.error') || 'Xatolik');
     } finally { setSaving(false); }
   };
 
@@ -117,6 +175,10 @@ export default function Finance() {
       setShowAddCat(false);
       setCatForm({ name: '', description: '' });
       loadBase();
+    } catch (err) {
+      // 409 - bunday nomli kategoriya mavjud (T2.2)
+      const d = err.response?.data?.detail;
+      setFormError(typeof d === 'string' ? d : t('common.error') || 'Xatolik');
     } finally { setSaving(false); }
   };
 
@@ -145,12 +207,12 @@ export default function Finance() {
       const endpoint = payModal.type === 'customer'
         ? `/finance/customer-debts/${payModal.id}/pay`
         : `/finance/supplier-debts/${payModal.id}/pay`;
-      const body = { amount: parseFloat(payAmount), currency: payCurrency };
-      if (payModal.type === 'supplier') {
-        // Ta'minotchi to'lovi kassadan chiqadi (avval kassa va kassa harakati yozilmasdi)
-        body.wallet_id = payWallet ? Number(payWallet) : null;
-        body.payment_type = payType;
-      }
+      // Mijoz va ta'minotchi to'lovi tanlangan kassa va to'lov turi bilan yoziladi
+      const body = {
+        amount: parseFloat(payAmount), currency: payCurrency,
+        wallet_id: payWallet ? Number(payWallet) : null,
+        payment_type: payType,
+      };
       await api.post(endpoint, body);
       setPayModal(null);
       setPayAmount('');
@@ -165,7 +227,7 @@ export default function Finance() {
   const exportExpenses = async () => {
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet(expenses.map(e => ({
-      [t('common.category')]: e.category_name, [t('common.amount')]: e.amount,
+      [t('common.category')]: e.category_name, [tf('finance.branchColumn', 'Filial')]: e.branch_name || '', [t('common.amount')]: e.amount,
       [t('common.note')]: e.description, [t('common.date')]: new Date(e.created_at).toLocaleDateString('uz-UZ'),
     })));
     const wb = XLSX.utils.book_new();
@@ -327,6 +389,12 @@ export default function Finance() {
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
+              {branches.length >= 2 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">{t('finance.branch')}</label>
+                  <BranchSelect value={branchFilter} onChange={setBranchFilter} branches={filterBranches.length ? filterBranches : branches} allowUnassigned allLabel={tf('finance.allBranches', 'Barcha filiallar')} />
+                </div>
+              )}
               <button onClick={loadTab}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
                 {t('common.filter')}
@@ -344,18 +412,57 @@ export default function Finance() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.amount') || 'Summa'} ({t('common.sum') || "so'm"})</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.amount') || 'Summa'} ({form.currency && form.currency !== 'UZS' ? form.currency : (t('common.sum') || "so'm")})</label>
                   <input type="number" required placeholder="100000"
                     className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     onChange={e => setForm({ ...form, amount: e.target.value })} value={form.amount} />
                 </div>
+                {/* T2.7: valyuta — korxonada bittadan ko'p faol valyuta bo'lsa; so'm ekvivalenti serverda kurs bo'yicha saqlanadi */}
+                {currencies.length >= 2 && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('common.currency') || 'Valyuta'}</label>
+                    <select className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={e => setForm({ ...form, currency: e.target.value })} value={form.currency || 'UZS'}>
+                      {currencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
+                    {(() => {
+                      const cur = currencies.find(c => c.code === form.currency);
+                      const eq = form.currency && form.currency !== 'UZS' && Number(cur?.rate) > 0 && Number(form.amount) > 0
+                        ? Math.round(Number(form.amount) * Number(cur.rate)) : null;
+                      return eq !== null ? (
+                        <p className="text-xs text-slate-500 mt-1 tabular-nums">{Number(form.amount).toLocaleString('uz-UZ')} {form.currency} &asymp; {fmt(eq, t)}</p>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+                {branches.length >= 2 && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.branch')}</label>
+                    <select required className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={e => {
+                        const bid = e.target.value;
+                        // Tanlangan kassa yangi filialga mos kelmasa tozalanadi
+                        const w = wallets.find(x => String(x.id) === String(form.wallet_id));
+                        const keep = w && (w.branch_id == null || String(w.branch_id) === String(bid));
+                        setForm({ ...form, branch_id: bid, wallet_id: keep ? form.wallet_id : '' });
+                      }} value={form.branch_id}>
+                      {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.wallet') || 'Hamyon'}</label>
-                  <select className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    onChange={e => setForm({ ...form, wallet_id: e.target.value })} value={form.wallet_id}>
-                    <option value="">{t('finance.mainCashbox')}</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
-                  </select>
+                  {formWallets.length === 0 ? (
+                    <div className="px-3 py-2.5 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl">
+                      {tf('finance.createWalletFirst', 'Avval kassa yarating')}
+                    </div>
+                  ) : (
+                    <select required className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={e => setForm({ ...form, wallet_id: e.target.value })} value={form.wallet_id}>
+                      <option value="">{tf('finance.selectWallet', 'Kassani tanlang')}</option>
+                      {formWallets.map(w => <option key={w.id} value={w.id}>{w.name}{w.balance !== undefined ? ` (${fmt(w.balance)})` : ''}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('admin.dict.comment') || 'Izoh'}</label>
@@ -367,10 +474,13 @@ export default function Finance() {
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
                   {saving ? t('common.saving') : t('common.save')}
                 </button>
-                <button type="button" onClick={() => setShowAddExpense(false)}
+                <button type="button" onClick={() => { setShowAddExpense(false); setFormError(''); }}
                   className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-xl transition-colors">
                   {t('common.cancel')}
                 </button>
+                {formError && (
+                  <div className="w-full text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{formError}</div>
+                )}
               </form>
             )}
 
@@ -378,7 +488,7 @@ export default function Finance() {
               <table className="min-w-full">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    {[t('common.category'), t('common.amount'), t('common.note'), t('common.date'), ''].map((h, i) => (
+                    {[t('common.category'), tf('finance.branchColumn', 'Filial'), t('common.amount'), t('common.note'), t('common.date'), ''].map((h, i) => (
                       <th key={i} className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -389,7 +499,16 @@ export default function Finance() {
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg">{e.category_name}</span>
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-red-500">{fmt(e.amount, t)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{e.branch_name || '—'}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-red-500">
+                        {/* T2.7: UZS bo'lmasa asl summa + so'm ekvivalenti (amount_uzs), masalan "100 USD ≈ 1 250 000 so'm" */}
+                        {e.currency && e.currency !== 'UZS'
+                          ? (<>
+                              {Number(e.amount).toLocaleString('uz-UZ')} {e.currency}
+                              <span className="block text-xs font-normal text-slate-400">&asymp; {fmt(e.amount_uzs ?? e.amount, t)}</span>
+                            </>)
+                          : fmt(e.amount, t)}
+                      </td>
                       <td className="px-6 py-4 text-sm text-slate-500">{e.description || '—'}</td>
                       <td className="px-6 py-4 text-sm text-slate-400">{new Date(e.created_at).toLocaleDateString('uz-UZ')}</td>
                       <td className="px-6 py-4">
@@ -403,14 +522,15 @@ export default function Finance() {
                     </tr>
                   ))}
                   {expenses.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">{t('finance.noExpenses') || "Xarajat yo'q"}</td></tr>
+                    <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">{t('finance.noExpenses') || "Xarajat yo'q"}</td></tr>
                   )}
                 </tbody>
                 {expenses.length > 0 && (
                   <tfoot>
                     <tr className="bg-red-50">
                       <td className="px-6 py-3 text-sm font-semibold text-slate-600">{t('admin.dict.th_total') || 'JAMI'}</td>
-                      <td className="px-6 py-3 text-sm font-bold text-red-600">{fmt(expenses.reduce((a, e) => a + Number(e.amount), 0), t)}</td>
+                      <td />
+                      <td className="px-6 py-3 text-sm font-bold text-red-600">{fmt(expenses.reduce((a, e) => a + Number(e.amount_uzs ?? e.amount), 0), t)}</td>
                       <td colSpan={3} />
                     </tr>
                   </tfoot>
@@ -437,6 +557,12 @@ export default function Finance() {
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
+              {branches.length >= 2 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">{t('finance.branch')}</label>
+                  <BranchSelect value={branchFilter} onChange={setBranchFilter} branches={filterBranches.length ? filterBranches : branches} allowUnassigned allLabel={tf('finance.allBranches', 'Barcha filiallar')} />
+                </div>
+              )}
               <button onClick={loadTab}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">{t('admin.dict.filter') || 'Filtrlash'}</button>
             </div>
@@ -689,6 +815,12 @@ export default function Finance() {
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
                   className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
+              {branches.length >= 2 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">{t('finance.branch')}</label>
+                  <BranchSelect value={branchFilter} onChange={setBranchFilter} branches={filterBranches.length ? filterBranches : branches} allowUnassigned allLabel={tf('finance.allBranches', 'Barcha filiallar')} />
+                </div>
+              )}
               <button onClick={loadTab}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
                 {t('finance.plCalc') || 'Hisoblash'}
@@ -704,6 +836,7 @@ export default function Finance() {
                     { label: t('finance.revenue') || 'Daromad (sotuv)', value: plData.revenue, cls: 'text-slate-800', pct: 100, bg: 'bg-slate-50' },
                     { label: t('finance.cogs') || 'Tannarx (COGS)', value: plData.cogs, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.cogs / plData.revenue * 100 : 0, bg: '' },
                     { label: t('finance.grossProfit') || 'Brutto foyda', value: plData.gross_profit, cls: 'font-bold text-blue-600', pct: plData.gross_margin_pct, bg: 'bg-blue-50' },
+                    { label: tf('reports.pl.otherIncome', 'Boshqa kirim'), value: plData.other_income, cls: 'text-emerald-600', pct: plData.revenue ? (plData.other_income || 0) / plData.revenue * 100 : 0, bg: '' },
                     { label: t('finance.totalExpenses') || 'Jami xarajatlar', value: plData.expenses?.total, neg: true, cls: 'text-red-500', pct: plData.revenue ? plData.expenses?.total / plData.revenue * 100 : 0, bg: '' },
                     { label: t('finance.netProfit') || 'Net foyda', value: plData.net_profit, cls: `font-bold ${plData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`, pct: plData.net_margin_pct, bg: plData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
                   ].map(row => (
@@ -929,13 +1062,13 @@ export default function Finance() {
                 ) : null}
               </div>
             </div>
-            {payModal.type === 'supplier' && (
+            {(payModal.type === 'supplier' || payModal.type === 'customer') && (
               <div className="mb-4 grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">{t('finance.wallet')}</label>
                   <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
                     className="w-full px-2 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                    <option value="">—</option>
+                    <option value="">{tf('finance.selectWallet', 'Kassani tanlang')}</option>
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>

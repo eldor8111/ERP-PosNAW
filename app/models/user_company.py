@@ -23,10 +23,13 @@ class UserCompany(Base):
     role = Column(Enum(UserRole), default=UserRole.cashier, nullable=False)
     permissions = Column(JSON, nullable=True, default={})
     is_active = Column(Boolean, default=True, nullable=False)
+    # T1.2: filial korxona bo'yicha saqlanadi (users.branch_id — faqat asosiy korxona ko'zgusi)
+    branch_id = Column(Integer, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="user_companies")
     company = relationship("Company", back_populates="user_companies")
+    branch = relationship("Branch")
 
     __table_args__ = (
         UniqueConstraint("user_id", "company_id", name="uq_user_company"),

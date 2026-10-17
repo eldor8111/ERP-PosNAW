@@ -5,7 +5,9 @@ Korxonalar (company) → Filiallar (branch) → Tafsilot
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from pydantic import BaseModel  # type: ignore
-from sqlalchemy.orm import Session  # type: ignore
+from fastapi.responses import JSONResponse  # type: ignore
+from sqlalchemy.exc import IntegrityError  # type: ignore
+from sqlalchemy.orm import Session, joinedload  # type: ignore
 from sqlalchemy import func, or_  # type: ignore
 
 from app.database import get_db  # type: ignore
@@ -13,9 +15,14 @@ from app.core.dependencies import get_current_user  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 from app.models.company import Company  # type: ignore
 from app.models.branch import Branch  # type: ignore
+from app.models.user_company import UserCompany  # type: ignore
 from app.models.warehouse import Warehouse  # type: ignore
 from app.models.sale import Sale  # type: ignore
 from app.models.platform_settings import PlatformSettings  # type: ignore
+from app.core.audit import log_action  # type: ignore
+from app.schemas.branch import BranchCreate, BranchUpdate  # type: ignore
+from app.schemas.warehouse import WarehouseCreate, WarehouseUpdate  # type: ignore
+from app.utils.tariff_check import check_branch_limit, get_company_limits  # type: ignore
 
 router = APIRouter(prefix="/super-admin", tags=["Super Admin"])
 
@@ -82,10 +89,19 @@ def list_companies(
         .group_by(Branch.company_id)
         .subquery()
     )
+    # T3.2: xodimlar korxona bo'yicha (filialsizlar va faqat user_companies orqali a'zolar bilan)
+    members = (
+        db.query(User.company_id.label("cid"), User.id.label("uid"))
+        .filter(User.company_id.isnot(None))
+        .union(
+            db.query(UserCompany.company_id.label("cid"), UserCompany.user_id.label("uid"))
+            .filter(UserCompany.is_active == True)  # noqa: E712
+        )
+        .subquery()
+    )
     user_counts = (
-        db.query(Branch.company_id, func.count(User.id).label("cnt"))
-        .join(User, User.branch_id == Branch.id)
-        .group_by(Branch.company_id)
+        db.query(members.c.cid.label("company_id"), func.count().label("cnt"))
+        .group_by(members.c.cid)
         .subquery()
     )
     q = (
@@ -163,8 +179,30 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
             "warehouses_count": warehouses_count,
         })
 
-    total_users = sum(b["users_count"] for b in branches_data)
-    total_warehouses = sum(b["warehouses_count"] for b in branches_data)
+    # T3.2: korxona bo'yicha hisob — filialsiz xodim/omborlar ham kiradi
+    members = _company_member_map(db, company_id)
+    total_users = len(members)
+    users_no_branch = sum(1 for bid in members.values() if bid is None)
+    wh_cond = or_(
+        Warehouse.company_id == company_id,
+        Warehouse.branch_id.in_(db.query(Branch.id).filter(Branch.company_id == company_id)),
+    )
+    total_warehouses = (
+        db.query(func.count(Warehouse.id)).filter(wh_cond, Warehouse.is_active == True).scalar() or 0  # noqa: E712
+    )
+    warehouses_no_branch = (
+        db.query(func.count(Warehouse.id))
+        .filter(Warehouse.company_id == company_id, Warehouse.branch_id.is_(None), Warehouse.is_active == True)  # noqa: E712
+        .scalar() or 0
+    )
+    branches_active = sum(1 for b in branches_data if b["is_active"])
+    limits_info = get_company_limits(db, company)
+    unassigned_wh = (
+        db.query(Warehouse)
+        .filter(Warehouse.company_id == company_id, Warehouse.branch_id.is_(None), Warehouse.is_active == True)  # noqa: E712
+        .order_by(Warehouse.id)
+        .all()
+    )
 
     from datetime import datetime, timezone as tz
     now = datetime.now(tz.utc)
@@ -193,12 +231,70 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
         "subscription_active": is_active_sub,
         "days_left": days_left,
         "stats": {
-            "branches": len(branches_data),
+            "branches": len(branches_data),          # eski kalit = jami (orqaga moslik)
             "users": total_users,
             "warehouses": total_warehouses,
+            "branches_total": len(branches_data),
+            "branches_active": branches_active,
+            "branches_inactive": len(branches_data) - branches_active,
+            "users_no_branch": users_no_branch,
+            "warehouses_no_branch": warehouses_no_branch,
         },
+        "limits": limits_info["limits"],
+        "usage": limits_info["usage"],
         "branches": branches_data,
+        "unassigned_warehouses": [
+            {"id": w.id, "name": w.name, "type": w.type.value if w.type else None} for w in unassigned_wh
+        ],
     }
+
+
+def _company_member_map(db: Session, company_id: int) -> dict:
+    """Korxona xodimlari: {user_id: filial_id|None}. `users.company_id == id` yoki faol `user_companies`
+    a'zoligi (users.py dagi uc_exists mantig'i); filial: asosiy korxonada users.branch_id, qo'shimchada
+    user_companies.branch_id."""
+    result = {uid: bid for uid, bid in db.query(User.id, User.branch_id).filter(User.company_id == company_id)}
+    for uid, bid in db.query(UserCompany.user_id, UserCompany.branch_id).filter(
+        UserCompany.company_id == company_id, UserCompany.is_active == True,  # noqa: E712
+    ):
+        result.setdefault(uid, bid)
+    return result
+
+
+@router.get("/companies/{company_id}/users")
+def list_company_users(
+    company_id: int,
+    branch_id: Optional[int] = None,
+    no_branch: bool = False,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    """T3.2: korxonaning barcha xodimlari (filialsizlar bilan). `branch_id` yoki `no_branch=true` bilan filtr."""
+    if not db.query(Company.id).filter(Company.id == company_id).first():
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    members = _company_member_map(db, company_id)
+    if no_branch:
+        members = {uid: bid for uid, bid in members.items() if bid is None}
+    elif branch_id is not None:
+        members = {uid: bid for uid, bid in members.items() if bid == branch_id}
+    if not members:
+        return []
+    users = db.query(User).filter(User.id.in_(list(members))).order_by(User.id).all()
+    used_branch_ids = {b for b in members.values() if b is not None}
+    branch_names = (
+        {bid: name for bid, name in db.query(Branch.id, Branch.name).filter(Branch.id.in_(used_branch_ids))}
+        if used_branch_ids else {}
+    )
+    return [
+        {
+            "id": u.id, "name": u.name, "phone": u.phone,
+            "role": u.role.value if u.role else None,
+            "status": u.status.value if u.status else None,
+            "branch_id": members[u.id],
+            "branch_name": branch_names.get(members[u.id]),
+        }
+        for u in users
+    ]
 
 
 # ── Branches ─────────────────────────────────────────────
@@ -225,6 +321,7 @@ def list_all_branches(db: Session = Depends(get_db), _: User = Depends(require_s
         )
         .outerjoin(user_sub, Branch.id == user_sub.c.branch_id)
         .outerjoin(wh_sub, Branch.id == wh_sub.c.branch_id)
+        .options(joinedload(Branch.company))
         .order_by(Branch.id)
         .all()
     )
@@ -251,14 +348,21 @@ def get_branch_detail(branch_id: int, db: Session = Depends(get_db), _: User = D
     if not branch:
         raise HTTPException(status_code=404, detail="Filial topilmadi")
 
-    users = db.query(User).filter(User.branch_id == branch_id).order_by(User.id).all()
+    # T3.2: himoya — faqat shu filial korxonasining xodimlari
+    users = db.query(User).filter(
+        User.branch_id == branch_id, User.company_id == branch.company_id,
+    ).order_by(User.id).all()
     users_data = [
         {"id": u.id, "name": u.name, "phone": u.phone, "role": u.role.value if u.role else None, "status": u.status.value if u.status else None, "created_at": str(u.created_at)}
         for u in users
     ]
 
     warehouses = db.query(Warehouse).filter(Warehouse.branch_id == branch_id, Warehouse.is_active == True).all()
-    warehouses_data = [{"id": w.id, "name": w.name, "type": w.type.value if w.type else None} for w in warehouses]
+    warehouses_data = [
+        {"id": w.id, "name": w.name, "type": w.type.value if w.type else None,
+         "is_default": bool(w.is_default)}
+        for w in warehouses
+    ]
 
     return {
         "id": branch.id,
@@ -272,6 +376,289 @@ def get_branch_detail(branch_id: int, db: Session = Depends(get_db), _: User = D
         "users": users_data,
         "warehouses": warehouses_data,
     }
+
+
+# ── Filial va ombor yozuvlari (T3.2) ─────────────────────
+# Umumiy /branches va /warehouses endpointlari current_user.company_id bilan cheklangan (super admin
+# uchun NULL), shuning uchun super admin uchun company_id URL dan olinadigan alohida endpointlar.
+
+BRANCH_FOREIGN = "Filial shu korxonaga tegishli emas"
+DUPLICATE_BRANCH_NAME = "Bu nomli faol filial allaqachon mavjud"
+
+
+def _get_company_or_404(db: Session, company_id: int) -> Company:
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    return company
+
+
+def _ensure_branch_name_free(db: Session, company_id: int, name: str, exclude_id: Optional[int] = None) -> None:
+    q = db.query(Branch.id).filter(
+        Branch.company_id == company_id,
+        Branch.is_active == True,  # noqa: E712
+        func.lower(func.trim(Branch.name)) == (name or "").strip().lower(),
+    )
+    if exclude_id is not None:
+        q = q.filter(Branch.id != exclude_id)
+    if q.first():
+        raise HTTPException(status_code=409, detail=DUPLICATE_BRANCH_NAME)
+
+
+def _commit_branch(db: Session) -> None:
+    """commit(); faol filial nomi unikalligi buzilsa (poyga) 409."""
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        if "uq_branches_company_name_active" in str(e.orig):
+            raise HTTPException(status_code=409, detail=DUPLICATE_BRANCH_NAME)
+        raise
+
+
+def _branch_row(db: Session, branch: Branch) -> dict:
+    wh_count = db.query(func.count(Warehouse.id)).filter(
+        Warehouse.branch_id == branch.id, Warehouse.is_active == True,  # noqa: E712
+    ).scalar() or 0
+    return {
+        "id": branch.id, "name": branch.name, "address": branch.address, "phone": branch.phone,
+        "is_active": branch.is_active, "company_id": branch.company_id,
+        "is_main": bool(branch.is_main), "warehouses_count": int(wh_count),
+    }
+
+
+def _wh_row(wh: Warehouse) -> dict:
+    return {
+        "id": wh.id, "name": wh.name, "type": wh.type.value if wh.type else None,
+        "branch_id": wh.branch_id, "company_id": wh.company_id,
+        "is_active": wh.is_active, "is_default": bool(wh.is_default),
+    }
+
+
+def _company_branch_or_400(db: Session, branch_id: int, company_id: int, *, require_active: bool = True) -> Branch:
+    """Ombor `branch_id` si shu korxonaga tegishli (va faol) bo'lishi shart."""
+    branch = db.query(Branch).filter(Branch.id == branch_id, Branch.company_id == company_id).first()
+    if not branch:
+        raise HTTPException(status_code=400, detail=BRANCH_FOREIGN)
+    if require_active and not branch.is_active:
+        raise HTTPException(status_code=400, detail="Filial faol emas")
+    return branch
+
+
+def _is_default_candidate(wh: Warehouse) -> bool:
+    from app.services.branch_provisioning import DEFAULT_CANDIDATE_TYPES
+    return wh.type in DEFAULT_CANDIDATE_TYPES and wh.is_active is not False
+
+
+def _branch_has_default(db: Session, branch_id: int, exclude_id: Optional[int] = None) -> bool:
+    q = db.query(Warehouse.id).filter(
+        Warehouse.branch_id == branch_id,
+        Warehouse.is_default == True,  # noqa: E712
+        Warehouse.is_active == True,   # noqa: E712
+    )
+    if exclude_id is not None:
+        q = q.filter(Warehouse.id != exclude_id)
+    return q.first() is not None
+
+
+@router.post("/companies/{company_id}/branches")
+def create_company_branch(
+    company_id: int,
+    data: BranchCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """Super admin: korxonaga filial qo'shadi (company_id URL dan; tarif limitidan ozod)."""
+    from app.services.branch_provisioning import provision_branch
+
+    _get_company_or_404(db, company_id)
+    check_branch_limit(db, company_id, admin)   # super_admin uchun cheklov yo'q
+    _ensure_branch_name_free(db, company_id, data.name)
+    branch = Branch(name=data.name, address=data.address, phone=data.phone, company_id=company_id)
+    if not db.query(Branch.id).filter(Branch.company_id == company_id).first():
+        branch.is_main = True
+    db.add(branch)
+    try:
+        db.flush()
+    except IntegrityError as e:
+        db.rollback()
+        if "uq_branches_company_name_active" in str(e.orig):
+            raise HTTPException(status_code=409, detail=DUPLICATE_BRANCH_NAME)
+        raise
+    wh, wallet = provision_branch(
+        db, branch,
+        create_warehouse=data.create_warehouse, create_wallet=data.create_wallet,
+        warehouse_name=data.warehouse_name, wallet_name=data.wallet_name,
+    )
+    log_action(
+        db, "CREATE", "branch", branch.id, user_id=admin.id,
+        new_values={"name": branch.name, "address": branch.address, "phone": branch.phone,
+                    "company_id": company_id, "by": "super_admin",
+                    "warehouse_id": wh.id if wh else None, "wallet_id": wallet.id if wallet else None},
+        company_id=company_id, branch_id=branch.id,
+    )
+    _commit_branch(db)
+    db.refresh(branch)
+    out = _branch_row(db, branch)
+    out.update(warehouse_id=wh.id if wh else None, wallet_id=wallet.id if wallet else None)
+    return out
+
+
+@router.patch("/branches/{branch_id}")
+def update_branch_super(
+    branch_id: int,
+    data: BranchUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """Super admin: istalgan korxona filialini tahrirlaydi (nom, manzil, telefon, faol/nofaol).
+    `company_id` yuborilsa e'tiborsiz qoldiriladi."""
+    from app.services.branch_helpers import BranchCloseBlocked, archive_branch, reopen_branch
+
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=404, detail="Filial topilmadi")
+    fields = {k: v for k, v in data.model_dump(exclude_unset=True).items()
+              if k in ("name", "address", "phone", "is_active")}
+    if "name" in fields:
+        if fields["name"] is None or not str(fields["name"]).strip():
+            raise HTTPException(status_code=400, detail="Filial nomi bo'sh bo'lmasligi kerak")
+        fields["name"] = fields["name"].strip()
+    want_active = fields.pop("is_active", None)
+
+    # Faol -> nofaol = arxivlash (ochiq smena/qoldiq/balans bo'lsa 409); nofaol -> faol = qayta ochish
+    new_active = branch.is_active if want_active is None else want_active
+    if new_active and ("name" in fields or (want_active is True and not branch.is_active)):
+        _ensure_branch_name_free(db, branch.company_id, fields.get("name", branch.name), exclude_id=branch.id)
+    extra = {}
+    if want_active is False and branch.is_active:
+        try:
+            archive_branch(db, branch, admin, None, None)
+        except BranchCloseBlocked as e:
+            return JSONResponse(status_code=409, content={"detail": e.detail, "blockers": e.blockers})
+    elif want_active is True and not branch.is_active:
+        extra = reopen_branch(db, branch, admin)
+
+    old_values = {k: getattr(branch, k) for k in fields}
+    for field, value in fields.items():
+        setattr(branch, field, value)
+    if fields:
+        log_action(
+            db, "UPDATE", "branch", branch.id, user_id=admin.id,
+            old_values=old_values, new_values={**fields, "by": "super_admin"},
+            company_id=branch.company_id, branch_id=branch.id,
+        )
+    _commit_branch(db)
+    db.refresh(branch)
+    out = _branch_row(db, branch)
+    out.update(extra)
+    return out
+
+
+@router.post("/companies/{company_id}/warehouses")
+def create_company_warehouse(
+    company_id: int,
+    data: WarehouseCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """Super admin: korxonaga ombor qo'shadi. `branch_id` shu korxonaga tegishli bo'lishi shart (aks holda 400)."""
+    from app.services.branch_provisioning import set_default_warehouse
+
+    _get_company_or_404(db, company_id)
+    name = (data.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Ombor nomi bo'sh bo'lmasligi kerak")
+    if data.branch_id is not None:
+        _company_branch_or_400(db, data.branch_id, company_id)
+    wh = Warehouse(name=name, type=data.type, branch_id=data.branch_id, company_id=company_id)
+    db.add(wh)
+    db.flush()
+    if wh.branch_id is not None:
+        if data.is_default:
+            set_default_warehouse(db, wh)
+        elif _is_default_candidate(wh) and not _branch_has_default(db, wh.branch_id, exclude_id=wh.id):
+            set_default_warehouse(db, wh)
+    log_action(
+        db, "CREATE", "warehouse", wh.id, user_id=admin.id,
+        new_values={"name": wh.name, "branch_id": wh.branch_id, "is_default": bool(wh.is_default),
+                    "company_id": company_id, "by": "super_admin"},
+        company_id=company_id, branch_id=wh.branch_id,
+    )
+    db.commit()
+    db.refresh(wh)
+    return _wh_row(wh)
+
+
+@router.patch("/warehouses/{wh_id}")
+def update_warehouse_super(
+    wh_id: int,
+    data: WarehouseUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    """Super admin: istalgan korxona omborini tahrirlaydi (nom, tur, filial, faol/nofaol, asosiy)."""
+    from app.routers.warehouses import _assert_warehouse_closable
+    from app.services.branch_provisioning import reassign_default_warehouse, set_default_warehouse
+
+    wh = db.query(Warehouse).filter(Warehouse.id == wh_id).first()
+    if not wh:
+        raise HTTPException(status_code=404, detail="Ombor topilmadi")
+    company_id = wh.company_id
+    if company_id is None and wh.branch_id is not None:
+        company_id = db.query(Branch.company_id).filter(Branch.id == wh.branch_id).scalar()
+
+    old_values = {"name": wh.name, "type": wh.type.value if wh.type else None, "branch_id": wh.branch_id,
+                  "is_active": wh.is_active, "is_default": bool(wh.is_default)}
+    old_branch_id = wh.branch_id
+    was_default = bool(wh.is_default)
+    want_default = None
+    if data.is_active is False and wh.is_active is not False:
+        _assert_warehouse_closable(db, wh)
+    for field, value in data.model_dump(exclude_unset=True).items():
+        if field == "is_default":
+            want_default = value
+            continue
+        if value is None and field != "branch_id":
+            continue
+        if field == "name":
+            value = value.strip()
+            if not value:
+                raise HTTPException(status_code=400, detail="Ombor nomi bo'sh bo'lmasligi kerak")
+        if field == "branch_id" and value is not None:
+            if company_id is None:
+                raise HTTPException(status_code=400, detail=BRANCH_FOREIGN)
+            _company_branch_or_400(db, value, company_id, require_active=value != wh.branch_id)
+        setattr(wh, field, value)
+    if wh.company_id is None and company_id is not None:
+        wh.company_id = company_id
+
+    branch_changed = wh.branch_id != old_branch_id
+    if want_default is False and was_default and wh.is_active and not branch_changed and wh.branch_id is not None:
+        raise HTTPException(status_code=400, detail="Filialda kamida bitta asosiy ombor bo'lishi kerak")
+    if was_default and (branch_changed or wh.is_active is False):
+        wh.is_default = False
+        db.flush()
+        reassign_default_warehouse(db, old_branch_id, exclude_id=wh.id)
+    if want_default is True:
+        if wh.branch_id is None:
+            raise HTTPException(status_code=400, detail="Asosiy ombor filialga bog'langan bo'lishi kerak")
+        if wh.is_active is False:
+            raise HTTPException(status_code=400, detail="Nofaol omborni asosiy qilib bo'lmaydi")
+        set_default_warehouse(db, wh)
+    elif branch_changed and wh.branch_id is not None and _is_default_candidate(wh) \
+            and not _branch_has_default(db, wh.branch_id, exclude_id=wh.id):
+        set_default_warehouse(db, wh)
+    log_action(
+        db, "WAREHOUSE_UPDATE", "warehouse", wh.id, user_id=admin.id,
+        old_values=old_values,
+        new_values={"name": wh.name, "type": wh.type.value if wh.type else None, "branch_id": wh.branch_id,
+                    "is_active": wh.is_active, "is_default": bool(wh.is_default), "by": "super_admin"},
+        company_id=company_id, branch_id=wh.branch_id,
+    )
+    db.commit()
+    db.refresh(wh)
+    return _wh_row(wh)
 
 
 # ── Users ─────────────────────────────────────────────────
@@ -290,9 +677,11 @@ def list_all_users(
     if branch_id:
         q = q.filter(User.branch_id == branch_id)
     if company_id:
-        branch_ids = [b.id for b in db.query(Branch.id).filter(Branch.company_id == company_id).all()]
-        if branch_ids:
-            q = q.filter(User.branch_id.in_(branch_ids))
+        # Filialsiz/yangi korxona uchun ham filtr ishlashi shart: users.company_id yoki user_companies a'zoligi
+        if not db.query(Company.id).filter(Company.id == company_id).first():
+            raise HTTPException(status_code=404, detail="Korxona topilmadi")
+        member_ids = db.query(UserCompany.user_id).filter(UserCompany.company_id == company_id)
+        q = q.filter(or_(User.company_id == company_id, User.id.in_(member_ids)))
     users = q.order_by(User.id).all()
     return [
         {
@@ -467,17 +856,20 @@ def delete_company_preview(
     _: User = Depends(require_super_admin)
 ):
     """Korxona o'chirilsa nima o'chishini sanaydi (hech narsa o'zgarmaydi)."""
-    from app.services.company_purge import preview_company_purge, PurgeError
+    from app.services.company_purge import preview_company_purge_ex, PurgeError
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
     name, code = c.name, c.org_code
     try:
-        counts = preview_company_purge(db, company_id)
+        res = preview_company_purge_ex(db, company_id)
     except PurgeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    counts, moved = res["counts"], res["moved"]
+    # transactions_unattributed — transactions ning bir qismi (ma'lumot uchun), umumiy songa qo'shilmaydi
+    total = sum(v for k, v in counts.items() if k != "transactions_unattributed")
     return {"id": company_id, "name": name, "org_code": code,
-            "counts": counts, "total": sum(counts.values())}
+            "counts": counts, "total": total, "moved": moved}
 
 
 @router.delete("/companies/{company_id}")

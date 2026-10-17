@@ -12,7 +12,7 @@ function load() {
   if (!inflight) {
     inflight = api.get('/companies/me/features', { _silent: true })
       .then(r => { cache = r.data; return cache; })
-      .catch(() => { cache = { manufacturing: false, distribution: false }; return cache; })
+      .catch(() => { cache = { manufacturing: false, distribution: false, require_shift: false }; return cache; })
       .finally(() => { inflight = null; window.dispatchEvent(new Event(EVENT)); });
   }
   return inflight;
@@ -23,7 +23,7 @@ export function refreshCompanyFeatures() {
   return load();
 }
 
-/** null — hali yuklanmoqda; keyin { manufacturing, distribution } */
+/** null — hali yuklanmoqda; keyin { manufacturing, distribution, marketplace_agents, require_shift } */
 export default function useCompanyFeatures() {
   const [features, setFeatures] = useState(cache);
   useEffect(() => {

@@ -1,0 +1,11 @@
+{
+  "uz": {
+    "settings.telegramBot.adminStartsIn30": "Bot 30 soniya ichida ishga tushadi."
+  },
+  "ru": {
+    "settings.telegramBot.adminStartsIn30": "Бот запустится в течение 30 секунд."
+  },
+  "en": {
+    "settings.telegramBot.adminStartsIn30": "The bot will start within 30 seconds."
+  }
+}

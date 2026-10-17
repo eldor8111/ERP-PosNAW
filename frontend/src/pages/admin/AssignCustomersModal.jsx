@@ -1,13 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { X, Search } from 'lucide-react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 
+const PAGE_SIZE = 50;      // ko'rinadigan ro'yxat sahifasi (server qidiruvi + "Yana yuklash")
+const CRAWL_SIZE = 500;    // agentga biriktirilgan mijozlarni aniqlash uchun fon yuklash
+
+const totalFrom = (res, fallback) => {
+  const n = Number(res.headers?.['x-total-count']);
+  return Number.isFinite(n) && n >= 0 && res.headers?.['x-total-count'] != null ? n : fallback;
+};
+
 /** Agentga mijozlarni ommaviy biriktirish / olib tashlash */
 export default function AssignCustomersModal({ agent, onClose, onSaved }) {
   const { t } = useLang();
-  const [customers, setCustomers] = useState(null);
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  // T3.8: ro'yxat serverdan sahifalab (page/limit + X-Total-Count) va qidiruv serverda; avvalgi limit=2000 cheklovi yo'q
+  const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [dq, setDq] = useState('');                 // debounce qilingan qidiruv matni
+  const [ready, setReady] = useState(false);        // agent mijozlari aniqlanguncha tanlash bloklanadi
+  const known = useRef(new Map());                  // ko'rilgan barcha mijozlar (faqat tanlanganlar rejimi uchun)
   const [selected, setSelected] = useState(new Set());
   const [initial, setInitial] = useState(new Set());
   const [q, setQ] = useState('');
@@ -15,20 +31,78 @@ export default function AssignCustomersModal({ agent, onClose, onSaved }) {
   const [days, setDays] = useState([1, 2, 3, 4, 5, 6]);
   const [saving, setSaving] = useState(false);
 
+  const remember = (items) => items.forEach(c => known.current.set(c.id, c));
+
+  // Agentga allaqachon biriktirilgan mijozlar: GET /customers da agent_id filtri yo'q, shuning uchun
+  // sahifalab (500 tadan, X-Total-Count gacha) o'qiladi — qo'shish/olib tashlash farqi to'g'ri hisoblansin
   useEffect(() => {
-    api.get('/customers', { params: { limit: 2000 } }).then(r => {
-      setCustomers(r.data);
-      const mine = new Set(r.data.filter(c => c.agent_id === agent.id).map(c => c.id));
-      setSelected(new Set(mine)); setInitial(mine);
-    }).catch(() => setCustomers([]));
+    let alive = true;
+    (async () => {
+      const mine = new Set();
+      let p = 1; let seen = 0; let totalAll = Infinity;
+      try {
+        while (alive && seen < totalAll) {
+          const r = await api.get('/customers', { params: { page: p, limit: CRAWL_SIZE }, _suppressToast: true });
+          const items = Array.isArray(r.data) ? r.data : [];
+          remember(items);
+          items.forEach(c => { if (c.agent_id === agent.id) mine.add(c.id); });
+          seen += items.length;
+          totalAll = totalFrom(r, items.length < CRAWL_SIZE ? seen : Infinity);
+          if (items.length < CRAWL_SIZE) break;
+          p += 1;
+        }
+      } catch { /* qisman o'qilgan bo'lsa ham davom etamiz */ }
+      if (!alive) return;
+      setSelected(new Set(mine)); setInitial(new Set(mine)); setReady(true);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent.id]);
 
+  // Qidiruv serverda: 300 ms debounce
+  useEffect(() => {
+    const timer = setTimeout(() => setDq(q.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    let alive = true;
+    setRows(null); setPage(1);
+    api.get('/customers', { params: { page: 1, limit: PAGE_SIZE, ...(dq ? { search: dq } : {}) }, _suppressToast: true })
+      .then(r => {
+        if (!alive) return;
+        const items = Array.isArray(r.data) ? r.data : [];
+        remember(items);
+        setRows(items); setTotal(totalFrom(r, items.length));
+      })
+      .catch(() => { if (alive) { setRows([]); setTotal(0); } });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dq]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const r = await api.get('/customers', { params: { page: next, limit: PAGE_SIZE, ...(dq ? { search: dq } : {}) }, _suppressToast: true });
+      const items = Array.isArray(r.data) ? r.data : [];
+      remember(items);
+      setRows(prev => [...(prev || []), ...items.filter(c => !(prev || []).some(x => x.id === c.id))]);
+      setTotal(totalFrom(r, total));
+      setPage(next);
+    } catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
+    finally { setLoadingMore(false); }
+  };
+
   const list = useMemo(() => {
+    if (!onlyMine) return rows || [];
+    // "Faqat tanlanganlar": ko'rilgan mijozlardan, qidiruv matni bo'yicha klientda
     const s = q.trim().toLowerCase();
-    return (customers || []).filter(c =>
-      (!onlyMine || selected.has(c.id)) &&
+    return [...known.current.values()].filter(c =>
+      selected.has(c.id) &&
       (!s || c.name.toLowerCase().includes(s) || c.phone?.includes(s) || c.district?.toLowerCase().includes(s)));
-  }, [customers, q, onlyMine, selected]);
+  }, [rows, q, onlyMine, selected, ready]);
+  const hasMore = !onlyMine && rows && rows.length < total;
 
   const toggle = (id) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const add = [...selected].filter(id => !initial.has(id));
@@ -80,13 +154,13 @@ export default function AssignCustomersModal({ agent, onClose, onSaved }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-3 space-y-1">
-          {customers === null && <div className="py-10 text-center text-ink-300">…</div>}
+          {rows === null && <div className="py-10 text-center text-ink-300">…</div>}
           {list.map(c => {
             const on = selected.has(c.id);
             const other = c.agent_id && c.agent_id !== agent.id;
             return (
               <label key={c.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer ${on ? 'bg-brand/5' : 'hover:bg-surface-sunken'}`}>
-                <input type="checkbox" checked={on} onChange={() => toggle(c.id)} className="size-4" />
+                <input type="checkbox" checked={on} disabled={!ready} onChange={() => toggle(c.id)} className="size-4" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-ink-900 truncate">{c.name}</div>
                   <div className="text-xs text-ink-300 truncate">{[c.phone, c.district, c.address].filter(Boolean).join(' · ') || '—'}</div>
@@ -96,6 +170,12 @@ export default function AssignCustomersModal({ agent, onClose, onSaved }) {
               </label>
             );
           })}
+          {hasMore && (
+            <button type="button" onClick={loadMore} disabled={loadingMore}
+              className="w-full py-2.5 text-sm font-semibold text-brand hover:bg-surface-sunken rounded-xl disabled:opacity-50">
+              {loadingMore ? '…' : `${tf('fieldStaff.loadMore', 'Yana yuklash')} (${rows.length}/${total})`}
+            </button>
+          )}
         </div>
 
         <div className="px-6 py-4 border-t border-line flex items-center justify-between gap-3 shrink-0">
@@ -105,7 +185,7 @@ export default function AssignCustomersModal({ agent, onClose, onSaved }) {
           </span>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2.5 border border-line text-ink-500 text-sm font-medium rounded-xl">{t('common.cancel')}</button>
-            <button onClick={save} disabled={saving || (add.length === 0 && remove.length === 0)}
+            <button onClick={save} disabled={saving || !ready || (add.length === 0 && remove.length === 0)}
               className="px-5 py-2.5 bg-brand hover:bg-brand-deep disabled:opacity-50 text-white text-sm font-semibold rounded-xl">
               {saving ? t('common.saving') : t('common.save')}
             </button>

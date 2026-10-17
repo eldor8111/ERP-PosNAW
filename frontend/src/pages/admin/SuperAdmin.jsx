@@ -122,6 +122,17 @@ function DeleteCompanyModal({ company, onClose, onDeleted }) {
                     <div className="flex justify-between col-span-2 text-slate-500"><span>{t('superAdmin.purge.other')}</span><b>{others.toLocaleString('uz-UZ')}</b></div>
                   )}
                 </div>
+                {/* Boshqa korxonalarga tegishli (umumiy) yozuvlar o'chirilmaydi — ularning filialiga ko'chiriladi */}
+                {Object.keys(preview.moved || {}).length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-red-100 text-xs text-amber-700 space-y-0.5">
+                    {Object.entries(preview.moved).map(([k, n]) => (
+                      <div key={k}>
+                        <span className="font-semibold">{t(`superAdmin.purge.${k}`) === `superAdmin.purge.${k}` ? k : t(`superAdmin.purge.${k}`)}</span>
+                        {': '}{t('superAdmin.purge.moved', { n: Number(n).toLocaleString('uz-UZ') })}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -167,6 +178,12 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
   const [tab, setTab] = useState('branches');
   const [visible, setVisible] = useState(false);
 
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  // T3.2: filial/ombor formalari
+  const [branchForm, setBranchForm] = useState(null);   // {id?, name, address, phone}
+  const [whForm, setWhForm] = useState(null);           // {id?, name, type, branch_id, is_active}
+  const [whRefresh, setWhRefresh] = useState(0);
+
   useEffect(() => {
     setTimeout(() => setVisible(true), 10);
     setLoading(true);
@@ -176,6 +193,26 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [companyId]);
+
+  // Yozuvdan keyin tafsilotni jimgina yangilash (spinner va tab holati o'zgarmaydi)
+  const reloadDetail = async () => {
+    try {
+      const r = await api.get(`/super-admin/companies/${companyId}`);
+      setDetail(r.data);
+      setWhRefresh(n => n + 1);
+    } catch { /* eski ma'lumot qoladi */ }
+  };
+
+  const toggleBranchActive = async (b) => {
+    if (b.is_active && !window.confirm(tf('superAdmin.confirmDeactivateBranch', "Filialni nofaol qilasizmi?"))) return;
+    try {
+      await api.patch(`/super-admin/branches/${b.id}`, { is_active: !b.is_active });
+      toast.success(tf('superAdmin.saved', 'Saqlandi'));
+      await reloadDetail();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('superAdmin.errorOccurred'));
+    }
+  };
 
   const toggleMarketplaceAgents = async () => {
     if (!detail) return;
@@ -197,7 +234,6 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
     setTimeout(onClose, 280);
   };
 
-  const totalUsers = detail?.branches?.reduce((s, b) => s + (b.users_count || 0), 0) || 0;
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -241,16 +277,20 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
 
           {/* Stats row */}
           {detail && (
-            <div className="grid grid-cols-4 gap-2 mt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
               {[
-                { label: t('superAdmin.branches'), value: detail.stats?.branches ?? 0, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
-                { label: t('superAdmin.employees'), value: detail.stats?.users ?? 0, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
-                { label: t('superAdmin.warehouses'), value: detail.stats?.warehouses ?? 0, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
-                { label: t('common.balance'), value: `${Number(detail.balance || 0).toLocaleString('uz-UZ')} s`, icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+                { label: t('superAdmin.branches'), value: detail.stats?.branches_total ?? detail.stats?.branches ?? 0,
+                  sub: `${detail.stats?.branches_active ?? 0}/${detail.stats?.branches_total ?? detail.stats?.branches ?? 0} ${tf('superAdmin.activeOfTotal', 'faol / jami')}` },
+                { label: t('superAdmin.employees'), value: detail.stats?.users ?? 0,
+                  sub: `${tf('superAdmin.noBranchOf', 'shundan filialsiz')}: ${detail.stats?.users_no_branch ?? 0}` },
+                { label: t('superAdmin.warehouses'), value: detail.stats?.warehouses ?? 0,
+                  sub: detail.stats?.warehouses_no_branch ? `${tf('superAdmin.noBranchOf', 'shundan filialsiz')}: ${detail.stats.warehouses_no_branch}` : null },
+                { label: t('common.balance'), value: `${Number(detail.balance || 0).toLocaleString('uz-UZ')} s` },
               ].map(s => (
                 <div key={s.label} className="bg-white/15 rounded-xl px-3 py-2 text-center">
                   <div className="text-lg font-black">{s.value}</div>
                   <div className="text-xs text-white/70 mt-0.5">{s.label}</div>
+                  {s.sub && <div className="text-[10px] text-white/60 mt-0.5">{s.sub}</div>}
                 </div>
               ))}
             </div>
@@ -261,9 +301,10 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
         <div className="shrink-0 flex gap-1 px-5 pt-4 pb-2 border-b border-slate-100">
           {[
             { id: 'branches', label: `${t('superAdmin.branches')} (${detail?.branches?.length || 0})`, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16' },
-            { id: 'users', label: `${t('superAdmin.employees')} (${totalUsers})`, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
+            { id: 'users', label: `${t('superAdmin.employees')} (${detail?.stats?.users ?? 0})`, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
+            { id: 'warehouses', label: `${t('superAdmin.warehouses')} (${detail?.stats?.warehouses ?? 0})`, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
             { id: 'tariff', label: t('superAdmin.tariffReport'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2-2h-2a2 2 0 01-2-2z' },
-            { id: 'settings', label: t('common.settings') || 'Sozlamalar', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+            { id: 'settings', label: t('common.settings'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
           ].map(tb => (
             <button key={tb.id} onClick={() => setTab(tb.id)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === tb.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
@@ -299,46 +340,81 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             {/* ── FILIALLAR ── */}
             {tab === 'branches' && (
               <div className="space-y-2">
+                <div className="flex justify-end">
+                  <button onClick={() => setBranchForm({ name: '', address: '', phone: '' })}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm">
+                    + {tf('superAdmin.addBranch', 'Filial')}
+                  </button>
+                </div>
                 {detail.branches?.length === 0 && (
                   <div className="text-center text-slate-400 py-16">{t('superAdmin.noBranches')}</div>
                 )}
                 {detail.branches?.map((b) => (
-                  <div key={b.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50/50 rounded-2xl border border-slate-100 transition-colors">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
-                      {b.name?.[0]?.toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-800 text-sm">{b.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                          {b.is_active ? t('common.active') : t('common.inactive')}
-                        </span>
+                  <div key={b.id} className="p-4 bg-slate-50 hover:bg-blue-50/50 rounded-2xl border border-slate-100 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
+                        {b.name?.[0]?.toUpperCase()}
                       </div>
-                      {b.address && (
-                        <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-400">
-                          <Ic d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" cls="w-3 h-3 shrink-0" />
-                          {b.address}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800 text-sm">{b.name}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                            {b.is_active ? t('common.active') : t('common.inactive')}
+                          </span>
                         </div>
-                      )}
-                      {b.phone && (
-                        <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-400">
-                          <Ic d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" cls="w-3 h-3 shrink-0" />
-                          {b.phone}
+                        {b.address && (
+                          <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-400">
+                            <Ic d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" cls="w-3 h-3 shrink-0" />
+                            {b.address}
+                          </div>
+                        )}
+                        {b.phone && (
+                          <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-400">
+                            <Ic d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" cls="w-3 h-3 shrink-0" />
+                            {b.phone}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0 flex gap-4">
+                        <div>
+                          <div className="text-sm font-bold text-blue-700">{b.users_count}</div>
+                          <div className="text-xs text-slate-400">{t('superAdmin.employee')}</div>
                         </div>
-                      )}
+                        <div>
+                          <div className="text-sm font-bold text-violet-700">{b.warehouses_count ?? 0}</div>
+                          <div className="text-xs text-slate-400">{t('superAdmin.warehouses')}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-bold text-blue-700">{b.users_count}</div>
-                      <div className="text-xs text-slate-400">{t('superAdmin.employee')}</div>
+                    <div className="flex gap-2 mt-3 justify-end">
+                      <button onClick={() => setBranchForm({ id: b.id, name: b.name || '', address: b.address || '', phone: b.phone || '' })}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600">
+                        {t('common.edit')}
+                      </button>
+                      <button onClick={() => toggleBranchActive(b)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${b.is_active ? 'bg-white border-red-200 text-red-600 hover:bg-red-50' : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}>
+                        {b.is_active ? tf('superAdmin.deactivate', 'Nofaol qilish') : tf('superAdmin.activate', 'Faollashtirish')}
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
+            {/* ── OMBORLAR ── */}
+            {tab === 'warehouses' && (
+              <DrawerWarehouses
+                branches={detail.branches || []}
+                unassigned={detail.unassigned_warehouses || []}
+                refreshKey={whRefresh}
+                onAdd={(branchId) => setWhForm({ name: '', type: 'main', branch_id: branchId ?? '', is_active: true })}
+                onEdit={(w, branchId) => setWhForm({ id: w.id, name: w.name, type: w.type || 'main', branch_id: branchId ?? '', is_active: true })}
+              />
+            )}
+
             {/* ── XODIMLAR ── */}
             {tab === 'users' && (
-              <DrawerBranchUsers branches={detail.branches || []} />
+              <DrawerCompanyUsers companyId={companyId} branches={detail.branches || []} noBranchCount={detail.stats?.users_no_branch ?? 0} />
             )}
 
             {/* ── TARIF HISOBOTI ── */}
@@ -366,41 +442,57 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
           </div>
         )}
       </div>
+
+      {branchForm && (
+        <BranchFormModal
+          form={branchForm}
+          companyId={companyId}
+          onClose={() => setBranchForm(null)}
+          onSaved={async () => { setBranchForm(null); await reloadDetail(); }}
+        />
+      )}
+      {whForm && (
+        <WarehouseFormModal
+          form={whForm}
+          companyId={companyId}
+          branches={detail?.branches || []}
+          onClose={() => setWhForm(null)}
+          onSaved={async () => { setWhForm(null); await reloadDetail(); }}
+        />
+      )}
     </div>
   );
 }
 
-function DrawerBranchUsers({ branches }) {
+/* T3.2: korxonaning barcha xodimlari — filtr: Barchasi / Filialsiz / har bir filial */
+function DrawerCompanyUsers({ companyId, branches, noBranchCount }) {
   const { t } = useLang();
-  const [branchId, setBranchId] = useState('');
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const [filter, setFilter] = useState('');   // '' = barchasi, 'none' = filialsiz, aks holda filial id
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!branchId) { setUsers([]); setFetchError(false); return; }
     setLoading(true);
     setFetchError(false);
-    api.get(`/super-admin/branches/${branchId}`)
-      .then(r => setUsers(r.data.users || []))
+    const params = filter === 'none' ? { no_branch: true } : filter ? { branch_id: filter } : {};
+    api.get(`/super-admin/companies/${companyId}/users`, { params })
+      .then(r => setUsers(r.data || []))
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
-  }, [branchId]);
+  }, [companyId, filter, attempt]);
 
   return (
     <div className="space-y-3">
-      <select value={branchId} onChange={e => setBranchId(e.target.value)}
+      <select value={filter} onChange={e => setFilter(e.target.value)}
         className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-slate-50">
-        <option value="">— {t('superAdmin.selectBranch')} —</option>
+        <option value="">{tf('superAdmin.allUsers', 'Barchasi')}</option>
+        <option value="none">{tf('superAdmin.noBranchUsers', 'Filialsiz')} ({noBranchCount})</option>
         {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
       </select>
 
-      {!branchId && (
-        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-          <Ic d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" cls="w-10 h-10 mb-2 opacity-30" />
-          <p className="text-sm">{t('superAdmin.selectBranch')}</p>
-        </div>
-      )}
       {loading && <div className="flex justify-center py-10"><div className="w-7 h-7 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>}
       {!loading && fetchError && (
         <div className="flex flex-col items-center justify-center py-10 gap-2">
@@ -408,23 +500,25 @@ function DrawerBranchUsers({ branches }) {
             <Ic d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-5 h-5" />
           </div>
           <p className="text-sm text-red-500 font-semibold">{t('superAdmin.employeesLoadError')}</p>
-          <button onClick={() => { const id = branchId; setBranchId(''); setTimeout(() => setBranchId(id), 50); }}
+          <button onClick={() => setAttempt(n => n + 1)}
             className="text-xs px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold">
             {t('superAdmin.retry')}
           </button>
         </div>
       )}
-      {!loading && !fetchError && branchId && users.length === 0 && (
+      {!loading && !fetchError && users.length === 0 && (
         <p className="text-slate-400 text-sm text-center py-10">{t('superAdmin.noEmployeesInBranch')}</p>
       )}
-      {!loading && users.map(u => (
+      {!loading && !fetchError && users.map(u => (
         <div key={u.id} className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-blue-50/50 rounded-2xl border border-slate-100 transition-colors">
           <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
             {u.name?.[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-bold text-slate-800 text-sm">{u.name}</div>
-            <div className="text-xs text-slate-400 mt-0.5">{u.phone}</div>
+            <div className="text-xs text-slate-400 mt-0.5">
+              {u.phone} · {u.branch_name || tf('superAdmin.noBranchUsers', 'Filialsiz')}
+            </div>
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-500'}`}>
@@ -440,8 +534,178 @@ function DrawerBranchUsers({ branches }) {
   );
 }
 
+/* T3.2: omborlar ro'yxati — har bir filial bo'yicha (GET /super-admin/branches/{id}) + filialsizlar */
+function DrawerWarehouses({ branches, unassigned, refreshKey, onAdd, onEdit }) {
+  const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const [byBranch, setByBranch] = useState({});   // {branchId: [warehouse]}
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all(branches.map(b =>
+      api.get(`/super-admin/branches/${b.id}`)
+        .then(r => [b.id, r.data.warehouses || []])
+        .catch(() => [b.id, []])
+    )).then(rows => { if (!cancelled) setByBranch(Object.fromEntries(rows)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [branches.map(b => b.id).join(','), refreshKey]);
+
+  const whRow = (w, branchId) => (
+    <div key={w.id} className="flex items-center gap-3 px-3 py-2 bg-white rounded-xl border border-slate-100">
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-semibold text-slate-700">{w.name}</span>
+        <span className="ml-2 text-xs text-slate-400">{w.type}</span>
+        {w.is_default && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">default</span>}
+      </div>
+      <button onClick={() => onEdit(w, branchId)}
+        className="px-3 py-1 text-xs font-semibold rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600">
+        {t('common.edit')}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button onClick={() => onAdd(null)}
+          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm">
+          + {tf('superAdmin.addWarehouse', 'Ombor')}
+        </button>
+      </div>
+      {loading && <div className="flex justify-center py-6"><div className="w-6 h-6 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>}
+      {branches.map(b => (
+        <div key={b.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-800 text-sm">{b.name}</span>
+            <button onClick={() => onAdd(b.id)} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+              + {tf('superAdmin.addWarehouse', 'Ombor')}
+            </button>
+          </div>
+          {(byBranch[b.id] || []).map(w => whRow(w, b.id))}
+          {!loading && (byBranch[b.id] || []).length === 0 && (
+            <p className="text-xs text-slate-400">{tf('superAdmin.noWarehouses', "Omborlar yo'q")}</p>
+          )}
+        </div>
+      ))}
+      {unassigned.length > 0 && (
+        <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
+          <div className="font-bold text-amber-800 text-sm">{tf('superAdmin.warehousesNoBranch', 'Filialsiz omborlar')} ({unassigned.length})</div>
+          {unassigned.map(w => whRow(w, null))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WH_TYPES = ['main', 'shop', 'transit', 'returns', 'raw_material', 'wip'];
+const FIELD_CLS = 'w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-slate-50';
+
+function FormShell({ title, onClose, onSubmit, saving, children }) {
+  const { t } = useLang();
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <form onClick={e => e.stopPropagation()} onSubmit={onSubmit}
+        className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 font-black text-slate-800">{title}</div>
+        <div className="px-5 py-4 space-y-3">{children}</div>
+        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 justify-end">
+          <button type="button" onClick={onClose} disabled={saving}
+            className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl">
+            {t('common.cancel')}
+          </button>
+          <button type="submit" disabled={saving}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl disabled:opacity-50">
+            {saving ? t('common.saving') : t('common.save')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function BranchFormModal({ form, companyId, onClose, onSaved }) {
+  const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const [f, setF] = useState(form);
+  const [saving, setSaving] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!f.name.trim()) { toast.error(tf('superAdmin.nameRequired', 'Nomi kiritilishi shart')); return; }
+    setSaving(true);
+    const body = { name: f.name.trim(), address: f.address.trim() || null, phone: f.phone.trim() || null };
+    try {
+      if (f.id) await api.patch(`/super-admin/branches/${f.id}`, body);
+      else await api.post(`/super-admin/companies/${companyId}/branches`, body);
+      toast.success(tf('superAdmin.saved', 'Saqlandi'));
+      await onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('superAdmin.errorOccurred'));
+      setSaving(false);
+    }
+  };
+  return (
+    <FormShell title={f.id ? tf('superAdmin.editBranch', 'Filialni tahrirlash') : tf('superAdmin.addBranch', 'Filial')}
+      onClose={onClose} onSubmit={submit} saving={saving}>
+      <label className="block text-xs font-semibold text-slate-500">{tf('superAdmin.branchName', 'Filial nomi')}
+        <input className={`${FIELD_CLS} mt-1`} value={f.name} maxLength={100} autoFocus onChange={e => setF({ ...f, name: e.target.value })} />
+      </label>
+      <label className="block text-xs font-semibold text-slate-500">{t('common.address')}
+        <input className={`${FIELD_CLS} mt-1`} value={f.address} maxLength={200} onChange={e => setF({ ...f, address: e.target.value })} />
+      </label>
+      <label className="block text-xs font-semibold text-slate-500">{t('common.phone')}
+        <input className={`${FIELD_CLS} mt-1`} value={f.phone} maxLength={20} onChange={e => setF({ ...f, phone: e.target.value })} />
+      </label>
+    </FormShell>
+  );
+}
+
+function WarehouseFormModal({ form, companyId, branches, onClose, onSaved }) {
+  const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const [f, setF] = useState(form);
+  const [saving, setSaving] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!f.name.trim()) { toast.error(tf('superAdmin.nameRequired', 'Nomi kiritilishi shart')); return; }
+    setSaving(true);
+    const body = { name: f.name.trim(), type: f.type, branch_id: f.branch_id === '' ? null : Number(f.branch_id) };
+    try {
+      if (f.id) await api.patch(`/super-admin/warehouses/${f.id}`, body);
+      else await api.post(`/super-admin/companies/${companyId}/warehouses`, body);
+      toast.success(tf('superAdmin.saved', 'Saqlandi'));
+      await onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('superAdmin.errorOccurred'));
+      setSaving(false);
+    }
+  };
+  return (
+    <FormShell title={f.id ? tf('superAdmin.editWarehouse', 'Omborni tahrirlash') : tf('superAdmin.addWarehouse', 'Ombor')}
+      onClose={onClose} onSubmit={submit} saving={saving}>
+      <label className="block text-xs font-semibold text-slate-500">{tf('superAdmin.warehouseName', 'Ombor nomi')}
+        <input className={`${FIELD_CLS} mt-1`} value={f.name} maxLength={100} autoFocus onChange={e => setF({ ...f, name: e.target.value })} />
+      </label>
+      <label className="block text-xs font-semibold text-slate-500">{t('common.type')}
+        <select className={`${FIELD_CLS} mt-1`} value={f.type} onChange={e => setF({ ...f, type: e.target.value })}>
+          {WH_TYPES.map(x => <option key={x} value={x}>{x}</option>)}
+        </select>
+      </label>
+      <label className="block text-xs font-semibold text-slate-500">{t('superAdmin.branches')}
+        <select className={`${FIELD_CLS} mt-1`} value={f.branch_id} onChange={e => setF({ ...f, branch_id: e.target.value })}>
+          <option value="">{tf('superAdmin.noBranchUsers', 'Filialsiz')}</option>
+          {branches.filter(b => b.is_active || String(b.id) === String(form.branch_id)).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </label>
+    </FormShell>
+  );
+}
+
 function DrawerTariffReport({ detail }) {
   const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
   const fmtMon = v => Number(v || 0).toLocaleString('uz-UZ');
   const fmtDt = d => d ? new Date(d).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
 
@@ -469,6 +733,32 @@ function DrawerTariffReport({ detail }) {
           </span>
         </div>
       </div>
+
+      {/* T3.2: tarif limiti va foydalanish */}
+      {detail.limits && detail.usage && (
+        <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
+          {[
+            { label: tf('superAdmin.limitBranches', 'Filiallar'), used: detail.usage.active_branches, max: detail.limits.max_branches },
+            { label: tf('superAdmin.limitUsers', 'Xodimlar'), used: detail.usage.users, max: detail.limits.max_users },
+            { label: tf('superAdmin.limitWarehouses', 'Omborlar'), used: detail.usage.active_warehouses, max: detail.limits.max_warehouses },
+          ].map(row => {
+            const over = row.max != null && row.used > row.max;
+            const full = row.max != null && row.used >= row.max;
+            const pct = row.max ? Math.min(100, Math.round((row.used / row.max) * 100)) : 0;
+            return (
+              <div key={row.label}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-semibold text-slate-600">{row.label}</span>
+                  <span className={`font-bold ${over ? 'text-red-600' : 'text-slate-700'}`}>{row.used} / {row.max ?? '∞'}</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <div className={`h-full rounded-full ${over ? 'bg-red-500' : full ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Ma'lumotlar grid */}
       <div className="grid grid-cols-2 gap-3">
@@ -1659,6 +1949,11 @@ function SettingsTab() {
 /* ─── TARIFLAR TAB ───────────────────────────────────── */
 function TariffsTab() {
   const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const unitTxt = tf('tariffs.unit', 'ta');
+  const unlimitedTxt = tf('tariffs.limitUnlimited', 'Cheksiz');
+  // Cheksiz qoidasi backend bilan bir xil: NULL yoki >= 9999
+  const isUnl = (v) => v == null || v >= 9999;
   const [tariffs, setTariffs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -1856,57 +2151,62 @@ function TariffsTab() {
                         {/* Chap ustun: Resurs kvotalari */}
                         <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2">
                           <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                            Resurs Limitlari
+                            {tf('tariffs.resourceLimits', 'Resurs limitlari')}
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-2 text-slate-600 font-medium">
                               <Package size={15} className="text-amber-600 shrink-0" />
-                              Mahsulot limiti:
+                              {tf('tariffs.productLimit', 'Tovar limiti:')}
                             </span>
                             <span className="font-black text-slate-900">
-                              {tariff.max_products > 0 ? `${tariff.max_products.toLocaleString('uz-UZ')} ta` : 'Cheksiz'}
+                              {tariff.max_products > 0 ? `${tariff.max_products.toLocaleString('uz-UZ')} ${unitTxt}` : unlimitedTxt}
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-2 text-slate-600 font-medium">
                               <Warehouse size={15} className="text-blue-600 shrink-0" />
-                              Omborlar:
+                              {tf('tariffs.warehouseLimit', 'Omborlar:')}
                             </span>
                             <span className="font-black text-slate-900">
-                              {tariff.max_warehouses && tariff.max_warehouses < 9999 ? `${tariff.max_warehouses} ta` : 'Cheksiz'}
+                              {tariff.max_warehouses && tariff.max_warehouses < 9999 ? `${tariff.max_warehouses} ${unitTxt}` : unlimitedTxt}
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-2 text-slate-600 font-medium">
                               <Users size={15} className="text-indigo-600 shrink-0" />
-                              Xodimlar:
+                              {tf('tariffs.userLimit', 'Xodimlar:')}
                             </span>
                             <span className="font-black text-slate-900">
-                              {tariff.max_users >= 9999 ? 'Cheksiz' : `${tariff.max_users} ta`}
+                              {isUnl(tariff.max_users) ? unlimitedTxt : `${tariff.max_users} ${unitTxt}`}
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-2 text-slate-600 font-medium">
                               <Building2 size={15} className="text-slate-600 shrink-0" />
-                              Filiallar:
+                              {tf('tariffs.branchLimit', 'Filiallar:')}
                             </span>
                             <span className="font-black text-slate-900">
-                              {tariff.max_branches >= 9999 ? 'Cheksiz' : `${tariff.max_branches} ta`}
+                              {isUnl(tariff.max_branches) ? unlimitedTxt : `${tariff.max_branches} ${unitTxt}`}
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-2 text-slate-600 font-medium">
                               <Bike size={15} className="text-violet-600 shrink-0" />
-                              Agentlar:
+                              {tf('tariffs.agentLimit', 'Savdo agentlari:')}
                             </span>
-                            <span className="font-black text-blue-700">{tariff.max_agents || 0} ta</span>
+                            {/* T3.9: max_agents == null va tarifda tarqatish bo'lsa — cheksiz (Tariflar.jsx bilan bir xil) */}
+                            <span className="font-black text-blue-700">
+                              {tariff.max_agents > 0 ? `${tariff.max_agents} ${unitTxt}` : (tariff.max_agents == null && tariff.has_distribution ? unlimitedTxt : `0 ${unitTxt}`)}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-2 text-slate-600 font-medium">
                               <Truck size={15} className="text-sky-600 shrink-0" />
-                              Kuryerlar:
+                              {tf('tariffs.courierLimit', 'Kuryerlar:')}
                             </span>
-                            <span className="font-black text-blue-700">{tariff.max_couriers || 0} ta</span>
+                            <span className="font-black text-blue-700">
+                              {tariff.max_couriers > 0 ? `${tariff.max_couriers} ${unitTxt}` : (tariff.max_couriers == null && tariff.has_distribution ? unlimitedTxt : `0 ${unitTxt}`)}
+                            </span>
                           </div>
                         </div>
 
@@ -1914,39 +2214,39 @@ function TariffsTab() {
                         <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between">
                           <div>
                             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                              Tizim Modullari
+                              {tf('tariffs.systemModules', 'Tizim modullari')}
                             </div>
                             <div className="flex items-center justify-between text-xs py-1">
                               <span className="flex items-center gap-2 text-slate-600 font-medium">
                                 <BarChart3 size={15} className="text-blue-600 shrink-0" />
-                                P&L Solishtirish:
+                                {tf('tariffs.module.pnlCompare', 'P&L 2 davr solishtirish:')}
                               </span>
                               <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
                                 tariff.has_pnl_compare ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
                               }`}>
-                                {tariff.has_pnl_compare ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                                {tariff.has_pnl_compare ? <><Check size={12} /> {tf('tariffs.has', 'Bor')}</> : <><X size={12} /> {tf('tariffs.hasNot', "Yo'q")}</>}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-xs py-1">
                               <span className="flex items-center gap-2 text-slate-600 font-medium">
                                 <Factory size={15} className="text-amber-600 shrink-0" />
-                                Ishlab chiqarish:
+                                {tf('tariffs.module.manufacturing', 'Ishlab chiqarish:')}
                               </span>
                               <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
                                 tariff.has_manufacturing ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
                               }`}>
-                                {tariff.has_manufacturing ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                                {tariff.has_manufacturing ? <><Check size={12} /> {tf('tariffs.has', 'Bor')}</> : <><X size={12} /> {tf('tariffs.hasNot', "Yo'q")}</>}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-xs py-1">
                               <span className="flex items-center gap-2 text-slate-600 font-medium">
                                 <Share2 size={15} className="text-purple-600 shrink-0" />
-                                Distribyutsiya:
+                                {tf('tariffs.module.distribution', 'Distribyutsiya:')}
                               </span>
                               <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
                                 tariff.has_distribution ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
                               }`}>
-                                {tariff.has_distribution ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                                {tariff.has_distribution ? <><Check size={12} /> {tf('tariffs.has', 'Bor')}</> : <><X size={12} /> {tf('tariffs.hasNot', "Yo'q")}</>}
                               </span>
                             </div>
                           </div>

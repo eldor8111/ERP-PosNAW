@@ -1,86 +1,40 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { matchesSearch } from '../../utils/translit';
+import CustomerPicker from '../../components/CustomerPicker';
 import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
+import api from '../../api/axios';
+import { parseScaleBarcode, findScaleProduct } from '../../utils/scale';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-/* ── Customer combobox ── */
-function CustSearch({ customers, value, onChange, placeholder }) {
-  const { t } = useLang();
-  const effectivePlaceholder = placeholder || t('posDesktop.custSearchPlaceholder');
-const [q, setQ] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const selected = customers.find(c => String(c.id) === String(value));
-  const filtered = q.trim() ? customers.filter(c => matchesSearch(c.name, q) || (c.phone && c.phone.includes(q))).slice(0, 12) : customers.slice(0, 12);
-
-  useEffect(() => {
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  const select = (c) => { onChange(c ? c.id : ''); setQ(''); setOpen(false); };
-
-  return (
-    <div className="relative w-full" ref={ref}>
-      <div className="flex items-center border-2 border-slate-200 rounded-xl bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/20 transition-all pr-2">
-        <div className="pl-3 text-slate-400">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-        </div>
-        <input 
-          value={open ? q : (selected ? selected.name : '')} 
-          onChange={e => { setQ(e.target.value); setOpen(true); if (!e.target.value) onChange(''); }} 
-          onFocus={() => setOpen(true)} 
-          placeholder={effectivePlaceholder}
-          className="w-full px-3 py-3 text-sm font-semibold text-slate-700 outline-none bg-transparent placeholder:text-slate-400"
-        />
-        {selected && <button onClick={() => select(null)} className="text-slate-400 hover:text-red-500 font-bold p-1">×</button>}
-      </div>
-      {open && (
-        <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-          {filtered.length === 0 ? <div className="px-4 py-3 text-sm text-slate-500 text-center font-medium">{t('pos.customerNotFound')}</div> : filtered.map(c => (
-            <button key={c.id} onMouseDown={() => select(c)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 flex items-center justify-between transition-colors">
-              <div>
-                <div className="text-sm font-bold text-slate-800">{c.name}</div>
-                {c.phone && <div className="text-xs text-slate-500 font-medium">{c.phone}</div>}
-              </div>
-              {hasAnyDebt(c) && (
-                <div className="flex flex-col items-end gap-1">
-                  {getDebtEntries(c).map(({ currency, amount }) => (
-                    <span key={currency} className="text-xs text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg">
-                      {t('common.debt')}: {fmt(amount)} {currency}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function PosDesktop() {
   const { t } = useLang();
 const navigate = useNavigate();
   const [products, setProducts] = useState([]);
+  // T1.17: qoldiq tanlangan ombor (filial) bo'yicha
+  const [posWarehouses, setPosWarehouses] = useState([]);
+  const [warehouseId, setWarehouseId] = useState('');
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [custId, setCustId] = useState('');
+  // T3.8: serverdan topilgan (500 talik oflayn zaxira ro'yxatda yo'q) mijoz ro'yxatga qo'shiladi
+  const addCustomerToList = (c) => setCustomers(prev => (prev.some(x => x.id === c.id) ? prev : [c, ...prev]));
+  const pickCustomer = (id, c) => {
+    if (c) addCustomerToList(c);
+    setCustId(id);
+  };
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [variantParent, setVariantParent] = useState(null);
   const [showCustPanel, setShowCustPanel] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const { isOnline, syncing, pendingCount, submitSaleOrQueue, fetchProducts, fetchCustomers, fetchCategories } = usePosSync({
+  const { isOnline, syncing, pendingCount, submitSaleOrQueue, fetchProducts, fetchPosContext, fetchCustomers, fetchCategories } = usePosSync({
     onSyncSuccess: (count) => {
       setErr(`✅ ${count} ${t('posDesktop.offlineSalesSynced')}`);
       setTimeout(() => setErr(''), 4000);
@@ -111,10 +65,29 @@ const navigate = useNavigate();
     localStorage.setItem('pos_desktop_settings', JSON.stringify(next));
   };
 
+  // Ombor almashtirish: qoldiq yangi ombor bo'yicha qayta yuklanadi, savatdagi max_stock yangilanadi
+  const changeWarehouse = (wid) => {
+    setWarehouseId(wid);
+    fetchProducts(wid ? { warehouse_id: wid } : {}).then(prods => {
+      setProducts(prods);
+      setCart(prev => prev.map(i => {
+        const p = prods.find(x => x.id === i.product_id);
+        return p ? { ...i, max_stock: p.stock_quantity } : i;
+      }));
+    });
+  };
+
   // Load data — kesh bilan
   useEffect(() => {
     fetchCategories().then(setCategories);
-    fetchProducts().then(setProducts);
+    (async () => {
+      const posCtx = await fetchPosContext();
+      const whs = posCtx?.warehouses || [];
+      setPosWarehouses(whs);
+      const wid = posCtx?.default_warehouse_id ? String(posCtx.default_warehouse_id) : (whs.length === 1 ? String(whs[0].id) : '');
+      setWarehouseId(wid);
+      setProducts(await fetchProducts(wid ? { warehouse_id: wid } : {}));
+    })();
     fetchCustomers().then(custs => {
       setCustomers(custs);
       try {
@@ -209,18 +182,11 @@ const navigate = useNavigate();
                 }];
               });
               setSearch('');
-           } else if (scannedCode.length === 13 && (scannedCode.startsWith('20') || scannedCode.startsWith('21') || scannedCode.startsWith('22'))) {
-              // Tarozi barkodi: 21 + 5(SKU) + 5(Vazn grammda) + 1(Checksum)
-              const itemCode = scannedCode.substring(2, 7);
-              const weightGram = parseInt(scannedCode.substring(7, 12), 10) || 0;
-              const weightKg = weightGram / 1000;
-              
-              const scaleProduct = products.find(p => {
-                const rawPlu = p.sku && String(p.sku).trim() ? String(p.sku).trim().replace(/\\D/g, '') : String(p.id);
-                const pCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(p.id).padStart(5, '0');
-                return pCode === itemCode || p.barcode === itemCode;
-              });
-              if (scaleProduct) {
+           } else if (parseScaleBarcode(scannedCode)) {
+              // Tarozi barkodi (T3.12): 21 + 5(PLU) + 5(Vazn grammda) + 1(Checksum); PLU = plu_code
+              const { plu, weightKg } = parseScaleBarcode(scannedCode);
+              const itemCode = String(plu).padStart(5, '0');
+              const addScale = (scaleProduct) => {
                  setCart(prev => {
                    const ex = prev.find(x => x.product_id === scaleProduct.id);
                    if (ex) return prev.map(x => x.product_id === scaleProduct.id ? { ...x, qty_ordered: x.qty_ordered + weightKg } : x);
@@ -231,9 +197,19 @@ const navigate = useNavigate();
                    }];
                  });
                  setSearch('');
-              } else {
+              };
+              const notFound = () => {
                  setErr(`${t('posDesktop.scaleProductNotFound')} (${t('posDesktop.codeLabel')}: ${itemCode})`);
                  setTimeout(() => setErr(''), 3000);
+              };
+              const scaleProduct = findScaleProduct(products, plu);
+              if (scaleProduct) {
+                 addScale(scaleProduct);
+              } else {
+                 // Lokal ro'yxatda yo'q: serverdan PLU bo'yicha
+                 api.get('/products/barcode/' + itemCode)
+                   .then(r => { if (r.data && r.data.id != null) addScale(r.data); else notFound(); })
+                   .catch(notFound);
               }
            } else {
               setErr(`${t('posDesktop.barcodeNotFoundShort')}: ${scannedCode}`);
@@ -288,7 +264,6 @@ const navigate = useNavigate();
     }
   };
 
-  const orderNum = useRef(Math.floor(Math.random() * 90000) + 10000);
   const [showCheckout, setShowCheckout] = useState(false);
 
   const submitSale = async () => {
@@ -332,19 +307,30 @@ const navigate = useNavigate();
         discount_amount: 0,
         note: noteTxt,
         customer_id: Number(custId) || null,
+        // Ekranda ko'ringan qoldiq ombori = sotuv yechadigan ombor (T1.17)
+        warehouse_id: warehouseId ? Number(warehouseId) : undefined,
       };
 
       const result = await submitSaleOrQueue(payload, false);
 
-      // Auto Print — iframe (xuddi shu brauzer, tez)
+      // Auto Print — iframe (xuddi shu brauzer, tez). T3.7: faqat sotuv saqlangandan keyin; raqam — sale.number (oflaynda OFL-...)
+      try {
       if (posSettings.autoPrint) {
         const settings = getReceiptSettings();
         const templateType = posSettings.paper === '58mm' ? '58' : '80';
         const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
         const selectedCust = customers.find(c => String(c.id) === String(custId));
+        const saved = result?.offline ? null : (result?.data || null);
         const meta = {
-          id: orderNum.current, number: orderNum.current,
-          cashier_name: t('shift.cashier'),
+          id: saved?.id ?? result?.localNumber,
+          number: saved?.number || result?.localNumber,
+          cashier_name: saved?.cashier_name || t('shift.cashier'),
+          branch_name: saved?.branch_name,
+          branch_address: saved?.branch_address,
+          branch_phone: saved?.branch_phone,
+          branch_legal_name: saved?.branch_legal_name,   // T4.2
+          branch_stir: saved?.branch_stir,               // T4.2
+          company_name: saved?.company_name,
           created_at: new Date().toISOString(),
           total_amount: totalNet,
           paid_amount: paidAmt,
@@ -364,6 +350,10 @@ const navigate = useNavigate();
           before_debt: selectedCust ? (selectedCust.debt_balances ? (selectedCust.debt_balances['UZS'] || 0) : Number(selectedCust.debt_balance || 0)) : 0,
         };
         printReceiptHtml(buildReceiptHtml(meta, templateType, tmplCfg));
+      }
+      } catch (printErr) {
+        // Sotuv allaqachon saqlangan — chop etish xatosi savat tozalanishiga xalaqit bermasin
+        console.error('Chek chop etishda xato:', printErr);
       }
 
       setCart([]);
@@ -513,9 +503,8 @@ const navigate = useNavigate();
         <div className="p-5 border-b border-slate-100 flex flex-col relative z-50">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-black text-slate-800">{t('posDesktop.order')}</h2>
-            <div className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">#{orderNum.current}</div>
           </div>
-          <CustSearch customers={customers} value={custId} onChange={setCustId} placeholder={t('posDesktop.selectCustomerRequired')} />
+          <CustomerPicker variant="pos" customers={customers} value={custId} onChange={pickCustomer} onResolve={addCustomerToList} isOnline={isOnline} placeholder={t('posDesktop.selectCustomerRequired')} />
         </div>
 
         {/* Middle: Cart Items */}
@@ -596,6 +585,17 @@ const navigate = useNavigate();
             {search && <button onClick={()=>setSearch('')} className="text-slate-400 hover:text-red-500 p-1 font-bold text-xl leading-none">×</button>}
           </div>
 
+          {posWarehouses.length > 1 && (
+            <select
+              value={warehouseId}
+              onChange={e => changeWarehouse(e.target.value)}
+              title={t('pos.stockLabel')}
+              className="bg-white border border-slate-200 rounded-2xl shadow-sm px-3 py-3.5 font-bold text-slate-700 outline-none focus:border-blue-500 max-w-[220px]"
+            >
+              {posWarehouses.map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
+            </select>
+          )}
+
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <div className="text-sm font-bold text-slate-500 flex items-center gap-2 justify-end">
@@ -660,7 +660,7 @@ const navigate = useNavigate();
                   <h3 className="font-bold text-slate-800 text-[15px] leading-snug line-clamp-2 mb-2 group-hover:text-blue-900 transition-colors h-10">{p.name}</h3>
                   <div className="flex items-end justify-between w-full">
                     <div className="font-black text-blue-600 text-[17px]">{fmt(p.sale_price)} <span className="text-[11px] font-bold text-slate-400">UZS</span></div>
-                    <div className="text-[11px] font-extrabold text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                    <div title={posWarehouses.find(w => String(w.id) === String(warehouseId))?.name || ''} className="text-[11px] font-extrabold text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
                       {p.stock_quantity > 0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : t('pos.zeroStock')}
                     </div>
                   </div>

@@ -309,9 +309,13 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
         name=f"{data.company_name} (Asosiy)",
         company_id=company.id,
         is_active=True,
+        is_main=True,  # T1.4: asosiy filial
     )
     db.add(branch)
     db.flush()
+    # T1.4: asosiy filial uchun asosiy ombor ("Asosiy ombor", is_default) va kassa ("Asosiy kassa", yopiq)
+    from app.services.branch_provisioning import provision_branch
+    provision_branch(db, branch, create_warehouse=True, create_wallet=True)
 
 
 
@@ -334,6 +338,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
         company_id=company.id,
         role=UserRole.admin,
         is_active=True,
+        branch_id=branch.id,  # T1.2: filial korxona a'zoligida ham
     )
     db.add(user_company)
     db.commit()
@@ -356,7 +361,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
         db.commit()
 
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    refresh_token = create_refresh_token(_refresh_claims(user.id, user.company_id))
 
     log_action(
         db=db, 
@@ -394,6 +399,35 @@ class LoginOtpVerifyRequest(BaseModel):
 
 # Rollarni aniqlash: bu rollar login da OTP talab qiladi
 _OTP_REQUIRED_ROLES = set()  # OTP login o'chirilgan — parol bilan to'g'ridan kiradi
+
+def _refresh_claims(user_id: int, company_id) -> dict:
+    """Refresh token claim'lari: tanlangan korxona saqlansin (None bo'lsa claim qo'shilmaydi)."""
+    claims = {"sub": str(user_id)}
+    if company_id is not None:
+        claims["company_id"] = company_id
+    return claims
+
+
+def _branch_context_fields(db: Session, user: User, company_id) -> dict:
+    """T1.2: tanlangan korxona bo'yicha filial(lar) — `user_companies.branch_id` ∪ `user_branches`,
+    bo'lmasa legacy `users.branch_id` (faqat shu korxonaniki). ORM `user` o'zgartirilmaydi."""
+    from types import SimpleNamespace
+    from app.core.branch_context import _own_branch_id, assigned_branch_ids
+    proxy = SimpleNamespace(id=user.id, company_id=company_id, branch_id=user.branch_id)
+    return {"branch_id": _own_branch_id(db, proxy), "branch_ids": assigned_branch_ids(db, proxy)}
+
+
+def _user_out_in_company(db: Session, user: User, company_id, role=None, permissions=None) -> UserOut:
+    """Javobdagi `user` — tanlangan korxona kontekstida (rol, huquqlar, company_id, filial).
+    `users` jadvalidagi (asosiy korxona) qiymatlari emas (UI-13)."""
+    update = {"company_id": company_id}
+    if role is not None:
+        update["role"] = role
+    if permissions:
+        update["permissions"] = permissions
+    update.update(_branch_context_fields(db, user, company_id))
+    return UserOut.model_validate(user).model_copy(update=update)
+
 
 def _reject_mobile_role(role) -> None:
     """Kuryer/agent veb-panelga kira olmaydi — faqat mobil ilova (qurilmaga
@@ -445,16 +479,17 @@ def _process_login_success(user: User, db: Session, request: Request, is_otp: bo
     if len(companies) == 1:
         company_id = companies[0].company_id
         role = companies[0].role
+        # T1.2: javobdagi user — a'zolik (uc) bo'yicha: rol, huquqlar, filial
+        user_out = _user_out_in_company(db, user, company_id, role, companies[0].permissions)
     else:
         # Super admin uchun company_id None bo'lishi mumkin
         company_id = user.company_id if user.company_id else None
         role = user.role
+        user_out = _user_out_in_company(db, user, company_id)
 
     role_val = role.value if hasattr(role, 'value') else str(role)
     access_token = create_access_token({"sub": str(user.id), "role": role_val, "company_id": company_id})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
-
-    user_out = UserOut.model_validate(user)
+    refresh_token = create_refresh_token(_refresh_claims(user.id, company_id))
 
     action = "LOGIN_OTP" if is_otp else "LOGIN"
     log_action(db=db, action=action, entity_type="user", entity_id=user.id,
@@ -570,9 +605,10 @@ def select_company(request: Request, data: SelectCompanyRequest, db: Session = D
     _reject_mobile_role(uc.role)
     role_val = uc.role.value if hasattr(uc.role, 'value') else str(uc.role)
     access_token = create_access_token({"sub": str(user.id), "role": role_val, "company_id": uc.company_id})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    refresh_token = create_refresh_token(_refresh_claims(user.id, uc.company_id))
 
-    user_out = UserOut.model_validate(user)
+    # T1.2/UI-13: javobdagi user tanlangan korxona bo'yicha (rol, huquqlar, company_id, filial)
+    user_out = _user_out_in_company(db, user, uc.company_id, uc.role, uc.permissions)
 
     log_action(db=db, action="LOGIN_SELECT_COMPANY", entity_type="user", entity_id=user.id,
                user_id=user.id, ip_address=request.client.host if request.client else None)
@@ -597,20 +633,101 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
     from app.models.user import MOBILE_ONLY_ROLES
-    if user.role in MOBILE_ONLY_ROLES:
+    from app.models.user_company import UserCompany
+
+    # Tanlangan korxona (refresh tokendagi company_id) va uning roli saqlanadi.
+    # Claim yo'q (eski tokenlar) bo'lsa — avvalgidek users.company_id / users.role.
+    cid = payload.get("company_id")
+    eff_company_id = user.company_id
+    eff_role = user.role
+    eff_permissions = None
+    if cid is not None:
+        cid = int(cid)
+        uc = db.query(UserCompany).filter(
+            UserCompany.user_id == user.id,
+            UserCompany.company_id == cid,
+            UserCompany.is_active == True,  # noqa: E712
+        ).first()
+        if uc is None:
+            # Faol a'zolik yo'q: bekor qilingan yoki begona korxona -> 401.
+            # user_companies qatori umuman yo'q eski foydalanuvchi o'z asosiy korxonasida qoladi.
+            revoked = db.query(UserCompany.id).filter(
+                UserCompany.user_id == user.id, UserCompany.company_id == cid,
+            ).first()
+            if revoked is not None or cid != user.company_id:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Korxonaga a'zolik bekor qilingan")
+        else:
+            eff_role = uc.role
+            eff_permissions = uc.permissions
+        eff_company_id = cid
+
+    if eff_role in MOBILE_ONLY_ROLES:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token yaroqsiz")
-    access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
-    new_refresh_token = create_refresh_token({"sub": str(user.id)})
+    claims = {"sub": str(user.id), "role": eff_role.value}
+    if eff_company_id is not None:
+        claims["company_id"] = eff_company_id
+    access_token = create_access_token(claims)
+    new_refresh_token = create_refresh_token(_refresh_claims(user.id, eff_company_id))
+    # user ORM obyektiga TEGILMAYDI — faqat javob nusxasi tanlangan korxona kontekstida (T1.2: filial ham).
     return TokenResponse(
         access_token=access_token,
         refresh_token=new_refresh_token,
-        user=UserOut.model_validate(user),
+        user=_user_out_in_company(db, user, eff_company_id, eff_role, eff_permissions),
     )
 
 
 @router.get("/me", response_model=UserOut)
-def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+def get_me(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # T1.2: filial joriy (token) korxonasi bo'yicha; current_user allaqachon korxona/rol kontekstida
+    return UserOut.model_validate(current_user).model_copy(
+        update=_branch_context_fields(db, current_user, current_user.company_id)
+    )
+
+
+class UpdateMeRequest(BaseModel):
+    """Foydalanuvchi o'z profilini tahrirlaydi. Telefon login identifikatori (OTP) — bu yerdan o'zgartirilmaydi."""
+    name: Optional[str] = None
+    email: Optional[str] = None
+    current_password: Optional[str] = None
+    new_password: Optional[str] = None
+
+
+@router.put("/me", response_model=UserOut)
+def update_me(data: UpdateMeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+    if data.name is not None:
+        name = data.name.strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Ism kamida 2 ta belgidan iborat bo'lsin")
+        user.name = name[:100]
+
+    if data.email is not None:
+        email = data.email.strip().lower() or None
+        if email:
+            if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+                raise HTTPException(status_code=400, detail="Email noto'g'ri formatda")
+            busy = db.query(User.id).filter(User.email == email, User.id != user.id).first()
+            if busy:
+                raise HTTPException(status_code=400, detail="Bu email boshqa foydalanuvchiga biriktirilgan")
+        user.email = email
+
+    if data.new_password:
+        if not data.current_password or not verify_password(data.current_password, user.hashed_password):
+            raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+        if len(data.new_password) < 6:
+            raise HTTPException(status_code=400, detail="Yangi parol kamida 6 ta belgidan iborat bo'lsin")
+        user.hashed_password = hash_password(data.new_password)
+
+    db.commit()
+    db.refresh(user)
+    # Javob — hozirgi token kontekstida (ko'p korxonali foydalanuvchida tanlangan korxona, rol va filial saqlanadi)
+    return UserOut.model_validate(user).model_copy(update={
+        "company_id": current_user.company_id, "role": current_user.role,
+        **_branch_context_fields(db, user, current_user.company_id),
+    })
 
 
 # ─── Parolni tiklash ─────────────────────────────────────────────────────────
@@ -679,21 +796,5 @@ def reset_password(request: Request, data: ResetPasswordRequest, db: Session = D
 
     return {"message": "Parol muvaffaqiyatli yangilandi"}
 
-
-# ─── Telegram bot ulash ───────────────────────────────────────────────────────
-
-class LinkTelegramRequest(BaseModel):
-    chat_id: str
-    phone: str
-
-
-@router.post("/link-telegram")
-def link_telegram(data: LinkTelegramRequest, db: Session = Depends(get_db)):
-    """Telegram bot orqali foydalanuvchi chat_id ni tizimga ulaydi."""
-    normalized = data.phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
-    if not user:
-        return {"linked": False, "message": "Foydalanuvchi topilmadi"}
-    user.tg_chat_id = data.chat_id
-    db.commit()
-    return {"linked": True, "name": user.name}
+# Telegram bog'lash faqat bot ichida (kontakt orqali) amalga oshiriladi:
+# autentifikatsiyasiz /auth/link-telegram endpointi xavfsizlik uchun olib tashlangan (T0.17).

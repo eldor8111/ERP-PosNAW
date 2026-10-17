@@ -1,0 +1,35 @@
+{
+  "uz": {
+    "user.selectBranchPlaceholder": "Filialni tanlang",
+    "user.branchRequired": "Bu rol uchun filial tanlanishi shart",
+    "user.branchNoWarehouse": "Bu filialda faol ombor yo'q — sotuvlar boshqa ombordan yechilishi mumkin",
+    "user.baseRole": "Asosiy rol",
+    "user.customRoleNote": "Server huquqlari asosiy rol bo'yicha beriladi",
+    "user.systemRoles": "Tizim rollari",
+    "user.customRoles": "Maxsus rollar",
+    "user.branchesMultiHint": "Bir nechta filialni tanlash mumkin",
+    "user.branchInactive": "nofaol"
+  },
+  "ru": {
+    "user.selectBranchPlaceholder": "Выберите филиал",
+    "user.branchRequired": "Для этой роли необходимо выбрать филиал",
+    "user.branchNoWarehouse": "В этом филиале нет активного склада — продажи могут списываться с другого склада",
+    "user.baseRole": "Основная роль",
+    "user.customRoleNote": "Серверные права выдаются по основной роли",
+    "user.systemRoles": "Системные роли",
+    "user.customRoles": "Пользовательские роли",
+    "user.branchesMultiHint": "Можно выбрать несколько филиалов",
+    "user.branchInactive": "неактивен"
+  },
+  "en": {
+    "user.selectBranchPlaceholder": "Select a branch",
+    "user.branchRequired": "A branch is required for this role",
+    "user.branchNoWarehouse": "This branch has no active warehouse — sales may be deducted from another warehouse",
+    "user.baseRole": "Base role",
+    "user.customRoleNote": "Server permissions are granted according to the base role",
+    "user.systemRoles": "System roles",
+    "user.customRoles": "Custom roles",
+    "user.branchesMultiHint": "You can select several branches",
+    "user.branchInactive": "inactive"
+  }
+}

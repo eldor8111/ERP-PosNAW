@@ -12,7 +12,13 @@ class SaleItemCreate(BaseModel):
     variant_id: Optional[int] = None
     quantity: Decimal
     unit_price: Optional[Decimal] = None  # None bo'lsa mahsulot narxidan oladi
+    # T3.19: kassir narxni qo'lda o'zgartirdimi (True — unit_price saqlanadi, False — server ro'yxat narxi,
+    # None — eski klient: ro'yxat narxiga teng narx individual narx bilan almashtiriladi)
+    price_manual: Optional[bool] = None
     discount: Decimal = Decimal("0")
+    # T4.3: qo'llangan aksiya — server faollik/sana/filial/mahsulot bo'yicha tekshiradi (mos kelmasa 400).
+    # Aksiya ulushi `discount` ICHIDA (qo'shimcha chegirma emas): promotion_discount = min(server hisobi, discount)
+    promotion_id: Optional[int] = None
     warehouse_id: Optional[int] = None    # Desktop POS har item uchun sklad yuboradi
     currency_code: Optional[str] = "UZS"
     exchange_rate: Optional[Decimal] = Decimal("1.0")
@@ -39,6 +45,9 @@ class PaymentItem(BaseModel):
     amount: Decimal
     currency: Optional[str] = "UZS"
     rate: Optional[Decimal] = Decimal("1.0")
+    # T3.18: provayder (click/payme/uzum) tranzaksiya raqami va filial to'lov terminali
+    reference: Optional[str] = Field(None, max_length=64)
+    terminal_id: Optional[int] = None
 
     @field_validator("amount")
     @classmethod
@@ -98,12 +107,16 @@ class SaleCreate(BaseModel):
     # Valyutalar kesimida qarzlar (Ulgurji sotuvdan keladi)
     currency_totals: Optional[dict] = None
     wallet_id: Optional[int] = None
+    # Faqat /sales/return uchun: qaytarilayotgan asl sotuv (T0.31)
+    original_sale_id: Optional[int] = None
     # Oflayn POS uchun: sotuv qilingan haqiqiy vaqt (server vaqti emas)
     created_at: Optional[datetime] = None
     # Oflayn POS: lokal UUID (takroriy yuborishlarni oldini olish)
     local_id: Optional[str] = None
     # Ulgurji sotuvdan yetkazib berish (ixtiyoriy)
     delivery: Optional[DeliveryIn] = None
+    # T4.6: limitdan oshgan chegirma/narx/qaytarish uchun tasdiqlangan so'rov (menejer tasdig'i)
+    approval_id: Optional[int] = None
 
     @field_validator("items")
     @classmethod
@@ -121,8 +134,10 @@ class SaleItemOut(BaseModel):
     sku: Optional[str] = None
     quantity: Decimal
     unit_price: Decimal
-    cost_price: Decimal
+    cost_price: Optional[Decimal] = None   # kassir uchun yashiriladi (None)
     discount: Decimal
+    promotion_id: Optional[int] = None            # T4.3: qo'llangan aksiya
+    promotion_discount: Optional[Decimal] = None  # T4.3: chegirma ichidagi aksiya ulushi
     subtotal: Decimal
     returned_quantity: Optional[Decimal] = Decimal("0")
     unit: Optional[str] = "dona"           # O'lchov birligi (kg, litr, dona...)
@@ -137,6 +152,8 @@ class SalePaymentOut(BaseModel):
     id: int
     payment_type: PaymentType
     amount: Decimal
+    reference: Optional[str] = None
+    terminal_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -162,6 +179,17 @@ class SaleOut(BaseModel):
     created_at: datetime
     debt_due_date: Optional[date] = None
     warehouse_id: Optional[int] = None
+    # T1.9: sotuv filiali (snapshot) va uning rekvizitlari — chek uchun
+    branch_id: Optional[int] = None
+    branch_name: Optional[str] = None
+    branch_address: Optional[str] = None
+    branch_phone: Optional[str] = None
+    # T4.2: filial yuridik nomi va STIR
+    branch_legal_name: Optional[str] = None
+    branch_stir: Optional[str] = None
+    # T3.7: chek uchun ombor va korxona nomi
+    warehouse_name: Optional[str] = None
+    company_name: Optional[str] = None
     currency_code: Optional[str] = "UZS"
     exchange_rate: Optional[Decimal] = Decimal("1.0")
     debt_amounts: Optional[dict] = None
@@ -172,7 +200,10 @@ class SaleOut(BaseModel):
     fiscal_receipt_seq: Optional[int] = None
     fiscal_transaction_id: Optional[str] = None
     fiscal_at: Optional[datetime] = None
+    fiscal_factory_id: Optional[str] = None
     delivery: Optional[dict] = None
+    # Qaytarish hujjati (R...) uchun asl sotuv (T0.30)
+    original_sale_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -184,6 +215,7 @@ class SaleFiscalUpdate(BaseModel):
     fiscal_receipt_seq: Optional[int] = Field(None, ge=0, le=2147483647)
     fiscal_transaction_id: Optional[str] = Field(None, max_length=64)
     fiscal_at: Optional[datetime] = None
+    fiscal_factory_id: Optional[str] = Field(None, max_length=64)
 
 
 class SaleListOut(BaseModel):
@@ -207,6 +239,18 @@ class SaleListOut(BaseModel):
     debt_amounts: Optional[dict] = None
     before_debt_balances: Optional[dict] = None
     delivery_status: Optional[str] = None
+    # Qaytarish hujjati (R...) uchun asl sotuv (T0.30)
+    original_sale_id: Optional[int] = None
+    # T1.9: sotuv filiali (snapshot)
+    branch_id: Optional[int] = None
+    branch_name: Optional[str] = None
+    # T3.7: POS chekni qo'shimcha so'rovsiz chiqarishi uchun filial rekvizitlari
+    branch_address: Optional[str] = None
+    branch_phone: Optional[str] = None
+    branch_legal_name: Optional[str] = None   # T4.2
+    branch_stir: Optional[str] = None         # T4.2
+    warehouse_name: Optional[str] = None
+    company_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -251,6 +295,11 @@ class SaleReturnRequest(BaseModel):
     items: List[PartialReturnItem]
     payment_type: PaymentType = PaymentType.cash
     note: Optional[str] = None
+    # Ixtiyoriy: pul chiqadigan kassa va tovar qaytadigan ombor (T0.31)
+    wallet_id: Optional[int] = None
+    warehouse_id: Optional[int] = None
+    # T4.6: limitdan katta qaytarish uchun tasdiqlangan so'rov
+    approval_id: Optional[int] = None
 
 class SaleBulkCreate(BaseModel):
     sales: List[SaleCreate]

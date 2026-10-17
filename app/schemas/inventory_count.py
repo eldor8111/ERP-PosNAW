@@ -1,14 +1,14 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.models.inventory_count import CountStatus
 
 
 class CountItemUpdate(BaseModel):
     product_id: int
     variant_id: Optional[int] = None
-    counted_qty: Decimal
+    counted_qty: Decimal = Field(ge=0, le=Decimal("999999999"))
     variance_reason: Optional[str] = None
 
 
@@ -16,6 +16,8 @@ class CountCreate(BaseModel):
     warehouse_id: int
     note: Optional[str] = None
     category_ids: Optional[List[int]] = None  # None = to'liq, list = qisman
+    # False = qatorlarsiz yaratiladi (tezkor revizya: qatorlar keyin update_count_items bilan qo'shiladi)
+    prepopulate: bool = True
 
 
 class CountItemOut(BaseModel):

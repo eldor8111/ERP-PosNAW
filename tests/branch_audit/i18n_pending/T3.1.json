@@ -1,0 +1,32 @@
+{
+  "uz": {
+    "nav.branches": "Filiallar",
+    "branch.loadFailedRetry": "Yuklab bo'lmadi, qayta urinib ko'ring",
+    "branch.showInactive": "Nofaollar",
+    "branch.filterActive": "Faollar",
+    "branch.usersList": "Xodimlar",
+    "branch.usersCount": "Xodimlar: {count}",
+    "branch.noUsers": "Xodimlar yo'q",
+    "shift.closeAction": "Smenani yopish"
+  },
+  "ru": {
+    "nav.branches": "Филиалы",
+    "branch.loadFailedRetry": "Не удалось загрузить, повторите попытку",
+    "branch.showInactive": "Неактивные",
+    "branch.filterActive": "Активные",
+    "branch.usersList": "Сотрудники",
+    "branch.usersCount": "Сотрудники: {count}",
+    "branch.noUsers": "Сотрудников нет",
+    "shift.closeAction": "Закрыть смену"
+  },
+  "en": {
+    "nav.branches": "Branches",
+    "branch.loadFailedRetry": "Could not load, please try again",
+    "branch.showInactive": "Inactive",
+    "branch.filterActive": "Active",
+    "branch.usersList": "Staff",
+    "branch.usersCount": "Staff: {count}",
+    "branch.noUsers": "No staff",
+    "shift.closeAction": "Close shift"
+  }
+}

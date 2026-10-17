@@ -5,12 +5,15 @@ class CompanyBotCreate(BaseModel):
     bot_token: str
 
 class CompanyBotSettingsUpdate(BaseModel):
-    notify_instant_sales: bool = True
-    notify_instant_finance: bool = True
-    notify_scheduled: bool = True
-    scheduled_time: str = "20:00"
-    notify_expired_products: bool = True
-    expired_days_before: int = 7
+    """Berilmagan maydonlar o'zgarmaydi (qisman yangilash, T3.16)."""
+    notify_instant_sales: Optional[bool] = None
+    notify_instant_finance: Optional[bool] = None
+    notify_scheduled: Optional[bool] = None
+    scheduled_time: Optional[str] = None
+    notify_expired_products: Optional[bool] = None
+    expired_days_before: Optional[int] = None
+    notify_branch_managers: Optional[bool] = None
+    report_by_branch: Optional[bool] = None
 
 class CompanyBotOut(BaseModel):
     id: int
@@ -23,6 +26,8 @@ class CompanyBotOut(BaseModel):
     scheduled_time: Optional[str] = "20:00"
     notify_expired_products: Optional[bool] = True
     expired_days_before: Optional[int] = 7
+    notify_branch_managers: Optional[bool] = True
+    report_by_branch: Optional[bool] = True
 
     class Config:
         from_attributes = True

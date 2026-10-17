@@ -1,7 +1,7 @@
 # app/admin_tg_bot/models.py
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, true as sa_true
 from app.database import Base
 
 class CompanyBot(Base):
@@ -21,7 +21,11 @@ class CompanyBot(Base):
     
     notify_expired_products = Column(Boolean, default=True)
     expired_days_before = Column(Integer, default=7)
-    
+
+    # T3.16: filial bo'yicha xabarlar — filial menejeriga yuborish va hisobotda filiallar bo'limi
+    notify_branch_managers = Column(Boolean, nullable=False, default=True, server_default=sa_true())
+    report_by_branch = Column(Boolean, nullable=False, default=True, server_default=sa_true())
+
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

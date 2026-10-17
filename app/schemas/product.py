@@ -3,7 +3,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.product import ProductStatus
 from app.schemas.product_variant import ProductVariantOut, ProductVariantCreate
@@ -49,6 +49,7 @@ class ProductCreate(BaseModel):
     product_code: Optional[str] = None
     extra_product_codes: Optional[List[str]] = None
     sku: Optional[str] = None
+    plu_code: Optional[int] = Field(None, ge=1, le=99999)  # T3.12: tarozi PLU kodi
     barcode: str
     extra_barcodes: Optional[List[str]] = None
     name_ru: Optional[str] = None
@@ -100,6 +101,7 @@ class ProductUpdate(BaseModel):
     product_code: Optional[str] = None
     extra_product_codes: Optional[List[str]] = None
     sku: Optional[str] = None
+    plu_code: Optional[int] = Field(None, ge=1, le=99999)  # T3.12: tarozi PLU kodi
     barcode: Optional[str] = None
     extra_barcodes: Optional[List[str]] = None
     brand: Optional[str] = None
@@ -133,8 +135,8 @@ class ProductUpdate(BaseModel):
     
     # Virtual Products
     conversion: Optional[ProductConversionIn] = None
-    initial_stock: Optional[Decimal] = None
-    initial_warehouse_id: Optional[int] = None
+    initial_stock: Optional[Decimal] = None  # deprecated: PUT da e'tiborsiz
+    initial_warehouse_id: Optional[int] = None  # deprecated: PUT da e'tiborsiz
 
 
 class ProductStatusUpdate(BaseModel):
@@ -146,6 +148,7 @@ class ProductOut(BaseModel):
     product_code: Optional[str] = None
     extra_product_codes: Optional[List[str]] = None
     sku: str
+    plu_code: Optional[int] = None
     barcode: str
     extra_barcodes: Optional[List[str]] = None
     name: str
@@ -222,6 +225,7 @@ class ProductListOut(BaseModel):
     product_code: Optional[str] = None
     extra_product_codes: Optional[List[str]] = None
     sku: str
+    plu_code: Optional[int] = None
     barcode: str
     extra_barcodes: Optional[List[str]] = None
     name: str

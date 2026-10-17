@@ -4,16 +4,19 @@ bulk_import_products products.py dan ajratilgan.
 """
 import random
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_roles
 from app.database import get_db
-from app.models.inventory import StockLevel
+from app.models.inventory import MovementType, StockLevel, StockMovement
 from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.user import User, UserRole
+from app.routers.products import _assign_plu
+from app.services.inventory_service import get_or_create_stock, receive_stock
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -33,6 +36,8 @@ FIELD_MAP = {
     "Holat":         ("status",           str),
     "Brand":         ("brand",            str),
     "Kategoriya":    ("category_id",      int),
+    # T4.5: qator bo'yicha ombor (nom) - so'rov parametridagi omborga nisbatan ustun
+    "Ombor":         ("_warehouse",       str),
     # Valyuta maydonlari — frontend __cur_ prefiksi bilan yuboradi
     "__cur_Tan narxi":     ("cost_currency",      str),
     "__cur_Chakana narxi": ("sale_currency",      str),
@@ -44,49 +49,152 @@ STATUS_MAP = {
     "nofaol": "inactive","inactive": "inactive",
     "arxiv": "archived", "archived": "archived",
 }
+
+
+def _resolve_target_warehouse(db: Session, current_user: User, warehouse_id: Optional[int]):
+    """So'rov parametridagi (yoki joriy filialning default) omborni aniqlaydi (T1.5).
+
+    `warehouse_id` berilgan, lekin korxonada topilmasa - 400 (hech qachon jimgina boshqa omborga
+    yozilmaydi), filial ruxsati yo'q bo'lsa - 403. Berilmagan va aniqlanmasa - `None`."""
+    from app.models.warehouse import Warehouse
+    from app.services.warehouse_resolver import resolve_warehouse
+    try:
+        _wid = resolve_warehouse(
+            db, current_user.company_id, requested_id=warehouse_id, purpose="receive", user=current_user,
+        )
+        return db.query(Warehouse).filter(Warehouse.id == _wid).first()
+    except HTTPException as e:
+        if warehouse_id:
+            # Tanlangan ombor topilmasa 400 (MODEL-24), filial ruxsati yo'q bo'lsa 403
+            if e.status_code == 404:
+                raise HTTPException(status_code=400, detail="Tanlangan ombor topilmadi")
+            raise
+        # Ombor aniqlanmadi - faqat qoldiqli satrlar xato bo'ladi (har satr uchun)
+        return None
+
+
+class _RowWarehouseResolver:
+    """"Ombor" ustuni (nom) -> ombor id. Faqat korxonaning faol omborlari; filialli (non-admin) xodim
+    uchun faqat o'z filiallari omborlari. Natija keshlanadi: (ombor_id, xato_matni)."""
+
+    def __init__(self, db: Session, current_user: User, default_wh=None):
+        from app.core.branch_context import effective_branch_ids
+        from app.models.warehouse import Warehouse
+        from app.services.tenant_guards import BRANCH_FREE_ROLES
+        self.default_wh = default_wh
+        self.by_name: dict = {}
+        for w in db.query(Warehouse).filter(
+            Warehouse.company_id == current_user.company_id, Warehouse.is_active.isnot(False),
+        ).order_by(Warehouse.id).all():
+            self.by_name.setdefault((w.name or "").strip().casefold(), []).append(w)
+        self.allowed = frozenset() if current_user.role in BRANCH_FREE_ROLES \
+            else effective_branch_ids(db, current_user)
+        self.cache: dict = {}
+
+    def resolve(self, raw):
+        name = str(raw or "").replace("\xa0", " ").strip()
+        key = name.casefold()
+        if key in self.cache:
+            return self.cache[key]
+        cands = self.by_name.get(key, [])
+        if not cands:
+            res = (None, f"Ombor topilmadi: {name}")
+        else:
+            if self.allowed:
+                cands = [w for w in cands if w.branch_id in self.allowed]
+            if not cands:
+                res = (None, f"Bu omborga import qilish uchun ruxsat yo'q: {name}")
+            elif len(cands) > 1:
+                dw = self.default_wh
+                pick = next((w for w in cands if dw is not None and w.id == dw.id), None)
+                res = (pick.id, None) if pick else (None, f"Ombor nomi bir nechta: {name} - omborni aniqlashtiring")
+            else:
+                res = (cands[0].id, None)
+        self.cache[key] = res
+        return res
+
+
 @router.post("/bulk-check")
 def bulk_check_products(
     rows: List[dict],
     search_by_sku: bool = Query(False),
+    warehouse_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
-    all_products = db.query(Product.name, Product.barcode, Product.sku).filter(
+    """Import oldidan tekshiruv: `{found_count, new_count, stock_will_change}`.
+
+    `stock_will_change` - mavjud mahsulotlardan nechtasining tanlangan (yoki qatordagi "Ombor") ombor
+    qoldig'i Excel'dagi "Qoldiq" ga o'zgarishi."""
+    target_wh = _resolve_target_warehouse(db, current_user, warehouse_id)   # 400/403 noto'g'ri ombor
+    all_products = db.query(
+        Product.id, Product.name, Product.barcode, Product.sku, Product.product_type,
+    ).filter(
         Product.is_deleted == False,
         Product.company_id == current_user.company_id,
     ).all()
-    
-    name_set = {p.name for p in all_products if p.name}
-    barcode_set = {p.barcode for p in all_products if p.barcode}
-    sku_set = {p.sku for p in all_products if p.sku}
-    
+
+    name_map = {p.name: p for p in all_products if p.name}
+    barcode_map = {p.barcode: p for p in all_products if p.barcode}
+    sku_map = {p.sku: p for p in all_products if p.sku}
+
     found_count = 0
     new_count = 0
-    
+    found_rows: list = []   # (product, ombor_id, yangi_qoldiq)
+    wh_resolver = None
+
     for row in rows:
         name = str(row.get("Nomi") or "").strip()
         barcode = str(row.get("Barkod") or "").strip()
         sku_val = str(row.get("SKU") or "").strip() or None
         if sku_val and sku_val.lstrip("0") == "":
             sku_val = None
-            
+
         if not name and not barcode:
             continue
-            
-        exists = False
-        if name and name in name_set:
-            exists = True
-        elif barcode and barcode in barcode_set:
-            exists = True
-        elif search_by_sku and sku_val and sku_val in sku_set:
-            exists = True
-            
-        if exists:
+
+        product = None
+        if name and name in name_map:
+            product = name_map[name]
+        elif barcode and barcode in barcode_map:
+            product = barcode_map[barcode]
+        elif search_by_sku and sku_val and sku_val in sku_map:
+            product = sku_map[sku_val]
+
+        if product is not None:
             found_count += 1
+            raw_stock = row.get("Qoldiq")
+            if raw_stock is None or str(raw_stock).strip() == "":
+                continue
+            try:
+                new_qty = Decimal(str(raw_stock).replace(" ", "").replace("\xa0", "").replace(",", ".").strip())
+            except Exception:
+                continue
+            row_wh_id = target_wh.id if target_wh else None
+            wh_raw = str(row.get("Ombor") or "").strip()
+            if wh_raw:
+                if wh_resolver is None:
+                    wh_resolver = _RowWarehouseResolver(db, current_user, target_wh)
+                row_wh_id = wh_resolver.resolve(wh_raw)[0]
+            if row_wh_id is not None and product.product_type not in ("sell", "service"):
+                found_rows.append((product, row_wh_id, new_qty))
         else:
             new_count += 1
-            
-    return {"found_count": found_count, "new_count": new_count}
+
+    stock_will_change = 0
+    if found_rows:
+        pids = list({p.id for p, _, _ in found_rows})
+        has_variants = {r[0] for r in db.query(ProductVariant.product_id).filter(
+            ProductVariant.product_id.in_(pids)).all()}
+        cur = {(r.product_id, r.warehouse_id): r.quantity for r in db.query(StockLevel).filter(
+            StockLevel.product_id.in_(pids), StockLevel.variant_id.is_(None)).all()}
+        for p, wh_id, new_qty in found_rows:
+            if p.id in has_variants:
+                continue
+            if Decimal(str(cur.get((p.id, wh_id)) or 0)) != new_qty:
+                stock_will_change += 1
+
+    return {"found_count": found_count, "new_count": new_count, "stock_will_change": stock_will_change}
 
 @router.post("/bulk-import")
 def bulk_import_products(
@@ -109,17 +217,14 @@ def bulk_import_products(
     updated = 0
     errors: list = []
     
-    # ── Omborni aniqlash: foydalanuvchi tanlaganini birinchi, aks holda birinchi ombor ──
-    from app.models.warehouse import Warehouse
-    if warehouse_id:
-        chosen_wh = db.query(Warehouse).filter(
-            Warehouse.id == warehouse_id,
-            Warehouse.company_id == current_user.company_id
-        ).first()
-        first_wh_id = chosen_wh.id if chosen_wh else None
-    else:
-        first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
-        first_wh_id = first_wh.id if first_wh else None
+    # ── Omborni aniqlash (T1.5): tanlangan ombor (korxona/faollik/filial bo'yicha), aks holda
+    # joriy filialning default ombori - korxonaning eng kichik id li ombori emas.
+    # T4.5: qatordagi "Ombor" ustuni (nom) shu omborga nisbatan ustun ──
+    warnings: list = []
+    chosen_wh = _resolve_target_warehouse(db, current_user, warehouse_id)
+    first_wh_id = chosen_wh.id if chosen_wh else None
+    first_wh_name = chosen_wh.name if chosen_wh else None
+    wh_resolver = _RowWarehouseResolver(db, current_user, chosen_wh)
 
     # ── Bazadagi BARCHA (o'chirilmagan) mahsulotlarni yuklash ──────────
     all_products = db.query(Product).filter(
@@ -161,6 +266,15 @@ def bulk_import_products(
             errors.append({"row": row_num, "error": "Mahsulot nomi yoki barkod majburiy"})
             continue
 
+        # T4.5: qator bo'yicha ombor ("Ombor" ustuni) - topilmasa faqat shu qator xato
+        row_wh_id = first_wh_id
+        wh_raw = str(row.get("Ombor") or "").replace("\xa0", " ").strip()
+        if wh_raw:
+            row_wh_id, wh_err = wh_resolver.resolve(wh_raw)
+            if wh_err:
+                errors.append({"row": row_num, "name": name or barcode, "error": wh_err})
+                continue
+
         # ── Mavjud mahsulotni topish ───────────────────────────────────
         existing = None
         if name and name in name_map:
@@ -182,6 +296,8 @@ def bulk_import_products(
 
             stock_val = None
             for row_key, (field, cast) in FIELD_MAP.items():
+                if field == "_warehouse":
+                    continue   # yuqorida aniqlangan (row_wh_id)
                 raw = row.get(row_key)
                 if raw is None or str(raw).strip() == "":
                     continue
@@ -222,18 +338,46 @@ def bulk_import_products(
                     errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati noto'g'ri: {raw}"})
                     continue
 
-            if stock_val is not None:
-                if existing.stock_level:
-                    existing.stock_level.quantity = stock_val
-                    if not existing.stock_level.warehouse_id:
-                        existing.stock_level.warehouse_id = first_wh_id
-                else:
-                    existing.stock_level = StockLevel(quantity=stock_val, warehouse_id=first_wh_id)
-
             # Ob'ektni sessiyada ochiqchasiga belgilash va o'zgarishlarni qo'llash
             db.add(existing)
             sp = db.begin_nested()
             try:
+                if stock_val is not None:
+                    # Qoldiq faqat tanlangan ombor qatoriga (product, variant=NULL, warehouse)
+                    # ADJUST harakati bilan yoziladi; variantli / sell / service — o'zgarmaydi
+                    has_variants = db.query(ProductVariant.id).filter(
+                        ProductVariant.product_id == existing.id
+                    ).first() is not None
+                    if existing.product_type in ("sell", "service") or has_variants:
+                        warnings.append({
+                            "row": row_num, "name": name or barcode,
+                            "warning": "Qoldiq o'zgartirilmadi: variantli yoki tarkibiy/xizmat mahsulot — "
+                                       "qoldiqni Inventarizatsiya orqali tuzating",
+                        })
+                    elif row_wh_id is None:
+                        warnings.append({
+                            "row": row_num, "name": name or barcode,
+                            "warning": "Qoldiq o'zgartirilmadi: korxonada ombor topilmadi",
+                        })
+                    else:
+                        stock = get_or_create_stock(db, existing.id, row_wh_id, None)
+                        qty_before = stock.quantity if stock.quantity is not None else Decimal("0")
+                        delta = stock_val - qty_before
+                        if delta != 0:
+                            stock.quantity = stock_val
+                            db.add(StockMovement(
+                                product_id=existing.id,
+                                variant_id=None,
+                                warehouse_id=row_wh_id,
+                                type=MovementType.ADJUST,
+                                qty_before=qty_before,
+                                qty_after=stock_val,
+                                quantity=abs(delta),
+                                reference_type="product_import",
+                                reference_id=None,
+                                user_id=current_user.id,
+                                reason="Excel import",
+                            ))
                 db.flush()
                 sp.commit()
                 updated += 1
@@ -279,6 +423,13 @@ def bulk_import_products(
             wholesale_cur   = str(row.get("__cur_Ulgurji narxi") or "UZS").strip().upper() or "UZS"
         except Exception:
             errors.append({"row": row_num, "name": name, "error": "Narx/qoldiq qiymatlari noto'g'ri"})
+            continue
+
+        if initial_stock < 0:
+            errors.append({"row": row_num, "name": name, "error": "Qoldiq manfiy bo'lishi mumkin emas"})
+            continue
+        if initial_stock > 0 and row_wh_id is None:
+            errors.append({"row": row_num, "name": name, "error": "Ombor aniqlanmadi — omborni tanlang, qoldiqli mahsulotni yuklab bo'lmaydi"})
             continue
 
         # ── Barkod tekshiruvi (DB + joriy sessiya) ─────────────────────
@@ -329,9 +480,18 @@ def bulk_import_products(
                 sale_currency=sale_cur,
                 wholesale_currency=wholesale_cur,
             )
-            product.stock_level = StockLevel(quantity=initial_stock, warehouse_id=first_wh_id)
+            # T3.12: kg/g mahsulotga tarozi PLU kodi avtomatik beriladi
+            _assign_plu(db, current_user.company_id, product)
             db.add(product)
             db.flush()
+            if initial_stock > 0:
+                # Qoldiq tanlangan omborga kirim (IN) harakati + Batch bilan tushadi
+                receive_stock(
+                    db, product.id, initial_stock, current_user.id,
+                    reason="Excel import", reference_type="product_import", reference_id=None,
+                    warehouse_id=row_wh_id, purchase_price=cost_price,
+                    company_id=current_user.company_id,
+                )
             sp.commit()
 
             # Muvaffaqiyatli qo'shildi — in-memory map larni yangilash
@@ -368,9 +528,12 @@ def bulk_import_products(
     total_errors = len(errors)
     skipped = sum(1 for e in errors if e.get("skipped"))
     return {
-        "created":      created,
-        "updated":      updated,
-        "skipped":      skipped,
-        "errors":       errors[:200],
-        "total_errors": total_errors,
+        "created":        created,
+        "updated":        updated,
+        "skipped":        skipped,
+        "errors":         errors[:200],
+        "total_errors":   total_errors,
+        "warehouse_id":   first_wh_id,
+        "warehouse_name": first_wh_name,
+        "warnings":       warnings[:200],
     }

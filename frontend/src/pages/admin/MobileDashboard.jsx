@@ -30,13 +30,21 @@ export default function MobileDashboard() {
   const [topProducts, setTopProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [branchId, setBranchId] = useState('');
+  const [days, setDays] = useState(30);
+  const tf = (key, fallback, vars) => {
+    const r = t(key, vars);
+    return r === key ? Object.entries(vars || {}).reduce((acc, [k, v]) => acc.replace(`{${k}}`, v), fallback) : r;
+  };
 
   const load = async () => {
     setLoading(true);
     try {
+      const params = branchId ? { branch_id: branchId } : {};
       const [s, tp] = await Promise.all([
-        api.get('/mobile/dashboard/summary'),
-        api.get('/mobile/dashboard/top-products'),
+        api.get('/mobile/dashboard/summary', { params }),
+        api.get('/mobile/dashboard/top-products', { params: { ...params, days } }),
       ]);
       setSummary(s.data);
       setTopProducts(tp.data);
@@ -49,10 +57,25 @@ export default function MobileDashboard() {
   };
 
   useEffect(() => {
-    load();
-    const timer = setInterval(load, 60000); // auto-refresh every minute
-    return () => clearInterval(timer);
+    api.get('/branches')
+      .then(r => setBranches((r.data || []).filter(b => b.is_active !== false)))
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    load();
+    // Har daqiqada yangilanadi; hujjat yashirin (boshqa tab) bo'lsa so'rov yuborilmaydi
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 60000);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, days]);
 
   const maxQty = topProducts.length ? Math.max(...topProducts.map(p => p.sold_quantity)) : 1;
 
@@ -92,6 +115,21 @@ export default function MobileDashboard() {
         </button>
       </div>
 
+      {/* Filial tanlovi */}
+      {branches.length > 1 && (
+        <label className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
+          <span className="text-xs font-semibold text-slate-500 shrink-0">{tf('mobileDashboard.branch', 'Filial')}</span>
+          <select
+            value={branchId}
+            onChange={e => setBranchId(e.target.value ? Number(e.target.value) : '')}
+            className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 outline-none"
+          >
+            <option value="">{t('common.allBranches')}</option>
+            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </label>
+      )}
+
       {/* Date badge */}
       <div className="bg-blue-600 text-white rounded-2xl p-4 flex items-center gap-3">
         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -111,9 +149,10 @@ export default function MobileDashboard() {
       {summary && (
         <div className="grid grid-cols-1 gap-4">
           <KpiCard
-            label={t('mobileDashboard.todaySales')}
+            label={tf('mobileDashboard.net', 'Sof savdo')}
             value={`${fmt(summary.today_sales)} ${t('common.sum')}`}
             color="indigo"
+            sub={`${t('mobileDashboard.todaySales')}: ${fmt(summary.gross)} ${t('common.sum')}`}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -121,13 +160,32 @@ export default function MobileDashboard() {
             }
           />
           <KpiCard
+            label={tf('mobileDashboard.returns', 'Qaytarishlar')}
+            value={`${fmt(summary.returns)} ${t('common.sum')}`}
+            color="amber"
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
+              </svg>
+            }
+          />
+          <KpiCard
             label={t('mobileDashboard.cashInRegister')}
             value={`${fmt(summary.cash_in_register)} ${t('common.sum')}`}
             color="emerald"
-            sub={t('mobileDashboard.fullyPaidAmount')}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            }
+          />
+          <KpiCard
+            label={tf('mobileDashboard.card', 'Karta')}
+            value={`${fmt(summary.card)} ${t('common.sum')}`}
+            color="indigo"
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
               </svg>
             }
           />
@@ -146,22 +204,22 @@ export default function MobileDashboard() {
       )}
 
       {/* Efficiency bar */}
-      {summary && summary.today_sales > 0 && (
+      {summary && summary.gross > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-semibold text-slate-700">{t('mobileDashboard.cashDebtRatio')}</span>
             <span className="text-xs text-slate-500">
-              {Math.round((summary.cash_in_register / summary.today_sales) * 100)}% {t('mobileDashboard.cash')}
+              {Math.round((Math.min(summary.cash_in_register / summary.gross, 1)) * 100)}% {t('mobileDashboard.cash')}
             </span>
           </div>
           <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex">
             <div
               className="bg-emerald-500 transition-all duration-700"
-              style={{ width: `${Math.round((summary.cash_in_register / summary.today_sales) * 100)}%` }}
+              style={{ width: `${Math.round((Math.min(summary.cash_in_register / summary.gross, 1)) * 100)}%` }}
             />
             <div
               className="bg-red-400 transition-all duration-700"
-              style={{ width: `${Math.round((summary.debt_sales / summary.today_sales) * 100)}%` }}
+              style={{ width: `${Math.round((Math.min(summary.debt_sales / summary.gross, 1)) * 100)}%` }}
             />
           </div>
           <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
@@ -172,9 +230,21 @@ export default function MobileDashboard() {
       )}
 
       {/* Top products */}
-      {topProducts.length > 0 && (
+      {(topProducts.length > 0 || days !== 30) && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">{t('mobileDashboard.topSellingProducts')}</h3>
+          <div className="flex items-center justify-between mb-4 gap-2">
+            <h3 className="text-sm font-bold text-slate-800">{t('mobileDashboard.topSellingProducts')}</h3>
+            <select
+              aria-label={tf('mobileDashboard.period', 'Davr')}
+              value={days}
+              onChange={e => setDays(Number(e.target.value))}
+              className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700"
+            >
+              {[7, 30, 90].map(d => (
+                <option key={d} value={d}>{tf('mobileDashboard.days', '{n} kun', { n: d })}</option>
+              ))}
+            </select>
+          </div>
           <div className="space-y-3">
             {topProducts.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3">

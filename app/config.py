@@ -35,13 +35,29 @@ class Settings(BaseSettings):
     HIPPO_COMMUNICATOR_URL: str = "http://127.0.0.1:8081"
     HIPPO_API_PREFIX: str = "/api"
     HIPPO_TIMEOUT: int = 30
+    # T3.18: server tomonidagi Hippo kommunikatori (/api/hippo/* va X-Hippo-Factory-Id orqali fonda fiskallash).
+    # Standart O'CHIQ: fiskallash kassir kompyuteridagi lokal ko'prik orqali bajariladi, natija PATCH /sales/{id}/fiscal
+    # bilan yoziladi. Server kommunikatori prodda ishlatilsa .env da HIPPO_SERVER_ENABLED=true qiling.
+    HIPPO_SERVER_ENABLED: bool = False
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_MODEL: str = "cohere/north-mini-code:free"
     # Marketplace (mir-maza.uz) — kategoriyalar manbai. API manzili .env da beriladi.
     MARKETPLACE_CATEGORIES_URL: str = "https://mir-maza.uz/api/v1/categories"
+    # Mir-maza bilan umumiy maxfiy kalit (X-Integration-Key): chiquvchi so'rovlar VA kiruvchi
+    # /webhook/order uchun bitta kalit. Bo'sh bo'lsa integratsiya o'chiq (so'rov yuborilmaydi, webhook 503).
+    # MAJBURIY (marketplace moduli ishlashi uchun): .env da MARKETPLACE_API_TOKEN=... bering.
+    # Kodda zaxira kalit YO'Q — bo'sh bo'lsa buyurtma importi (pull_mirmaza_orders) o'tkazib yuboriladi.
     MARKETPLACE_API_TOKEN: str = ""
     MARKETPLACE_CATEGORIES_TTL: int = 3600  # sekund
+    # Oflayn POS sotuvi (T3.11): created_at shu soatdan eski bo'lsa rad etiladi,
+    # kelajakka esa faqat shu daqiqa tolerans beriladi (soat siljishi uchun)
+    POS_OFFLINE_MAX_AGE_HOURS: int = 72
+    POS_FUTURE_TOLERANCE_MINUTES: int = 5
+
+    # Ombor limiti rejimi (T3.9): "off" — tekshirilmaydi; "warn" — limit oshsa faqat log + usage'da over=true;
+    # "enforce" — 403. Birinchi deployda "warn"; super admin tariflarni tekshirgach "enforce" qilinadi.
+    TARIFF_WAREHOUSE_LIMIT_MODE: str = "warn"
 
     class Config:
         env_file = ".env"

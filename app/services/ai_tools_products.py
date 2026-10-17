@@ -7,7 +7,7 @@ from app.models.product import Product
 from app.models.sale import Sale, SaleItem
 from app.utils.report_utils import sale_or_return_filter, doc_sign, item_revenue_uzs, item_cost_uzs
 from app.models.inventory import StockLevel
-from app.services.ai_tools_registry import AITool, AIToolRegistry
+from app.services.ai_tools_registry import AITool, AIToolRegistry, BRANCH_PARAM
 
 # Eslatma: "get_top_products" va "get_low_stock" tool'lari ai_tools_registry.py
 # ichida ham e'lon qilingan edi va (keyinroq import qilingani uchun) ular
@@ -24,30 +24,42 @@ class PredictStockDepletionTool(AITool):
     parameters = {
         "type": "object",
         "properties": {
-            "days_ahead": {"type": "integer", "description": "Kelasi necha kun ichida tugaydigan mahsulotlar ko'rsatilsin? Standart: 7."}
+            "days_ahead": {"type": "integer", "description": "Kelasi necha kun ichida tugaydigan mahsulotlar ko'rsatilsin? Standart: 7."},
+            "branch": BRANCH_PARAM,
         }
     }
 
     def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
+        from app.services.ai_scope import resolve_tool_scope, scope_header, scope_label, item_scope_filter
+        scope, note, err = resolve_tool_scope(db, user, kwargs)
+        if err:
+            return err
+        head = scope_header(scope, note)
         days_ahead = kwargs.get("days_ahead", 7)
         # 14 kunlik savdo tezligini (sotilish sur'atini) hisoblaymiz
         history_days = 14
         start_date = datetime.now(timezone.utc) - timedelta(days=history_days)
 
         # Sof sotilgan miqdor: qaytarishlar ayiriladi, kutilayotgan/bekor qilinganlar kirmaydi
-        sales_subquery = db.query(
+        # Tezlik (SaleItem ombori) va qoldiq (StockLevel ombori) doiradagi omborlar bo'yicha
+        sales_q = db.query(
             SaleItem.product_id,
             func.sum(doc_sign() * SaleItem.quantity).label("total_sold_14d")
         ).join(Sale, Sale.id == SaleItem.sale_id)\
-         .filter(Sale.company_id == company_id, sale_or_return_filter(), Sale.created_at >= start_date)\
-         .group_by(SaleItem.product_id).subquery()
+         .filter(Sale.company_id == company_id, sale_or_return_filter(), Sale.created_at >= start_date)
+        item_flt = item_scope_filter(scope)
+        if item_flt is not None:
+            sales_q = sales_q.filter(item_flt)
+        sales_subquery = sales_q.group_by(SaleItem.product_id).subquery()
 
-        stock_subquery = db.query(
+        stock_q = db.query(
             StockLevel.product_id,
             func.sum(StockLevel.quantity).label("current_stock")
         ).join(Product, Product.id == StockLevel.product_id)\
-         .filter(Product.company_id == company_id)\
-         .group_by(StockLevel.product_id).subquery()
+         .filter(Product.company_id == company_id)
+        if scope is not None:
+            stock_q = stock_q.filter(StockLevel.warehouse_id.in_(list(scope.warehouse_ids)))
+        stock_subquery = stock_q.group_by(StockLevel.product_id).subquery()
 
         results = db.query(
             Product.name,
@@ -57,6 +69,7 @@ class PredictStockDepletionTool(AITool):
          .join(stock_subquery, stock_subquery.c.product_id == Product.id)\
          .filter(
              Product.company_id == company_id,
+             Product.is_deleted.isnot(True),
              sales_subquery.c.total_sold_14d > 0
          ).all()
 
@@ -81,10 +94,10 @@ class PredictStockDepletionTool(AITool):
         predictions = predictions[:15]
 
         if not predictions:
-            return {"reply": f"Hozirgi sotilish sur'atiga ko'ra, kelasi {days_ahead} kun ichida hech qanday mahsulot tugamaydi."}
+            return {"reply": f"{head}Hozirgi sotilish sur'atiga ko'ra, kelasi {days_ahead} kun ichida hech qanday mahsulot tugamaydi."}
 
         return {
-            "reply": {"depletion_prediction": predictions, "days_ahead": days_ahead},
+            "reply": {"scope": scope_label(scope), "depletion_prediction": predictions, "days_ahead": days_ahead},
             "action": {"type": "show_data"}
         }
 

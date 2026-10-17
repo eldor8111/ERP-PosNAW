@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.audit import log_action_for
 from app.core.dependencies import get_current_user, require_roles
 from app.core.features import require_feature
 from app.database import get_db
@@ -18,13 +19,33 @@ from app.schemas.production import (
 from app.services.production_service import (
     create_production_order, start_production_order,
     complete_production_order, cancel_production_order,
-    calculate_shortages,
+    calculate_shortages, validate_bom_refs,
 )
 
 router = APIRouter(prefix="/production", tags=["Ishlab chiqarish"],
                    dependencies=[Depends(require_feature("manufacturing"))])
 
 ALLOWED = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.manager)
+
+
+def _audit_order(db: Session, user: User, action: str, order: ProductionOrder,
+                 old_status: Optional[str] = None, extra: Optional[dict] = None) -> None:
+    """Ishlab chiqarish buyurtmasi holati o'zgarishini auditga yozadi (filial — maqsad ombor filiali)."""
+    from app.models.warehouse import Warehouse
+    wh = db.get(Warehouse, order.target_warehouse_id or order.warehouse_id)
+    st = order.status
+    new_values = {
+        "number": order.number, "product_id": order.product_id,
+        "warehouse_id": order.warehouse_id, "target_warehouse_id": order.target_warehouse_id,
+        "status": st.value if hasattr(st, "value") else st,
+    }
+    if extra:
+        new_values.update(extra)
+    log_action_for(
+        db, user, action, "production_order", order.id,
+        old_values={"status": old_status} if old_status else None,
+        new_values=new_values, branch_id=wh.branch_id if wh else None,
+    )
 
 
 def _company_id(current_user: User) -> int:
@@ -106,6 +127,7 @@ def create_bom(
     if not data.items:
         raise HTTPException(status_code=400, detail="Kamida bitta xom ashyo qatori kerak")
     company_id = _company_id(current_user)
+    validate_bom_refs(db, company_id, data.product_id, data.variant_id, data.items)
 
     bom = BOM(product_id=data.product_id, variant_id=data.variant_id, name=data.name, company_id=company_id)
     db.add(bom)
@@ -140,6 +162,7 @@ def update_bom(
     if data.items is not None:
         if not data.items:
             raise HTTPException(status_code=400, detail="Kamida bitta xom ashyo qatori kerak")
+        validate_bom_refs(db, bom.company_id, bom.product_id, bom.variant_id, data.items)
         db.query(BOMItem).filter(BOMItem.bom_id == bom.id).delete()
         for item in data.items:
             db.add(BOMItem(
@@ -216,25 +239,54 @@ def _load_order(db: Session, order_id: int, company_id: int) -> Optional[Product
     ).filter(ProductionOrder.id == order_id, ProductionOrder.company_id == company_id).first()
 
 
+def _branch_scope(current_user: User, branch_id: Optional[int]) -> Optional[int]:
+    """Filialga biriktirilgan (admin/director emas) xodim faqat o'z filialini ko'radi;
+    boshqa filial so'ralsa 403. Aks holda so'ralgan branch_id qaytariladi (yoki None)."""
+    if current_user.branch_id and current_user.role not in (UserRole.admin, UserRole.director):
+        if branch_id is not None and branch_id != current_user.branch_id:
+            raise HTTPException(status_code=403, detail="Boshqa filial buyurtmalarini ko'rishga ruxsat yo'q")
+        return current_user.branch_id
+    return branch_id
+
+
 @router.get("/orders", response_model=List[ProductionOrderListOut])
 def list_orders(
     status: Optional[ProductionOrderStatus] = Query(None),
+    warehouse_id: Optional[int] = Query(None),
+    branch_id: Optional[int] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
+    from sqlalchemy import or_
+    from app.models.warehouse import Warehouse
+
+    branch_id = _branch_scope(current_user, branch_id)
     q = db.query(ProductionOrder).options(
-        joinedload(ProductionOrder.product), joinedload(ProductionOrder.warehouse), joinedload(ProductionOrder.target_warehouse),
+        joinedload(ProductionOrder.product),
+        joinedload(ProductionOrder.warehouse).joinedload(Warehouse.branch),
+        joinedload(ProductionOrder.target_warehouse),
     ).filter(ProductionOrder.company_id == _company_id(current_user))
     if status:
         q = q.filter(ProductionOrder.status == status)
+    if warehouse_id is not None:
+        q = q.filter(or_(ProductionOrder.warehouse_id == warehouse_id,
+                         ProductionOrder.target_warehouse_id == warehouse_id))
+    if branch_id is not None:
+        # Filial ombor orqali aniqlanadi: xom ashyo yoki tayyor mahsulot ombori shu filialda
+        wh_ids = db.query(Warehouse.id).filter(
+            Warehouse.branch_id == branch_id, Warehouse.company_id == _company_id(current_user))
+        q = q.filter(or_(ProductionOrder.warehouse_id.in_(wh_ids),
+                         ProductionOrder.target_warehouse_id.in_(wh_ids)))
     orders = q.order_by(ProductionOrder.created_at.desc()).offset(skip).limit(limit).all()
     return [
         ProductionOrderListOut(
             id=o.id, number=o.number, product_name=o.product.name,
             planned_quantity=o.planned_quantity, produced_quantity=o.produced_quantity,
             status=o.status, warehouse_name=o.warehouse.name, target_warehouse_name=o.target_warehouse.name,
+            branch_id=o.warehouse.branch_id,
+            branch_name=o.warehouse.branch.name if o.warehouse.branch else None,
             created_at=o.created_at,
         )
         for o in orders
@@ -267,6 +319,8 @@ def create_order(
     check_production_limit(db, company_id)
 
     order = create_production_order(db, data, current_user.id, company_id)
+    _audit_order(db, current_user, "PRODUCTION_CREATE", order,
+                 extra={"planned_quantity": float(order.planned_quantity or 0)})
     db.commit()
     order = _load_order(db, order.id, company_id)
     out = _build_order_out(order)
@@ -281,7 +335,8 @@ def start_order(
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
     company_id = _company_id(current_user)
-    start_production_order(db, order_id, company_id)
+    order = start_production_order(db, order_id, company_id)
+    _audit_order(db, current_user, "PRODUCTION_START", order, old_status="draft")
     db.commit()
     return _build_order_out(_load_order(db, order_id, company_id))
 
@@ -294,7 +349,13 @@ def complete_order(
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
     company_id = _company_id(current_user)
-    complete_production_order(db, order_id, current_user.id, company_id, data)
+    order = complete_production_order(db, order_id, current_user.id, company_id, data)
+    _audit_order(db, current_user, "PRODUCTION_COMPLETE", order, old_status="in_progress", extra={
+        "produced_quantity": float(order.produced_quantity or 0),
+        "defect_quantity": float(order.defect_quantity or 0),
+        "unit_cost": float(order.unit_cost or 0),
+        "total_cost": float(order.total_cost or 0),
+    })
     db.commit()
     order = _load_order(db, order_id, company_id)
     return _build_order_out(order)
@@ -307,7 +368,12 @@ def cancel_order(
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
     company_id = _company_id(current_user)
-    cancel_production_order(db, order_id, company_id)
+    prev = db.query(ProductionOrder.status).filter(
+        ProductionOrder.id == order_id, ProductionOrder.company_id == company_id
+    ).scalar()
+    order = cancel_production_order(db, order_id, company_id)
+    _audit_order(db, current_user, "PRODUCTION_CANCEL", order,
+                 old_status=getattr(prev, "value", prev))
     db.commit()
     return _build_order_out(_load_order(db, order_id, company_id))
 
@@ -328,10 +394,15 @@ def production_alerts(
     from app.models.warehouse import Warehouse
 
     cid = _company_id(current_user)
-    orders = db.query(ProductionOrder).options(joinedload(ProductionOrder.bom).joinedload(BOM.items)).filter(
+    scope_branch = _branch_scope(current_user, None)  # filialli xodim — faqat o'z filiali omborlari
+    orders_q = db.query(ProductionOrder).options(joinedload(ProductionOrder.bom).joinedload(BOM.items)).filter(
         ProductionOrder.company_id == cid,
         ProductionOrder.status.in_([ProductionOrderStatus.draft, ProductionOrderStatus.in_progress]),
-    ).all()
+    )
+    if scope_branch is not None:
+        orders_q = orders_q.filter(ProductionOrder.warehouse_id.in_(
+            db.query(Warehouse.id).filter(Warehouse.branch_id == scope_branch, Warehouse.company_id == cid)))
+    orders = orders_q.all()
 
     need: dict = {}  # (product_id, variant_id, warehouse_id) -> {"qty", "orders"}
     for o in orders:
@@ -364,18 +435,21 @@ def production_alerts(
                 })
         shortages.sort(key=lambda x: x["shortage"], reverse=True)
 
-    totals = db.query(Product, func.coalesce(func.sum(StockLevel.quantity), 0)).outerjoin(
-        StockLevel, StockLevel.product_id == Product.id,
-    ).filter(
-        Product.company_id == cid,
-        Product.product_type == "raw_material",
-        Product.is_deleted == False,  # noqa: E712
-        Product.min_stock > 0,
-    ).group_by(Product.id).all()
+    # Kam qoldiq — yagona ta'rif (T2.3): xom ashyo MAHSULOT darajasida, doiradagi omborlar yig'indisi
+    # <= min_stock (min_stock > 0). Ombor kesimi `warehouses` ro'yxatida.
+    from app.services import stock_report
+    wh_scope = None
+    if scope_branch is not None:
+        wh_scope = [r[0] for r in db.query(Warehouse.id).filter(
+            Warehouse.branch_id == scope_branch, Warehouse.company_id == cid).all()]
     low_stock = [
-        {"product_id": p.id, "product_name": p.name, "unit": p.unit,
-         "quantity": float(q or 0), "min_stock": p.min_stock}
-        for p, q in totals if Decimal(str(q or 0)) <= Decimal(str(p.min_stock))
+        {"product_id": r["product_id"], "product_name": r["product_name"], "unit": r["unit"],
+         "warehouse_id": r["warehouses"][0]["warehouse_id"] if len(r["warehouses"]) == 1 else None,
+         "warehouse_name": r["warehouses"][0]["name"] if len(r["warehouses"]) == 1 else None,
+         "quantity": float(r["current_qty"]), "min_stock": r["min_stock"],
+         "warehouses": [{"warehouse_id": w["warehouse_id"], "name": w["name"], "qty": float(w["qty"])}
+                        for w in r["warehouses"]]}
+        for r in stock_report.low_stock_products(db, cid, wh_scope, product_types=["raw_material"])
     ]
     return {"shortages": shortages, "low_stock": low_stock}
 

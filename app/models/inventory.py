@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, column, func
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -22,7 +22,9 @@ class StockLevel(Base):
     __table_args__ = (
         # Unique index DB darajasida: (product_id, warehouse_id, COALESCE(variant_id, 0))
         # Migration: 93e64f6f907e — uq_stock_product_variant_warehouse
-        # Variantli mahsulotlar uchun alohida yozuvga ruxsat beradi
+        # Variantli mahsulotlar uchun alohida yozuvga ruxsat beradi (T1.7: model bazaga moslandi)
+        Index("uq_stock_product_variant_warehouse", "product_id", "warehouse_id",
+              func.coalesce(column("variant_id"), 0), unique=True),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -34,12 +36,17 @@ class StockLevel(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
 
-    product = relationship("Product", back_populates="stock_level")
+    product = relationship("Product")
     warehouse = relationship("Warehouse", back_populates="stock_levels")
 
 
 class StockMovement(Base):
     __tablename__ = "stock_movements"
+    __table_args__ = (
+        # T1.7: ombor bo'yicha harakat tarixi va hujjat bo'yicha qidiruv (migratsiya: t1_7)
+        Index("ix_stock_movements_wh_created", "warehouse_id", "created_at"),
+        Index("ix_stock_movements_reftype_refid", "reference_type", "reference_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
@@ -56,5 +63,6 @@ class StockMovement(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     product = relationship("Product", back_populates="stock_movements")
+    warehouse = relationship("Warehouse")
     user = relationship("User")
 

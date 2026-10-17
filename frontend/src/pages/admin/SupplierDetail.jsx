@@ -193,13 +193,14 @@ export default function SupplierDetail() {
                     <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('common.date')}</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('supplier.operationType')}</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('supplier.detail')}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('movements.warehouse')} / {t('finance.branch')}</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-500 text-xs">{t('supplier.employee')}</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">{t('supplier.inOut')}</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-500 text-xs">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {loadingTab ? <tr><td colSpan={6} className="text-center py-10">{t('common.loading')}</td></tr> : history.map(h => (
+                  {loadingTab ? <tr><td colSpan={7} className="text-center py-10">{t('common.loading')}</td></tr> : history.map(h => (
                     <tr key={`${h.op_type}-${h.id || h.date}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.date)}</td>
                       <td className="px-4 py-3">
@@ -215,6 +216,7 @@ export default function SupplierDetail() {
                          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs">{h.op_type}</span>}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{h.description}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{h.warehouse_name || h.branch_name || '—'}</td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{h.cashier || '—'}</td>
                       <td className="px-4 py-3 text-right font-semibold">
                         {h.op_type === 'purchase' ? (
@@ -237,7 +239,7 @@ export default function SupplierDetail() {
                       </td>
                     </tr>
                   ))}
-                  {!loadingTab && history.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-slate-400">{t('common.noData')}</td></tr>}
+                  {!loadingTab && history.length === 0 && <tr><td colSpan={7} className="text-center py-10 text-slate-400">{t('common.noData')}</td></tr>}
                 </tbody>
               </table>
             </div>

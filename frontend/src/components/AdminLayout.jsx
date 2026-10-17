@@ -11,10 +11,13 @@ import toast from 'react-hot-toast';
 import { BriefcaseBusiness, CircleChevronLeft, Copy, Minus, TextAlignJustify, X } from 'lucide-react';
 import AnnouncementModal from './AnnouncementModal';
 import AnnouncementBanner from './AnnouncementBanner';
+import BranchSwitcher from './BranchSwitcher';
+import { getPendingPosCount, flushPosQueue } from '../utils/posQueue';
+import { isPageAllowed } from '../utils/permissions';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
-function buildNavGroups(t, expiredCount = 0) {
+function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
   return [
     {
       key: 'sales_group',
@@ -53,6 +56,13 @@ function buildNavGroups(t, expiredCount = 0) {
           roles: ROLE_GROUPS.SALES,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
         },
+        {
+          // T3.1: smenani ochiq qoldirib ketmaslik uchun menyuda (kassir ham yopa oladi)
+          name: t('nav.shifts'),
+          path: '/admin/shifts',
+          roles: ROLE_GROUPS.SALES,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+        },
         
 
       ],
@@ -64,6 +74,13 @@ function buildNavGroups(t, expiredCount = 0) {
 
         
         
+        {
+          // T3.1: qoldiq, kirim/chiqim va ko'chirishlar sahifasi
+          name: t('nav.warehouse'),
+          path: '/admin/ombor',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
+        },
         {
           name: t('nav.purchases'),
           path: '/admin/purchases',
@@ -82,7 +99,8 @@ function buildNavGroups(t, expiredCount = 0) {
           path: '/admin/alerts',
           roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>,
-          badge: expiredCount > 0 ? `⚠ ${expiredCount}` : null,
+          // T2.3: nishon = kam qoldiq (mahsulotlar soni) + muddati yaqin partiyalar
+          badge: alertsCount > 0 ? `⚠ ${alertsCount}` : null,
         },
         {
           name: t('nav.production') || 'Ishlab chiqarish',
@@ -149,10 +167,39 @@ function buildNavGroups(t, expiredCount = 0) {
       links: [
 
         {
+          // T3.1: filial va omborlarni boshqarish (admin/director)
+          name: t('nav.branches'),
+          path: '/admin/filiallar',
+          roles: ROLE_GROUPS.MANAGEMENT,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+        },
+        {
+          // T4.6: menejer tasdig'i so'rovlari (admin/director/menejer); nishon = kutilayotgan so'rovlar soni
+          name: t('approvals.title'),
+          path: '/admin/approvals',
+          roles: ROLE_GROUPS.POS_ACCESS,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+          badge: approvalsCount > 0 ? String(approvalsCount) : null,
+        },
+        {
+          // T4.7: filial savdo rejasi va KPI (admin/director/menejer/buxgalter)
+          name: t('plan.title'),
+          path: '/admin/branch-plans',
+          roles: ROLE_GROUPS.REPORTS_ACCESS,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+        },
+        {
           name: t('nav.settings'),
           path: '/admin/settings',
           roles: ROLE_GROUPS.MANAGEMENT,
           icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+        },
+        {
+          // T1.19: audit jurnali (admin/director). i18n kaliti bo'lmasa — o'zbekcha nom
+          name: t('nav.audit_logs'),
+          path: '/admin/audit-logs',
+          roles: ROLE_GROUPS.MANAGEMENT,
+          icon: <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
         },
 
       ],
@@ -264,7 +311,7 @@ export default function AdminLayout() {
 
   // Obuna muddati — serverdan tekshiriladi (localStorage ishlatilmaydi)
   const [isSubExpired, setIsSubExpired] = useState(false);
-  const subExpiredMsg = isSubExpired ? "Obuna muddati tugagan. Iltimos to'lov qiling." : '';
+  const subExpiredMsg = isSubExpired ? t('subscription.expiredMsg') : '';
 
   useEffect(() => {
     if (!user?.company_id || user?.role === 'super_admin') return;
@@ -284,6 +331,7 @@ export default function AdminLayout() {
   const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
   const [expiredCount, setExpiredCount] = useState(0);
+  const [approvalsCount, setApprovalsCount] = useState(0); // T4.6: kutilayotgan tasdiq so'rovlari
   const [announcements, setAnnouncements] = useState([]);
 
   // Bildirish nomalarni yuklash (login qilgandan keyin)
@@ -295,14 +343,17 @@ export default function AdminLayout() {
   }, [user?.id]);
 
   const refreshBalance = useCallback(() => {
-    api.get('/finance/cash-balance').then(r => {
-      setOrgData({
-        name: r.data.company_name || 'Tizim',
-        code: r.data.org_code || '-',
+    // T2.1: sarlavha (nom, org_code, balans) yengil /billing/my-company dan — barcha rollar uchun ochiq,
+    // obuna tugagan bo'lsa ham ishlaydi (og'ir /finance/cash-balance va kassirdagi 403 yo'q)
+    if (!user?.company_id || user?.role === ROLES.SUPER_ADMIN) return;
+    api.get('/billing/my-company').then(r => {
+      setOrgData(prev => ({
+        name: r.data.name || prev.name || 'Tizim',
+        code: r.data.org_code || prev.code || '-',
         balance: r.data.balance || 0
-      });
-    }).catch(() => { /* balansi ko'rsatilmaydi — kassirda bu normal */ });
-  }, []);
+      }));
+    }).catch(() => { /* sarlavha ma'lumoti yuklanmadi — kritik emas */ });
+  }, [user?.role, user?.company_id]);
 
   const refreshLowStock = useCallback(() => {
     if (!ROLE_GROUPS.WAREHOUSE_ACCESS.includes(user?.role)) return;
@@ -315,32 +366,62 @@ export default function AdminLayout() {
     }).catch(() => {});
   }, [user?.role]);
 
+  // T4.6: kutilayotgan tasdiq so'rovlari soni (faqat tasdiqlovchi rollar uchun)
+  const refreshApprovals = useCallback(() => {
+    if (!ROLE_GROUPS.POS_ACCESS.includes(user?.role)) return;
+    api.get('/approvals/requests', { params: { status: 'pending', limit: 100 }, _silent: true, _suppressToast: true })
+      .then(r => setApprovalsCount(Array.isArray(r.data) ? r.data.length : 0))
+      .catch(() => { /* nishon yuklanmadi — kritik emas */ });
+  }, [user?.role]);
+
   useEffect(() => {
     refreshBalance();
     refreshLowStock();
+    refreshApprovals();
     const interval = setInterval(refreshBalance, 60000);
     const lowStockInterval = setInterval(refreshLowStock, 300000);
+    const approvalsInterval = setInterval(refreshApprovals, 60000);
     window.addEventListener('balance-updated', refreshBalance);
     return () => {
       clearInterval(interval);
       clearInterval(lowStockInterval);
+      clearInterval(approvalsInterval);
       window.removeEventListener('balance-updated', refreshBalance);
     };
-  }, [refreshBalance, refreshLowStock]);
+  }, [refreshBalance, refreshLowStock, refreshApprovals]);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    // T3.11: yuborilmagan oflayn sotuvlar bo'lsa — avval sinxronlaymiz; oflayn bo'lsa chiqishni bloklaymiz
+    // (kalit lug'atda bo'lmasa o'zbekcha zaxira matn)
+    const tl = (key, fallback, vars) => {
+      const s = t(key, vars);
+      if (s !== key) return s;
+      return Object.entries(vars || {}).reduce((acc, [k, v]) => acc.split(`{${k}}`).join(String(v)), fallback);
+    };
+    let left = getPendingPosCount();
+    if (left > 0) {
+      if (!navigator.onLine) {
+        toast.error(tl('pos.logoutBlockedPending', "Yuborilmagan oflayn sotuvlar bor ({count} ta). Internetga ulanib sinxronlang, so'ng chiqing.", { count: left }));
+        return;
+      }
+      try { await flushPosQueue(api); } catch { /* sinxron bo'lmasa quyida tasdiq so'raymiz */ }
+      left = getPendingPosCount();
+      if (left > 0 && !window.confirm(tl('pos.logoutPendingConfirm', "Yuborilmagan {count} ta oflayn sotuv bor. Chiqsangiz ular qurilmada saqlanadi, lekin serverga yuborilmaydi. Baribir chiqasizmi?", { count: left }))) {
+        return;
+      }
+    }
     logout();
     navigate('/login');
-  }, [logout, navigate]);
+  }, [logout, navigate, t]);
 
   // Rebuild navGroups on lang change
-  const navGroups = useMemo(() => buildNavGroups(t, expiredCount), [t, expiredCount]);
+  const navGroups = useMemo(() => buildNavGroups(t, lowStockCount + expiredCount, approvalsCount), [t, lowStockCount, expiredCount, approvalsCount]);
 
   const currentPage = useMemo(() => {
     const allLinks = navGroups.flatMap(g => g.links);
     const currentLink = allLinks.find(l => location.pathname.startsWith(l.path));
-    return currentLink?.name || 'ERP System';
-  }, [location.pathname, navGroups]);
+    return currentLink?.name || t('app.title');
+  }, [location.pathname, navGroups, t]);
 
   const initials = useMemo(() =>
     user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'U'
@@ -395,6 +476,8 @@ export default function AdminLayout() {
               
               const permKey = link.path.split('/').pop();
               if (user.permissions && Object.keys(user.permissions).length > 0) {
+                // T3.4: alias bilan (ombor <-> warehouse); aniq `false` yopadi
+                if (!isPageAllowed(user, permKey)) return false;
                 if (user.permissions[permKey] !== undefined) {
                   return user.permissions[permKey] === true;
                 }
@@ -412,10 +495,12 @@ export default function AdminLayout() {
                     <Link
                       key={link.path}
                       to={isBlocked ? '/admin/tariflar' : link.path}
-                      onClick={() => setMobileMenuOpen(false)}
+                      onClick={link.path === '/admin/settings' ? handleSettingsEnter : () => { setSettingsMenuOpen(false); setMobileMenuOpen(false); }}
                       title={collapsed ? link.name : undefined}
                       onMouseEnter={link.path === '/admin/settings' ? handleSettingsEnter : undefined}
                       onMouseLeave={link.path === '/admin/settings' ? handleSettingsLeave : undefined}
+                      onFocus={link.path === '/admin/settings' ? handleSettingsEnter : undefined}
+                      aria-expanded={link.path === '/admin/settings' ? settingsMenuOpen : undefined}
                       className={`flex items-center gap-1 sm:gap-2 px-2.25 py-1.75 rounded-lg transition-all duration-150 group mb-0.5 ${isBlocked
                         ? 'opacity-35 cursor-not-allowed pointer-events-none'
                         : isActive
@@ -425,7 +510,7 @@ export default function AdminLayout() {
                     >
                       <span className={`shrink-0 relative [&>svg]:h-[18px] sm:[&>svg]:h-[20px] xl:[&>svg]:h-[22px] ${collapsed && 'xl:scale-110'} ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`}>
                         {link.icon}
-                        {collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && (
+                        {collapsed && link.path === '/admin/alerts' && (lowStockCount + expiredCount) > 0 && (
                           <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
                         )}
                       </span>
@@ -437,11 +522,6 @@ export default function AdminLayout() {
                       {!collapsed && link.badge && (
                         <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
                           {link.badge}
-                        </span>
-                      )}
-                      {!collapsed && link.path === '/admin/warehouse' && lowStockCount > 0 && !link.badge && (
-                        <span className={`min-w-[14px] h-[14px] sm:min-w-[18px] sm:h-[18px] px-1 text-white text-[8px] sm:text-[10px] font-bold rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-white/30' : 'bg-blue-500'}`}>
-                          {lowStockCount > 99 ? '99+' : lowStockCount}
                         </span>
                       )}
                     </Link>
@@ -497,7 +577,7 @@ export default function AdminLayout() {
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               </div>
-              <h2 className="text-[17px] font-bold text-slate-800">Sozlamalar</h2>
+              <h2 className="text-[17px] font-bold text-slate-800">{t('nav.settings')}</h2>
             </div>
             <div className="flex-1 py-2 space-y-0.5">
               {SETTINGS_MENUS.map(m => {
@@ -578,6 +658,9 @@ export default function AdminLayout() {
               </button>
             )} */}
 
+            {/* 🏢 Joriy filial (T1.1) */}
+            <BranchSwitcher />
+
             {/* 🌐 Lang Switcher */}
             <LangSwitcher t={t} lang={lang} setLang={setLang} LANGUAGES={LANGUAGES} />
 
@@ -588,7 +671,7 @@ export default function AdminLayout() {
                 <span className="text-slate-700 text-[12px] xl:text-[14px] font-black leading-none tracking-wide">{orgData.code}</span>
                 <Copy className='size-3 sm:size-4 text-slate-500 cursor-pointer' onClick={() => {
                   navigator.clipboard.writeText(orgData.code);
-                  toast.success("copied");
+                  toast.success(t('common.copied'));
                 }} />
               </div>
             </div>
@@ -625,13 +708,13 @@ export default function AdminLayout() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-black text-slate-800 mb-2">Obuna muddati tugagan</h2>
-                <p className="text-sm text-slate-500 mb-6">{subExpiredMsg || "Tizimdan foydalanish uchun obunani yangilang."}</p>
+                <h2 className="text-xl font-black text-slate-800 mb-2">{t('subscription.expiredTitle')}</h2>
+                <p className="text-sm text-slate-500 mb-6">{subExpiredMsg || t('subscription.renewHint')}</p>
                 <button
                   onClick={() => navigate('/admin/tariflar')}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg"
                 >
-                  To'lovga o'tish →
+                  {t('subscription.goToPayment')}
                 </button>
               </div>
             </div>

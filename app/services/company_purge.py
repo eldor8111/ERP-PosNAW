@@ -12,6 +12,13 @@ Qoidalar:
   * Foydalanuvchilar: superadmin, boshqa korxonaga ham a'zo yoki boshqa korxona ma'lumotlarida ishtirok
     etgan foydalanuvchi o'chirilmaydi — faqat shu korxonadan uziladi (company_id/branch_id/role_id → NULL).
   * Boshqa korxonalar (companies jadvali) hech qachon o'chirilmaydi — faqat bog'lanish NULL qilinadi.
+  * NOT NULL FK orqali bog'langan, lekin boshqa korxonaga tegishli qatorlar o'chirilmaydi: egasi korxonaning
+    birinchi filialiga ko'chiriladi yoki (ko'chirib bo'lmasa) o'chirish PurgeError bilan to'xtatiladi.
+    Qator egasi: company_id ustuni bo'lsa o'sha (transactions/expenses uchun bo'sh bo'lsa hamyon orqali),
+    aks holda OWNER_VIA bo'yicha (masalan orders — mijoz orqali). Egasi aniqlanmagan qator filial egasiniki
+    hisoblanadi (o'chadi).
+  * ESLATMA: company_id siz va `branches` ga NOT NULL FK li yangi jadval qo'shilsa, u begona qatorlarni
+    topa olmaydi — uni OWNER_VIA (yoki OWNER_FALLBACK) ga qo'shish kerak.
 """
 from __future__ import annotations
 
@@ -31,6 +38,16 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 PROTECTED = {"companies", "users"}
+# company_id ustuni yo'q jadvallarda qator egasini aniqlash (r — shu jadval qatori).
+# T0.36: orders endi bevosita orders.company_id bo'yicha o'chiriladi; bu yerdagi yozuv faqat
+# migratsiya hali qo'llanmagan (ustun yo'q) bazalar uchun zaxira — ustun bo'lsa ishlatilmaydi.
+OWNER_VIA = {"orders": "SELECT c.company_id FROM customers c WHERE c.id = r.customer_id"}
+# company_id ustuni bor, lekin NULL bo'lishi mumkin bo'lgan jadvallarda zaxira usul
+OWNER_FALLBACK = {
+    "transactions": "SELECT w.company_id FROM wallets w WHERE w.id = r.wallet_id",
+    "expenses": "SELECT w.company_id FROM wallets w WHERE w.id = r.wallet_id",
+    "orders": "SELECT c.company_id FROM customers c WHERE c.id = r.customer_id",
+}
 TMP = "_purge_"
 LOCK_TIMEOUT = "20s"
 log = logging.getLogger(__name__)
@@ -70,6 +87,8 @@ class _Purger:
         self.set_null: list[Edge] = []       # saqlanadigan qatorlarda NULL qilinadigan bog'lanishlar
         self.leaf_delete: list[Edge] = []    # bitta PK'si yo'q jadvallar — shart bo'yicha o'chiriladi
         self.temp_indexes: list[str] = []    # oddiy rejimda yaratilgan vaqtinchalik indekslar (commit'dan oldin o'chiriladi)
+        self.relocate: list[tuple[Edge, str]] = []   # begona qatorlar: (filialga NOT NULL FK, "begona" sharti) — ko'chiriladi
+        self.moved: dict[str, int] = {}      # ko'chiriladigan (o'chirilmaydigan) begona qatorlar: jadval -> son
 
     # ── Bazani o'qish ─────────────────────────────────────
     def _reflect(self):
@@ -99,6 +118,31 @@ class _Purger:
 
     def has_cid(self, t: str) -> bool:
         return "company_id" in self.columns.get(t, {})
+
+    # ── Qator egasi (begona qatorlarni aniqlash) ──────────
+    def _owner_sql(self, child: str) -> str | None:
+        """Qator egasi korxonasi (SQL ifoda, qator alias'i `r`); aniqlab bo'lmasa None.
+
+        Avval bevosita `r.company_id` (T0.36: orders ham shu yo'l bilan), ustun bo'lmasa OWNER_VIA.
+        """
+        if self.has_cid(child):
+            if child in OWNER_FALLBACK:
+                return f"COALESCE(r.company_id, ({OWNER_FALLBACK[child]}))"
+            return "r.company_id"
+        if child in OWNER_VIA:
+            return f"({OWNER_VIA[child]})"
+        return None
+
+    def _foreign_sql(self, child: str) -> str | None:
+        o = self._owner_sql(child)
+        return None if o is None else f"({o} IS NOT NULL AND {o} <> :cid)"
+
+    def _own_sql(self, child: str) -> str | None:
+        o = self._owner_sql(child)
+        return None if o is None else f"({o} IS NULL OR {o} = :cid)"
+
+    def _scalar(self, sql: str, params=None) -> int:
+        return int(self.conn.execute(text(sql), params or {}).scalar() or 0)
 
     # ── Temp jadvallar ────────────────────────────────────
     def tmp(self, t: str) -> str:
@@ -150,13 +194,29 @@ class _Purger:
         if self.pk.get(e.child) is None:
             self.leaf_delete.append(e)
             return 0
+        P = {"cid": self.cid}
         if not e.nullable:
-            return self.add_rows(e.child, c)
-        if self.has_cid(e.child):
-            n = self.add_rows(e.child, f"{c} AND (r.company_id = :cid OR r.company_id IS NULL)", {"cid": self.cid})
+            foreign = self._foreign_sql(e.child)
+            if foreign is None:
+                return self.add_rows(e.child, c)
+            if e.parent == "branches":
+                self._remember_relocate(e, foreign)      # begona qatorlar ko'chiriladi, o'chirilmaydi
+            else:
+                n = self._scalar(f"SELECT count(*) FROM {self.q(e.child)} r WHERE {c} AND {foreign}", P)
+                if n:
+                    raise PurgeError(f"{e.child}.{e.col}: boshqa korxonaning {n} ta yozuvi bu korxona qatoriga "
+                                     f"bog'langan — o'chirib bo'lmaydi")
+            return self.add_rows(e.child, f"{c} AND {self._own_sql(e.child)}", P)
+        own = self._own_sql(e.child)
+        if own is not None:
+            n = self.add_rows(e.child, f"{c} AND {own}", P)
             self._remember_null(e)
             return n
         return self.add_rows(e.child, c)
+
+    def _remember_relocate(self, e: Edge, foreign: str):
+        if not any(x[0] == e for x in self.relocate):
+            self.relocate.append((e, foreign))
 
     def _remember_null(self, e: Edge):
         if e not in self.set_null:
@@ -195,6 +255,36 @@ class _Purger:
         self.propagate({"companies"})
         if self.users():
             self.propagate({"users"})
+        self._check_relocate()
+
+    def _check_relocate(self):
+        """Begona qatorlar ko'chiriladigan filial borligini tekshiradi va ko'chiriladigan qatorlar sonini yig'adi."""
+        P = {"cid": self.cid}
+        for e, foreign in self.relocate:
+            ch, col = self.q(e.child), self.q(e.col)
+            owner = self._owner_sql(e.child)
+            vals = self.parent_vals(e)
+            bad = self.conn.execute(text(
+                f"SELECT {owner} AS oid, count(*) FROM {ch} r WHERE r.{col} IN ({vals}) AND {foreign} "
+                f"AND NOT EXISTS (SELECT 1 FROM branches b WHERE b.company_id = {owner} "
+                f"AND b.id NOT IN (SELECT id FROM {self.tmp('branches')})) GROUP BY 1"), P).first()
+            if bad:
+                raise PurgeError(
+                    f"Boshqa korxona (id={bad[0]}) ning {bad[1]} ta {e.child} yozuvi bu korxonaning filialiga "
+                    f"bog'langan, lekin {bad[0]} da boshqa filial yo'q. Avval {bad[0]} ga filial yarating "
+                    f"yoki yozuvlarni ko'chiring")
+            n = self._scalar(f"SELECT count(*) FROM {ch} r WHERE r.{col} IN ({vals}) AND {foreign}", P)
+            if n:
+                self.moved[e.child] = self.moved.get(e.child, 0) + n
+
+    def unattributed(self) -> int:
+        """O'chiriladigan tranzaksiyalardan egasi noaniq (company_id va hamyon korxonasi yo'q) qatorlar soni."""
+        if "transactions" not in self.sets or not self.has_cid("transactions"):
+            return 0
+        fb = OWNER_FALLBACK["transactions"]
+        return self._scalar(
+            f"SELECT count(*) FROM transactions r WHERE r.id IN (SELECT id FROM {self.tmp('transactions')}) "
+            f"AND r.company_id IS NULL AND ({fb}) IS NULL")
 
     def counts(self) -> dict[str, int]:
         out = {}
@@ -287,6 +377,13 @@ class _Purger:
         if not fast:
             self._temp_indexes()
         self.progress("Bog'lanishlar uzilmoqda")
+        # 0) Begona qatorlarni egasi korxonaning birinchi filialiga ko'chirish (o'chirishdan oldin)
+        for e, foreign in self.relocate:
+            owner = self._owner_sql(e.child)
+            self.conn.execute(text(
+                f"UPDATE {self.q(e.child)} AS r SET {self.q(e.col)} = (SELECT MIN(b.id) FROM branches b "
+                f"WHERE b.company_id = {owner} AND b.id NOT IN (SELECT id FROM {self.tmp('branches')})) "
+                f"WHERE r.{self.q(e.col)} IN ({self.parent_vals(e)}) AND {foreign}"), {"cid": self.cid})
         # 1) Saqlanadigan qatorlardagi bog'lanishlarni uzish
         for e in self.set_null:
             if e.parent not in self.sets:
@@ -355,6 +452,22 @@ def preview_company_purge(db: Session, company_id: int) -> dict[str, int]:
     try:
         p.plan()
         return p.counts()
+    finally:
+        db.rollback()
+
+
+def preview_company_purge_ex(db: Session, company_id: int) -> dict:
+    """Ko'rib chiqish: {"counts": {...}, "moved": {...}}. moved — boshqa korxonalarning o'chirilmay,
+    ularning filialiga ko'chiriladigan qatorlari. counts["transactions_unattributed"] — egasi noaniq
+    tranzaksiyalar (filial egasiniki deb o'chadi; transactions ning bir qismi, umumiy songa qo'shilmasligi kerak)."""
+    p = _Purger(db, company_id)
+    try:
+        p.plan()
+        counts = p.counts()
+        un = p.unattributed()
+        if un:
+            counts["transactions_unattributed"] = un
+        return {"counts": counts, "moved": dict(p.moved)}
     finally:
         db.rollback()
 

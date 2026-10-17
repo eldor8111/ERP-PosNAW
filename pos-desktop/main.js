@@ -9,8 +9,11 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 600,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      // Xavfsizlik: renderer'da Node API yo'q; oyna boshqaruvi preload orqali
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
     titleBarStyle: 'hidden',
     frame: false,

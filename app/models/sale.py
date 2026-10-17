@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Date, Enum, ForeignKey, Integer, Numeric, String, Text, Index, JSON  # type: ignore
+from sqlalchemy import event, select, Column, DateTime, Date, Enum, ForeignKey, Integer, Numeric, String, Text, Index, JSON  # type: ignore
 from sqlalchemy.orm import relationship  # type: ignore
 
 from app.database import Base  # type: ignore
@@ -34,7 +34,7 @@ class Sale(Base):
     __tablename__ = "sales"
 
     id = Column(Integer, primary_key=True, index=True)
-    number = Column(String(20), unique=True, nullable=False, index=True)
+    number = Column(String(40), unique=True, nullable=False, index=True)
     cashier_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     total_amount = Column(Numeric(20, 4), nullable=False)
     discount_amount = Column(Numeric(20, 4), default=0)
@@ -43,6 +43,9 @@ class Sale(Base):
     paid_card = Column(Numeric(20, 4), default=0)
     paid_cashback = Column(Numeric(20, 4), default=0)
     cashback_earned = Column(Numeric(20, 4), default=0)
+    # T2.12: sotuv paytida mijozning total_spent ga qo'shilgan (UZS) summa — qaytarish/tahrir/o'chirishda
+    # teskari hisob shu qiymat bo'yicha (joriy kurs/foizga emas). Eski sotuvlarda NULL -> total_amount.
+    loyalty_base = Column(Numeric(20, 4), nullable=True)
     payment_type = Column(Enum(PaymentType), nullable=False)
     status = Column(Enum(SaleStatus), default=SaleStatus.completed)
     note = Column(Text, nullable=True)
@@ -53,6 +56,12 @@ class Sale(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)
+    # T1.9: sotuv filiali SNAPSHOT — yaratilganda ombor (yo'q bo'lsa kassir/asosiy) filialidan yoziladi.
+    # Ombor keyin boshqa filialga o'tkazilsa yoki sotuv tahrirlansa/qaytarilsa o'zgarmaydi;
+    # filial hisobotlari shu ustun bo'yicha ishlaydi. Eski qatorlar migratsiya bilan to'ldiriladi.
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True, index=True)
+    # T1.10: sotuv puli tushgan kassa (qaytarishda asl kassa shu yerdan olinadi). Eski sotuvlar migratsiya bilan to'ldirilgan.
+    wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=True, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     # Sotuv qaysi kassir smenasida qilingani — aniq bog'lanish (vaqt-oyna
     # taxmini o'rniga). Eski sotuvlarda NULL, ular uchun vaqt-oyna zaxira.
@@ -74,12 +83,18 @@ class Sale(Base):
     fiscal_receipt_seq = Column(Integer, nullable=True)
     fiscal_transaction_id = Column(String(64), nullable=True)
     fiscal_at = Column(DateTime, nullable=True)
+    # T3.18: fiskallash qaysi fiskal modul (Hippo factory_id) orqali bajarilgani — filial qurilmalari ro'yxati bilan tekshiriladi
+    fiscal_factory_id = Column(String(64), nullable=True)
     debt_due_date = Column(Date, nullable=True)
     debt_amounts = Column(JSON, nullable=True, server_default='{}')
     before_debt_balances = Column(JSON, nullable=True)
+    # Qaytarish hujjati (R...) uchun asl sotuvga havola (T0.30). Qisman qaytarishda
+    # to'ldiriladi; eski to'liq qaytarish ("Vazvrat: ...") hujjatlarida NULL qoladi.
+    original_sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True, index=True)
 
     currency = relationship("Currency")
     warehouse = relationship("Warehouse")
+    branch = relationship("Branch", foreign_keys=[branch_id])
     customer = relationship("Customer")
     cashier = relationship("User", foreign_keys=[cashier_id])
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
@@ -90,8 +105,43 @@ class Sale(Base):
     __table_args__ = (
         Index('ix_sale_company_created', 'company_id', 'created_at'),
         Index('ix_sale_company_status', 'company_id', 'status'),
+        Index('ix_sale_company_branch_created', 'company_id', 'branch_id', 'created_at'),
         Index('ux_sales_company_idem_key', 'company_id', 'idempotency_key', unique=True),
     )
+
+
+@event.listens_for(Sale, "before_insert")
+def _sale_fill_branch(mapper, connection, target):
+    """T1.9 xavfsizlik to'ri: `branch_id` aniq berilmagan sotuv (masalan qaytarish hujjati) ham
+    filialsiz qolmasin. `create_sale`/`create_pending_sale` filialni o'zi aniqlab beradi; bu yerda faqat
+    qolgan yo'llar uchun: asl sotuv filiali (qaytarish) -> ombor filiali (faqat o'z korxonasidan).
+    Topilmasa NULL qoladi (kassir/korxona filialiga taxmin qilinmaydi)."""
+    if target.branch_id is not None:
+        return
+    from app.models.branch import Branch
+    from app.models.warehouse import Warehouse
+
+    cid = target.company_id
+
+    def _own(bid):
+        if not bid:
+            return None
+        q = select(Branch.id).where(Branch.id == bid)
+        if cid is not None:
+            q = q.where(Branch.company_id == cid)
+        return connection.execute(q).scalar()
+
+    found = None
+    if target.original_sale_id:
+        found = _own(connection.execute(
+            select(Sale.branch_id).where(Sale.id == target.original_sale_id)
+        ).scalar())
+    if not found and target.warehouse_id:
+        q = select(Warehouse.branch_id).where(Warehouse.id == target.warehouse_id)
+        if cid is not None:
+            q = q.where(Warehouse.company_id == cid)
+        found = _own(connection.execute(q).scalar())
+    target.branch_id = found
 
 
 class SaleItem(Base):
@@ -113,6 +163,9 @@ class SaleItem(Base):
     exchange_rate = Column(Numeric(14, 2), default=1)
     # Har bir sotilgan birlik uchun skanerlangan Data Matrix (markirovka) kodlari
     marking_codes = Column(JSON, nullable=True)
+    # T4.3: qo'llangan aksiya va undagi chegirma ulushi (discount ichida; qo'shimcha chegirma emas)
+    promotion_id = Column(Integer, ForeignKey("promotions.id", ondelete="SET NULL"), nullable=True)
+    promotion_discount = Column(Numeric(16, 4), nullable=True)
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")
@@ -122,6 +175,7 @@ class SaleItem(Base):
     __table_args__ = (
         Index('ix_sale_item_sale_id', 'sale_id'),
         Index('ix_sale_item_product_id', 'product_id'),
+        Index('ix_sale_items_promotion', 'promotion_id'),
     )
 
 
@@ -146,5 +200,8 @@ class SalePayment(Base):
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
     payment_type = Column(String(50), nullable=False)
     amount = Column(Numeric(14, 2), nullable=False)
+    # T3.18: provayder (click/payme/uzum) tranzaksiya raqami va to'lov terminali — ko'chirma bilan solishtirish uchun
+    reference = Column(String(64), nullable=True, index=True)
+    terminal_id = Column(Integer, ForeignKey("payment_terminals.id", ondelete="SET NULL"), nullable=True)
 
     sale = relationship("Sale", back_populates="payments")

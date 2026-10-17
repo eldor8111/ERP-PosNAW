@@ -1,0 +1,24 @@
+[Unit]
+# Fon vazifalari ishchisi (scheduler + admin bot polling). Qo'lda tahrirlamang — deploy/install_worker.sh
+# @...@ joylarini asosiy xizmat (erppos) sozlamalaridan to'ldirib /etc/systemd/system ga yozadi.
+# Web unit'ga RUN_BACKGROUND_JOBS=0 qo'yiladi (drop-in), shuning uchun bu jarayon ishlamasa fon vazifalari to'xtaydi.
+Description=E-code: fon vazifalari ishchisi (scheduler va admin bot)
+After=network.target postgresql.service
+# systemctl restart @MAIN_UNIT@ — ishchi ham yangi kod bilan qayta ishga tushadi
+PartOf=@MAIN_UNIT@.service
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@WORKDIR@
+@ENV_FILE_LINE@
+ExecStart=@PYTHON@ -m app.worker
+
+Environment=PYTHONUNBUFFERED=1
+
+# Bir nechta nusxa bo'lsa ham background_leases ijarasi tufayli faqat bittasi rahbar bo'ladi
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target @MAIN_UNIT@.service

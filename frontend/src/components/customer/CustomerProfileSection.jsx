@@ -3,6 +3,8 @@ import { MapPin, Send, Plus, Minus, ImagePlus, Paperclip, Trash2, Download, File
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import { useAuth } from '../../context/AuthContext';
+import { canViewDocs, canDeleteDocs } from './customerProfile';
 import { REGIONS } from '../../constants/regions';
 import MapPicker from '../MapPicker';
 import { yandexMapsUrl } from '../../utils/maps';
@@ -34,6 +36,9 @@ function Section({ title, children, right }) {
  */
 export default function CustomerProfileSection({ form, setForm, customer, pending, setPending, onCustomerUpdated }) {
   const { t } = useLang();
+  const { user } = useAuth();
+  const canDocs = canViewDocs(user?.role);
+  const canDelDocs = canDeleteDocs(user?.role);
   const [agents, setAgents] = useState([]);
   const [docs, setDocs] = useState([]);
   const [photoUrl, setPhotoUrl] = useState(customer?.photo_url || null);
@@ -50,8 +55,8 @@ export default function CustomerProfileSection({ form, setForm, customer, pendin
     api.get('/users/', { _silent: true }).then(r => setAgents(r.data || [])).catch(() => {});
   }, []);
   useEffect(() => {
-    if (isEdit) api.get(`/customers/${customer.id}/documents`, { _silent: true }).then(r => setDocs(r.data)).catch(() => {});
-  }, [isEdit, customer?.id]);
+    if (isEdit && canDocs) api.get(`/customers/${customer.id}/documents`, { _silent: true }).then(r => setDocs(r.data)).catch(() => {});
+  }, [isEdit, customer?.id, canDocs]);
 
   // ── Joylashuv ──
   const onMapPick = ({ lat, lng, address }) => {
@@ -100,7 +105,7 @@ export default function CustomerProfileSection({ form, setForm, customer, pendin
   // ── Hujjatlar ──
   const onDocsSelected = async (files) => {
     const list = Array.from(files || []);
-    if (!list.length) return;
+    if (!list.length || !canDocs) return;
     if (!isEdit) { setPending(p => ({ ...p, docs: [...(p.docs || []), ...list] })); return; }
     setBusy(true);
     for (const f of list) {
@@ -260,6 +265,9 @@ export default function CustomerProfileSection({ form, setForm, customer, pendin
             <p className="text-[10px] text-slate-400 mt-1 w-28">{t('customerProfile.photoHint')}</p>
           </div>
 
+          {!canDocs ? (
+            <p className="flex-1 min-w-0 text-[11px] text-slate-400">{t('customerProfile.docsNoAccess')}</p>
+          ) : (
           <div className="flex-1 min-w-0 space-y-2">
             <button type="button" onClick={() => docInput.current?.click()} disabled={busy}
               className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">
@@ -276,7 +284,7 @@ export default function CustomerProfileSection({ form, setForm, customer, pendin
                 <span className="text-[11px] text-slate-400 shrink-0">{fmtSize(d.size)}</span>
                 {isEdit ? <>
                   <button type="button" onClick={() => downloadDoc(d)} className="p-1 text-slate-400 hover:text-blue-600"><Download className="size-4" /></button>
-                  <button type="button" onClick={() => deleteDoc(d)} className="p-1 text-slate-400 hover:text-red-500"><Trash2 className="size-4" /></button>
+                  {canDelDocs && <button type="button" onClick={() => deleteDoc(d)} className="p-1 text-slate-400 hover:text-red-500"><Trash2 className="size-4" /></button>}
                 </> : (
                   <button type="button" onClick={() => setPending(p => ({ ...p, docs: p.docs.filter((_, j) => j !== i) }))}
                     className="p-1 text-slate-400 hover:text-red-500"><Trash2 className="size-4" /></button>
@@ -284,8 +292,9 @@ export default function CustomerProfileSection({ form, setForm, customer, pendin
               </div>
             ))}
           </div>
+          )}
         </div>
-        {!isEdit && (pending?.photo || pending?.docs?.length > 0) && (
+        {!isEdit && (pending?.photo || (canDocs && pending?.docs?.length > 0)) && (
           <p className="text-[11px] text-amber-600">{t('customerProfile.filesAfterSave')}</p>
         )}
       </Section>

@@ -6,10 +6,12 @@ import json
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import exists
 from sqlalchemy.orm import Session
 
+from app.core.branch_context import BranchContext, get_branch_context, warehouse_ids_for_ctx
 from app.core.dependencies import get_current_user
 from app.database import get_db
 from app.models.inventory import StockLevel
@@ -22,26 +24,97 @@ from app.schemas.product import (
     ProductListOut,
     WarehouseStockOut,
 )
+from app.services import stock_report
+from app.services.warehouse_scope import (
+    default_sale_warehouse_id, sellable_warehouses_query, sellable_warehouse_ids, stock_totals,
+)
 from app.utils.product_filters import name_filter
 from app.utils.translit import translit_variants as _translit_variants
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
+@router.get("/pos-context")
+def pos_context(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    ctx: BranchContext = Depends(get_branch_context),
+):
+    """POS ombor tanlagichi uchun (T1.17): joriy filial, default sotuv ombori va
+    sotiladigan (faol, xom ashyosiz) omborlar ro'yxati."""
+    from app.core.branch_context import effective_branch_id
+    from app.models.warehouse import Warehouse
+
+    scope = ctx.scope_ids()
+    q = sellable_warehouses_query(db, current_user.company_id, branch_ids=scope)
+    whs = q.order_by(Warehouse.id).all()
+    branch_id = ctx.branch_id if ctx.branch_id is not None else effective_branch_id(db, current_user)
+    default_id = default_sale_warehouse_id(db, current_user.company_id, branch_id)
+    # default ombor ko'rinadigan omborlar ichida bo'lsin (filial doirasidan tashqariga chiqmasin)
+    if default_id is not None and default_id not in {w.id for w in whs}:
+        default_id = None
+    return {
+        "branch_id": branch_id,
+        "default_warehouse_id": default_id,
+        "warehouses": [
+            {"id": w.id, "name": w.name, "type": getattr(w.type, "value", w.type)} for w in whs
+        ],
+    }
+
+
 @router.get("/pos-list")
 def list_products_for_pos(
     search: Optional[str] = Query(None),
-    limit: Optional[int] = Query(50),
+    limit: Optional[int] = Query(50, ge=1, le=5000),
+    skip: int = Query(0, ge=0),
     warehouse_id: Optional[int] = Query(None),
+    branch_id: Optional[int] = Query(None, description="Filial narxlari uchun filial (T4.3)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
     """
     POS uchun yengil endpoint — faqat kerakli maydonlar.
     /products/?limit=10000 o'rniga shu endpoint ishlatilsin.
     Javob hajmi 3-5x kichik → POS tezroq yuklanadi.
+
+    Qoldiq (`stock_quantity`): `warehouse_id` berilsa shu ombor (korxonaniki, faol va foydalanuvchi
+    filialida bo'lishi shart), berilmasa joriy filialning sotiladigan omborlari (T1.17).
+
+    Narx (T4.3): `branch_id` (yoki ombor filiali / joriy filial) uchun filial narxi bo'lsa `sale_price` /
+    `wholesale_price` shu bilan almashtiriladi va `price_source="branch"`, aks holda `"product"` (korxona narxi).
     """
-    from sqlalchemy import func as sqlfunc
+    from app.models.warehouse import Warehouse
+    from app.services.tenant_guards import WAREHOUSE_NOT_FOUND, WAREHOUSE_OTHER_BRANCH
+
+    scope = ctx.scope_ids()
+    if warehouse_id:
+        wh = db.query(Warehouse).filter(
+            Warehouse.id == warehouse_id,
+            Warehouse.company_id == current_user.company_id,
+            Warehouse.is_active == True,  # noqa: E712
+        ).first()
+        if not wh:
+            raise HTTPException(status_code=404, detail=WAREHOUSE_NOT_FOUND)
+        if scope is not None and wh.branch_id not in scope:
+            raise HTTPException(status_code=403, detail=WAREHOUSE_OTHER_BRANCH)
+        wh_ids = [wh.id]
+        _wh_branch_id = wh.branch_id
+    else:
+        wh_ids = sellable_warehouse_ids(db, current_user.company_id, branch_ids=scope)
+        _wh_branch_id = None
+
+    # T4.3: narx filiali — aniq branch_id (korxonaniki va ruxsat doirasida) > ombor filiali > joriy filial
+    if branch_id is not None:
+        from app.models.branch import Branch
+        if not db.query(Branch.id).filter(Branch.id == branch_id, Branch.company_id == current_user.company_id).first():
+            raise HTTPException(status_code=404, detail="Filial topilmadi")
+        if scope is not None and branch_id not in scope:
+            raise HTTPException(status_code=403, detail=WAREHOUSE_OTHER_BRANCH)
+        price_branch_id = branch_id
+    else:
+        from app.core.branch_context import effective_branch_id
+        price_branch_id = _wh_branch_id or effective_branch_id(db, current_user)
 
     q = db.query(
         Product.id,
@@ -49,6 +122,7 @@ def list_products_for_pos(
         Product.barcode,
         Product.extra_barcodes,
         Product.sku,
+        Product.plu_code,
         Product.product_code,
         Product.sale_price,
         Product.sale_currency,
@@ -79,14 +153,17 @@ def list_products_for_pos(
         except Exception:
             q = q.filter(Product.name.ilike(f"%{search}%"))
 
-    q = q.order_by(Product.name)
+    # Barqaror tartib (nom, id) — sahifalashda (skip/limit) qatorlar takrorlanmasin/tushib qolmasin
+    q = q.order_by(Product.name, Product.id)
 
     if search:
         q_len = len(search.strip().replace(' ', ''))
         multiplier = 20 if q_len <= 3 else (12 if q_len <= 6 else 8)
         fetch_limit = min((limit or 50) * multiplier, 600)
     else:
+        # T3.11: qidiruvsiz yo'lda sahifalash (butun katalogni POS ga yuklash uchun)
         fetch_limit = limit or 50
+        q = q.offset(skip)
     q = q.limit(fetch_limit)
 
     products_raw = q.all()
@@ -144,20 +221,32 @@ def list_products_for_pos(
 
     # StockLevel ma'lumotlarini olish (products_raw + source_product_id lari)
     all_needed_ids = set(product_ids) | source_ids_to_fetch
-    stock_q = db.query(
-        StockLevel.product_id,
-        sqlfunc.coalesce(sqlfunc.sum(StockLevel.quantity), 0).label("total_qty"),
-    ).filter(StockLevel.product_id.in_(all_needed_ids))
-    if warehouse_id:
-        stock_q = stock_q.filter(StockLevel.warehouse_id == warehouse_id)
-    stock_rows = stock_q.group_by(StockLevel.product_id).all()
-    stock_map = {r.product_id: float(r.total_qty) for r in stock_rows}
+    # Qoldiq faqat tanlangan/joriy filial omborlaridan (NULL-ombor qatorlari va bo'sh omborlar -> 0)
+    stock_map = {pid: float(qty) for pid, qty in stock_totals(db, all_needed_ids, wh_ids).items()}
+
+    from app.services.branch_price_service import get_branch_prices
+    branch_prices = get_branch_prices(db, current_user.company_id, price_branch_id, product_ids)
+
+    def _price(p):
+        """-> (sale_price, wholesale_price, price_source): filial narxi bo'lsa shu (NULL ustun korxona narxida qoladi)."""
+        bp = branch_prices.get((p.id, None))
+        sale = float(p.sale_price)
+        wholesale = float(p.wholesale_price) if p.wholesale_price else None
+        if bp is None:
+            return sale, wholesale, "product"
+        if bp.sale_price is not None:
+            sale = float(bp.sale_price)
+        if bp.wholesale_price is not None:
+            wholesale = float(bp.wholesale_price)
+        return sale, wholesale, "branch"
 
     def get_stock(p):
         if (p.product_type or 'stock') == 'sell':
             # Mijoz talabiga ko'ra virtual mahsulot qoldig'i har doim 0 bo'lib turishi kerak
             return 0.0
         return stock_map.get(p.id, 0.0)
+
+    prices = {p.id: _price(p) for p in products_raw}  # C4.1: har mahsulot narxi bir marta hisoblanadi
 
     return [
         {
@@ -166,12 +255,14 @@ def list_products_for_pos(
             "barcode": p.barcode,
             "extra_barcodes": json.loads(p.extra_barcodes) if p.extra_barcodes else [],
             "sku": p.sku,
+            "plu_code": p.plu_code,
             "product_code": p.product_code,
             "extra_product_codes": [],
-            "sale_price": float(p.sale_price),
+            "sale_price": prices[p.id][0],
             "sale_currency": p.sale_currency or "UZS",
-            "wholesale_price": float(p.wholesale_price) if p.wholesale_price else None,
+            "wholesale_price": prices[p.id][1],
             "wholesale_currency": p.wholesale_currency or "UZS",
+            "price_source": prices[p.id][2],
             "cost_price": float(p.cost_price),
             "cost_currency": p.cost_currency or "UZS",
             "min_stock": p.min_stock,
@@ -198,6 +289,7 @@ def list_products_paginated(
     category_id: Optional[int] = Query(None),
     status: Optional[ProductStatus] = Query(None),
     warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter"),
+    branch_id: Optional[int] = Query(None, description="Filial bo'yicha filter (shu filial omborlari qoldig'i)"),
     unit: Optional[str] = Query(None, description="O'lchov birligi bo'yicha filter (dona, kg, litr, metr, gramm)"),
     stock_status: Optional[str] = Query(None, description="Ombor holati bo'yicha filter (qolmagan, kam-qolgan, minusda)"),
     sort_by: Optional[str] = Query(None, description="Saralash maydoni: sale_price, wholesale_price, cost_price, profit"),
@@ -206,6 +298,7 @@ def list_products_paginated(
     limit: int = Query(50, ge=1, le=20000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
     from app.models.warehouse import Warehouse
     from sqlalchemy import case, func as f2, text
@@ -227,35 +320,48 @@ def list_products_paginated(
         q = q.filter(Product.status == status)
     if unit:
         q = q.filter(Product.unit.ilike(unit))
-    if warehouse_id:
-        # Ombor bo'yicha filter: OUTER JOIN ishlatamiz, shunda 0 qoldiqli/recordi yo'q mahsulotlar ham chiqadi
-        q = q.outerjoin(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
+    # T2.3: ombor korxonaniki (404), tanlangan filialniki (400) va ruxsat doirasida (403) bo'lishi shart.
+    # Eslatma: ombor bo'yicha qoldiq `stock_subq` ichida filtrlanadi — StockLevel bilan to'g'ridan-to'g'ri
+    # JOIN variantli mahsulotda qatorlarni ko'paytirib, jami va statistikani buzardi.
+    if not warehouse_id and branch_id and ctx.allowed_branch_ids is not None \
+            and branch_id not in ctx.allowed_branch_ids:
+        branch_id = None  # ruxsatsiz filial parametri e'tiborsiz (xodim o'z doirasida qoladi)
+    wh_scope = stock_report.resolve_wh_scope(db, current_user, current_user.company_id, branch_id, warehouse_id, ctx)
 
-    ADMIN_ROLES_P = (UserRole.admin, UserRole.director, UserRole.super_admin)
-    branch_wh_set = None
-    if current_user.role not in ADMIN_ROLES_P and current_user.branch_id:
-        branch_wh_set = {
-            wh.id for wh in db.query(Warehouse.id).filter(
-                Warehouse.branch_id == current_user.branch_id
-            ).all()
-        }
+    # T1.1: ko'rinadigan omborlar (None → cheklov yo'q). Aniq ombor tanlanganda qatorlardagi
+    # `warehouse_stocks` hamon filial kontekstidan, aks holda tanlangan doiradan olinadi.
+    if warehouse_id:
+        branch_wh_set = warehouse_ids_for_ctx(db, ctx)
+    else:
+        branch_wh_set = set(wh_scope) if wh_scope is not None else None
 
     stock_subq = db.query(
         StockLevel.product_id,
         f2.coalesce(f2.sum(StockLevel.quantity), 0).label("total_stock")
+    ).outerjoin(Warehouse, Warehouse.id == StockLevel.warehouse_id).filter(
+        # T1.12: arxivlangan (nofaol) ombor qoldig'i jamga qo'shilmaydi
+        StockLevel.warehouse_id.is_(None) | Warehouse.is_active.isnot(False)
     )
     if warehouse_id:
         stock_subq = stock_subq.filter(StockLevel.warehouse_id == warehouse_id)
-    elif branch_wh_set:
-        stock_subq = stock_subq.filter(StockLevel.warehouse_id.in_(branch_wh_set))
+    elif branch_wh_set is not None:
+        # MODEL-22: bo'sh to'plam ham filtr (in_([]) → 0), ko'rsatiladigan qoldiq bilan mos
+        stock_subq = stock_subq.filter(StockLevel.warehouse_id.in_(list(branch_wh_set)))
     stock_subq = stock_subq.group_by(StockLevel.product_id).subquery()
+
+    low_cond = (
+        (Product.min_stock > 0)
+        & (f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock)
+        & (f2.coalesce(Product.product_type, "simple") != stock_report.VIRTUAL_PRODUCT_TYPE)
+    )
 
     if stock_status:
         q = q.outerjoin(stock_subq, Product.id == stock_subq.c.product_id)
         if stock_status == "qolmagan":
             q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) <= 0)
         elif stock_status == "kam-qolgan":
-            q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock)
+            # yagona ta'rif (stock_report): min_stock > 0 va jami qoldiq <= min_stock, virtual (sell) bo'lmagan
+            q = q.filter(low_cond)
         elif stock_status == "minusda":
             q = q.filter(f2.coalesce(stock_subq.c.total_stock, 0) < 0)
 
@@ -266,7 +372,7 @@ def list_products_paginated(
     counts_row = stats_q.with_entities(
         f2.count(Product.id).label("total"),
         f2.sum(case((Product.status == ProductStatus.active, 1), else_=0)).label("active"),
-        f2.sum(case((f2.coalesce(stock_subq.c.total_stock, 0) <= Product.min_stock, 1), else_=0)).label("low"),
+        f2.sum(case((low_cond, 1), else_=0)).label("low"),
     ).first()
 
     total_count = int(counts_row.total or 0) if counts_row else 0
@@ -335,7 +441,12 @@ def list_products_paginated(
     all_needed_ids = set(product_ids) | source_ids
 
     all_stock_rows = (
-        db.query(StockLevel).filter(StockLevel.product_id.in_(all_needed_ids)).all()
+        db.query(StockLevel)
+        .outerjoin(Warehouse, Warehouse.id == StockLevel.warehouse_id)
+        # T1.12: arxivlangan (nofaol) ombor qoldig'i jamga qo'shilmaydi
+        .filter(StockLevel.product_id.in_(all_needed_ids),
+                StockLevel.warehouse_id.is_(None) | Warehouse.is_active.isnot(False))
+        .all()
     ) if all_needed_ids else []
 
     stock_by_product: dict = defaultdict(list)
@@ -362,8 +473,8 @@ def list_products_paginated(
         ]
 
         if warehouse_id:
-            wh_stock = next((s for s in all_stocks if s.warehouse_id == warehouse_id), None)
-            raw_qty = wh_stock.quantity if wh_stock else Decimal("0")
+            # variantli mahsulot: tanlangan ombordagi barcha variantlar yig'indisi
+            raw_qty = sum((s.quantity for s in all_stocks if s.warehouse_id == warehouse_id), Decimal("0"))
         else:
             raw_qty = sum((s.quantity for s in visible_stocks), Decimal("0"))
         # Manfiy qoldiqni ham ko'rsatamiz (clamp yo'q)
@@ -434,7 +545,8 @@ def list_product_ids(
     if status:
         q = q.filter(Product.status == status)
     if warehouse_id:
-        q = q.join(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
+        # EXISTS: variantli mahsulot (bir ombordagi bir nechta qator) id'ni takrorlamasin
+        q = q.filter(exists().where(StockLevel.product_id == Product.id, StockLevel.warehouse_id == warehouse_id))
 
     return [r[0] for r in q.order_by(Product.name).all()]
 
@@ -455,14 +567,14 @@ def products_by_ids(
     if not ids:
         return []
     rows = (
-        db.query(Product.id, Product.name, Product.barcode, Product.sku, Product.product_code,
+        db.query(Product.id, Product.name, Product.barcode, Product.sku, Product.plu_code, Product.product_code,
                  Product.sale_price, Product.sale_currency)
         .filter(Product.id.in_(ids), Product.company_id == current_user.company_id, Product.is_deleted == False)
         .all()
     )
     by_id = {r.id: r for r in rows}
     return [
-        {"id": r.id, "name": r.name, "barcode": r.barcode, "sku": r.sku, "product_code": r.product_code,
+        {"id": r.id, "name": r.name, "barcode": r.barcode, "sku": r.sku, "plu_code": r.plu_code, "product_code": r.product_code,
          "sale_price": float(r.sale_price or 0), "sale_currency": r.sale_currency}
         for r in (by_id.get(i) for i in ids) if r is not None
     ]

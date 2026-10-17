@@ -53,6 +53,40 @@ from app.models.api_key import ApiKey  # type: ignore
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+# last_used_at har so'rovda yozilmaydi — faqat shu muddatdan eski bo'lsa yangilanadi
+API_KEY_TOUCH_INTERVAL = timedelta(minutes=5)
+
+
+def find_api_key(db: Session, raw_key: str) -> ApiKey:
+    """Xom kalit bo'yicha faol va KORXONAGA BOG'LANGAN yozuvni topadi; bo'lmasa 403.
+    company_id IS NULL (egasiz eski) kalitlar hech qachon qabul qilinmaydi."""
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_record = (
+        db.query(ApiKey)
+        .filter(ApiKey.key_hash == key_hash, ApiKey.is_active == True, ApiKey.company_id.isnot(None))  # noqa: E712
+        .first()
+    )
+    if not key_record:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API Key noto'g'ri yoki faol emas!",
+        )
+    return key_record
+
+
+def touch_api_key(db: Session, key_record: ApiKey) -> None:
+    """last_used_at ni yangilaydi, lekin faqat 5 daqiqadan eski bo'lsa (har so'rovda yozmaslik uchun)."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    last = key_record.last_used_at
+    if last is not None:
+        if last.tzinfo is not None:
+            last = last.astimezone(timezone.utc).replace(tzinfo=None)
+        if now - last < API_KEY_TOUCH_INTERVAL:
+            return
+    key_record.last_used_at = now
+    db.commit()
+
+
 def get_api_key(
     api_key_header: str = Security(api_key_header),
     db: Session = Depends(get_db)
@@ -62,12 +96,6 @@ def get_api_key(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tashqi xizmat ulanishi uchun X-API-Key kiritilmagan",
         )
-    key_hash = hashlib.sha256(api_key_header.encode()).hexdigest()
-    key_record = db.query(ApiKey).filter(ApiKey.key_hash == key_hash, ApiKey.is_active == True).first()
-    
-    if not key_record:
-         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="API Key noto'g'ri yoki faol emas!",
-        )
+    key_record = find_api_key(db, api_key_header)
+    touch_api_key(db, key_record)
     return key_record

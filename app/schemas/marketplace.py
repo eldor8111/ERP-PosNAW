@@ -1,7 +1,20 @@
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
+
+
+# ── Mir-maza webhook (T0.18) ───────────────────────────────────────────────
+
+class MirmazaItem(BaseModel):
+    externalId: str = Field(..., min_length=1, max_length=100)
+    quantity: Decimal = Field(Decimal("1"), gt=0)
+    total: Decimal = Field(..., ge=0)
+
+
+class MirmazaWebhookIn(BaseModel):
+    marketOrderId: int = Field(..., validation_alias=AliasChoices("marketOrderId", "orderId"))
+    items: List[MirmazaItem] = Field(default_factory=list)
 
 
 class AgentSendCodeIn(BaseModel):
@@ -55,6 +68,7 @@ class ProductIn(BaseModel):
     sku: Optional[str] = Field(None, max_length=100)
     images: List[str] = Field(default_factory=list, max_length=8)
     submit: bool = Field(True, description="True — darhol tekshiruvga yuboriladi, False — qoralama")
+    preferred_warehouse_id: Optional[int] = Field(None, description="Agent topshirmoqchi bo'lgan ombor (ixtiyoriy)")
 
 
 class ProductUpdateIn(BaseModel):
@@ -67,6 +81,7 @@ class ProductUpdateIn(BaseModel):
     sku: Optional[str] = Field(None, max_length=100)
     images: Optional[List[str]] = Field(None, max_length=8)
     submit: bool = True
+    preferred_warehouse_id: Optional[int] = None
 
 
 class RejectIn(BaseModel):
@@ -78,6 +93,18 @@ class AgentStatusIn(BaseModel):
     reason: Optional[str] = Field(None, max_length=300)
 
 
+class ApproveIn(BaseModel):
+    # T3.17: tasdiqlashda kirim qilinadigan ombor (berilmasa — tanlangan/standart ombor)
+    warehouse_id: Optional[int] = None
+    receive_stock: bool = True
+
+
+class ReceiveIn(BaseModel):
+    warehouse_id: int
+
+
 class PayoutIn(BaseModel):
     amount: Decimal = Field(..., gt=0, max_digits=18, decimal_places=2)
+    wallet_id: int
+    payment_type: Literal["cash", "card"] = "cash"
     note: Optional[str] = Field(None, max_length=300)

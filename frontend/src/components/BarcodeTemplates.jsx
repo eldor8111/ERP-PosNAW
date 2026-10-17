@@ -10,9 +10,25 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import api from '../api/axios';
+import api, { getCurrentBranchId } from '../api/axios';
+import { useLang } from '../context/LangContext';
 
 const LS_KEY = 'barcode_saved_templates';
+
+// T3.7: shablonlar serverda (GET/POST/PUT/DELETE /label-templates?kind=product); localStorage faqat
+// server javob bermaganda zaxira va eski shablonlarni serverga ko'chirish uchun. Barcha chaqiruvlar try/catch da.
+const readLocalTemplates = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+};
+const writeLocalTemplates = (list) => {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(list)); return true; } catch { return false; }
+};
+// Server yozuvi -> komponent ichidagi shablon (config + id/name/branch_id)
+const fromServerTemplate = (r) => ({ ...(r.config || {}), id: r.id, name: r.name, branch_id: r.branch_id ?? null, _server: true });
+const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 const MM_TO_PX = 3.7795;
 
@@ -222,6 +238,8 @@ function buildLabelHTML(tpl, product, opts = {}) {
   const productCode = product.product_code || '';
   const barcode = product.barcode || '';
   const companyNameText = opts.companyName || '';
+  const branchNameText = (opts.showBranchName && opts.branchName) ? escHtml(opts.branchName) : '';
+  const branchAddressText = (opts.showBranchAddress && opts.branchAddress) ? escHtml(opts.branchAddress) : '';
 
   const base = `
     width:${w}mm; height:${h}mm;
@@ -235,6 +253,10 @@ function buildLabelHTML(tpl, product, opts = {}) {
   // Dynamic content building blocks
   const companyHtml = (showCompanyName && companyNameText)
     ? `<div style="font-size:${companyNameSize}px; font-weight:700; text-align:center; word-break:break-word; width:100%; line-height:1.1;">${companyNameText}</div>`
+    : '';
+
+  const branchHtml = (branchNameText || branchAddressText)
+    ? `<div style="font-size:${Math.max(5, companyNameSize - 2)}px; text-align:center; word-break:break-word; width:100%; line-height:1.1; color:#444;">${[branchNameText, branchAddressText].filter(Boolean).join(', ')}</div>`
     : '';
 
   const productNameHtml = showProductName
@@ -270,13 +292,18 @@ function buildLabelHTML(tpl, product, opts = {}) {
   const downElements = [];
 
   // Detect if code is the ONLY visible element (auto-center)
-  const otherHtmlPresent = companyHtml || productNameHtml || skuHtml || priceHtml || dateHtml || barcodeHtml;
+  const otherHtmlPresent = companyHtml || branchHtml || productNameHtml || skuHtml || priceHtml || dateHtml || barcodeHtml;
   const codeIsAlone = codeHtml && !otherHtmlPresent;
   const codeIsCenter = productCodePos === 'middle' || codeIsAlone;
 
   if (companyHtml) {
     if (companyNamePos === 'up') upElements.push(companyHtml);
     else downElements.push(companyHtml);
+  }
+
+  if (branchHtml) {
+    if (companyNamePos === 'up') upElements.push(branchHtml);
+    else downElements.push(branchHtml);
   }
 
   if (productNameHtml) {
@@ -430,6 +457,8 @@ const MAX_LABELS = 3000;   // bir martada chop etiladigan yorliqlar chegarasi (b
 
 /* product — bitta tovar; products — ommaviy amal (belgilangan tovarlar) */
 export default function BarcodePrintModal({ product, products, onClose }) {
+  const { t: tr } = useLang();
+  const tf = (key, fallback) => { const v = tr(key); return v === key ? fallback : v; };
   const [selectedTpl, setSelectedTpl] = useState(BUILT_IN_TEMPLATES[3]); // 50×30 default
   const [qty, setQty] = useState(1);
   const items = useMemo(() => (products?.length ? products : [product]).filter(Boolean), [product, products]);
@@ -454,9 +483,18 @@ export default function BarcodePrintModal({ product, products, onClose }) {
 
   const [companyName, setCompanyName] = useState("");
 
-  const [savedTemplates, setSavedTemplates] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
-  });
+  const [branchName, setBranchName] = useState("");
+  const [branchAddress, setBranchAddress] = useState("");
+  const [showBranchName, setShowBranchName] = useState(false);
+  const [showBranchAddress, setShowBranchAddress] = useState(false);
+
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [serverOk, setServerOk] = useState(false);          // server javob berdimi (aks holda localStorage zaxira)
+  const [legacyLocal, setLegacyLocal] = useState(() => readLocalTemplates());
+  const [migrating, setMigrating] = useState(false);
+  const [saveBranchOnly, setSaveBranchOnly] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const currentBranchId = getCurrentBranchId();
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [currencies, setCurrencies] = useState([]);
@@ -475,6 +513,27 @@ export default function BarcodePrintModal({ product, products, onClose }) {
   const [productPricePos, setProductPricePos] = useState("down");
   const [productSkuPos, setProductSkuPos] = useState("up");
   const [productCodePos, setProductCodePos] = useState("up");
+
+  // T3.7: shablonlar serverdan (korxona + joriy filial), korxona nomi Company.name dan oldindan to'ldiriladi
+  const loadServerTemplates = () => {
+    const bid = getCurrentBranchId();
+    return api.get('/label-templates', { params: { kind: 'product', ...(bid ? { branch_id: bid } : {}) }, _noCache: true })
+      .then(res => {
+        setSavedTemplates((Array.isArray(res.data) ? res.data : []).map(fromServerTemplate));
+        setServerOk(true);
+      })
+      .catch(() => {
+        setSavedTemplates(readLocalTemplates());
+        setServerOk(false);
+      });
+  };
+  useEffect(() => {
+    loadServerTemplates();
+    api.get('/billing/my-company')
+      .then(res => { const n = res.data?.name; if (n) setCompanyName(prev => prev || n); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load JsBarcode CDN
   useEffect(() => {
@@ -498,6 +557,10 @@ export default function BarcodePrintModal({ product, products, onClose }) {
 
   const previewOptions = {
     companyName,
+    branchName,
+    branchAddress,
+    showBranchName,
+    showBranchAddress,
     currencyVal,
     currencies,
     fontSize,
@@ -523,13 +586,13 @@ export default function BarcodePrintModal({ product, products, onClose }) {
     date: new Date().toLocaleDateString('uz-UZ'),
   };
 
-  /* Save current template customization — persists ALL settings */
-  const handleSave = () => {
-    if (!saveName.trim()) return;
-    const newTpl = {
-      ...selectedTpl,
-      id: `saved-${Date.now()}`,
-      name: saveName.trim(),
+  /* Save current template customization — persists ALL settings (serverda) */
+  const handleSave = async () => {
+    const name = saveName.trim();
+    if (!name) return;
+    const { id: _id, name: _name, ...tplBase } = selectedTpl;
+    const config = {
+      ...tplBase,
       description: `${selectedTpl.size} mm — saqlangan shablon`,
       // persist all customisation options
       _opts: {
@@ -542,6 +605,10 @@ export default function BarcodePrintModal({ product, products, onClose }) {
         barcodeSize,
         barcodeHeight,
         companyName,
+        branchName,
+        branchAddress,
+        showBranchName,
+        showBranchAddress,
         currencyVal,
         showCompanyName,
         showProductName,
@@ -557,24 +624,66 @@ export default function BarcodePrintModal({ product, products, onClose }) {
         productCodePos,
       },
     };
-    const updated = [...savedTemplates, newTpl];
-    setSavedTemplates(updated);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    setSaveError('');
+    try {
+      const res = await api.post('/label-templates', {
+        name, kind: 'product', config,
+        branch_id: saveBranchOnly && currentBranchId ? currentBranchId : null,
+      });
+      setSavedTemplates(prev => [...prev, fromServerTemplate(res.data)]);
+      setServerOk(true);
+    } catch (e) {
+      if (e.response && e.response.status < 500) {
+        setSaveError(e.response.data?.detail || tf('labelTemplates.saveError', "Shablonni saqlab bo'lmadi"));
+        return;
+      }
+      // Server yetib bo'lmadi — localStorage zaxira (u ham bloklangan bo'lishi mumkin)
+      const updated = [...savedTemplates, { ...config, id: `saved-${Date.now()}`, name }];
+      setSavedTemplates(updated);
+      writeLocalTemplates(updated);
+    }
     setSaveModalOpen(false);
     setSaveName('');
+    setSaveBranchOnly(false);
   };
 
   /* Delete a saved template by id */
-  const handleDeleteSaved = (id, e) => {
+  const handleDeleteSaved = async (id, e) => {
     e.stopPropagation();
-    const updated = savedTemplates.filter(t => t.id !== id);
+    const tpl = savedTemplates.find(x => String(x.id) === String(id));
+    if (tpl && tpl._server) {
+      try { await api.delete(`/label-templates/${tpl.id}`); } catch (err) { console.error('Shablonni o\'chirishda xato:', err); return; }
+      setSavedTemplates(prev => prev.filter(x => String(x.id) !== String(id)));
+      return;
+    }
+    const updated = savedTemplates.filter(x => String(x.id) !== String(id));
     setSavedTemplates(updated);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    writeLocalTemplates(updated);
+  };
+
+  /* Eski localStorage shablonlarini serverga ko'chirish; faqat to'liq muvaffaqiyatdan keyin kalit o'chiriladi */
+  const handleMigrateLegacy = async () => {
+    setMigrating(true);
+    let allOk = true;
+    for (const old of legacyLocal) {
+      const { id: _id, name: oldName, ...config } = old;
+      try {
+        await api.post('/label-templates', { name: String(oldName || 'Shablon').slice(0, 100), kind: 'product', branch_id: null, config });
+      } catch (err) {
+        if (err.response?.status !== 409) allOk = false;   // 409 — shu nomli shablon serverda allaqachon bor
+      }
+    }
+    if (allOk) {
+      try { localStorage.removeItem(LS_KEY); } catch { /* bloklangan bo'lishi mumkin */ }
+      setLegacyLocal([]);
+    }
+    await loadServerTemplates();
+    setMigrating(false);
   };
 
   /* Load a saved template — restore ALL its settings */
   const handleLoadSaved = (id) => {
-    const tpl = savedTemplates.find(t => t.id === id);
+    const tpl = savedTemplates.find(x => String(x.id) === String(id));
     if (!tpl) return;
     setSelectedTpl(tpl);
     const o = tpl._opts || {};
@@ -587,6 +696,10 @@ export default function BarcodePrintModal({ product, products, onClose }) {
     if (o.barcodeSize !== undefined) setBarcodeSize(o.barcodeSize);
     if (o.barcodeHeight !== undefined) setBarcodeHeight(o.barcodeHeight);
     if (o.companyName !== undefined) setCompanyName(o.companyName);
+    if (o.branchName !== undefined) setBranchName(o.branchName);
+    if (o.branchAddress !== undefined) setBranchAddress(o.branchAddress);
+    if (o.showBranchName !== undefined) setShowBranchName(o.showBranchName);
+    if (o.showBranchAddress !== undefined) setShowBranchAddress(o.showBranchAddress);
     if (o.currencyVal !== undefined) setCurrencyVal(o.currencyVal);
     if (o.showCompanyName !== undefined) setShowCompanyName(o.showCompanyName);
     if (o.showProductName !== undefined) setShowProductName(o.showProductName);
@@ -770,6 +883,18 @@ export default function BarcodePrintModal({ product, products, onClose }) {
               </div>
             )}
 
+            {serverOk && legacyLocal.length > 0 && (
+              <button
+                type="button"
+                onClick={handleMigrateLegacy}
+                disabled={migrating}
+                className="px-3 py-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 rounded-xl transition-colors border border-blue-200"
+                title={tf('labelTemplates.migrateHint', "Bu kompyuterdagi eski shablonlarni serverga ko'chirish")}
+              >
+                {tf('labelTemplates.migrate', "Shablonlarni serverga ko'chirish")} ({legacyLocal.length})
+              </button>
+            )}
+
             <button
               onClick={() => setSaveModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors border border-amber-200"
@@ -852,6 +977,30 @@ export default function BarcodePrintModal({ product, products, onClose }) {
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="px-4 py-3 w-full rounded-lg text-sm transition-colors border border-slate-300 outline-0"
                   />
+                </div>
+                <div className="mt-2 flex flex-col gap-2">
+                  <input
+                    type="text"
+                    placeholder={tf('labelTemplates.branchName', 'Filial nomi')}
+                    value={branchName}
+                    onChange={(e) => setBranchName(e.target.value)}
+                    className="px-4 py-2 w-full rounded-lg text-sm transition-colors border border-slate-300 outline-0"
+                  />
+                  <input
+                    type="text"
+                    placeholder={tf('labelTemplates.branchAddress', 'Filial manzili')}
+                    value={branchAddress}
+                    onChange={(e) => setBranchAddress(e.target.value)}
+                    className="px-4 py-2 w-full rounded-lg text-sm transition-colors border border-slate-300 outline-0"
+                  />
+                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                    <input type="checkbox" checked={showBranchName} onChange={e => setShowBranchName(e.target.checked)} />
+                    <span>{tf('labelTemplates.showBranchName', "Filial nomini ko'rsatish")}</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                    <input type="checkbox" checked={showBranchAddress} onChange={e => setShowBranchAddress(e.target.checked)} />
+                    <span>{tf('labelTemplates.showBranchAddress', "Filial manzilini ko'rsatish")}</span>
+                  </label>
                 </div>
               </div>
 
@@ -1289,6 +1438,13 @@ export default function BarcodePrintModal({ product, products, onClose }) {
               onChange={e => setSaveName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
             />
+            {currentBranchId ? (
+              <label className="flex items-center gap-2 text-xs text-slate-600 mb-4 cursor-pointer">
+                <input type="checkbox" checked={saveBranchOnly} onChange={e => setSaveBranchOnly(e.target.checked)} />
+                <span>{tf('labelTemplates.onlyThisBranch', 'Faqat shu filial uchun')}</span>
+              </label>
+            ) : null}
+            {saveError && <p className="text-xs text-red-600 mb-3">{saveError}</p>}
             <div className="flex gap-3">
               <button
                 type="button"

@@ -348,7 +348,8 @@ def _supplier_money(db: Session, supplier: Supplier, company_id: int):
 
     purchases = (
         db.query(PurchaseOrder)
-        .options(joinedload(PurchaseOrder.items), joinedload(PurchaseOrder.creator))
+        .options(joinedload(PurchaseOrder.items), joinedload(PurchaseOrder.creator),
+                 joinedload(PurchaseOrder.warehouse))
         .filter(PurchaseOrder.supplier_id == supplier.id, PurchaseOrder.company_id == company_id)
         .order_by(PurchaseOrder.created_at.desc())
         .all()
@@ -356,12 +357,12 @@ def _supplier_money(db: Session, supplier: Supplier, company_id: int):
     po_ids = [p.id for p in purchases]
     po_payments = []
     if po_ids:
-        po_payments = db.query(Transaction).filter(
+        po_payments = db.query(Transaction).options(joinedload(Transaction.branch)).filter(
             Transaction.company_id == company_id,
             Transaction.reference_type == "purchase_order",
             Transaction.reference_id.in_(po_ids),
         ).all()
-    sup_txs = db.query(Transaction).filter(
+    sup_txs = db.query(Transaction).options(joinedload(Transaction.branch)).filter(
         Transaction.company_id == company_id,
         Transaction.reference_type.in_(["supplier_payment", "return_to_supplier"]),
         Transaction.reference_id == supplier.id,
@@ -432,6 +433,15 @@ def get_supplier_history(
     cid = current_user.company_id
     purchases, po_payments, sup_txs, returns = _supplier_money(db, supplier, cid)
     po_numbers = {p.id: p.number for p in purchases}
+    # T1.16: qaytarish hujjatlari uchun ombor nomlari (new_values.warehouse_id)
+    ret_wh_ids = {r.get("warehouse_id") for r in returns if r.get("warehouse_id")}
+    ret_wh_names = {}
+    if ret_wh_ids:
+        from app.models.warehouse import Warehouse
+        ret_wh_names = {
+            w.id: w.name for w in db.query(Warehouse).filter(
+                Warehouse.id.in_(ret_wh_ids), Warehouse.company_id == cid).all()
+        }
 
     user_ids = {t.user_id for t in po_payments + sup_txs if t.user_id} | {r["user_id"] for r in returns if r["user_id"]}
     names = {}
@@ -465,6 +475,8 @@ def get_supplier_history(
             "description": f"Xarid #{p.number}",
             "type": "purchase",
             "deletable": False,
+            "warehouse_name": p.warehouse.name if p.warehouse else None,
+            "branch_name": None,
         })
 
     for tx in po_payments + sup_txs:
@@ -486,6 +498,8 @@ def get_supplier_history(
             "description": tx.description or ("Qaytim" if is_refund else "To'lov"),
             "type": "refund" if is_refund else "payment",
             "deletable": True,
+            "warehouse_name": None,
+            "branch_name": tx.branch.name if tx.branch else None,
         })
 
     for r in returns:
@@ -504,6 +518,8 @@ def get_supplier_history(
             "description": r["description"],
             "type": "return",
             "deletable": False,
+            "warehouse_name": ret_wh_names.get(r.get("warehouse_id")),
+            "branch_name": None,
         })
 
     return sorted(history, key=lambda x: x.get("date") or "", reverse=True)

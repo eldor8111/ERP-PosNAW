@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, JSON, CheckConstraint
 from sqlalchemy.orm import relationship  # type: ignore
 from app.database import Base  # type: ignore
 
@@ -57,12 +57,29 @@ class Company(Base):
     manufacturing_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     distribution_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     marketplace_agents_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    # T0.36: Mir-maza buyurtmalari tushadigan asosiy filial (mijozda filial bo'lmasa).
+    # DB darajasida FK bor (migratsiya t0_36: fk_companies_mp_default_branch, ondelete SET NULL).
+    # ORM'da ForeignKey() berilmagan: companies <-> branches o'rtasida ikkinchi FK yo'li
+    # Branch.company / Company.branches relationship'larini noaniq (AmbiguousForeignKeys) qiladi;
+    # Branch.company ga foreign_keys=[company_id] qo'shilgach ORM FK ham qo'yish mumkin.
+    marketplace_default_branch_id = Column(Integer, nullable=True)
+    # T3.13: Telegram Mini App / bot buyurtmalari va yangi bot mijozlari uchun standart filial.
+    # ORM'da ForeignKey() yo'q (yuqoridagi sabab); DB da FK bor (migratsiya t3_13, ondelete SET NULL).
+    shop_default_branch_id = Column(Integer, nullable=True)
 
     # ── POS sozlamalari ──
     # True (standart) — mavjud xatti-harakat: qoldiq yetarli bo'lmasa ham
     # sotish mumkin (qoldiq minusga tushadi). False — sotuvda minus
     # qoldiq bloklanadi.
     pos_allow_negative_stock = Column(Boolean, default=True)
+    # T1.11: True bo'lsa ochiq smenasiz sotuv backendda ham rad etiladi (POST /sales, kutilayotgan sotuv).
+    pos_require_shift = Column(Boolean, nullable=False, default=False, server_default="false")
+    # T2.12: kredit limit kimga qo'llanadi: "distributor" (faqat distribyutor mijoz, sukut) yoki "all" (hamma mijoz)
+    credit_limit_scope = Column(String(20), nullable=False, default="distributor", server_default="distributor")
+    # T4.3: True bo'lsa server `promotion_id`siz sotuv qatoriga eng yaxshi mos aksiyani o'zi qo'llaydi (sukut o'chiq)
+    promotions_auto_apply = Column(Boolean, nullable=False, default=False, server_default="false")
+    # C4.1 (T4.2): QQS turi belgilanmagan (NULL) mahsulot fiskallanganda ishlatiladigan foiz; NULL -> 12%
+    fiscal_default_vat = Column(Integer, nullable=True)
 
     # bot = relationship("CompanyBot", back_populates="company", uselist=False)
     # ── Billing ──────────────────────────────────────────────
@@ -77,3 +94,7 @@ class Company(Base):
     tariff = relationship("Tariff", foreign_keys=[tariff_id])
     # Multi-korxona bog'lanish
     user_companies = relationship("UserCompany", back_populates="company", lazy="dynamic")
+
+    __table_args__ = (
+        CheckConstraint("credit_limit_scope IN ('distributor','all')", name="ck_companies_credit_limit_scope"),
+    )

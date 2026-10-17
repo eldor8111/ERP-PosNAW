@@ -136,7 +136,7 @@ function BomsTab({ products }) {
                 <select value={form.product_id} disabled={modal.mode === 'edit'} onChange={e => setForm(f => ({ ...f, product_id: e.target.value }))}
                   className="w-full px-3 py-2.5 border border-line rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:bg-surface-sunken disabled:text-ink-300">
                   <option value="">{t('ombor.selectProductEllipsis')}</option>
-                  {products.filter(p => p.product_type !== 'raw_material').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {products.filter(p => p.product_type !== 'raw_material' && !['service', 'sell'].includes(p.product_type)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
@@ -149,9 +149,9 @@ function BomsTab({ products }) {
                     <select value={it.component_product_id} onChange={e => setItem(idx, 'component_product_id', e.target.value)}
                       className="flex-1 px-3 py-2 border border-line rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
                       <option value="">{t('production.componentProduct')}</option>
-                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      {products.filter(p => !['service', 'sell'].includes(p.product_type) && p.id !== Number(form.product_id)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    <input type="number" min="0" step="any" value={it.quantity_per_unit} onChange={e => setItem(idx, 'quantity_per_unit', e.target.value)}
+                    <input type="number" min="0.0001" step="any" value={it.quantity_per_unit} onChange={e => setItem(idx, 'quantity_per_unit', e.target.value)}
                       placeholder={t('production.qtyPerUnit')}
                       className="w-32 px-3 py-2 border border-line rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/40" />
                     {form.items.length > 1 && (
@@ -188,19 +188,29 @@ function OrdersTab({ warehouses }) {
   const [createForm, setCreateForm] = useState({ bom_id: '', planned_quantity: '', warehouse_id: '', target_warehouse_id: '', note: '' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [filterBranch, setFilterBranch] = useState('');
+  const [filterWarehouse, setFilterWarehouse] = useState('');
+
+  useEffect(() => {
+    api.get('/branches').then(r => setBranches(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const params = {};
+      if (filterBranch) params.branch_id = filterBranch;
+      if (filterWarehouse) params.warehouse_id = filterWarehouse;
       const [ord, bm] = await Promise.all([
-        api.get('/production/orders'),
+        api.get('/production/orders', { params }),
         api.get('/production/boms', { params: { is_active: true } }),
       ]);
       setOrders(ord.data);
       setBoms(bm.data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, []);
+  }, [filterBranch, filterWarehouse]);
   useEffect(() => { load(); }, [load]);
 
   const openDetail = async (row) => {
@@ -242,7 +252,21 @@ function OrdersTab({ warehouses }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {branches.length > 1 && (
+            <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)}
+              className="px-3 py-2 border border-line rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
+              <option value="">{t('common.allBranches')}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
+          <select value={filterWarehouse} onChange={e => setFilterWarehouse(e.target.value)}
+            className="px-3 py-2 border border-line rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
+            <option value="">{t('common.allWarehouses')}</option>
+            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        </div>
         <button onClick={() => { setErr(''); setShowCreate(true); }}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-deep transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -259,6 +283,7 @@ function OrdersTab({ warehouses }) {
           columns={[
             { key: 'number', label: t('production.orderNumber') },
             { key: 'product_name', label: t('production.finishedProduct') },
+            { key: 'branch_name', label: t('ombor.branch'), render: (o) => o.branch_name || '—' },
             { key: 'planned_quantity', label: t('production.plannedQty'), align: 'right', numeric: true, render: (o) => fmt(o.planned_quantity) },
             { key: 'produced_quantity', label: t('production.producedQty'), align: 'right', numeric: true, render: (o) => fmt(o.produced_quantity) },
             { key: 'status', label: t('common.type') || 'Status', align: 'center', render: (o) => <Badge color={STATUS_COLOR[o.status]}>{t(`production.status${o.status.charAt(0).toUpperCase() + o.status.slice(1).replace(/_([a-z])/g, (m, c) => c.toUpperCase())}`)}</Badge> },

@@ -50,7 +50,7 @@ export default function DistributorsReport({ refreshKey }) {
         </div>
       ),
     },
-    { key: 'territory', label: t('distributor.territory'), render: r => r.territory || <span className="text-ink-300">—</span> },
+    { key: 'territory', label: t('distributor.territory'), render: r => r.territory ? `${r.territory}${r.region ? ` (${r.region})` : ''}` : <span className="text-ink-300">—</span> },
     { key: 'sales', label: t('distributor.periodSales'), align: 'right', numeric: true, render: r => `${fmt(r.sales)}` },
     { key: 'sale_count', label: t('distributor.saleCount'), align: 'right', numeric: true },
     {

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import enum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey, JSON, Numeric  # type: ignore
+from sqlalchemy import Boolean, Column, DateTime, Enum, Index, Integer, String, ForeignKey, JSON, Numeric  # type: ignore
 from sqlalchemy.orm import relationship  # type: ignore
 
 from app.database import Base  # type: ignore
@@ -32,6 +32,10 @@ class UserStatus(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
+    # T1.13: korxona/filial bo'yicha xodimlar ro'yxati indeksi
+    __table_args__ = (
+        Index("ix_users_company_branch", "company_id", "branch_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
@@ -61,8 +65,15 @@ class UserWallet(Base):
     __tablename__ = "user_wallets"
     
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    wallet_id = Column(Integer, primary_key=True)
+    wallet_id = Column(Integer, ForeignKey("wallets.id"), primary_key=True)
     is_default = Column(Boolean, default=False)
+    # T0.4: korxona o'lchami — ko'p korxonali foydalanuvchida har korxona uchun alohida default.
+    # Nullable (eski qatorlar migratsiyada wallets.company_id dan to'ldiriladi).
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
+
+    __table_args__ = (
+        Index("ix_user_wallets_company", "company_id"),
+    )
 
 class SmsVerification(Base):
     __tablename__ = "sms_verifications"

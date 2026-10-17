@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../../context/LangContext';
+import { useBranch } from '../../context/BranchContext';
+import BranchSelect from '../../components/BranchSelect';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import { matchesSearch, searchVariants } from '../../utils/translit';
 import toast from 'react-hot-toast';
 import { CircleArrowDown, PackageCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
+import { useBranches } from '../../hooks/useBranches';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 // Server xatosi matni (axios interceptor toast ko'rsatadi, bu — formadagi yozuv uchun)
@@ -341,6 +344,7 @@ function SupSearch({ suppliers, value, onChange, placeholder }) {
 ══════════════════════════════════════════════════════════ */
 function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const { t } = useLang();
+  const { currentBranchId, assignedBranchId } = useBranch();
   const [products, setProds] = useState([]);
   const [warehouses, setWhs] = useState([]);
   const [suppliers, setSups] = useState([]);
@@ -355,7 +359,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       .finally(() => setProductsLoaded(true));
     api.get('/inventory/warehouses').then(r => setWhs(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/suppliers', { params: { limit: 5000 } }).then(r => setSups(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-    api.get('/finance/wallets').then(r => { setWallets(r.data); if (r.data.length > 0) setPayForm(p => ({ ...p, wallet_id: r.data[0].id })); }).catch(console.error);
+    // T1.3: standart kassa — joriy (biriktirilgan) filial kassasi, bo'lmasa birinchi kassa
+    api.get('/finance/wallets').then(r => {
+      setWallets(r.data);
+      const myBranch = currentBranchId ?? assignedBranchId;
+      const def = (myBranch != null && r.data.find(w => w.branch_id === myBranch)) || r.data[0];
+      if (def) setPayForm(p => ({ ...p, wallet_id: def.id }));
+    }).catch(console.error);
     api.get('/currencies/active').then(r => {
       const list = Array.isArray(r.data) ? r.data : [];
       if (!list.find(c => c.code === 'UZS')) list.unshift({ code: 'UZS', rate: 1 });
@@ -392,7 +402,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         const prod = products.find(pr => pr.id === item.product_id);
         return {
           product_id: item.product_id,
-          product_name: item.product_name,
+          variant_id: item.variant_id || null,
+          product_name: item.variant_name ? `${item.product_name} — ${item.variant_name}` : item.product_name,
           unit: prod?.unit || t('common.piece'),
           category_is_perishable: prod?.category_is_perishable || false,
           expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
@@ -466,7 +477,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const addItem = () => {
     if (!sel || !qty) return;
     const base = {
-      product_id: sel.id, product_name: sel.name, unit: sel.unit || t('common.piece'),
+      product_id: sel.id, variant_id: sel.variant_id || null, product_name: sel.name, unit: sel.unit || t('common.piece'),
       category_is_perishable: sel.category_is_perishable || false,
       expiry_date: expiryDate || '',
       unit_cost: Number(cost) || 0, discount_type: discType, discount_val: Number(discVal) || 0,
@@ -479,8 +490,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
 
     setPoItems(prev => {
-      const ex = prev.find(x => x.product_id === sel.id);
-      if (ex) return prev.map(x => x.product_id === sel.id ? { ...x, qty_ordered: x.qty_ordered + Number(qty) } : x);
+      const sameLine = x => x.product_id === sel.id && (x.variant_id ?? null) === (sel.variant_id ?? null);
+      const ex = prev.find(sameLine);
+      if (ex) return prev.map(x => sameLine(x) ? { ...x, qty_ordered: x.qty_ordered + Number(qty) } : x);
       return [...prev, { ...base, qty_ordered: Number(qty) }];
     });
     setSel(null); setQty(''); setCost(''); setDiscVal('0'); setExpiryDate('');
@@ -609,6 +621,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       currency: activeCurrency,
       items: poItems.map(i => ({
         product_id: i.product_id,
+        variant_id: i.variant_id || null,
         qty_ordered: i.qty_ordered,
         unit_cost: i.net_cost,
         cost_currency: i.currency || 'UZS',
@@ -668,7 +681,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           onChange={e => setPoForm(f => ({ ...f, warehouse_id: e.target.value }))}
           className={`${ic} min-w-40`}>
           <option value="">{t('purchase.selectWarehouse')}</option>
-          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          {/* T1.3: tahrirda xaridning joriy ombori (boshqa filialniki bo'lsa ham) ro'yxatda bo'lishi shart */}
+          {editPo && editPo.warehouse_id && !warehouses.some(w => w.id === editPo.warehouse_id) && (
+            <option value={editPo.warehouse_id}>{editPo.warehouse_name}</option>
+          )}
+          {warehouses.map(w => <option key={w.id} value={w.id}>{w.branch_name ? `${w.name} — ${w.branch_name}` : w.name}</option>)}
         </select>
         <input type="date" value={poForm.expected_date} onChange={e => setPoForm(f => ({ ...f, expected_date: e.target.value }))} className={ic} />
 
@@ -1067,7 +1084,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   <label className="text-sm font-semibold text-slate-600">{t('finance.wallet')}</label>
                   <select value={payForm.wallet_id} onChange={e => setPayForm(p => ({ ...p, wallet_id: e.target.value }))} className={`${ic} w-full h-11 bg-white text-base`}>
                     <option value="">{t('admin.dict.select')}</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)})</option>)}
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}{w.balance !== undefined ? ` (${fmt(w.balance)})` : ''}</option>)}
                   </select>
                 </div>
               </div>
@@ -1160,8 +1177,18 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           parent={variantPickerProduct}
           onClose={() => setVariantPickerProduct(null)}
           onSelect={(variant) => {
+            const parent = variantPickerProduct;
             setVariantPickerProduct(null);
-            selectProduct(variant);
+            // variant javobida id = ProductVariant.id — xaridga product_id (parent) + variant_id alohida yuboriladi
+            selectProduct({
+              ...variant,
+              id: variant.product_id,
+              variant_id: variant.id,
+              name: `${parent.name} — ${variant.name || variant.size || variant.color || variant.id}`,
+              unit: variant.unit || parent.unit,
+              cost_currency: parent.cost_currency,
+              product_type: 'variant',
+            });
           }}
         />
       )}
@@ -1180,16 +1207,13 @@ function KirimlarTab() {
   const [skip, setSkip] = useState(0);
   const [stFilter, setStFil] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
-  const [branches, setBranches] = useState([]);
+  const { branches: allBranches } = useBranches();   // T3.8: yagona filial hooki
+  const branches = allBranches.filter(b => b.is_active);
   const [detail, setDetail] = useState(null);
   const [recModal, setRec] = useState(null);
   const [recSaving, setRS] = useState(false);
   const [editPo, setEditPo] = useState(null);
   const LIMIT = 20;
-
-  useEffect(() => {
-    api.get('/branches').then(r => setBranches(r.data.filter(b => b.is_active))).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
-  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1277,6 +1301,7 @@ function KirimlarTab() {
     { k: 'number', l: t('purchase.colNumber') },
     { k: 'supplier_name', l: t('purchase.supplier') },
     { k: 'warehouse_name', l: t('purchase.colWarehouse') },
+    { k: 'branch_name', l: t('purchase.filterBranch'), r: v => v || '—' },
     { k: 'status', l: t('purchase.filterStatus'), r: v => <Badge meta={poMeta} val={v} /> },
     { k: 'total_amount', l: t('purchase.colTotal'), r: (v, row) => {
       const netUzs = Number(v) - Number(row.discount_amount || 0);  // chegirmadan keyin
@@ -1352,10 +1377,9 @@ function KirimlarTab() {
           </Lbl>
           {branches.length > 0 && (
             <Lbl t={t('purchase.filterBranch')}>
-              <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className={ic}>
-                <option value="">{t('purchase.allBranches')}</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
+              {/* T2.1: yagona filial selektori — o'z filiali bilan cheklangan foydalanuvchida qulflanadi */}
+              <BranchSelect value={branchFilter} onChange={setBranchFilter} branches={branches}
+                allLabel={t('purchase.allBranches')} className={ic} />
             </Lbl>
           )}
           <div className="ml-auto">
@@ -1378,7 +1402,7 @@ function KirimlarTab() {
               <button onClick={() => setDetail(null)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">✕</button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              <div className="grid grid-cols-4 gap-3 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 {[[t('purchase.supplier'), detail.supplier_name], [t('purchase.colWarehouse'), detail.warehouse_name], [t('purchase.filterStatus'), <Badge meta={poMeta} val={detail.status} />], [t('purchase.colDate'), fmtDay(detail.created_at)]].map(([k, v]) => (
                   <div key={k} className="bg-slate-50 rounded-xl p-3"><div className="text-xs text-slate-500 mb-1">{k}</div><div className="font-semibold">{v}</div></div>
                 ))}
@@ -1394,7 +1418,7 @@ function KirimlarTab() {
                 <tbody className="divide-y divide-slate-100">
                   {detail.items?.map(item => (
                     <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium">{item.product_name}</td>
+                      <td className="px-4 py-3 font-medium">{item.product_name}{item.variant_name ? ` — ${item.variant_name}` : ''}</td>
                       <td className="px-4 py-3 text-center">{item.qty_ordered}</td>
                       <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{item.qty_received}</td>
                       {(() => {
@@ -1456,7 +1480,7 @@ function KirimlarTab() {
                     const bad = Number(item._qty) < 0 || Number(item._qty) > rem;
                     return (
                       <tr key={item.id}>
-                        <td className="px-3 py-2 font-medium">{item.product_name}</td>
+                        <td className="px-3 py-2 font-medium">{item.product_name}{item.variant_name ? ` — ${item.variant_name}` : ''}</td>
                         <td className="px-3 py-2 text-center text-slate-500">{fmt(rem)}</td>
                         <td className="px-3 py-2 text-center">
                           <input type="number" min="0" max={rem} step="any" value={item._qty} onChange={e => updRec(item.id, '_qty', e.target.value)}
@@ -2098,7 +2122,7 @@ function SuppliersTab() {
                   <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
                     className="w-full h-11 md:h-12 px-4 border border-slate-200 cursor-pointer rounded-xl bg-white text-sm font-medium focus:border-blue-500 outline-none transition-all">
                     <option value="">{t('purchase.mainWallet')}</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} {t('purchase.somUnit')}</option>)}
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}{w.balance !== undefined ? ` — ${fmt(w.balance)} ${t('purchase.somUnit')}` : ''}</option>)}
                   </select>
                 </div>
 

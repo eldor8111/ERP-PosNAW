@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import log_action
+from app.core.branch_context import BranchContext, get_branch_context, warehouse_ids_for_ctx
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.inventory import StockLevel
@@ -23,7 +24,9 @@ WRITE_ROLES = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.m
 from app.utils.product_filters import name_filter as _name_filter  # noqa: E402
 
 
-def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None) -> ProductOut:
+def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None, wh_scope=None) -> ProductOut:
+    """`wh_scope` (T2.3): ko'rinadigan omborlar to'plami (filialga biriktirilgan xodim uchun o'z filiali
+    omborlari); `None` — cheklov yo'q, bo'sh to'plam — hech narsa (qoldiq 0)."""
     out = ProductOut.model_validate(product)
     if product.category:
         out.category_name = product.category.name
@@ -32,9 +35,18 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
     if db:
         from app.models.inventory import StockLevel
         from sqlalchemy import func
-        q = db.query(func.coalesce(func.sum(StockLevel.quantity), 0)).filter(StockLevel.product_id == product.id)
+        from app.models.warehouse import Warehouse
+        q = db.query(func.coalesce(func.sum(StockLevel.quantity), 0)).outerjoin(
+            Warehouse, Warehouse.id == StockLevel.warehouse_id,
+        ).filter(
+            StockLevel.product_id == product.id,
+            # T1.12: arxivlangan (nofaol) ombor qoldig'i jamga qo'shilmaydi
+            StockLevel.warehouse_id.is_(None) | Warehouse.is_active.isnot(False),
+        )
         if warehouse_id:
             q = q.filter(StockLevel.warehouse_id == warehouse_id)
+        if wh_scope is not None:
+            q = q.filter(StockLevel.warehouse_id.in_(list(wh_scope)))
         total_qty = q.scalar()
         if total_qty is not None:
             out.stock_quantity = Decimal(str(total_qty))
@@ -125,6 +137,18 @@ def get_product_variants(
             .joinedload(AttributeValue.attribute)
     ).all()
 
+    # T3.8: barcha variantlar qoldig'i BITTA GROUP BY so'rovi bilan (sikl ichida so'rov yo'q)
+    stock_by_variant: dict = {}
+    if children:
+        from sqlalchemy import func
+        sq = db.query(StockLevel.variant_id, func.sum(StockLevel.quantity)).filter(
+            StockLevel.variant_id.in_([c.id for c in children]),
+            StockLevel.product_id == product_id,
+        )
+        if warehouse_id:
+            sq = sq.filter(StockLevel.warehouse_id == warehouse_id)
+        stock_by_variant = {vid: float(qty or 0) for vid, qty in sq.group_by(StockLevel.variant_id).all()}
+
     result = []
     for c in children:
         color = next((val.attribute_value.value for val in c.attribute_values
@@ -132,13 +156,7 @@ def get_product_variants(
         size = next((val.attribute_value.value for val in c.attribute_values
                      if val.attribute_value.attribute.name in ("O'lcham", "Size")), None)
 
-        sq = db.query(StockLevel).filter(
-            StockLevel.variant_id == c.id,
-            StockLevel.product_id == product_id,
-        )
-        if warehouse_id:
-            sq = sq.filter(StockLevel.warehouse_id == warehouse_id)
-        stock_qty = sum(float(s.quantity) for s in sq.all())
+        stock_qty = stock_by_variant.get(c.id, 0.0)
 
         result.append({
             "id": c.id,
@@ -168,6 +186,7 @@ def list_products(
         limit: int = Query(50, ge=1, le=20000),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
+        ctx: BranchContext = Depends(get_branch_context),
 ):
     from app.models.inventory import StockLevel
     from app.models.warehouse import Warehouse
@@ -195,20 +214,14 @@ def list_products(
     if status:
         q = q.filter(Product.status == status)
     if warehouse_id:
-        # Only products that have stock in this warehouse
-        q = q.join(StockLevel, (StockLevel.product_id == Product.id) & (StockLevel.warehouse_id == warehouse_id))
+        # Only products that have stock in this warehouse (EXISTS: variantli mahsulot qatorlari ko'paymasin)
+        from sqlalchemy import exists
+        q = q.filter(exists().where(StockLevel.product_id == Product.id, StockLevel.warehouse_id == warehouse_id))
 
     products = q.order_by(Product.name).offset(skip).limit(limit).all()
 
-    # Determine branch warehouse IDs for non-admin users
-    ADMIN_ROLES_P = (UserRole.admin, UserRole.director)
-    branch_wh_set = None
-    if current_user.role not in ADMIN_ROLES_P and current_user.branch_id:
-        branch_wh_set = {
-            wh.id for wh in db.query(Warehouse.id).filter(
-                Warehouse.branch_id == current_user.branch_id
-            ).all()
-        }
+    # T1.1: ko'rinadigan omborlar yagona filial kontekstidan (None → cheklov yo'q)
+    branch_wh_set = warehouse_ids_for_ctx(db, ctx)
 
     # Preload warehouse names (only current company's warehouses)
     wh_q = db.query(Warehouse)
@@ -229,7 +242,10 @@ def list_products(
 
     all_stock_rows = (
         db.query(StockLevel)
-        .filter(StockLevel.product_id.in_(all_needed_ids))
+        .outerjoin(Warehouse, Warehouse.id == StockLevel.warehouse_id)
+        # T1.12: arxivlangan (nofaol) ombor qoldig'i jamga qo'shilmaydi
+        .filter(StockLevel.product_id.in_(all_needed_ids),
+                StockLevel.warehouse_id.is_(None) | Warehouse.is_active.isnot(False))
         .all()
     ) if all_needed_ids else []
 
@@ -267,8 +283,8 @@ def list_products(
 
         # stock_quantity: if warehouse_id filter active → show that warehouse's qty, else sum visible
         if warehouse_id:
-            wh_stock = next((s for s in all_stocks if s.warehouse_id == warehouse_id), None)
-            item.stock_quantity = wh_stock.quantity if wh_stock else Decimal("0")
+            # variantli mahsulot: tanlangan ombordagi barcha variantlar yig'indisi
+            item.stock_quantity = sum((s.quantity for s in all_stocks if s.warehouse_id == warehouse_id), Decimal("0"))
         else:
             item.stock_quantity = sum((s.quantity for s in visible_stocks), Decimal("0"))
 
@@ -313,6 +329,7 @@ def get_by_barcode(
         warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter (ixtiyoriy)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
+        ctx: BranchContext = Depends(get_branch_context),
 ):
     base_filter = [
         Product.is_deleted == False,
@@ -321,6 +338,9 @@ def get_by_barcode(
     ]
     # Asosiy barcode bo'yicha qidirish
     product = db.query(Product).filter(*base_filter, Product.barcode == barcode).first()
+    # T3.12: tarozi PLU kodi (<=5 raqam) — indeksli qidiruv (korxona ichida unikal plu_code)
+    if not product and barcode.isdigit() and len(barcode) <= 5 and int(barcode) > 0:
+        product = db.query(Product).filter(*base_filter, Product.plu_code == int(barcode)).first()
     # Topilmasa extra_barcodes JSON ichida qidirish (LIKE tekshiruvi)
     if not product:
         product = (
@@ -328,7 +348,7 @@ def get_by_barcode(
             .filter(*base_filter, Product.extra_barcodes.ilike(f'"%{barcode}"'))
             .first()
         )
-    # Topilmasa SKU bo'yicha qidirish (TM-A tarozi PLU kodi)
+    # Topilmasa SKU bo'yicha qidirish
     if not product:
         product = db.query(Product).filter(*base_filter, Product.sku == barcode).first()
     # Topilmasa SKU leading zeros olib qidirish (masalan '00001' => '1' yoki aksi)
@@ -336,22 +356,6 @@ def get_by_barcode(
         stripped = barcode.lstrip('0')
         if stripped:
             product = db.query(Product).filter(*base_filter, Product.sku == stripped).first()
-    # Topilmasa SKU ning oxirgi N raqami bilan qidirish
-    # (TM-A tarozi faqat 5 ta raqamni barcodedan yuboradi, SKU esa ko'proq bo'lishi mumkin)
-    if not product:
-        from sqlalchemy import func
-        stripped_code = barcode.lstrip('0') or barcode
-        products_found = db.query(Product).filter(
-            *base_filter,
-            Product.sku.isnot(None),
-            Product.sku != ''
-        ).all()
-        for p in products_found:
-            if p.sku:
-                sku_digits = ''.join(filter(str.isdigit, p.sku))
-                if sku_digits.endswith(stripped_code) or sku_digits.endswith(barcode):
-                    product = p
-                    break
     # Topilmasa ID bo'yicha qidirish (tarozi PLU = mahsulot ID)
     if not product:
         try:
@@ -364,7 +368,7 @@ def get_by_barcode(
     if not product:
         raise HTTPException(status_code=404, detail=f"Barcode '{barcode}' bo'yicha mahsulot topilmadi")
 
-    return _attach_stock(product, db=db, warehouse_id=warehouse_id)
+    return _attach_stock(product, db=db, warehouse_id=warehouse_id, wh_scope=warehouse_ids_for_ctx(db, ctx))
 
 
 @router.get("/{product_id}", response_model=ProductOut)
@@ -373,6 +377,7 @@ def get_product(
         warehouse_id: Optional[int] = Query(None, description="Ombor bo'yicha filter (ixtiyoriy)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
+        ctx: BranchContext = Depends(get_branch_context),
 ):
     q = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False)
     q = q.filter(Product.company_id == current_user.company_id)
@@ -385,7 +390,7 @@ def get_product(
     product = q.first()
     if not product:
         raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
-    return _attach_stock(product, db=db, warehouse_id=warehouse_id)
+    return _attach_stock(product, db=db, warehouse_id=warehouse_id, wh_scope=warehouse_ids_for_ctx(db, ctx))
 
 
 def _generate_sku(db: Session) -> str:
@@ -398,12 +403,57 @@ def _generate_sku(db: Session) -> str:
     return "SKU-" + "".join(random.choices(string.digits, k=8))
 
 
+# T3.12: tarozi (tortiladigan) birliklari va PLU diapazoni
+SCALE_UNITS = ("kg", "g")
+PLU_MIN, PLU_MAX = 1, 99999
+
+
+def _assign_plu(db: Session, company_id, product: Product, requested: Optional[int] = None) -> Optional[int]:
+    """Mahsulotga tarozi PLU kodini beradi (korxona ichida unikal, 1..99999).
+
+    - `requested` berilsa: band bo'lsa 409, aks holda shu raqam beriladi.
+    - berilmasa va birligi kg/g bo'lib `plu_code` bo'sh bo'lsa: korxonadagi eng kichik bo'sh raqam.
+    O'chirilgan mahsulotlar PLU ni band qilmaydi (unikal indeks ham faqat faollar uchun)."""
+    own_id = getattr(product, "id", None)
+    base = db.query(Product).filter(Product.company_id == company_id, Product.is_deleted == False)  # noqa: E712
+    if own_id is not None:
+        base = base.filter(Product.id != own_id)
+
+    if requested is not None:
+        if requested < PLU_MIN or requested > PLU_MAX:
+            raise HTTPException(status_code=400, detail=f"PLU kodi {PLU_MIN}-{PLU_MAX} oralig'ida bo'lishi kerak")
+        busy = base.filter(Product.plu_code == requested).first()
+        if busy:
+            raise HTTPException(status_code=409, detail=f"PLU kodi band: {busy.name}")
+        product.plu_code = requested
+        return requested
+
+    if product.plu_code or (product.unit or "").strip().lower() not in SCALE_UNITS:
+        return product.plu_code
+
+    taken = [r[0] for r in base.filter(Product.plu_code.isnot(None))
+             .with_entities(Product.plu_code).order_by(Product.plu_code).all()]
+    free = PLU_MIN
+    for code in taken:
+        if code < free:
+            continue
+        if code == free:
+            free += 1
+        else:
+            break
+    if free > PLU_MAX:
+        raise HTTPException(status_code=409, detail="Bo'sh PLU kodi qolmadi (1-99999)")
+    product.plu_code = free
+    return free
+
+
 @router.post("/", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(
         data: ProductCreate,
         request: Request,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*WRITE_ROLES)),
+        ctx: BranchContext = Depends(get_branch_context),  # T1.5: X-Branch-Id -> boshlang'ich qoldiq filiali (db.info)
 ):
     from app.services.tariff_guard import check_product_limit
     check_product_limit(db, current_user.company_id, count_to_add=1)
@@ -441,6 +491,7 @@ def create_product(
         product_data["sku"] = _generate_sku(db)
 
     product_data["company_id"] = current_user.company_id
+    requested_plu = product_data.pop("plu_code", None)  # T3.12: _assign_plu orqali beriladi
 
     dup_q = db.query(Product).filter(Product.is_deleted == False)
     dup_q = dup_q.filter(Product.company_id == current_user.company_id)
@@ -462,6 +513,19 @@ def create_product(
         raise HTTPException(status_code=400,
                             detail="Virtual (sell) mahsulot uchun asosiy mahsulot va nisbatni kiriting")
 
+    # T1.5: boshlang'ich qoldiq ombori — berilgan ombor korxona/filial bo'yicha tekshiriladi (404/403),
+    # berilmasa filialning default ombori (resolve_warehouse); qoldiq kerak, ammo ombor aniqlanmasa 409/400.
+    _variants_in = data.variants if (data.variants and product_type in ("stock", "variant")) else []
+    _needs_stock = (
+        (not _variants_in and product_type in ("stock", "simple") and initial_stock > 0)
+        or any((v.quantity if v.quantity is not None else initial_stock) > 0 for v in _variants_in)
+    )
+    if initial_warehouse_id or _needs_stock:
+        from app.services.warehouse_resolver import resolve_warehouse
+        initial_warehouse_id = resolve_warehouse(
+            db, current_user.company_id, requested_id=initial_warehouse_id, purpose="receive", user=current_user,
+        )
+
     product_data.pop("variants", None)
     # attributes va tags None bo'lsa bo'sh list bilan almashtir
     if product_data.get("attributes") is None:
@@ -469,6 +533,8 @@ def create_product(
     if product_data.get("tags") is None:
         product_data["tags"] = []
     product = Product(**product_data)
+    # T3.12: kg/g mahsulotga tarozi PLU kodi (berilgan band bo'lsa 409, berilmasa eng kichik bo'sh)
+    _assign_plu(db, current_user.company_id, product, requested_plu)
     db.add(product)
     db.flush()
 
@@ -523,11 +589,6 @@ def create_product(
                     db.flush()
                 db.add(VariantAttributeValue(variant_id=child.id, attribute_value_id=val.id))
             
-            if not initial_warehouse_id:
-                from app.models.warehouse import Warehouse
-                first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(Warehouse.id.asc()).first()
-                if first_wh:
-                    initial_warehouse_id = first_wh.id
             if initial_warehouse_id:
                 # Razmer matritsasidan kelgan miqdor (v.quantity) ustunlik qiladi
                 variant_stock_qty = v.quantity if v.quantity is not None else initial_stock
@@ -553,12 +614,6 @@ def create_product(
                     ))
 
     elif product_type in ("stock", "simple"):
-        if not initial_warehouse_id:
-            from app.models.warehouse import Warehouse
-            first_wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).order_by(
-                Warehouse.id.asc()).first()
-            if first_wh:
-                initial_warehouse_id = first_wh.id
         if initial_warehouse_id and initial_stock > 0:
             stock = StockLevel(product_id=product.id, quantity=initial_stock, warehouse_id=initial_warehouse_id)
             db.add(stock)
@@ -629,31 +684,17 @@ def update_product(
     conversion_sent = "conversion" in fields_set
     conversion_data = data.conversion if conversion_sent else None
     
-    initial_stock_sent = "initial_stock" in fields_set
-    initial_stock_val = data.initial_stock
-    initial_wh_id = data.initial_warehouse_id
-    
-    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id", "variants"})
+    # Qoldiq PUT orqali O'ZGARTIRILMAYDI (STOCK-01): eski klientlar yuborgan
+    # initial_stock / initial_warehouse_id e'tiborsiz qoldiriladi. Qoldiqni
+    # tuzatish faqat inventarizatsiya yoki /inventory/adjust (StockMovement bilan).
+    if "initial_stock" in fields_set or "initial_warehouse_id" in fields_set:
+        import logging
+        logging.getLogger(__name__).warning(
+            "PUT /products/%s: initial_stock/initial_warehouse_id e'tiborsiz qoldirildi (user=%s)",
+            product_id, current_user.id,
+        )
 
-    # Stock update logic
-    if initial_stock_sent and product.product_type == 'stock':
-        from app.models.inventory import StockLevel
-        # If warehouse not sent, try to find an existing one or use first
-        if not initial_wh_id:
-            sl_existing = db.query(StockLevel).filter(StockLevel.product_id == product_id).first()
-            if sl_existing:
-                initial_wh_id = sl_existing.warehouse_id
-            else:
-                from app.models.warehouse import Warehouse
-                wh = db.query(Warehouse).filter(Warehouse.company_id == current_user.company_id).first()
-                if wh: initial_wh_id = wh.id
-        
-        if initial_wh_id:
-            sl = db.query(StockLevel).filter(StockLevel.product_id == product_id, StockLevel.warehouse_id == initial_wh_id).first()
-            if sl:
-                sl.quantity = initial_stock_val if initial_stock_val is not None else 0
-            else:
-                db.add(StockLevel(product_id=product_id, warehouse_id=initial_wh_id, quantity=initial_stock_val or 0))
+    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id", "variants"})
 
     # Duplicate checks (exclude current product)
     dup_q = db.query(Product).filter(Product.is_deleted == False, Product.id != product_id)
@@ -688,8 +729,11 @@ def update_product(
         update_data["extra_product_codes"] = json.dumps([c.strip() for c in epc if c.strip()]) if epc else None
 
     update_data.pop("variants", None)
+    requested_plu = update_data.pop("plu_code", None)  # T3.12
     for field, value in update_data.items():
         setattr(product, field, value)
+    # T3.12: PLU — berilgan band bo'lsa 409; birligi kg/g ga o'zgargan va PLU yo'q bo'lsa avtomatik
+    _assign_plu(db, current_user.company_id, product, requested_plu)
 
     product_type = product.product_type or "stock"
 
@@ -1045,18 +1089,19 @@ def export_rongta_txt(
         Product.is_deleted == False,
         Product.status != ProductStatus.inactive,
         Product.unit.in_(['kg', 'g'])
-    ).order_by(Product.product_code.asc()).all()
+    ).order_by(Product.plu_code.asc().nulls_last(), Product.id.asc()).all()
 
     lines = []
     for prod in products:
-        raw_code = prod.product_code or prod.sku or str(prod.id)
-        # Faqat raqamlarni olamiz, nollarni saqlab qolamiz
-        code = ''.join(filter(str.isdigit, raw_code))
-        if not code:
-            code = '0'
-        
+        # T3.12: kod — tarozi PLU kodi (yo'q bo'lsa eski qoida: SKU raqamlarining oxirgi 5 tasi)
+        if prod.plu_code:
+            code = str(prod.plu_code)
+        else:
+            raw_code = prod.sku or str(prod.id)
+            code = str(int(''.join(filter(str.isdigit, raw_code))[-5:] or prod.id))
+
         name = (prod.name or 'NOMSIZ').upper().strip()
-        price = int(prod.sell_price) if prod.sell_price else 0
+        price = int(prod.sale_price or 0)
         
         # 13 field format (Foydalanuvchi talabi):
         # CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
@@ -1072,3 +1117,66 @@ def export_rongta_txt(
             "Content-Disposition": "attachment; filename=RONGTA.txt"
         }
     )
+
+
+@router.get("/export/scale")
+def export_scale_products(
+    branch_id: Optional[int] = Query(None, description="Filial bo'yicha (shu filial omborlarida qoldig'i bor tovarlar)"),
+    only_in_stock: bool = Query(False, description="Faqat qoldig'i > 0 bo'lgan tovarlar"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(
+        UserRole.admin, UserRole.director, UserRole.manager,
+        UserRole.warehouse, UserRole.super_admin
+    )),
+    ctx: BranchContext = Depends(get_branch_context),
+):
+    """T3.12: tarozi fayllari (Shtrix-M, TMA, Rongta) uchun kg/g mahsulotlar — sahifalashsiz,
+    ixtiyoriy filial kesimida. Filial berilmasa va xodim filialga biriktirilgan bo'lsa, o'z filiali majburlanadi."""
+    from sqlalchemy import exists
+    from app.models.branch import Branch
+    from app.models.warehouse import Warehouse
+
+    scope = None  # None — filial cheklovi yo'q
+    if branch_id is not None:
+        if not db.query(Branch.id).filter(Branch.id == branch_id,
+                                          Branch.company_id == current_user.company_id).first():
+            raise HTTPException(status_code=404, detail="Filial topilmadi")
+        if ctx.allowed_branch_ids is not None and branch_id not in ctx.allowed_branch_ids:
+            raise HTTPException(status_code=403, detail="Bu filialga ruxsat yo'q")
+        scope = {branch_id}
+    elif ctx.scope_ids() is not None:
+        scope = set(ctx.scope_ids())
+
+    q = db.query(Product).filter(
+        Product.company_id == current_user.company_id,
+        Product.is_deleted == False,  # noqa: E712
+        Product.status == ProductStatus.active,
+        Product.unit.in_(list(SCALE_UNITS)),
+    )
+
+    if scope is not None or only_in_stock:
+        wh_q = db.query(Warehouse.id).filter(
+            Warehouse.company_id == current_user.company_id,
+            Warehouse.is_active.isnot(False),
+        )
+        if scope is not None:
+            wh_q = wh_q.filter(Warehouse.branch_id.in_(list(scope)))
+        cond = [StockLevel.product_id == Product.id, StockLevel.warehouse_id.in_(wh_q.scalar_subquery())]
+        if only_in_stock:
+            cond.append(StockLevel.quantity > 0)
+        q = q.filter(exists().where(*cond))
+
+    rows = q.order_by(Product.plu_code.asc().nulls_last(), Product.id.asc()).all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "sku": p.sku,
+            "plu_code": p.plu_code,
+            "barcode": p.barcode,
+            "product_code": p.product_code,
+            "sale_price": float(p.sale_price or 0),
+            "unit": p.unit,
+        }
+        for p in rows
+    ]

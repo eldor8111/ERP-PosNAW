@@ -59,7 +59,12 @@ nul
 app.db
 
 # Utility va test skriptlar (faqat lokal, serverga ko'chirilmasin)
-scripts/
+# `scripts/*` (papka emas): papka ignore qilinsa, quyidagi `!` istisnolari ishlamaydi
+scripts/*
+# Serverda kerak bo'ladigan bir martalik tuzatish skriptlari (0-bosqich)
+!scripts/reconcile_shift_handover.py
+!scripts/report_noncash_transactions.py
+!scripts/pnl_branch_audit.py
 tmp/invoices/
 node_modules/
 

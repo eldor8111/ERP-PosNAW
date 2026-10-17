@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, DateTime, Enum as SQLEnum, JSON
+from sqlalchemy import column, event, select, table
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -24,8 +25,14 @@ class Order(Base):
     # Bir checkout'da savatga solingan bir nechta mahsulot shu ID bilan
     # bog'lanadi — CRM/bot'da bitta buyurtma sifatida guruhlab ko'rsatish uchun.
     order_group_id = Column(String(36), nullable=True, index=True)
+    # T0.36: buyurtma egasi korxona (avval faqat Customer orqali aniqlanardi).
+    # Migratsiyada customers.company_id dan to'ldirilgan, NOT NULL.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    # T3.13: buyurtma bajariladigan aniq ombor (olib ketish filialining shop ombori). NULL — eski buyurtmalar:
+    # sotuvga aylantirishda filialning savdo ombori tanlanadi.
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Numeric(16, 4), nullable=False)
@@ -63,3 +70,19 @@ class Order(Base):
     branch = relationship("Branch", back_populates="orders")
     product = relationship("Product")
     courier = relationship("Courier")
+
+
+# T0.36: company_id NOT NULL — Order(...) yaratadigan joy uni berishi shart. Berilmagan
+# bo'lsa (eski/begona chaqiruvchi) IntegrityError o'rniga mijoz korxonasidan to'ldiriladi.
+# Yengil `table()` — app.models.customer ni import qilmasdan (aylana import bo'lmasin).
+_customers_t = table("customers", column("id", Integer), column("company_id", Integer))
+
+
+@event.listens_for(Order, "before_insert")
+def _order_fill_company_id(mapper, connection, target):
+    if target.company_id is None and target.customer_id is not None:
+        row = connection.execute(
+            select(_customers_t.c.company_id).where(_customers_t.c.id == target.customer_id)
+        ).first()
+        if row and row[0] is not None:
+            target.company_id = row[0]

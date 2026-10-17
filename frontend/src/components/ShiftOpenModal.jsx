@@ -1,18 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { openZReport } from '../api/hippoLocal';
+import { useLang } from '../i18n';
 
 export default function ShiftOpenModal({ onOpened, onCancel }) {
+  const { user } = useAuth();
+  const { t } = useLang();
   const [cash, setCash] = useState('');
   const [saving, setSaving] = useState(false);
+  // Filiali biriktirilmagan xodim (masalan, admin) uchun filial tanlash (T1.11)
+  const [branches, setBranches] = useState([]);
+  const [branchId, setBranchId] = useState('');
+  const needBranch = !user?.branch_id && branches.length > 1;
+
+  useEffect(() => {
+    if (user?.branch_id) return;
+    api.get('/branches').then(r => setBranches((r.data || []).filter(b => b.is_active !== false))).catch(() => {});
+  }, [user?.branch_id]);
 
   const handleOpen = async (e) => {
     e.preventDefault();
+    if (needBranch && !branchId) {
+      toast.error(t('shift.selectBranch'));
+      return;
+    }
     setSaving(true);
     try {
-      await api.post('/shifts/open', { opening_cash: Number(cash) || 0 });
-      toast.success('Smena muvaffaqiyatli ochildi!');
+      const payload = { opening_cash: Number(cash) || 0 };
+      if (branchId) payload.branch_id = Number(branchId);
+      await api.post('/shifts/open', payload);
+      toast.success(t('shift.openSuccess'));
 
       // ── Hippo Z-report ochish (BEVOSITA localhost:8081) ────────────────
       try {
@@ -28,7 +47,7 @@ export default function ShiftOpenModal({ onOpened, onCancel }) {
 
       onOpened();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Xatolik yuz berdi');
+      toast.error(err.response?.data?.detail || t('api.error.generic'));
     } finally {
       setSaving(false);
     }
@@ -46,15 +65,29 @@ export default function ShiftOpenModal({ onOpened, onCancel }) {
               </svg>
             </div>
             <div>
-              <h3 className="font-bold text-slate-800">Smena ochilmagan</h3>
-              <p className="text-xs text-slate-500">To'lov qilish uchun avval smenani oching</p>
+              <h3 className="font-bold text-slate-800">{t('shift.notOpenTitle')}</h3>
+              <p className="text-xs text-slate-500">{t('shift.notOpenHint')}</p>
             </div>
           </div>
         </div>
         <form onSubmit={handleOpen} className="p-6 space-y-4">
+          {needBranch && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                {t('shift.selectBranch')} <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={branchId} onChange={e => setBranchId(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">—</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Boshlang'ich kassadagi pul (so'm)
+              {t('shift.openingCashInputLabel')}
             </label>
             <input
               type="number" min="0" autoFocus value={cash}
@@ -67,12 +100,12 @@ export default function ShiftOpenModal({ onOpened, onCancel }) {
             {onCancel && (
               <button type="button" onClick={onCancel}
                 className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
-                Bekor
+                {t('common.cancel')}
               </button>
             )}
             <button type="submit" disabled={saving}
               className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
-              {saving ? '...' : '✓ Smenani ochish'}
+              {saving ? '...' : `✓ ${t('shift.openShiftTitle')}`}
             </button>
           </div>
         </form>

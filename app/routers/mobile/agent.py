@@ -27,7 +27,10 @@ from app.models.inventory import StockLevel
 from app.models.product import Product, ProductStatus
 from app.models.sale import Sale, SaleStatus
 from app.models.user import User, UserRole
-from app.services.mobile_service import distance_m, ensure_personal_wallet, idem_get, idem_put
+from app.models.warehouse import Warehouse
+from app.services.mobile_service import distance_m, ensure_personal_wallet, idem_get, idem_put, personal_cash_balance
+from app.services.warehouse_resolver import SALE_TYPES, resolve_warehouse
+from app.services.warehouse_scope import sellable_warehouses_query, stock_totals
 from app.utils.report_utils import local_day_start, local_today
 
 router = APIRouter(prefix="/mobile/agent", tags=["mobile-agent"],
@@ -78,6 +81,19 @@ def my_customers(db: Session = Depends(get_db), current_user: User = Depends(age
     if ids:
         for cp in db.query(CustomerPrice).filter(CustomerPrice.customer_id.in_(ids)).all():
             prices.setdefault(cp.customer_id, {})[str(cp.product_id)] = float(cp.price)
+    # T1.17: katalogdan cost_price olib tashlandi — "tannarx" narx turidagi mijozlar uchun narx
+    # serverda hisoblanib `prices` ga qo'shiladi (maxsus narx ustun; backend resolve_price bilan bir xil)
+    cost_ids = [c.id for c in customers if (c.price_type or "sale") == "cost"]
+    if cost_ids:
+        for pid, cost, sale in db.query(Product.id, Product.cost_price, Product.sale_price).filter(
+            Product.company_id == current_user.company_id,
+            Product.is_deleted == False,  # noqa: E712
+            Product.status == ProductStatus.active,
+            Product.product_type.notin_(["raw_material", "service"]),
+        ).limit(5000).all():
+            val = float(cost or sale or 0)
+            for cid_ in cost_ids:
+                prices.setdefault(cid_, {}).setdefault(str(pid), val)
     return [_customer_out(c, prices.get(c.id)) for c in customers]
 
 
@@ -213,29 +229,51 @@ async def visit_photo(visit_id: int, file: UploadFile = File(...), db: Session =
 
 @router.get("/catalog")
 def catalog(db: Session = Depends(get_db), current_user: User = Depends(agent_user)):
-    """Sotiladigan mahsulotlar (xom ashyo va xizmatlardan tashqari) va umumiy
-    qoldiq. Narx mijozga qarab ilovada hisoblanadi: maxsus narx >
-    price_type (sale/wholesale/cost) — backend resolve_price bilan bir xil."""
-    stock = dict(db.query(StockLevel.product_id, func.coalesce(func.sum(StockLevel.quantity), 0)).join(
-        Product, Product.id == StockLevel.product_id,
-    ).filter(Product.company_id == current_user.company_id).group_by(StockLevel.product_id).all())
+    """Sotiladigan mahsulotlar (xom ashyo va xizmatlardan tashqari) va agent filialining
+    sotiladigan omborlaridagi qoldiq (T1.17). Narx mijozga qarab ilovada hisoblanadi: maxsus
+    narx > price_type (sale/wholesale); "tannarx" mijozlar narxi /customers `prices` da keladi.
+    Tannarx (cost_price) agentga berilmaydi."""
+    from app.core.branch_context import effective_branch_id
+    # T1.5: faqat faol main/shop omborlar (returns/transit/raw_material/wip qoldig'i agentga ko'rinmaydi)
+    agent_branch_id = effective_branch_id(db, current_user)
+    wh_ids = [w.id for w in sellable_warehouses_query(
+        db, current_user.company_id, branch_id=agent_branch_id,
+    ).filter(Warehouse.type.in_(SALE_TYPES)).order_by(Warehouse.id).all()]
     products = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.is_deleted == False,  # noqa: E712
         Product.status == ProductStatus.active,
         Product.product_type.notin_(["raw_material", "service"]),
     ).order_by(Product.name).limit(5000).all()
-    return [
-        {
+    stock = stock_totals(db, [p.id for p in products], wh_ids)
+    # T4.3: agent filialining narxlari (bo'lsa korxona narxini ustidan yozadi; NULL ustun korxona narxida qoladi)
+    from app.services.branch_price_service import get_branch_prices
+    branch_prices = get_branch_prices(db, current_user.company_id, agent_branch_id, [p.id for p in products])
+
+    def _prices(p):
+        bp = branch_prices.get((p.id, None))
+        sale = float(p.sale_price or 0)
+        wholesale = float(p.wholesale_price or 0) if p.wholesale_price else None
+        if bp is None:
+            return sale, wholesale, "product"
+        if bp.sale_price is not None:
+            sale = float(bp.sale_price)
+        if bp.wholesale_price is not None:
+            wholesale = float(bp.wholesale_price)
+        return sale, wholesale, "branch"
+
+    out = []
+    for p in products:
+        sale, wholesale, source = _prices(p)
+        out.append({
             "id": p.id, "name": p.name, "sku": p.sku, "barcode": p.barcode, "unit": p.unit,
-            "sale_price": float(p.sale_price or 0),
-            "wholesale_price": float(p.wholesale_price or 0) if p.wholesale_price else None,
-            "cost_price": float(p.cost_price or 0),
+            "sale_price": sale,
+            "wholesale_price": wholesale,
+            "price_source": source,
             "stock": float(stock.get(p.id, 0) or 0),
             "image_url": p.image_url,
-        }
-        for p in products
-    ]
+        })
+    return out
 
 
 # ── Buyurtma ─────────────────────────────────────────────────────────────────
@@ -278,9 +316,20 @@ def create_order(data: AgentOrderIn, db: Session = Depends(get_db), current_user
     delivery = None
     if data.delivery and company_has_feature(db, current_user.company_id, "distribution"):
         delivery = {"planned_date": data.planned_date} if data.planned_date else {}
+    # T1.5: ombor — mijoz filiali (agent shu filialga ruxsatli bo'lsa), aks holda agent filiali;
+    # main/shop turidagi default ombor, filialda ombor yo'q bo'lsa 409 (boshqa filialga o'tilmaydi)
+    from app.core.branch_context import effective_branch_ids, effective_branch_id
+    agent_branch = effective_branch_id(db, current_user)
+    allowed = effective_branch_ids(db, current_user)
+    cust_branch = c.branch_id if (c.branch_id and (not allowed or c.branch_id in allowed)) else None
+    warehouse_id = resolve_warehouse(
+        db, current_user.company_id, branch_id=cust_branch or agent_branch,
+        customer_branch_id=cust_branch, purpose="order",
+    )
     payload = SaleCreate(
         items=[{"product_id": it.product_id, "quantity": it.quantity} for it in data.items],
         payment_type="debt", paid_amount=0, customer_id=c.id, note=note, delivery=delivery,
+        warehouse_id=warehouse_id,
     )
     # create_pending_sale commit qiladi — idempotentlik yozuvi o'sha tranzaksiyaga kirishi uchun oldin qo'shamiz
     idem_row = idem_put(db, current_user, idempotency_key, "agent/orders", {"pending": True})
@@ -290,11 +339,16 @@ def create_order(data: AgentOrderIn, db: Session = Depends(get_db), current_user
         if v:
             v.result = "order"
     out = _order_out(sale)
-    # Kredit limiti — faqat ogohlantirish (bloklash sotuv yakunlanganda, mavjud qoida bo'yicha)
-    if (c.customer_type == "distributor") and float(c.debt_limit or 0) > 0:
+    # Kredit limiti — buyurtma qabul qilinadi, lekin yakunlashda (PUT /sales/{id}, ulgurji sahifa) BLOKLANADI
+    # (credit_service.check_credit_limit); agentga ogohlantirish beriladi.
+    from app.services.credit_service import credit_limit_applies
+    if credit_limit_applies(db, c):
         new_debt = float(c.debt_balance or 0) + out["total"]
         if new_debt > float(c.debt_limit):
-            out["warning"] = f"Kredit limitidan oshadi: {new_debt:,.0f} / {float(c.debt_limit):,.0f}".replace(",", " ")
+            out["warning"] = (
+                f"Kredit limitidan oshadi: {new_debt:,.0f} / {float(c.debt_limit):,.0f}. "
+                f"Buyurtmani yakunlashda bloklanadi — qarz yopilishi yoki limit oshirilishi kerak"
+            ).replace(",", " ")
     if idem_row is not None:
         idem_row.response = out
     db.commit()
@@ -335,12 +389,17 @@ def collect_payment(data: PaymentIn, db: Session = Depends(get_db), current_user
         v = db.query(AgentVisit).filter(AgentVisit.id == data.visit_id, AgentVisit.agent_id == current_user.id).first()
         if v and v.result is None:
             v.result = "payment"
-    from app.routers import customers as C
+    # T2.6: yagona servis (`customer_ledger.pay_debt`); agentning shaxsiy (qo'l) kassasi saqlanadi
+    from app.services import customer_ledger
     reason = f"Agent {current_user.name} qabul qildi" + (f": {data.note}" if data.note else "")
     placeholder = {"customer_id": c.id, "amount": float(data.amount)}
     idem_row = idem_put(db, current_user, idempotency_key, "agent/payments", placeholder)
-    res = C.pay_debt(c.id, C.DebtUpdate(amount=data.amount, reason=reason, wallet_id=wallet.id, payment_type="cash"),
-                     db, current_user)  # commit ichida — idempotentlik yozuvi ham saqlanadi
+    res = customer_ledger.pay_debt(
+        db, c, user=current_user,
+        payments=[{"amount": data.amount, "currency": "UZS", "payment_type": "cash"}],
+        wallet_id=wallet.id, reason=reason,
+    )
+    db.commit()  # idempotentlik yozuvi ham shu tranzaksiyada saqlanadi
     out = {**placeholder, "remaining_debt": res["remaining_debt"], "wallet_balance": float(wallet.balance or 0)}
     if idem_row is not None:
         idem_row.response = out
@@ -367,12 +426,15 @@ def add_customer(data: NewCustomerIn, db: Session = Depends(get_db), current_use
     prev = idem_get(db, current_user, idempotency_key)
     if prev is not None:
         return prev
+    from app.core.branch_context import effective_branch_id
     from app.routers.customers import CustomerIn, create_customer
     body = CustomerIn(
         name=data.name.strip(), phone=(data.phone or "").strip() or None,
         address=data.address, region=data.region, district=data.district,
         lat=data.lat, lng=data.lng, location_source="map" if data.lat is not None else None,
         work_days=[d for d in data.work_days if 1 <= d <= 7], agent_id=current_user.id,
+        # T1.5: agent yaratgan mijoz agent filialiga yoziladi (filialsiz agentda None)
+        branch_id=effective_branch_id(db, current_user),
     )
     # create_customer telefon takrorini tekshiradi (409) va commit qiladi —
     # idempotentlik yozuvi o'sha commit'ga kirishi uchun oldin qo'shiladi
@@ -443,7 +505,7 @@ def kpi(db: Session = Depends(get_db), current_user: User = Depends(agent_user))
         "today": {"orders": orders_since(day0), "collected": collected_since(day0),
                   "visits_planned": planned, "visits_done": int(visited or 0)},
         "month": {"orders": orders_since(month0), "collected": collected_since(month0)},
-        "cash_on_hand": float(wallet.balance or 0),
+        "cash_on_hand": float(personal_cash_balance(db, wallet)),  # T3.14: faqat naqd (karta tushumi kirmaydi)
     }
     db.commit()
     return out

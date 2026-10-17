@@ -183,13 +183,11 @@ async def update_admin_bot_settings(
     if not admin_bot:
         raise HTTPException(404, "Bu kompaniyaga admin bot ulanmagan")
         
-    admin_bot.notify_instant_sales = payload.notify_instant_sales
-    admin_bot.notify_instant_finance = payload.notify_instant_finance
-    admin_bot.notify_scheduled = payload.notify_scheduled
-    admin_bot.scheduled_time = payload.scheduled_time
-    admin_bot.notify_expired_products = payload.notify_expired_products
-    admin_bot.expired_days_before = payload.expired_days_before
-    
+    # Faqat berilgan maydonlar yangilanadi (eski frontend hamma maydonni yuboradi, yangilari esa o'zgarmaydi)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(admin_bot, field, value)
+
     db.commit()
     db.refresh(admin_bot)
     return admin_bot

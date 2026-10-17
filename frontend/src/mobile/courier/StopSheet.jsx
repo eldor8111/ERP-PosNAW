@@ -26,6 +26,7 @@ export default function StopSheet({ stop, onClose, onAction }) {
   }, [stop.group_key]);
 
   const s = detail || stop;
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 
   const run = async (action, extra = {}) => {
     setBusy(true);
@@ -72,6 +73,13 @@ export default function StopSheet({ stop, onClose, onAction }) {
               <Navigation className="size-4" />{t('m.navigate')}
             </a>
           </div>
+
+          {s.pickup_branch_name && (
+            <div className="text-sm bg-surface border border-line rounded-xl px-4 py-3 text-ink-900">
+              🏬 {tf('logistics.pickupBranch', 'Olib ketish')}: <b>{s.pickup_branch_name}</b>{s.pickup_address ? `, ${s.pickup_address}` : ''}
+              {s.pickup_phone && <a href={`tel:${s.pickup_phone}`} className="block text-brand mt-0.5">{s.pickup_phone}</a>}
+            </div>
+          )}
 
           {s.note && <div className="text-sm bg-warning/10 text-ink-900 rounded-xl px-4 py-3">📝 {s.note}</div>}
 

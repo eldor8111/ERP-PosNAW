@@ -44,6 +44,18 @@ function MenuItem({ icon: Icon, color, label, sub, onClick }) {
   )
 }
 
+// T3.13: tanlangan olib ketish filiali shu brauzerda eslab qolinadi (xato bo'lsa e'tiborsiz)
+const branchStoreKey = (companyId) => `shop_branch_${companyId}`
+function readStoredBranch(companyId) {
+  try {
+    const v = Number(window.localStorage.getItem(branchStoreKey(companyId)))
+    return Number.isFinite(v) && v > 0 ? v : null
+  } catch { return null }
+}
+function storeBranch(companyId, id) {
+  try { window.localStorage.setItem(branchStoreKey(companyId), String(id)) } catch { /* ignore */ }
+}
+
 function getTg() {
   return typeof window !== 'undefined' ? window.Telegram?.WebApp : null
 }
@@ -166,6 +178,12 @@ export default function TelegramShop() {
   const [deliveryFee, setDeliveryFee] = useState(0)
   // CRM sozlamasi: qoldiqsiz mahsulotlarga buyurtma ruxsati
   const [allowOutOfStock, setAllowOutOfStock] = useState(true)
+  // T3.13: olib ketish filiallari (faqat bir nechta bo'lsa tanlov ko'rsatiladi) va tanlangani
+  const [branches, setBranches] = useState([])
+  const [branchId, setBranchId] = useState(null)
+  const [productsLoading, setProductsLoading] = useState(false)
+  const multiBranch = branches.length > 1
+  const selectedBranch = branches.find(b => b.id === branchId) || branches[0] || null
 
   const api = useMemo(() => shopApi(initData, urlUser, urlToken), [initData, urlUser, urlToken])
 
@@ -187,26 +205,49 @@ export default function TelegramShop() {
     setLoading(true)
     Promise.all([
       axios.get(`${API_URL}/shop/${companyId}/info`).then(r => r.data).catch(() => null),
-      api.get(`/shop/${companyId}/products`).then(r => r.data).catch(() => null),
+      api.get(`/shop/${companyId}/me`).then(r => r.data).catch(() => null),
       api.get(`/shop/${companyId}/categories`).then(r => r.data).catch(() => []),
-    ]).then(([info, prods, cats]) => {
-      if (cancelled) return
+    ]).then(([info, me, cats]) => {
+      if (cancelled) return undefined
+      // T3.13: filial tanlovi — saqlangan tanlov -> mijoz filiali -> korxona standart filiali
+      const list = Array.isArray(info?.branches) ? info.branches : []
+      const valid = (id) => list.some(b => b.id === id)
+      const stored = readStoredBranch(companyId)
+      const picked = [stored, me?.branch_id, info?.default_branch_id].find(id => id && valid(id)) || list[0]?.id || null
+      setBranches(list)
+      setBranchId(picked)
+      if (me) setMeData(me)
+      setShopName(info?.name || 'Do\'kon')
+      setDeliveryFee(Number(info?.delivery_fee || 0))
+      setAllowOutOfStock(info?.allow_out_of_stock !== false)
+      setCategories(cats || [])
+      // Bir filialli korxonada branch_id yuborilmaydi — hech narsa o'zgarmaydi
+      const productParams = list.length > 1 && picked ? { branch_id: picked } : undefined
+      return api.get(`/shop/${companyId}/products`, { params: productParams }).then(r => r.data).catch(() => null)
+    }).then((prods) => {
+      if (cancelled || prods === undefined) return
       if (!prods) {
         setError('Mahsulotlarni yuklab bo\'lmadi. Qayta urinib ko\'ring.')
       } else {
-        setShopName(info?.name || 'Do\'kon')
-        setDeliveryFee(Number(info?.delivery_fee || 0))
-        setAllowOutOfStock(info?.allow_out_of_stock !== false)
         setProducts(prods)
-        setCategories(cats || [])
       }
       setLoading(false)
     })
 
-    api.get(`/shop/${companyId}/me`).then(r => { if (!cancelled) setMeData(r.data) }).catch(() => {})
-
     return () => { cancelled = true }
   }, [tgReady, companyId, hasAuth, api])
+
+  // T3.13: filial almashtirilganda qoldiq shu filial bo'yicha qayta yuklanadi
+  const changeBranch = useCallback((id) => {
+    if (!id || id === branchId) return
+    setBranchId(id)
+    storeBranch(companyId, id)
+    setProductsLoading(true)
+    api.get(`/shop/${companyId}/products`, { params: { branch_id: id } })
+      .then(r => setProducts(r.data || []))
+      .catch(() => {})
+      .finally(() => setProductsLoading(false))
+  }, [api, companyId, branchId])
 
   const filteredProducts = useMemo(() => {
     let list = products
@@ -381,6 +422,7 @@ export default function TelegramShop() {
         contact_phone: contactPhone.trim() || null,
         delivery_lat: deliveryType === 'delivery' ? (geoLoc?.lat ?? null) : null,
         delivery_lng: deliveryType === 'delivery' ? (geoLoc?.lng ?? null) : null,
+        branch_id: multiBranch ? branchId : null,
       })
       safeTg(tg => tg?.HapticFeedback?.notificationOccurred?.('success'))
       setSuccess(true)
@@ -464,6 +506,20 @@ export default function TelegramShop() {
           </button>
         </div>
 
+        {/* T3.13: olib ketish filiali (faqat bir nechta filial bo'lsa) */}
+        {multiBranch && (
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-xs text-slate-500 shrink-0">📍 Filial:</span>
+            <select
+              value={branchId || ''}
+              onChange={e => changeBranch(Number(e.target.value))}
+              className="flex-1 min-w-0 px-3 py-2 bg-slate-100 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+        )}
+
         {/* Search */}
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -502,7 +558,7 @@ export default function TelegramShop() {
       </div>
 
       {/* Products grid */}
-      <div className="px-4 pt-4">
+      <div className={`px-4 pt-4 transition-opacity ${productsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
         {filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
             <Package className="w-10 h-10" />
@@ -706,6 +762,30 @@ export default function TelegramShop() {
                       🚚 Yetkazib berish
                     </button>
                   </div>
+
+                  {/* T3.13: olib ketish filiali — bir nechta bo'lsa tanlov, bittada faqat manzil */}
+                  {deliveryType === 'pickup' && multiBranch && (
+                    <div className="mb-3 space-y-2">
+                      {branches.map(b => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => changeBranch(b.id)}
+                          className={`w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors ${b.id === branchId ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                        >
+                          <span className="font-semibold text-slate-800">{b.name}</span>
+                          {b.address && <span className="block text-slate-500 mt-0.5">{b.address}</span>}
+                          {b.phone && <span className="block text-slate-400 mt-0.5">{b.phone}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {deliveryType === 'pickup' && !multiBranch && selectedBranch?.address && (
+                    <div className="mb-3 px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-600">
+                      📍 {selectedBranch.address}
+                      {selectedBranch.phone && <span className="block text-slate-400 mt-0.5">{selectedBranch.phone}</span>}
+                    </div>
+                  )}
 
                   {deliveryType === 'delivery' && (
                     <div className="mb-3 space-y-2">

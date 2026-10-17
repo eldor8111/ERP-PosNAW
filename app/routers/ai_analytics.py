@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import timedelta
 from pydantic import BaseModel
+from typing import Optional
 
 from app.database import get_db
 from app.core.dependencies import require_roles
@@ -11,7 +12,12 @@ from app.models.sale import Sale
 from app.services.ai_service import (
     build_daily_context,
     build_daily_report,
+    get_insights,
 )
+from app.services.ai_scope import (
+    resolve_ai_scope, scope_info, scope_label, scope_sale_filter,
+)
+from app.services.stock_report import low_stock_count_for_scope  # T2.3: yagona "kam qoldiq" ta'rifi
 from app.services.ai_tools_registry import AIToolRegistry, summarize_reply
 from app.services.openrouter_copilot_service import call_copilot_ai
 import os
@@ -23,6 +29,18 @@ router = APIRouter(prefix="/ai", tags=["AI Analytics & Copilot"])
 class ChatRequest(BaseModel):
     message: str
     conversation_id: str = ""
+    branch_id: Optional[int] = None  # T2.9: tanlangan filial (ixtiyoriy)
+
+
+def _inject_branch(tool_name, tool_arguments: dict, scope) -> dict:
+    """Chatda filial tanlangan bo'lsa va LLM `branch` bermagan bo'lsa - shu filialni vositaga uzatadi."""
+    args = dict(tool_arguments or {})
+    if scope is None or scope.branch_id is None or args.get("branch"):
+        return args
+    tool_class = AIToolRegistry.get_tool(tool_name)
+    if tool_class and "branch" in (tool_class.parameters or {}).get("properties", {}):
+        args["branch_id"] = scope.branch_id
+    return args
 
 @router.get("/status")
 def get_ai_status():
@@ -35,7 +53,7 @@ def get_ai_status():
             "Haftalik tendensiya",
             "Zaxira va qarz holati",
             "Copilot chat (qarz to'lash / nasiya yozish)",
-            "Har kuni soat 17:30 da Telegram hisoboti",
+            "Har kuni sozlamada belgilangan vaqtda (standart 20:00) Telegram hisoboti",
         ]
     }
 
@@ -54,7 +72,8 @@ def _run_copilot_chat(request: "ChatRequest", db: Session, current_user: User) -
     if any(word in msg_lower for word in _FORBIDDEN_WORDS):
         return {"reply": "Kechirasiz, faqat o'z korxonangizga tegishli ma'lumotlarga javob bera olaman."}
 
-    context = build_daily_context(db, current_user.company_id)
+    scope = resolve_ai_scope(db, current_user, request.branch_id)
+    context = build_daily_context(db, current_user.company_id, scope)
     api_key = os.getenv("OPENROUTER_API_KEY", "")
 
     from app.models.ai_chat_history import AiChatHistory
@@ -86,7 +105,7 @@ def _run_copilot_chat(request: "ChatRequest", db: Session, current_user: User) -
 
     if intent_data.get("intent") == "execute_tool":
         tool_name = intent_data.get("tool_name")
-        tool_arguments = intent_data.get("tool_arguments", {})
+        tool_arguments = _inject_branch(tool_name, intent_data.get("tool_arguments", {}), scope)
 
         result = AIToolRegistry.execute_tool(
             db=db,
@@ -114,6 +133,7 @@ def _run_copilot_chat(request: "ChatRequest", db: Session, current_user: User) -
             intent=intent_data.get("intent", "query")
         ))
         db.commit()
+        result["scope"] = scope_info(scope)
         return result
 
     result_reply = intent_data.get("reply", "Kechirasiz, men bu so'rovni tushunmadim.")
@@ -128,7 +148,8 @@ def _run_copilot_chat(request: "ChatRequest", db: Session, current_user: User) -
     db.commit()
 
     return {
-        "reply": result_reply
+        "reply": result_reply,
+        "scope": scope_info(scope),
     }
 
 
@@ -143,16 +164,18 @@ def ai_chat(
 # Also keeping the old endpoints like /daily-summary unchanged.
 @router.get("/daily-summary")
 def get_daily_summary(
+    branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
-    """Bugungi kun xulosasi va mahalliy AI tahlili."""
+    """Bugungi kun xulosasi va mahalliy AI tahlili. `?branch_id=` - filial doirasi (T2.9)."""
     from app.utils.report_utils import local_today, day_sales_summary
 
+    scope = resolve_ai_scope(db, current_user, branch_id)
     today = local_today()
-    summary = day_sales_summary(db, current_user.company_id, today)
+    summary = day_sales_summary(db, current_user.company_id, today, sale_filter=scope_sale_filter(scope))
 
-    context = build_daily_context(db, current_user.company_id)
+    context = build_daily_context(db, current_user.company_id, scope)
     prompt = "Bugungi savdoga qisqacha ta'rif ber."
     ai_summary_data = call_copilot_ai(
         prompt,
@@ -177,6 +200,7 @@ def get_daily_summary(
             "debt": summary["debt"],
         },
         "ai_summary": ai_summary,
+        "scope": scope_info(scope),
     }
 
 
@@ -184,24 +208,30 @@ def get_daily_summary(
 
 @router.get("/weekly-chart")
 def get_weekly_chart(
+    branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """7 kunlik savdo grafik ma'lumotlari (UZS, sotuv hujjatlari)."""
     from app.utils.report_utils import local_today, local_day_start, sale_doc_filter
 
+    scope = resolve_ai_scope(db, current_user, branch_id)
     today = local_today()
     start_date = today - timedelta(days=6)
 
     day_col = func.date(Sale.created_at)
-    daily_sales = db.query(
+    chart_q = db.query(
         day_col.label("date"),
         func.sum(Sale.total_amount).label("total")
     ).filter(
         Sale.created_at >= local_day_start(start_date),
         Sale.company_id == current_user.company_id,
         sale_doc_filter(),
-    ).group_by(day_col).all()
+    )
+    sale_flt = scope_sale_filter(scope)
+    if sale_flt is not None:
+        chart_q = chart_q.filter(sale_flt)
+    daily_sales = chart_q.group_by(day_col).all()
 
     sales_dict = {str(d): float(t or 0) for d, t in daily_sales}
     days_map = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"]
@@ -216,28 +246,35 @@ def get_weekly_chart(
             "amount": sales_dict.get(str_d, 0),
         })
 
-    return {"chart": chart_data}
+    return {"chart": chart_data, "scope": scope_info(scope)}
 
 
 # ─── Insights ─────────────────────────────────────────────────────────────
 
 @router.get("/insights")
 def get_ai_insights(
+    branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Mahalliy AI xulosalari (O'sish, zaxira, tavsiya)."""
-    return {"insights": get_insights(db, current_user.company_id)}
+    scope = resolve_ai_scope(db, current_user, branch_id)
+    return {"insights": get_insights(db, current_user.company_id, scope), "scope": scope_info(scope)}
 
 
 # ─── Debt Analytics ──────────────────────────────────────────────────────
 
 @router.get("/debt-analytics")
 def get_debt_analytics(
+    branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
-    """Qarz tahlili, toifalar va mahalliy AI maslahati."""
+    """Qarz tahlili, toifalar va mahalliy AI maslahati.
+
+    `?branch_id=` tekshiriladi (404/403), lekin qarz hozircha filial bo'yicha ajratilmagan (T2.6) -
+    natija "butun korxona" yorlig'i bilan qaytadi."""
+    resolve_ai_scope(db, current_user, branch_id)
     data = categorize_customers(db, current_user.company_id)
 
     overdue = data.get("overdue_count", 0)
@@ -259,6 +296,8 @@ def get_debt_analytics(
         advice = "Barcha mijozlar bo'yicha nasiya holati me'yorda. Yaxshi ish!"
 
     data["ai_advice"] = advice
+    data["scope"] = scope_info(None)
+    data["scope_note"] = "Qarz filial bo'yicha ajratilmagan: butun korxona qarzi ko'rsatilmoqda."
     return data
 
 
@@ -266,18 +305,20 @@ def get_debt_analytics(
 
 @router.get("/daily-report")
 def get_daily_report(
+    branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
     """Kunlik to'liq hisobotni ko'rish (Telegram ga yuborilgani bilan bir xil matn)."""
     from app.models.company import Company
+    scope = resolve_ai_scope(db, current_user, branch_id)
     company = db.query(Company).filter(Company.id == current_user.company_id).first()
     company_name = company.name if company else "Do'kon"
-    report = build_daily_report(db, current_user.company_id, company_name)
+    report = build_daily_report(db, current_user.company_id, company_name, scope)
     # HTML taglarini olib tashlash (API response uchun toza matn)
     import re
     clean = re.sub(r"<[^>]+>", "", report)
-    return {"report": clean, "html": report}
+    return {"report": clean, "html": report, "scope": scope_info(scope)}
 
 
 # ─── Copilot Chat ─────────────────────────────────────────────────────────
@@ -299,6 +340,7 @@ def chat_with_copilot(
 
 @router.get("/recommendations")
 def get_ai_recommendations(
+    branch_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
@@ -309,11 +351,20 @@ def get_ai_recommendations(
     from app.models.inventory import StockLevel
     from sqlalchemy import func
 
+    from app.utils.report_utils import sale_doc_filter, load_debtors
+
+    scope = resolve_ai_scope(db, current_user, branch_id)
     recommendations = []
     
-    # Recommendation 1: Inactive customers
+    # Recommendation 1: Inactive customers (mijozlar korxona bo'yicha umumiy)
+    # NOT IN + NULL tuzog'i: mijozsiz (naqd) cheklarning customer_id NULL, ular chiqarib tashlanadi
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)
-    subq = db.query(Sale.customer_id).filter(Sale.company_id == current_user.company_id, Sale.created_at >= cutoff).subquery()
+    subq = db.query(Sale.customer_id).filter(
+        Sale.company_id == current_user.company_id,
+        Sale.created_at >= cutoff,
+        Sale.customer_id.isnot(None),
+        sale_doc_filter(),
+    ).scalar_subquery()
     inactive_count = db.query(func.count(Customer.id)).filter(
         Customer.company_id == current_user.company_id,
         ~Customer.id.in_(subq)
@@ -328,33 +379,30 @@ def get_ai_recommendations(
         })
 
     # Recommendation 2: Low Stock
-    low_stock_count = db.query(func.count(Product.id)).join(StockLevel).filter(
-        Product.company_id == current_user.company_id
-    ).group_by(Product.id).having(func.sum(StockLevel.quantity) < 10).count()
+    # (yagona ta'rif: min_stock > 0 va doiradagi jami qoldiq <= min_stock, o'chirilgan mahsulotsiz)
+    low_count = low_stock_count_for_scope(db, current_user.company_id, scope)
     
-    if low_stock_count > 0:
+    if low_count > 0:
         recommendations.append({
             "type": "low_stock",
             "title": "Tugayotgan mahsulotlar",
-            "description": f"Sizda {low_stock_count} ta mahsulotning zaxirasi 10 tadan kam qolgan. Ular uchun yetkazib beruvchiga zayavka (Purchase Order) berishingiz mumkin.",
+            "description": f"{scope_label(scope)}: {low_count} ta mahsulotning zaxirasi minimal chegaradan kam qolgan. Ular uchun yetkazib beruvchiga zayavka (Purchase Order) berishingiz mumkin.",
             "suggested_prompt": "Tugayotgan mahsulotlar uchun zayavka tayyorla"
         })
 
     # Recommendation 3: Debtors
-    debtors_count = db.query(func.count(Customer.id)).filter(
-        Customer.company_id == current_user.company_id,
-        Customer.debt_balance > 0
-    ).scalar() or 0
+    # (yagona manba - load_debtors; qarz filial bo'yicha ajratilmagan, butun korxona)
+    debtors_count = len(load_debtors(db, Customer, current_user.company_id))
     
     if debtors_count > 0:
         recommendations.append({
             "type": "debtors",
             "title": "Qarzdorlar",
-            "description": f"Sizda {debtors_count} ta mijozning qarzi bor. Ularga qarzini eslatuvchi SMS jo'nating.",
+            "description": f"Butun korxona bo'yicha {debtors_count} ta mijozning qarzi bor. Ularga qarzini eslatuvchi SMS jo'nating.",
             "suggested_prompt": "Qarzdorlarga 'qarzni qaytaring' deb SMS tayyorla"
         })
         
-    return {"recommendations": recommendations}
+    return {"recommendations": recommendations, "scope": scope_info(scope)}
 
 from fastapi import UploadFile, File, HTTPException
 import requests
@@ -402,7 +450,8 @@ async def process_voice_command(
         from app.services.openrouter_copilot_service import call_copilot_ai
         from app.services.ai_service import build_daily_context
         
-        daily_context = build_daily_context(db, current_user.company_id)
+        scope = resolve_ai_scope(db, current_user, None)
+        daily_context = build_daily_context(db, current_user.company_id, scope)
         openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
         
         intent_data = call_copilot_ai(transcription, daily_context, openrouter_key, user=current_user)
@@ -481,16 +530,25 @@ def confirm_ai_action(
     try:
         tool_instance = tool_class()
         result = tool_instance.execute(db, current_user.company_id, current_user, **log.tool_arguments)
-        log.status = "SUCCESS"
         log.result_summary = summarize_reply(result)
+        # T2.6: vosita xatoni istisno emas, "❌ ..." javobi sifatida qaytarsa — jurnalda SUCCESS emas, ERROR
+        if (log.result_summary or "").lstrip().startswith("❌"):
+            log.status = "ERROR"
+            log.error = log.result_summary
+        else:
+            log.status = "SUCCESS"
+        log.execution_time_ms = (time.time() - start_time) * 1000
+        # Commit try ichida: IntegrityError (FK/NOT NULL) 500 emas, ERROR logi bo'lib qaytadi
+        db.commit()
     except Exception as e:
         db.rollback()
+        err_text = e.detail if isinstance(e, HTTPException) else str(e)
         log.status = "ERROR"
-        log.error = str(e)
-        result = {"reply": f"❌ Xatolik yuz berdi: {str(e)}"}
-
-    log.execution_time_ms = (time.time() - start_time) * 1000
-    db.commit()
+        log.error = str(err_text)
+        result = {"reply": f"❌ Xatolik yuz berdi: {err_text}"}
+        log.execution_time_ms = (time.time() - start_time) * 1000
+        # Log yozuvi alohida commit qilinadi
+        db.commit()
     return result
 
 
@@ -505,6 +563,7 @@ class ConfirmPOItem(BaseModel):
     quantity: Decimal
     unit_cost: Decimal
     supplier_id: int
+    warehouse_id: Optional[int] = None  # T2.9: bo'lsa umumiy ombordan ustun
 
 
 class ConfirmPORequest(BaseModel):
@@ -537,15 +596,26 @@ def confirm_ai_purchase_order(
     from app.schemas.purchase_order import POCreate, POItemCreate
     from app.services.purchase_order_service import create_purchase_order
 
+    # Ombor: elementdagi (bo'lmasa umumiy) - avval hammasi tekshiriladi, keyin PO yaratiladi
+    from app.models.warehouse import Warehouse
+    wh_ids = {i.warehouse_id or request.warehouse_id for i in request.items}
+    found = {w.id for w in db.query(Warehouse.id).filter(
+        Warehouse.id.in_(wh_ids), Warehouse.company_id == current_user.company_id).all()}
+    if wh_ids - found:
+        raise HTTPException(status_code=404, detail="Ombor topilmadi")
+    scope = resolve_ai_scope(db, current_user, None)
+    if scope is not None and any(w not in scope.warehouse_ids for w in wh_ids):
+        raise HTTPException(status_code=403, detail="Bu omborga ruxsat yo'q")
+
     groups: dict = defaultdict(list)
     for item in request.items:
-        groups[item.supplier_id].append(item)
+        groups[(item.supplier_id, item.warehouse_id or request.warehouse_id)].append(item)
 
     created_pos = []
-    for supplier_id, items in groups.items():
+    for (supplier_id, warehouse_id), items in groups.items():
         po_data = POCreate(
             supplier_id=supplier_id,
-            warehouse_id=request.warehouse_id,
+            warehouse_id=warehouse_id,
             note=request.note or "AI Copilot orqali avtomatik tayyorlangan zayavka",
             items=[
                 POItemCreate(product_id=i.product_id, qty_ordered=i.quantity, unit_cost=i.unit_cost)

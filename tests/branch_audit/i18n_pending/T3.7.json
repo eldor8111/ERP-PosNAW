@@ -1,0 +1,41 @@
+{
+  "uz": {
+    "settings.receipt.fieldCustomer": "Mijoz",
+    "settings.nakladnoyPreview.branchSample": "Chilonzor filiali",
+    "pos.retailSaleNoteShort": "Chakana sotuv",
+    "labelTemplates.saveError": "Shablonni saqlab bo'lmadi",
+    "labelTemplates.branchName": "Filial nomi",
+    "labelTemplates.branchAddress": "Filial manzili",
+    "labelTemplates.showBranchName": "Filial nomini ko'rsatish",
+    "labelTemplates.showBranchAddress": "Filial manzilini ko'rsatish",
+    "labelTemplates.migrate": "Shablonlarni serverga ko'chirish",
+    "labelTemplates.migrateHint": "Bu kompyuterdagi eski shablonlarni serverga ko'chirish",
+    "labelTemplates.onlyThisBranch": "Faqat shu filial uchun"
+  },
+  "ru": {
+    "settings.receipt.fieldCustomer": "Клиент",
+    "settings.nakladnoyPreview.branchSample": "Филиал Чиланзар",
+    "pos.retailSaleNoteShort": "Розничная продажа",
+    "labelTemplates.saveError": "Не удалось сохранить шаблон",
+    "labelTemplates.branchName": "Название филиала",
+    "labelTemplates.branchAddress": "Адрес филиала",
+    "labelTemplates.showBranchName": "Показывать название филиала",
+    "labelTemplates.showBranchAddress": "Показывать адрес филиала",
+    "labelTemplates.migrate": "Перенести шаблоны на сервер",
+    "labelTemplates.migrateHint": "Перенести старые шаблоны с этого компьютера на сервер",
+    "labelTemplates.onlyThisBranch": "Только для этого филиала"
+  },
+  "en": {
+    "settings.receipt.fieldCustomer": "Customer",
+    "settings.nakladnoyPreview.branchSample": "Chilanzar branch",
+    "pos.retailSaleNoteShort": "Retail sale",
+    "labelTemplates.saveError": "Could not save the template",
+    "labelTemplates.branchName": "Branch name",
+    "labelTemplates.branchAddress": "Branch address",
+    "labelTemplates.showBranchName": "Show branch name",
+    "labelTemplates.showBranchAddress": "Show branch address",
+    "labelTemplates.migrate": "Move templates to the server",
+    "labelTemplates.migrateHint": "Move the old templates on this computer to the server",
+    "labelTemplates.onlyThisBranch": "This branch only"
+  }
+}

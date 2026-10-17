@@ -5,7 +5,7 @@ import threading
 
 from fastapi import HTTPException
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import log_action
 from app.models.batch import Batch
@@ -13,15 +13,28 @@ from app.models.customer import Customer
 from app.models.customer_prices import CustomerPrice
 from app.models.currency import Currency
 from app.models.company import Company
-from app.models.moliya import Transaction, KassaMovement
+from app.models.moliya import Transaction, KassaMovement, NON_CASH_PAYMENT_TYPES
 from app.models.product import Product, ProductConversion, ProductStatus
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType, SaleItemBatch, SalePayment
 from app.admin_tg_bot.notifications import trigger_instant_notification
 from app.models.user import User
 from app.schemas.sale import SaleCreate
+from app.services.customer_service import lock_customer, ARCHIVED_DETAIL
+from app.services.credit_service import check_credit_limit
+from app.services.loyalty_service import get_loyalty_rules, apply_sale_loyalty
+from app.services.sale_cash import build_sale_payment_entries, post_sale_payments
 from app.services.sale_helpers import (
-    generate_sale_number, send_tg_sync, resolve_price, resolve_branch_id
+    generate_sale_number, send_tg_sync, resolve_item_pricing, resolve_branch_id, resolve_txn_branch, assert_sale_items_one_branch,
+    price_is_override,
 )
+from app.services import approval_service  # T4.6: chegirma / qo'lda narx limitlari va tasdiqlash
+from app.services.batch_allocator import (
+    allocate_batches, allocation_cost, is_perishable_product, lock_batches, lock_stock_rows, tashkent_today,
+)
+from app.services.warehouse_resolver import resolve_warehouse
+from app.services.promotion_service import load_sale_pricing_context
+from app.services.wallet_resolver import resolve_wallet
+from app.services.tenant_guards import NO_BRANCH_COMPANY
 
 
 def _resolve_marking_codes(product: Product, item_data) -> list:
@@ -44,6 +57,78 @@ def _resolve_marking_codes(product: Product, item_data) -> list:
     return codes
 
 
+OFFLINE_SALE_TIME_DETAIL = "Sotuv vaqti ruxsat etilgan oraliqdan tashqarida"
+
+
+def _to_naive_utc(dt):
+    """tz-aware vaqtni UTC ga keltirib naive qiladi (Shift.opened_at naive-UTC saqlanadi —
+    aralash solishtirish soat siljishini beradi). Naive qiymat UTC deb qabul qilinadi."""
+    if dt is not None and getattr(dt, 'tzinfo', None) is not None:
+        from datetime import timezone as _tz
+        return dt.astimezone(_tz.utc).replace(tzinfo=None)
+    return dt
+
+
+def _validate_offline_created_at(created_at) -> None:
+    """T3.11: oflayn sotuv vaqti [now - POS_OFFLINE_MAX_AGE_HOURS, now + POS_FUTURE_TOLERANCE_MINUTES]
+    oralig'ida bo'lishi shart — orqaga/oldinga sana bilan hisobotni buzib bo'lmasin."""
+    if created_at is None:
+        return
+    from datetime import datetime as _dt, timedelta as _td
+    from app.config import settings
+    now = _dt.utcnow()
+    cat = _to_naive_utc(created_at)
+    if cat < now - _td(hours=settings.POS_OFFLINE_MAX_AGE_HOURS)             or cat > now + _td(minutes=settings.POS_FUTURE_TOLERANCE_MINUTES):
+        raise HTTPException(status_code=400, detail=OFFLINE_SALE_TIME_DETAIL)
+
+
+def _sale_branch_of(db: Session, user: User) -> Optional[int]:
+    """Sotuv filiali: joriy filial konteksti (T1.2), bo'lmasa foydalanuvchining asosiy filiali."""
+    from app.core.branch_context import effective_branch_id
+    return effective_branch_id(db, user)
+
+
+def _sale_branch_snapshot(db: Session, user: User, warehouse_id, item_wh_ids) -> int:
+    """Sotuv filiali (T1.9): ombor filiali → kassir filiali → korxonaning birinchi faol filiali.
+
+    `items[].warehouse_id` sarlavha omboriga bir filialdan bo'lmasa — 400 (hisobotlarda aralashmasin).
+    """
+    # T1.12: yopilgan filial omboridan sotuv yo'q (sarlavha va qator omborlari)
+    from app.services.sale_helpers import assert_warehouses_branch_active
+    assert_warehouses_branch_active(db, [warehouse_id, *(item_wh_ids or ())])
+    assert_sale_items_one_branch(db, user, warehouse_id, item_wh_ids)
+    branch_id = resolve_txn_branch(db, user, warehouse_id=warehouse_id)
+    if branch_id is None:
+        raise HTTPException(status_code=400, detail=NO_BRANCH_COMPANY)
+    return branch_id
+
+
+SHIFT_REQUIRED = "Smena ochilmagan. Avval smena oching."
+
+
+def _assert_shift_if_required(db: Session, user: User) -> None:
+    """T1.11: `companies.pos_require_shift` yoqilgan bo'lsa ochiq smenasiz sotuv 400.
+    Faqat yangi sotuv (create_sale / pending) uchun; qaytarish hujjatlariga majburlanmaydi."""
+    if not user.company_id:
+        return
+    required = db.query(Company.pos_require_shift).filter(Company.id == user.company_id).scalar()
+    if not required:
+        return
+    from app.models.shift import Shift as _ShiftReq
+    has_open = db.query(_ShiftReq.id).filter(
+        _ShiftReq.cashier_id == user.id, _ShiftReq.status == "open",
+        _ShiftReq.company_id == user.company_id,  # T1.1: korxona filtri
+    ).first()
+    if not has_open:
+        raise HTTPException(status_code=400, detail=SHIFT_REQUIRED)
+
+
+def _assert_branch_open(db: Session, user: User) -> None:
+    """T1.12: xodim filiali yopilgan bo'lsa sotuv 409 (yangi sotuv va kutilayotgan sotuv uchun)."""
+    from app.services.sale_helpers import assert_user_branch_active
+    assert_user_branch_active(db, user)
+
+
 def create_sale(
     db: Session,
     data: SaleCreate,
@@ -52,37 +137,28 @@ def create_sale(
     background_tasks=None,
     idempotency_key: Optional[str] = None,
 ) -> Sale:
+    _assert_branch_open(db, current_user)
+    _assert_shift_if_required(db, current_user)
+    # T3.11: oflayn sotuv vaqti chegarasi (mutatsiyadan oldin)
+    _validate_offline_created_at(getattr(data, 'created_at', None))
     # ── Warehouse aniqlash ────────────────────────────────────────────────────
     if data.warehouse_id is None:
-        from app.models.warehouse import Warehouse
-        from app.models.inventory import StockLevel as _SL
-        wh_q = db.query(Warehouse).filter(
-            Warehouse.company_id == current_user.company_id,
-            Warehouse.is_active == True,
+        # T1.5: yagona qoida — filial default savdo ombori (main/shop); filialda ombor yo'q — 409,
+        # filial ham, ombor ham aniq emas (2+ filial) — 400. Boshqa filialga jim fallback yo'q.
+        data.warehouse_id = resolve_warehouse(
+            db, current_user.company_id, branch_id=_sale_branch_of(db, current_user), purpose="sale", user=current_user,
         )
-        if current_user.branch_id:
-            wh = wh_q.filter(Warehouse.branch_id == current_user.branch_id).first()
-            if not wh:
-                wh = wh_q.first()
-            if wh:
-                data.warehouse_id = wh.id
-        else:
-            if data.items:
-                first_pid = data.items[0].product_id
-                stock_row = (
-                    db.query(_SL)
-                    .join(Warehouse, Warehouse.id == _SL.warehouse_id)
-                    .filter(
-                        _SL.product_id == first_pid,
-                        _SL.quantity > 0,
-                        _SL.warehouse_id.isnot(None),
-                        Warehouse.is_active == True,
-                    )
-                    .order_by(_SL.quantity.desc())
-                    .first()
-                )
-                if stock_row:
-                    data.warehouse_id = stock_row.warehouse_id
+    else:
+        # T0.13: mijoz yuborgan ombor — korxona/faollik/filial bo'yicha (mutatsiyadan oldin)
+        from app.services.sale_helpers import validate_sale_warehouse
+        validate_sale_warehouse(db, current_user, data.warehouse_id)
+    # T0.13: qator omborlari ham (begona/nofaol ombor uchun StockLevel yaratilmasin)
+    _item_wh_ids = {i.warehouse_id for i in data.items if getattr(i, "warehouse_id", None)}
+    if _item_wh_ids:
+        from app.services.sale_helpers import validate_sale_warehouses
+        validate_sale_warehouses(db, current_user, _item_wh_ids)
+    # T1.9: sotuv filiali snapshot'i (Sale.branch_id) — Sale yaratilishidan oldin aniqlanadi
+    sale_branch_id = _sale_branch_snapshot(db, current_user, data.warehouse_id, _item_wh_ids)
 
     # ── Mahsulotlar narxi hisoblash ───────────────────────────────────────────
     product_ids = [item.product_id for item in data.items]
@@ -96,15 +172,16 @@ def create_sale(
         ).all()
     }
 
+    # T4.3: filial narxlari va amaldagi aksiyalar (ombor filiali bo'yicha)
+    _pricing_ctx = load_sale_pricing_context(db, current_user, data.warehouse_id, data.items)
+
     customer = None
     customer_prices_map = {}
     if data.customer_id:
-        customer = db.query(Customer).filter(
-            Customer.id == data.customer_id,
-            Customer.company_id == current_user.company_id,
-        ).first()
-        if not customer:
-            raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+        # T0.26: mijoz qatori qulflanadi (qarz/bonus/ball Python'da hisoblanib yoziladi —
+        # parallel sotuv/to'lov bir-birini ustidan yozmasligi uchun). Qulf tartibi:
+        # mijoz -> ombor qoldig'i -> hamyon. Arxivlangan mijozga sotuv: 400.
+        customer = lock_customer(db, data.customer_id, current_user.company_id)
         customer_prices_map = {
             cp.product_id: cp for cp in db.query(CustomerPrice).filter(
                 CustomerPrice.customer_id == data.customer_id,
@@ -136,6 +213,8 @@ def create_sale(
 
     sale_items_data = []
     total_amount = Decimal("0")
+    _approval_violations = []           # T4.6: qoida buzilishlari (qoida yo'q korxonada bo'sh qoladi)
+    _gross_total = Decimal("0")         # T4.6: umumiy chegirma foizi uchun (UZS, chegirmasiz)
 
     for item_data in data.items:
         product = products_map.get(item_data.product_id)
@@ -146,15 +225,29 @@ def create_sale(
             )
 
         _customer_price = customer_prices_map.get(item_data.product_id) if data.customer_id else None
-        unit_price = resolve_price(item_data, product, _customer_price, customer)
-
-        discount = item_data.discount
+        _branch_price = _pricing_ctx.branch_price(item_data.product_id, getattr(item_data, "variant_id", None))
+        # T3.19: narx (individual narx > price_type > sale_price) va mijoz chegirmasi serverda hal qilinadi
+        unit_price, discount, _price_src = resolve_item_pricing(
+            item_data, product, _customer_price, customer, current_user, branch_price=_branch_price)
+        # T4.3: aksiya serverda tekshiriladi (noto'g'ri promotion_id -> 400); qo'shimcha chegirma qo'shilmaydi
+        discount, _promo_id, _promo_disc = _pricing_ctx.apply(item_data, unit_price, discount)
         if discount > unit_price * item_data.quantity:
             raise HTTPException(
                 status_code=400,
                 detail=f"'{product.name}' uchun chegirma ({discount}) narxdan oshib ketdi",
             )
         subtotal = (unit_price * item_data.quantity) - discount
+
+        # T4.6: kassir kiritgan chegirma (aksiya va mijozning doimiy chegirmasi hisobga olinmaydi) va qo'lda
+        # tushirilgan narx limiti. Admin/director ozod (limitdan oshsa faqat audit).
+        _rate = getattr(item_data, "exchange_rate", None) or Decimal("1")
+        _gross_total += unit_price * item_data.quantity * Decimal(str(_rate))
+        _manual_disc = max(Decimal(str(getattr(item_data, "discount", 0) or 0)) - Decimal(str(_promo_disc or 0)), Decimal("0"))
+        _list_p = price_is_override(item_data, product, _customer_price, customer, _branch_price)
+        _approval_violations.extend(approval_service.evaluate_discount(
+            db, current_user, product, unit_price, _manual_disc, item_data.quantity,
+            branch_id=sale_branch_id, list_price=_list_p, is_override=_list_p is not None, rate=_rate,
+        ))
 
         # O'zining asl valyutasida saqlanadi
         item_currency_code = getattr(item_data, "currency_code", "UZS")
@@ -183,10 +276,23 @@ def create_sale(
             "source_product": source_product,
             "item_warehouse_id": item_data.warehouse_id,
             "marking_codes": marking_codes,
+            "promotion_id": _promo_id,
+            "promotion_discount": _promo_disc,
         })
         
         # Jami sotuv summasi doim UZS (asosiy valyuta) da yig'iladi
         total_amount += (subtotal * item_exchange_rate)
+
+    # T4.6: umumiy (chek) chegirmasi ham chegirma limitiga kiradi; so'ng qaror: block -> 403 limit_exceeded,
+    # require_approval -> approval_id yo'q bo'lsa 403 approval_required, bor bo'lsa tasdiq bir marta ishlatiladi
+    if Decimal(str(data.discount_amount or 0)) > 0:
+        _approval_violations.extend(approval_service.evaluate_discount(
+            db, current_user, None, _gross_total, data.discount_amount, 1, branch_id=sale_branch_id,
+        ))
+    _consumed_approval = approval_service.enforce(
+        db, current_user, _approval_violations, payload=approval_service.sale_payload(data), amount=total_amount,
+        branch_id=sale_branch_id, approval_id=getattr(data, "approval_id", None),
+    )
 
     total_amount -= data.discount_amount
     if total_amount < Decimal("0"):
@@ -219,6 +325,21 @@ def create_sale(
                 paid_cashback_amount += _p.amount
     if paid_cashback_amount > 0 and not data.customer_id:
         raise HTTPException(status_code=400, detail="Keshbekdan foydalanish uchun mijozni tanlash majburiy")
+    if data.loyalty_points_used > 0 and not data.customer_id:
+        raise HTTPException(status_code=400, detail="Ball ishlatish uchun mijozni tanlash majburiy")
+
+    # T2.12: sodiqlik qoidalari (korxona + filial): 1 ball qiymati, sarflash chegarasi, filial yoqilganligi
+    rules = get_loyalty_rules(db, current_user.company_id, branch_id=sale_branch_id)
+    redeem_points_uzs = Decimal(str(data.loyalty_points_used or 0)) * rules.point_value
+    if paid_cashback_amount > 0 or data.loyalty_points_used > 0:
+        if not rules.enabled:
+            raise HTTPException(status_code=400, detail="Bu filialda sodiqlik dasturi o'chirilgan")
+        _max_pct = rules.max_redeem_percent
+        if _max_pct < Decimal("100") and (paid_cashback_amount + redeem_points_uzs) > total_amount * _max_pct / Decimal("100") + Decimal("0.01"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Keshbek/ball bilan to'lash chekning {_max_pct.normalize():f}% idan oshmasligi kerak",
+            )
 
     # ── Haqiqiy to'langan summa (UZS) ──
     paid_amount_uzs = Decimal("0")
@@ -231,13 +352,15 @@ def create_sale(
         paid_amount_uzs = data.paid_amount * exchange_rate
 
     # Agar qarz bo'lsa va mijoz tanlanmagan bo'lsa xato ko'tarish
-    if (paid_amount_uzs + paid_cashback_amount + Decimal(str(data.loyalty_points_used))) < total_amount and not data.customer_id:
+    if (paid_amount_uzs + paid_cashback_amount + redeem_points_uzs) < total_amount and not data.customer_id:
         raise HTTPException(status_code=400, detail="Qarzga sotish uchun mijozni tanlash majburiy")
 
     loyalty_earned = 0
     cashback_earned_amount = Decimal("0")
+    loyalty_base_value = None
     prev_debt_balance = 0.0
     prev_debt_balances = None
+    sale_debt_amounts = {}  # mijozsiz / qarzsiz sotuvda ham aniqlangan bo'lsin (UnboundLocalError)
     if data.customer_id:
         prev_debt_balance = float(customer.debt_balance or 0)
         
@@ -251,7 +374,7 @@ def create_sale(
         if data.loyalty_points_used > 0:
             if data.loyalty_points_used > customer.loyalty_points:
                 raise HTTPException(status_code=400, detail="Mijozda yetarli loyallik ballari yo'q")
-            total_amount -= Decimal(data.loyalty_points_used)
+            total_amount = max(Decimal("0"), total_amount - redeem_points_uzs)
             customer.loyalty_points -= data.loyalty_points_used
 
         if paid_cashback_amount > 0:
@@ -266,33 +389,19 @@ def create_sale(
             if total_amount < Decimal("0"):
                 total_amount = Decimal("0")
 
-        if getattr(customer, "cashback_percent", 0) > 0:
-            cashback_amount = (total_amount * customer.cashback_percent) / Decimal("100")
-            customer.bonus_balance = (customer.bonus_balance or Decimal("0")) + cashback_amount
-            cashback_earned_amount = cashback_amount
-        customer.total_spent = (customer.total_spent or Decimal("0")) + total_amount
-
-        loyalty_earned = int(total_amount * Decimal("0.01"))
-        customer.loyalty_points += loyalty_earned
+        # Keshbek/ball/total_spent — yagona hisob (T2.12); snapshot sotuvga yoziladi (teskari hisob uchun)
+        from types import SimpleNamespace as _NS
+        _loy = _NS()
+        apply_sale_loyalty(customer, _loy, total_amount, rules, paid_uzs=paid_amount_uzs)
+        cashback_earned_amount = _loy.cashback_earned
+        loyalty_earned = _loy.loyalty_points_earned
+        loyalty_base_value = _loy.loyalty_base
 
         if paid_amount_uzs < total_amount:
             debt_amount_uzs = total_amount - paid_amount_uzs
             if debt_amount_uzs > Decimal("0.01"):
-                # Distribyutor kredit limiti (0 = cheklanmagan)
-                _limit = Decimal(str(customer.debt_limit or 0))
-                if getattr(customer, "customer_type", "retail") == "distributor" and _limit > 0:
-                    _new_debt = Decimal(str(customer.debt_balance or 0)) + debt_amount_uzs
-                    if _new_debt > _limit:
-                        _fmt = lambda v: f"{v:,.0f}".replace(",", " ")
-                        raise HTTPException(
-                            status_code=400,
-                            detail=(
-                                f"Distribyutor kredit limitidan oshadi: limit {_fmt(_limit)}, "
-                                f"joriy qarz {_fmt(Decimal(str(customer.debt_balance or 0)))}, "
-                                f"bu sotuvdan keyin {_fmt(_new_debt)} so'm. "
-                                f"Qarzni yoping yoki limitni oshiring."
-                            ),
-                        )
+                # Kredit limit (T2.12): yagona yordamchi, mijoz qatori yuqorida qulflangan (0 = cheklanmagan)
+                check_credit_limit(db, customer, debt_amount_uzs)
                 customer.debt_balance += debt_amount_uzs
 
                 # Sync with multi-currency debt_balances
@@ -326,7 +435,7 @@ def create_sale(
                     if paid_cashback_amount > 0:
                         remain["UZS"] = remain.get("UZS", Decimal("0")) - paid_cashback_amount
                     if getattr(data, "loyalty_points_used", 0) > 0:
-                        remain["UZS"] = remain.get("UZS", Decimal("0")) - Decimal(str(data.loyalty_points_used))
+                        remain["UZS"] = remain.get("UZS", Decimal("0")) - redeem_points_uzs
 
                     overpaid_uzs = Decimal("0")
                     for c in list(remain.keys()):
@@ -359,12 +468,31 @@ def create_sale(
         else:
             sale_debt_amounts = {}
 
+    # ── Kassa (T1.10) ─────────────────────────────────────────────────────────
+    # Yagona qoida: so'ralgan kassa (data.wallet_id) -> kassirning default kassasi -> filial kassasi ->
+    # filialning ochiq kassasi. Faqat haqiqiy pul tushsa (qarz/keshbek emas) yoki kassa aniq so'ralganda
+    # aniqlanadi; >=2 filialli korxonada topilmasa 400 "Bu filial uchun kassa sozlanmagan".
+    _payment_entries = build_sale_payment_entries(data, currency.code if currency else "UZS")
+    _has_real_cash = any(
+        Decimal(str(e["amount"] or 0)) > 0 and str(e["type"]) not in NON_CASH_PAYMENT_TYPES
+        for e in _payment_entries
+    )
+    _sale_wallet = None
+    if _has_real_cash or getattr(data, "wallet_id", None):
+        _sale_wallet = resolve_wallet(
+            db, current_user, branch_id=sale_branch_id, purpose="sale",
+            requested_wallet_id=getattr(data, "wallet_id", None),
+        )
+
     # ── Sale yozuvi ───────────────────────────────────────────────────────────
+    # Hujjat raqami korxona/filial kesimida (T1.14); filial tranzaksiya filiali bilan bir xil aniqlanadi
     sale_create_kwargs = dict(
-        number=generate_sale_number(db),
+        number=generate_sale_number(db, current_user.company_id, sale_branch_id),
         cashier_id=current_user.id,
         company_id=current_user.company_id,
         warehouse_id=data.warehouse_id,
+        branch_id=sale_branch_id,
+        wallet_id=_sale_wallet.id if _sale_wallet is not None else None,
         customer_id=data.customer_id,
         total_amount=total_amount,
         discount_amount=data.discount_amount,
@@ -380,6 +508,7 @@ def create_sale(
         exchange_rate=exchange_rate,
         loyalty_points_earned=loyalty_earned,
         loyalty_points_used=data.loyalty_points_used,
+        loyalty_base=loyalty_base_value,
         debt_due_date=data.debt_due_date,
         debt_amounts=sale_debt_amounts,
         before_debt_balances=prev_debt_balances,
@@ -403,20 +532,20 @@ def create_sale(
     if _cat is not None:
         # tz-aware bo'lsa UTC ga keltirib naive qilamiz — Shift.opened_at
         # naive-UTC saqlanadi, aralash solishtirish 5 soatlik siljish beradi.
-        if getattr(_cat, 'tzinfo', None) is not None:
-            from datetime import timezone as _tz
-            _cat = _cat.astimezone(_tz.utc).replace(tzinfo=None)
+        _cat = _to_naive_utc(_cat)
         from datetime import datetime as _dt
         if _cat <= _dt.utcnow():
             _shift = db.query(_Shift).filter(
                 _Shift.cashier_id == current_user.id,
                 _Shift.status == "open",
+                _Shift.company_id == current_user.company_id,  # T1.1: korxona filtri
                 _Shift.opened_at <= _cat,
             ).order_by(_Shift.opened_at.desc()).first()
     if _shift is None:
         _shift = db.query(_Shift).filter(
             _Shift.cashier_id == current_user.id,
             _Shift.status == "open",
+            _Shift.company_id == current_user.company_id,  # T1.1: korxona filtri
         ).first()
     if _shift:
         sale_create_kwargs['shift_id'] = _shift.id
@@ -424,148 +553,35 @@ def create_sale(
     sale = Sale(**sale_create_kwargs)
     db.add(sale)
     db.flush()
+    approval_service.link_reference(_consumed_approval, "sale", sale.id)   # T4.6
+
+    # T3.11: oflayn sinxronlangan sotuv (vaqt serverdan 10 daqiqadan ko'p farq qiladi) — audit
+    if _cat is not None:
+        from datetime import datetime as _dt2, timedelta as _td2
+        _now = _dt2.utcnow()
+        if abs(_cat - _now) > _td2(minutes=10):
+            log_action(
+                db=db, action="OFFLINE_SALE_SYNCED", entity_type="sale", entity_id=sale.id,
+                user_id=current_user.id,
+                new_values={
+                    "number": sale.number,
+                    "created_at": _cat.isoformat(),
+                    "synced_at": _now.isoformat(),
+                    "local_id": getattr(data, 'local_id', None),
+                },
+                ip_address=ip,
+            )
 
     # ── To'lovlar + tranzaksiyalar ────────────────────────────────────────────
-    tx_branch_id = resolve_branch_id(db, current_user, data.warehouse_id)
+    tx_branch_id = sale_branch_id  # T1.9: tranzaksiya filiali = sotuv filiali
 
-    _cashier_wallet_id = None
-    try:
-        # Savepoint orqali — rollback butun tranzaksiyani bekor qilmasin
-        _sa_text = __import__("sqlalchemy").text
-        with db.begin_nested():  # SAVEPOINT
-            _uw_row = db.execute(
-                _sa_text("SELECT wallet_id FROM user_wallets WHERE user_id=:uid ORDER BY is_default DESC LIMIT 1"),
-                {"uid": current_user.id},
-            ).fetchone()
-            _cashier_wallet_id = _uw_row[0] if _uw_row else None
-    except Exception:
-        _cashier_wallet_id = None  # user_wallets jadvali yo'q — e'tibor bermaslik
-
-    if not _cashier_wallet_id:
-        from app.models.moliya import Wallet as _W
-        _open_w = db.query(_W).filter(
-            _W.company_id == current_user.company_id,
-            _W.is_open == True,
-            _W.is_active == True,
-        ).order_by(_W.id.asc()).first()
-        if _open_w:
-            _cashier_wallet_id = _open_w.id
-
-    _open_session_id = None
-    if _cashier_wallet_id:
-        from app.models.moliya import KassaSession as _KS
-        _ks = db.query(_KS).filter(_KS.wallet_id == _cashier_wallet_id, _KS.status == "open").first()
-        if _ks:
-            _open_session_id = _ks.id
-
-    if _cashier_wallet_id:
-        try:
-            sale.wallet_id = _cashier_wallet_id  # Agar model da mavjud bo'lsa
-        except AttributeError:
-            pass  # wallet_id ustuni olib tashlangan
-
-    # Sotuv tushumini Wallet.balance ga ham qo'shamiz — kassa yopilishida
-    # (close_kassa) inkasso balansdan AYIRILADI, sotuvda esa avval hech
-    # narsa qo'shilmasdi, natijada balans har smenada manfiylashib borardi.
-    # close_kassa bilan simmetriya: faqat UZS harakatlari balansga yoziladi.
-    _cashier_wallet = None
-    if _cashier_wallet_id:
-        from app.models.moliya import Wallet as _WOBJ
-        _cashier_wallet = db.get(_WOBJ, _cashier_wallet_id)
-
-    def _credit_cashier_wallet(amount, mv_currency):
-        if _cashier_wallet is None:
-            return
-        if (mv_currency or "UZS").upper() != "UZS":
-            return
-        amt = Decimal(str(amount or 0))
-        if amt <= 0:
-            return
-        _cashier_wallet.balance = Decimal(str(_cashier_wallet.balance or 0)) + amt
-
-    if data.payments and len(data.payments) > 0:
-        for p in data.payments:
-            if p.amount > 0:
-                p_rate = Decimal(str(getattr(p, "rate", 1.0) or 1.0))
-                p_amount_uzs = p.amount * p_rate
-                
-                db.add(SalePayment(sale_id=sale.id, payment_type=p.type.value, amount=p_amount_uzs))
-                if tx_branch_id:
-                    _p_currency = (getattr(p, "currency", "UZS") or "UZS").upper()
-                    # Store original currency amount if not UZS; store UZS-converted amount if UZS
-                    _tx_amount = p.amount if _p_currency != "UZS" else p_amount_uzs
-                    db.add(Transaction(
-                        branch_id=tx_branch_id, company_id=current_user.company_id,
-                        wallet_id=_cashier_wallet_id,
-                        type="income", amount=_tx_amount, payment_type=p.type.value,
-                        currency_code=_p_currency,
-                        reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv to'lovi #{sale.number} ({p.type.value})" + (f" ({p.amount} {_p_currency})" if _p_currency != "UZS" else ""),
-                    ))
-                if _cashier_wallet_id and p.type.value not in ("debt", "cashback"):
-                    p_currency = getattr(p, "currency", "UZS")
-                    if p_currency == "UZS" and currency and currency.code != "UZS" and p.amount == data.paid_amount:
-                        # Fallback if frontend forgot to set payment currency but meant sale currency
-                        p_currency = currency.code
-                    
-                    if p_currency is None: p_currency = "UZS"
-                    db.add(KassaMovement(
-                        wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
-                        session_id=_open_session_id,
-                        direction="in", payment_type=p.type.value, amount=p.amount,
-                        currency=p_currency,
-                        reference_type="sale", reference_id=sale.id,
-                        description=f"Sotuv #{sale.number}" + (f" ({p.amount} {p_currency})" if p_currency != "UZS" else ""),
-                        created_by=current_user.id,
-                    ))
-                    _credit_cashier_wallet(p.amount, p_currency)
-    elif data.paid_amount > 0:
-        if data.payment_type == PaymentType.mixed:
-            for _pt, _amt in [("cash", data.paid_cash), ("card", data.paid_card)]:
-                if _amt > 0:
-                    db.add(SalePayment(sale_id=sale.id, payment_type=_pt, amount=_amt))
-                    if tx_branch_id:
-                        db.add(Transaction(
-                            branch_id=tx_branch_id, company_id=current_user.company_id,
-                            wallet_id=_cashier_wallet_id,
-                            type="income", amount=_amt, payment_type=_pt,
-                            currency_code="UZS",
-                            reference_type="sale", reference_id=sale.id,
-                            description=f"Sotuv to'lovi #{sale.number} (Aralash/{_pt})",
-                        ))
-                    if _cashier_wallet_id:
-                        db.add(KassaMovement(
-                            wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
-                            session_id=_open_session_id,
-                            direction="in", payment_type=_pt, amount=_amt,
-                            currency=currency.code if currency else "UZS",
-                            reference_type="sale", reference_id=sale.id,
-                            description=f"Sotuv #{sale.number}", created_by=current_user.id,
-                        ))
-                        _credit_cashier_wallet(_amt, currency.code if currency else "UZS")
-        else:
-            db.add(SalePayment(sale_id=sale.id, payment_type=data.payment_type.value, amount=data.paid_amount))
-            if tx_branch_id:
-                _sale_currency = (currency.code if currency else "UZS").upper()
-                _sale_tx_amount = data.paid_amount if _sale_currency != "UZS" else data.paid_amount
-                db.add(Transaction(
-                    branch_id=tx_branch_id, company_id=current_user.company_id,
-                    wallet_id=_cashier_wallet_id,
-                    type="income", amount=_sale_tx_amount, payment_type=data.payment_type.value,
-                    currency_code=_sale_currency,
-                    reference_type="sale", reference_id=sale.id,
-                    description=f"Sotuv to'lovi #{sale.number}",
-                ))
-            if _cashier_wallet_id and data.payment_type.value not in ("debt", "cashback"):
-                db.add(KassaMovement(
-                    wallet_id=_cashier_wallet_id, company_id=current_user.company_id,
-                    session_id=_open_session_id,
-                    direction="in", payment_type=data.payment_type.value, amount=data.paid_amount,
-                    currency=currency.code if currency else "UZS",
-                    reference_type="sale", reference_id=sale.id,
-                    description=f"Sotuv #{sale.number}", created_by=current_user.id,
-                ))
-                _credit_cashier_wallet(data.paid_amount, currency.code if currency else "UZS")
+    # Hamyon: yuqorida resolve_wallet bilan aniqlangan (T1.10).
+    # SalePayment, Transaction (T0.29), KassaMovement va Wallet.balance — post_sale_payments (T0.30).
+    post_sale_payments(
+        db, sale, _payment_entries,
+        current_user, wallet_id=_sale_wallet.id if _sale_wallet is not None else None,
+        tx_branch_id=tx_branch_id,
+    )
 
     # ── Stock kamaytirish (FIFO Batch) ────────────────────────────────────────
     virtual_source_ids = list({
@@ -576,23 +592,24 @@ def create_sale(
     })
     all_stock_ids = list(set(virtual_source_ids + regular_ids))
 
-    all_batches = db.query(Batch).filter(
-        Batch.product_id.in_(all_stock_ids),
-        Batch.quantity > 0,
-        Batch.company_id == current_user.company_id,
-    ).order_by(Batch.created_at.asc(), Batch.id.asc()).all()
-
-    batches_by_product_variant = defaultdict(list)
-    for b in all_batches:
-        batches_by_product_variant[(b.product_id, b.variant_id)].append(b)
-
+    # T1.6: har qator ombori aniqlanadi (T1.5 qoidasi), so'ng FAQAT kerakli (mahsulot, variant, ombor)
+    # qatorlari qulflanadi: avval StockLevel (ORDER BY id), so'ng shu kalitlar partiyalari (ORDER BY id).
+    # Kalitlar tartiblangani va qulf tartibi barqaror bo'lgani uchun teskari tartibli savatlar deadlock bermaydi.
     from app.models.inventory import StockLevel as _SL
-    stocks_by_product_variant = defaultdict(list)
-    if all_stock_ids:
-        for s in db.query(_SL).filter(_SL.product_id.in_(all_stock_ids)).order_by(_SL.quantity.desc()).with_for_update().all():
-            stocks_by_product_variant[(s.product_id, s.variant_id)].append(s)
-
     preferred_wh_id = data.warehouse_id
+
+    def _row_key(d):
+        sp = d.get("source_product") if d.get("conversion") is not None else d["product"]
+        sv = None if d.get("conversion") is not None else d["variant_id"]
+        wh = d.get("item_warehouse_id") or preferred_wh_id
+        if not wh:
+            raise HTTPException(status_code=400, detail="Ombor aniqlanmadi")
+        return (sp.id, sv or None, wh)
+
+    _lock_keys = sorted({_row_key(d) for d in sale_items_data}, key=lambda k: (k[0], k[1] or 0, k[2]))
+    stock_rows = lock_stock_rows(db, _lock_keys)
+    lock_batches(db, current_user.company_id, _lock_keys)
+
     new_sale_items = []
     new_movements = []
 
@@ -612,28 +629,15 @@ def create_sale(
         qty_to_deduct = qty_needed * ratio if is_virtual else qty_needed
 
         item_preferred_wh = item_d.get("item_warehouse_id") or preferred_wh_id
-        stocks = stocks_by_product_variant.get((stock_product.id, stock_variant_id), [])
-
-        preferred_stock = next((s for s in stocks if s.warehouse_id == item_preferred_wh), None) if item_preferred_wh else None
-
-        if preferred_stock:
-            selected_stock = preferred_stock
-        elif item_preferred_wh:
-            from app.models.inventory import StockLevel as _SL2
-            new_sl = _SL2(product_id=stock_product.id, variant_id=stock_variant_id, warehouse_id=item_preferred_wh, quantity=Decimal("0"))
-            db.add(new_sl)
-            stocks.append(new_sl)
-            stocks_by_product_variant[(stock_product.id, stock_variant_id)] = stocks
-            selected_stock = new_sl
-        elif stocks:
-            selected_stock = max(stocks, key=lambda s: s.quantity)
-        else:
-            from app.models.inventory import StockLevel as _SL2
-            new_sl = _SL2(product_id=stock_product.id, variant_id=stock_variant_id, warehouse_id=None, quantity=Decimal("0"))
-            db.add(new_sl)
-            stocks = [new_sl]
-            stocks_by_product_variant[(stock_product.id, stock_variant_id)] = stocks
-            selected_stock = new_sl
+        if not item_preferred_wh:
+            # T1.5: ombor har doim aniqlangan (resolve_warehouse); boshqa omborlardan yechilmaydi
+            raise HTTPException(status_code=400, detail="Ombor aniqlanmadi")
+        _skey = (stock_product.id, stock_variant_id or None, item_preferred_wh)
+        selected_stock = stock_rows.get(_skey)
+        if selected_stock is None:
+            selected_stock = _SL(product_id=stock_product.id, variant_id=stock_variant_id, warehouse_id=item_preferred_wh, quantity=Decimal("0"))
+            db.add(selected_stock)
+            stock_rows[_skey] = selected_stock
 
         if (
             block_negative_stock
@@ -654,6 +658,7 @@ def create_sale(
         new_movements.append(StockMovement(
             product_id=stock_product.id,
             variant_id=stock_variant_id,
+            warehouse_id=item_warehouse_id,
             type=MovementType.OUT,
             qty_before=qty_before,
             qty_after=selected_stock.quantity,
@@ -664,22 +669,17 @@ def create_sale(
             reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio})" if is_virtual else ""),
         ))
 
-        batches = batches_by_product_variant.get((stock_product.id, stock_variant_id), [])
-        remaining = qty_to_deduct
-        total_cost = Decimal("0")
-        allocated_batches = []
-        for batch in batches:
-            if remaining <= 0:
-                break
-            qty_from = min(remaining, batch.quantity)
-            batch.quantity -= qty_from
-            remaining -= qty_from
-            cost = qty_from * (batch.purchase_price or Decimal("0"))
-            total_cost += cost
-            allocated_batches.append({"batch_id": batch.id, "quantity": qty_from, "unit_cost": batch.purchase_price or Decimal("0")})
-        if remaining > 0:
-            fallback = source_product.cost_price if is_virtual else product.cost_price
-            total_cost += remaining * (fallback or Decimal("0"))
+        # Partiyalar — OMBOR bo'yicha (shu ombor, so'ng omborsiz eskilari); update_sale/tasdiqlash bilan
+        # bir xil servis (T1.6). Qulf yuqorida olingan; yetmagan qism mahsulot tannarxi bilan.
+        allocated_batches, shortfall = allocate_batches(
+            db, company_id=current_user.company_id, product_id=stock_product.id, variant_id=stock_variant_id,
+            warehouse_id=item_warehouse_id, quantity=qty_to_deduct,
+            perishable=is_perishable_product(stock_product), today=tashkent_today(), lock=False,
+        )
+        total_cost = allocation_cost(
+            allocated_batches, shortfall,
+            source_product.cost_price if is_virtual else product.cost_price,
+        )
 
         exact_unit_cost = total_cost / qty_needed if qty_needed > 0 else Decimal("0")
 
@@ -697,6 +697,8 @@ def create_sale(
             currency_code=item_d["currency_code"],
             exchange_rate=item_d["exchange_rate"],
             marking_codes=item_d["marking_codes"] or None,
+            promotion_id=item_d.get("promotion_id"),
+            promotion_discount=item_d.get("promotion_discount"),
         )
         new_sale_items.append((sale_item, allocated_batches))
 
@@ -748,9 +750,14 @@ def create_sale(
                         _db = SessionLocal()
                         try:
                             from app.models.sale import Sale as _Sale, SaleItem as _SI
+                            from app.models.warehouse import Warehouse as _Wh
+                            from app.utils.telegram_text import esc as _esc
                             _sale = (
                                 _db.query(_Sale)
-                                .options(_jl(_Sale.items).joinedload(_SI.product), _jl(_Sale.payments))
+                                .options(
+                                    _jl(_Sale.items).joinedload(_SI.product), _jl(_Sale.payments),
+                                    _jl(_Sale.branch), _jl(_Sale.warehouse).joinedload(_Wh.branch),
+                                )
                                 .filter(_Sale.id == sale_id)
                                 .first()
                             )
@@ -794,6 +801,14 @@ def create_sale(
                             sale_date = _sale.created_at.strftime("%d.%m.%Y %H:%M") if _sale.created_at else "-"
                             tqty_str = str(int(total_qty)) if total_qty == int(total_qty) else f"{total_qty:g}"
 
+                            # T3.7: sotuv filiali (snapshot, bo'lmasa ombor filiali) — nomi va telefoni
+                            _br = _sale.branch or (_sale.warehouse.branch if _sale.warehouse else None)
+                            branch_lines = ""
+                            if _br is not None:
+                                branch_lines = f"Filial: {_esc(_br.name)}\n"
+                                if _br.phone:
+                                    branch_lines += f"Tel: {_esc(_br.phone)}\n"
+
                             receipt = (
                                 f"🧾 <b>Sotuv cheki</b>\n\n"
                                 f"Mijoz: {cust_name}\n"
@@ -802,6 +817,7 @@ def create_sale(
                                 f"Savdo: #{_sale.number}\n"
                                 f"Mahsulotlar:\n" + "\n".join(item_lines) +
                                 f"\nTashkilot: {comp_name}\n"
+                                f"{branch_lines}"
                                 f"To'lov usuli:\n{pay_lines}\n\n"
                                 f"Sotuvchi: {seller}\n"
                                 f"📅 Sana: {sale_date}\n"
@@ -839,20 +855,22 @@ def create_pending_sale(
     agent_id: Optional[int] = None,
 ) -> Sale:
     """Ulgurji sotuv — to'lovsiz (pending). Stock va tranzaksiyalarga tegmaydi."""
+    _assert_branch_open(db, current_user)
+    _assert_shift_if_required(db, current_user)
     if data.warehouse_id is None:
-        from app.models.warehouse import Warehouse
-        wh_q = db.query(Warehouse).filter(
-            Warehouse.company_id == current_user.company_id,
-            Warehouse.is_active == True,
+        # T1.5: create_sale bilan bir xil qoida (bitta yordamchi)
+        data.warehouse_id = resolve_warehouse(
+            db, current_user.company_id, branch_id=_sale_branch_of(db, current_user), purpose="sale", user=current_user,
         )
-        if current_user.branch_id:
-            wh = wh_q.filter(Warehouse.branch_id == current_user.branch_id).first()
-            if wh:
-                data.warehouse_id = wh.id
-        if not data.warehouse_id:
-            wh = wh_q.first()
-            if wh:
-                data.warehouse_id = wh.id
+    else:
+        # T0.13: mijoz yuborgan ombor — korxona/faollik/filial bo'yicha
+        from app.services.sale_helpers import validate_sale_warehouse
+        validate_sale_warehouse(db, current_user, data.warehouse_id)
+    _pend_item_wh_ids = {i.warehouse_id for i in data.items if getattr(i, "warehouse_id", None)}
+    if _pend_item_wh_ids:
+        from app.services.sale_helpers import validate_sale_warehouses
+        validate_sale_warehouses(db, current_user, _pend_item_wh_ids)
+    pend_branch_id = _sale_branch_snapshot(db, current_user, data.warehouse_id, _pend_item_wh_ids)
 
     _p_ids = [item.product_id for item in data.items]
 
@@ -864,17 +882,27 @@ def create_pending_sale(
         ).all()
     }
 
+    # T4.3: filial narxlari va amaldagi aksiyalar
+    _pend_ctx = load_sale_pricing_context(db, current_user, data.warehouse_id, data.items)
+
     _pend_customer = None
     _pend_customer_prices = {}
     if data.customer_id:
-        _pend_customer = db.query(Customer).filter(Customer.id == data.customer_id).first()
-        if _pend_customer:
-            _pend_customer_prices = {
-                cp.product_id: cp for cp in db.query(CustomerPrice).filter(
-                    CustomerPrice.customer_id == data.customer_id,
-                    CustomerPrice.product_id.in_(_p_ids),
-                ).all()
-            }
+        # Mijoz faqat o'z korxonasidan bo'lishi shart (create_sale bilan bir xil)
+        _pend_customer = db.query(Customer).filter(
+            Customer.id == data.customer_id,
+            Customer.company_id == current_user.company_id,
+        ).first()
+        if not _pend_customer:
+            raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+        if _pend_customer.is_active is False:
+            raise HTTPException(status_code=400, detail=ARCHIVED_DETAIL)
+        _pend_customer_prices = {
+            cp.product_id: cp for cp in db.query(CustomerPrice).filter(
+                CustomerPrice.customer_id == data.customer_id,
+                CustomerPrice.product_id.in_(_p_ids),
+            ).all()
+        }
 
     _pend_conversions = {
         c.sell_product_id: c for c in db.query(ProductConversion).filter(
@@ -899,8 +927,10 @@ def create_pending_sale(
             raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_data.product_id} topilmadi")
 
         _customer_price = _pend_customer_prices.get(item_data.product_id) if data.customer_id else None
-        unit_price = resolve_price(item_data, product, _customer_price, _pend_customer)
-        discount = item_data.discount
+        unit_price, discount, _price_src = resolve_item_pricing(
+            item_data, product, _customer_price, _pend_customer, current_user,
+            branch_price=_pend_ctx.branch_price(item_data.product_id, getattr(item_data, "variant_id", None)))
+        discount, _promo_id, _promo_disc = _pend_ctx.apply(item_data, unit_price, discount)
         if discount > unit_price * item_data.quantity:
             raise HTTPException(
                 status_code=400,
@@ -928,16 +958,19 @@ def create_pending_sale(
             "discount": discount,
             "subtotal": subtotal,
             "marking_codes": marking_codes,
+            "promotion_id": _promo_id,
+            "promotion_discount": _promo_disc,
         })
         total_amount += subtotal
 
     total_amount = max(Decimal("0"), total_amount - data.discount_amount)
 
     sale = Sale(
-        number=generate_sale_number(db),
+        number=generate_sale_number(db, current_user.company_id, pend_branch_id),
         cashier_id=current_user.id,
         company_id=current_user.company_id,
         warehouse_id=data.warehouse_id,
+        branch_id=pend_branch_id,
         customer_id=data.customer_id,
         total_amount=total_amount,
         discount_amount=data.discount_amount,
@@ -957,6 +990,7 @@ def create_pending_sale(
     _open_shift = db.query(_Shift).filter(
         _Shift.cashier_id == current_user.id,
         _Shift.status == "open",
+        _Shift.company_id == current_user.company_id,  # T1.1: korxona filtri
     ).first()
     if _open_shift:
         sale.shift_id = _open_shift.id
@@ -975,6 +1009,8 @@ def create_pending_sale(
             discount=item_d["discount"],
             subtotal=item_d["subtotal"],
             marking_codes=item_d["marking_codes"] or None,
+            promotion_id=item_d.get("promotion_id"),
+            promotion_discount=item_d.get("promotion_discount"),
         ))
 
     if getattr(data, "delivery", None) is not None:

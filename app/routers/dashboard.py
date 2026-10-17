@@ -1,112 +1,127 @@
 """
 Dashboard Summary Endpoint — barcha dashboard ma'lumotlari bitta so'rovda
 Frontend 6 ta parallel so'rov o'rniga shu 1 ta so'rovni ishlatadi.
+
+T2.4: endpoint DEPRECATED (hech bir klient chaqirmaydi; asosiy dashboard — GET /reports/dashboard).
+Har chaqiruv logga yoziladi — iste'molchi bor-yo'qligini bilish uchun. Raqamlar hisobotlar bilan mos:
+Toshkent kuni, sotuv/qaytarish hujjatlari, UZS ekvivalent.
 """
-from datetime import date, datetime, timedelta
+import logging
+from datetime import date
 from typing import Optional
-from fastapi import APIRouter, Depends, Query  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException, Query  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
-from sqlalchemy import func  # type: ignore
+from sqlalchemy import func, case as sa_case  # type: ignore
 
 from app.database import get_db  # type: ignore
+from app.core.branch_context import BranchContext, get_branch_context  # type: ignore
 from app.core.dependencies import require_roles  # type: ignore
+from app.core.report_scope import effective_ctx  # type: ignore
+from app.core.roles import DASHBOARD_ROLES  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 from app.models.sale import Sale, SaleItem  # type: ignore
 from app.models.moliya import Transaction  # type: ignore
+from app.models.warehouse import Warehouse  # type: ignore
+from app.utils.report_utils import (  # type: ignore
+    tx_cash_flow_filter, _date_range, local_today, sales_summary, resolve_dashboard_scope,
+    sale_or_return_filter, doc_sign, sale_branch_filter, plan_summary,
+)
 from app.models.inventory import StockLevel  # type: ignore
 from app.models.product import Product  # type: ignore
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
-MGMT_ROLES = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant)
+
+def _parse_day(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Sana formati noto'g'ri (YYYY-MM-DD)")
 
 
-@router.get("/summary")
+@router.get("/summary", deprecated=True)
 def dashboard_summary(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     warehouse_id: Optional[int] = Query(None),
     branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*MGMT_ROLES)),
+    current_user: User = Depends(require_roles(*DASHBOARD_ROLES)),
+    ctx: BranchContext = Depends(get_branch_context),
 ):
     """
+    DEPRECATED — /reports/dashboard dan foydalaning.
     Barcha dashboard widget ma'lumotlari bitta so'rovda.
-    Oldin 6+ alohida API so'rovi kerak edi — endi 1 ta.
     """
-    today = date.today()
+    logger.warning("deprecated /dashboard/summary user_id=%s", current_user.id)
     cid = current_user.company_id
+    ctx = effective_ctx(current_user, ctx)  # T2.1: reports.all_branches
 
-    # ── Sana filtr ────────────────────────────────────────────
-    if date_from:
-        dt_from = datetime.strptime(date_from, "%Y-%m-%d")
-    else:
-        dt_from = datetime(today.year, today.month, today.day)
-
-    if date_to:
-        dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
-    else:
-        dt_to = dt_from + timedelta(days=1)
+    # ── Sana filtr (Toshkent kuni; standart — bugun) ──────────
+    d_from = _parse_day(date_from) or local_today()
+    d_to = _parse_day(date_to) or d_from
+    dt_from, dt_to = _date_range(d_from, d_to)
 
     # ── Branch/Warehouse Filters ──────────────────────────────
-    from app.models.warehouse import Warehouse
-    branch_wh_ids = None
-    if branch_id:
-        branch_wh_ids = [wh.id for wh in db.query(Warehouse.id).filter(Warehouse.branch_id == branch_id).all()]
+    eff_branch, branch_wh_ids = resolve_dashboard_scope(db, current_user, ctx, branch_id)
+    wh_ids = branch_wh_ids
+    sale_wh_ids = None if eff_branch else branch_wh_ids
+    sale_flt = sale_branch_filter(eff_branch, db, cid) if eff_branch else None  # T1.9: filial snapshot'i
+    if warehouse_id:
+        wh_ok = db.query(Warehouse.id).filter(Warehouse.id == warehouse_id, Warehouse.company_id == cid).first()
+        if not wh_ok:
+            raise HTTPException(status_code=404, detail="Ombor topilmadi")
+        if branch_wh_ids is not None and warehouse_id not in branch_wh_ids:
+            wh_ids = []  # tanlangan ombor tanlangan filialniki emas
+        else:
+            wh_ids = [warehouse_id]
+        sale_wh_ids, sale_flt = wh_ids, None  # aniq ombor filial snapshot'idan ustun
 
-    def filter_sales(q):
-        if warehouse_id:
-            return q.filter(Sale.warehouse_id == warehouse_id)
-        if branch_wh_ids is not None:
-            return q.filter(Sale.warehouse_id.in_(branch_wh_ids))
-        return q
+    # ── 1. Sotuvlar statistikasi: sotuv hujjatlari − qaytarishlar, UZS ──
+    s = sales_summary(db, cid, dt_from, dt_to, wh_ids=sale_wh_ids, sale_filter=sale_flt)
 
-    # ── 1. Sotuvlar statistikasi (bitta query) ────────────────
-    sale_q = db.query(
-        func.coalesce(func.count(Sale.id), 0).label("sale_count"),
-        func.coalesce(func.sum(Sale.total_amount), 0).label("total_revenue"),
-        func.coalesce(func.sum(Sale.paid_amount), 0).label("total_paid"),
-        func.coalesce(func.sum(Sale.total_amount - Sale.paid_amount), 0).label("total_debt"),
-    ).filter(
-        Sale.company_id == cid,
-        Sale.created_at >= dt_from,
-        Sale.created_at < dt_to,
-    )
-    sale_stats = filter_sales(sale_q).first()
-
-    # ── 2. Kassa balansi — bitta query bilan income/expense (CASE ifodalari)
-    from sqlalchemy import case as sa_case
+    # ── 2. Kassa balansi — valyuta bo'yicha (CASE ifodalari) ──
+    # Kassa filialga bog'liq, omborga emas: warehouse_id balansga ta'sir qilmaydi
+    cur = func.coalesce(Transaction.currency_code, "UZS")
     tx_q = db.query(
+        cur.label("cur"),
         func.coalesce(
             func.sum(sa_case((Transaction.type == "income", Transaction.amount), else_=0)), 0
         ).label("income"),
         func.coalesce(
             func.sum(sa_case((Transaction.type == "expense", Transaction.amount), else_=0)), 0
         ).label("expense"),
-    ).filter(Transaction.company_id == cid)
-    if branch_id:
-        tx_q = tx_q.filter(Transaction.branch_id == branch_id)
-    tx_row = tx_q.first()
-    cash_balance = float(tx_row.income) - float(tx_row.expense)
+    ).filter(Transaction.company_id == cid, Transaction.voided_at.is_(None), tx_cash_flow_filter())
+    cash_scope = "company"
+    if eff_branch:
+        tx_q = tx_q.filter(Transaction.branch_id == eff_branch)
+        cash_scope = "branch"
+    elif ctx.allowed_branch_ids is not None:
+        tx_q = tx_q.filter(Transaction.branch_id.in_(list(ctx.allowed_branch_ids)))
+        cash_scope = "branch"
+    by_currency = {
+        (r.cur or "UZS").upper(): float(r.income) - float(r.expense)
+        for r in tx_q.group_by(cur).all()
+    }
+    # T2.7: umumiy kassa balansi — valyutalar UZS ekvivalentida (korxona kursi); valyuta bo'yicha qismi alohida qoladi
+    from app.services.currency_service import rate_map, to_uzs
+    _rates = rate_map(db, cid)
+    cash_balance = float(sum((to_uzs(v, c, _rates) for c, v in by_currency.items()), 0))
 
-    # ── 3. Kam qolgan mahsulotlar soni ────────────────────────
-    low_stock_q = db.query(func.count(StockLevel.id)).filter(
-        StockLevel.quantity <= Product.min_stock,
-        StockLevel.product_id == Product.id,
-        Product.company_id == cid,
-        Product.is_deleted == False,
-    )
-    if warehouse_id:
-        low_stock_q = low_stock_q.filter(StockLevel.warehouse_id == warehouse_id)
-    elif branch_wh_ids is not None:
-        low_stock_q = low_stock_q.filter(StockLevel.warehouse_id.in_(branch_wh_ids))
-    low_stock_count = low_stock_q.scalar() or 0
+    # ── 3. Kam qolgan mahsulotlar soni (T2.3 ta'rifi; T4.4: ombor bo'yicha min_qty hisobga olinadi) ──
+    from app.utils.stock_utils import low_stock_count as _low_stock_count
+    low_stock_count = _low_stock_count(db, cid, wh_ids)
 
-    # ── 4. Eng ko'p sotilgan 5 ta mahsulot ────────────────────
+    # ── 4. Eng ko'p sotilgan 5 ta mahsulot (qaytarilgan miqdor ayirilgan) ──
+    net_qty = func.sum(doc_sign() * SaleItem.quantity)
     top_q = (
         db.query(
             Product.name,
-            func.coalesce(func.sum(SaleItem.quantity), 0).label("qty"),
+            func.coalesce(net_qty, 0).label("qty"),
         )
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
@@ -114,22 +129,38 @@ def dashboard_summary(
             Sale.company_id == cid,
             Sale.created_at >= dt_from,
             Sale.created_at < dt_to,
+            sale_or_return_filter(),
         )
     )
-    top_q = filter_sales(top_q)
-    top_products = top_q.group_by(Product.id, Product.name).order_by(func.sum(SaleItem.quantity).desc()).limit(5).all()
+    if sale_wh_ids is not None:
+        top_q = top_q.filter(Sale.warehouse_id.in_(sale_wh_ids))
+    if sale_flt is not None:
+        top_q = top_q.filter(sale_flt)
+    top_products = top_q.group_by(Product.id, Product.name).order_by(net_qty.desc()).limit(5).all()
+
+    # ── 5. Joriy oy savdo rejasi (T4.7): filial rejasi yig'indisi va sof sotuv fakti ──
+    if eff_branch:
+        plan_branches = [eff_branch]
+    elif ctx.allowed_branch_ids is not None:
+        plan_branches = list(ctx.allowed_branch_ids)
+    else:
+        plan_branches = None
+    plan = plan_summary(db, cid, local_today().replace(day=1), plan_branches)
 
     return {
-        "period": {"from": dt_from.date().isoformat(), "to": (dt_to - timedelta(days=1)).date().isoformat()},
+        "period": {"from": d_from.isoformat(), "to": d_to.isoformat()},
         "sales": {
-            "count":    int(sale_stats.sale_count),
-            "revenue":  float(sale_stats.total_revenue),
-            "paid":     float(sale_stats.total_paid),
-            "debt":     float(sale_stats.total_debt),
+            "count":    s["count"],
+            "revenue":  s["net"],
+            "paid":     s["cash"] + s["card"],
+            "debt":     s["debt"],
         },
         "cash_balance": cash_balance,
+        "cash_balance_by_currency": by_currency,
+        "cash_balance_scope": cash_scope,
         "low_stock_count": int(low_stock_count),
         "top_products": [
             {"name": r.name, "qty": float(r.qty)} for r in top_products
         ],
+        "plan": plan,
     }

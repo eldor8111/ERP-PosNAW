@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session
 
+from app.core.branch_context import BranchContext, get_branch_context
 from app.core.dependencies import require_roles
 from app.core.features import require_feature
 from app.database import get_db
@@ -56,7 +57,9 @@ def list_field_staff(db: Session = Depends(get_db), current_user: User = Depends
             wallets[uw.user_id] = {"id": w.id, "balance": float(w.balance or 0)}
     from app.models.customer import Customer
     counts = dict(db.query(Customer.agent_id, func.count(Customer.id)).filter(
-        Customer.company_id == cid, Customer.agent_id.in_(ids or [0])).group_by(Customer.agent_id).all())
+        Customer.company_id == cid, Customer.agent_id.in_(ids or [0]),
+        Customer.is_active.is_(True),  # T0.26: arxivlangan mijozlar hisobga kirmaydi
+    ).group_by(Customer.agent_id).all())
     return [
         {
             "id": u.id, "name": u.name, "phone": u.phone, "role": u.role.value,
@@ -82,10 +85,15 @@ def revoke_device(device_id: int, db: Session = Depends(get_db), current_user: U
 
 # ── Jonli xarita, trek, hisobot ─────────────────────────────────────────────
 
-def _staff(db: Session, cid: int):
-    return db.query(User).filter(
+def _staff(db: Session, cid: int, ctx: Optional[BranchContext] = None):
+    q = db.query(User).filter(
         User.company_id == cid, User.role.in_(MOBILE_ONLY_ROLES), User.status == UserStatus.active,
-    ).order_by(User.name).all()
+    )
+    # T1.5: joriy filial konteksti bo'yicha (admin/director header'siz hammasini, manager o'z filialini ko'radi)
+    ids = ctx.scope_ids() if ctx is not None else None
+    if ids is not None:
+        q = q.filter(User.branch_id.in_(list(ids))) if ids else q.filter(User.id == None)  # noqa: E711
+    return q.order_by(User.name).all()
 
 
 def _iso(dt):
@@ -93,7 +101,8 @@ def _iso(dt):
 
 
 @router.get("/live")
-def live(db: Session = Depends(get_db), current_user: User = Depends(require_roles(*MANAGE))):
+def live(db: Session = Depends(get_db), current_user: User = Depends(require_roles(*MANAGE)),
+         ctx: BranchContext = Depends(get_branch_context)):
     """Har bir xodimning oxirgi joylashuvi, smena holati va bugungi natijasi."""
     from app.models.agent_visit import AgentVisit
     from app.models.courier import Courier
@@ -103,7 +112,7 @@ def live(db: Session = Depends(get_db), current_user: User = Depends(require_rol
     from app.utils.report_utils import local_day_start, local_today
 
     cid = current_user.company_id
-    staff = _staff(db, cid)
+    staff = _staff(db, cid, ctx)
     ids = [u.id for u in staff]
     if not ids:
         return []
@@ -189,7 +198,7 @@ def track(user_id: int, day: Optional[date] = None, db: Session = Depends(get_db
 
 @router.get("/report")
 def report(date_from: Optional[date] = None, date_to: Optional[date] = None, db: Session = Depends(get_db),
-           current_user: User = Depends(require_roles(*MANAGE))):
+           current_user: User = Depends(require_roles(*MANAGE)), ctx: BranchContext = Depends(get_branch_context)):
     """Davr bo'yicha: agentlar (reja bajarilishi, tasdiqlanmagan tashriflar,
     buyurtmalar, yig'ilgan pul) va kuryerlar (yetkazilgan/yetkazilmagan)."""
     from app.models.agent_visit import AgentVisit
@@ -209,7 +218,7 @@ def report(date_from: Optional[date] = None, date_to: Optional[date] = None, db:
     date_to = date_to or date_from
     t0, t1 = _date_range(date_from, date_to)
     weekdays = [(date_from + timedelta(days=i)).isoweekday() for i in range((date_to - date_from).days + 1)]
-    staff = _staff(db, cid)
+    staff = _staff(db, cid, ctx)
     wallets = {
         uw.user_id: w for uw, w in db.query(UserWallet, Wallet).join(Wallet, Wallet.id == UserWallet.wallet_id).filter(
             UserWallet.user_id.in_([u.id for u in staff] or [0]), UserWallet.is_default == True,  # noqa: E712
@@ -220,7 +229,9 @@ def report(date_from: Optional[date] = None, date_to: Optional[date] = None, db:
         w = wallets.get(u.id)
         cash = float(w.balance or 0) if w else 0
         if u.role == UserRole.agent:
-            wd = [c.work_days or [] for c in db.query(Customer).filter(Customer.company_id == cid, Customer.agent_id == u.id).all()]
+            wd = [c.work_days or [] for c in db.query(Customer).filter(
+                Customer.company_id == cid, Customer.agent_id == u.id, Customer.is_active.is_(True),
+            ).all()]
             planned = sum(1 for d in weekdays for x in wd if d in x)
             vq = db.query(AgentVisit).filter(AgentVisit.agent_id == u.id, AgentVisit.check_in_at >= t0, AgentVisit.check_in_at < t1)
             planned_done = vq.filter(AgentVisit.planned == True).count()  # noqa: E712
@@ -304,7 +315,19 @@ def assign_customers(agent_id: int, data: AssignCustomersIn, db: Session = Depen
     days = sorted({d for d in (data.work_days or []) if 1 <= d <= 7})
     added = 0
     if data.add:
-        for c in db.query(Customer).filter(Customer.company_id == cid, Customer.id.in_(data.add)).all():
+        # T0.26: arxivlangan mijoz agentga biriktirilmaydi
+        to_add = db.query(Customer).filter(
+            Customer.company_id == cid, Customer.id.in_(data.add), Customer.is_active.is_(True),
+        ).all()
+        # T1.5: agent va mijoz filiali mos bo'lishi shart (mijoz filiali yoki agent filiali bo'sh bo'lsa — mos)
+        if agent.branch_id:
+            bad = [c.name for c in to_add if c.branch_id and c.branch_id != agent.branch_id]
+            if bad:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Agent va mijoz filiali mos emas: " + ", ".join(bad[:5]) + (" ..." if len(bad) > 5 else ""),
+                )
+        for c in to_add:
             c.agent_id = agent.id
             if days and not (c.work_days or []):
                 c.work_days = days
@@ -313,7 +336,10 @@ def assign_customers(agent_id: int, data: AssignCustomersIn, db: Session = Depen
     if data.remove:
         removed = db.query(Customer).filter(
             Customer.company_id == cid, Customer.id.in_(data.remove), Customer.agent_id == agent.id,
+            Customer.is_active.is_(True),
         ).update({"agent_id": None}, synchronize_session=False)
     db.commit()
-    total = db.query(Customer).filter(Customer.company_id == cid, Customer.agent_id == agent.id).count()
+    total = db.query(Customer).filter(
+        Customer.company_id == cid, Customer.agent_id == agent.id, Customer.is_active.is_(True),
+    ).count()
     return {"added": added, "removed": removed, "total": total}

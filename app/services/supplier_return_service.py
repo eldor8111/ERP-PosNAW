@@ -106,6 +106,7 @@ def return_logs(db: Session, supplier_id: int) -> list:
             "value": float(_d(vals.get("value"))),
             "received": float(_d(vals.get("received"))),
             "user_id": log.user_id,
+            "warehouse_id": vals.get("warehouse_id"),
             "description": f"Ta'minotchiga qaytarish: {n} ta pozitsiya" + (f" — {note}" if note else ""),
         })
     return res
@@ -124,6 +125,16 @@ def create_supplier_return(db: Session, data, user) -> dict:
         wh = db.query(Warehouse).filter(Warehouse.id == data.warehouse_id, Warehouse.company_id == cid).first()
         if not wh:
             raise HTTPException(status_code=404, detail="Ombor topilmadi")
+    else:
+        # T1.16: ombor ko'rsatilmasa — yagona faol ombor avtomatik tanlanadi, bir nechta bo'lsa 400
+        # (aks holda qoldiq istalgan filial omboridan yechilib ketardi)
+        active_whs = db.query(Warehouse.id).filter(
+            Warehouse.company_id == cid, Warehouse.is_active == True,  # noqa: E712
+        ).order_by(Warehouse.id).limit(2).all()
+        if len(active_whs) > 1:
+            raise HTTPException(status_code=400, detail="Qaytarish ombori ko'rsatilishi shart")
+        if len(active_whs) == 1:
+            data.warehouse_id = active_whs[0][0]
     received = _d(data.received_amount)
     if received > 0 and not data.wallet_id:
         raise HTTPException(status_code=400, detail="Qaytgan pul uchun kassani tanlang")
@@ -188,6 +199,7 @@ def create_supplier_return(db: Session, data, user) -> dict:
             reference_type="return_to_supplier", reference_id=supplier.id,
             description=f"Ta'minotchidan qaytarish uchun pul qaytdi: {supplier.name}",
             meta={"return_log_id": log.id, "refund_uzs": str(received)}, warehouse_id=data.warehouse_id,
+            prefer_warehouse=True,  # T1.16: qaytim ombor filialiga yoziladi
         )
         log.new_values = {**log.new_values, "refund_tx_id": tx.id}
     db.flush()

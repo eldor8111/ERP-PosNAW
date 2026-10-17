@@ -6,6 +6,7 @@ import { matchesSearch } from '../../utils/translit';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import toast from 'react-hot-toast';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
+import { useApprovalFlow, ApprovalModal } from './Approvals'; // T4.6: menejer tasdig'i
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
@@ -283,8 +284,10 @@ export default function PosReturn() {
   };
 
   const [showCheckout, setShowCheckout] = useState(false);
+  // Tugma bosilganda bir marta yaratiladi, qayta urinishda o'zgarmaydi (takroriy qaytarishdan himoya)
+  const idemKeyRef = useRef(null);
 
-  const submitSale = async () => {
+  const submitSale = async (approvalId = null) => {
     if (!cart.length) { setErr(t('posReturn.cartEmptyError')); setTimeout(()=>setErr(''),3000); return; }
     if (!warehouseId) { setErr(t('posReturn.selectWarehouseError')); setTimeout(()=>setErr(''),3000); return; }
 
@@ -327,21 +330,35 @@ export default function PosReturn() {
         note: noteTxt,
         customer_id: Number(custId) || null,
         warehouse_id: Number(warehouseId),
+        // T4.6: limitdan katta qaytarish uchun menejer tasdiqlagan so'rov
+        approval_id: approvalId || undefined,
       };
 
-      const res = await api.post('/sales/return', payload);
+      if (!idemKeyRef.current) {
+        idemKeyRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+      const res = await api.post('/sales/return', payload, { headers: { 'Idempotency-Key': idemKeyRef.current }, _suppressToast: true });
+      idemKeyRef.current = null;
 
       // Auto Print — iframe (xuddi shu brauzer, tez)
       if (posSettings.autoPrint) {
         const settings = getReceiptSettings();
         const templateType = posSettings.template || (posSettings.paper === '58mm' ? '58' : '80');
         const tmplCfg = settings['r' + templateType] || settings[templateType] || {};
-        const meta = res?.data || {
-          id: 'Vazvrat-' + Date.now(), number: 'Vazvrat-' + Date.now(),
-          cashier_name: 'Kassa', created_at: new Date().toISOString(),
-          total_amount: totalNet, paid_amount: paidAmt, discount_amount: 0,
-          payment_types_array: [{ type: finalType, amount: paidAmt }],
-          items: cart,
+        const saved = res?.data;
+        const meta = {
+          ...(saved || {
+            id: 'Vazvrat-' + Date.now(), number: 'Vazvrat-' + Date.now(),
+            cashier_name: 'Kassa', created_at: new Date().toISOString(),
+            total_amount: totalNet, paid_amount: paidAmt, discount_amount: 0,
+            payment_types_array: [{ type: finalType, amount: paidAmt }],
+            items: cart,
+          }),
+          // T4.2: chekda filial yuridik nomi va STIR (server javobidan)
+          branch_legal_name: saved?.branch_legal_name,
+          branch_stir: saved?.branch_stir,
         };
         printReceiptHtml(buildReceiptHtml(meta, templateType, tmplCfg));
       }
@@ -356,12 +373,29 @@ export default function PosReturn() {
       setErr(t('posReturn.successSold'));
       setTimeout(()=>setErr(''), 3000);
     } catch (e) {
-      setErr(e.response?.data?.detail || t('posReturn.genericError'));
+      // Server aniq rad etgan bo'lsa (4xx) hujjat yaratilmagan — keyingi urinishga yangi kalit
+      if (e.response && e.response.status >= 400 && e.response.status < 500) idemKeyRef.current = null;
+      const raw = e.response?.data?.detail;
+      // T4.6: detail obyekt bo'lishi mumkin ({code, message, ...})
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        if (e.response?.status === 403 && raw.code === 'approval_required') {
+          setShowCheckout(false);
+          approvalFlow.begin(raw, {});
+          return;
+        }
+        if (raw.code === 'approval_invalid') approvalFlow.close();
+        setErr(raw.message || t('posReturn.genericError'));
+      } else {
+        setErr(raw || t('posReturn.genericError'));
+      }
       setTimeout(()=>setErr(''),4000);
     } finally {
       setIsPaying(false);
     }
   };
+
+  // T4.6: tasdiq so'rovi/kutish/qayta yuborish (Approvals.jsx); tasdiqlansa qaytarish approval_id bilan qayta yuboriladi
+  const approvalFlow = useApprovalFlow((requestId) => submitSale(requestId));
 
   return (
     <div className="w-full h-screen bg-slate-100 flex overflow-hidden font-sans select-none">
@@ -388,7 +422,7 @@ export default function PosReturn() {
         </button>
 
         {/* POS Sotuv (Sale) shortcut */}
-        <button onClick={() => navigate('/admin/pos-desktop')} className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all" title={t('posReturn.posSaleNav')}>
+        <button onClick={() => navigate('/admin/pos-kassa')} className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-400 hover:bg-blue-600 hover:text-white transition-all" title={t('posReturn.posSaleNav')}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
         </button>
 
@@ -575,6 +609,9 @@ export default function PosReturn() {
 
       </div>
 
+      {/* T4.6: limitdan katta qaytarish — menejer tasdig'i */}
+      <ApprovalModal flow={approvalFlow} />
+
       {/* ── 3.5. CHECKOUT MODAL ── */}
       {showCheckout && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 transition-opacity">
@@ -686,7 +723,7 @@ export default function PosReturn() {
 
                 <div className="flex gap-3 mt-auto pt-4">
                   <button onClick={() => setShowCheckout(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-xl transition-colors active:scale-95 uppercase tracking-widest text-sm border-2 border-transparent">{t('common.cancel')}</button>
-                  <button onClick={submitSale} disabled={isPaying || (payType !== 'mixed' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-blue-600 uppercase tracking-widest text-sm disabled:bg-blue-300 disabled:border-blue-300 disabled:shadow-none">
+                  <button onClick={() => submitSale()} disabled={isPaying || (payType !== 'mixed' && Number(paidInput) < totalNet && !custId) || (payType === 'mixed' && (Number(mixedAmt1)+Number(mixedAmt2)) < totalNet && !custId)} className="flex-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-blue-600 uppercase tracking-widest text-sm disabled:bg-blue-300 disabled:border-blue-300 disabled:shadow-none">
                     {isPaying ? <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>} {t('posReturn.returnAndPrint')}
                   </button>
                 </div>

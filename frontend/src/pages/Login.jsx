@@ -390,7 +390,7 @@ function ForgotPasswordModal({ onClose, t }) {
 }
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, applyAuthResponse } = useAuth()
   const { t, lang, setLang } = useLang()
   const navigate = useNavigate()
   const [form, setForm] = useState({ phone: '+998', password: '' })
@@ -507,10 +507,8 @@ export default function Login() {
         temp_token: tempToken,
         company_id
       })
-      const { access_token, refresh_token, user } = res.data
-      localStorage.setItem('access_token', access_token)
-      localStorage.setItem('refresh_token', refresh_token)
-      localStorage.setItem('user', JSON.stringify(user))
+      // T1.2: POS keshini tozalash, tokenlar va tanlangan korxona bo'yicha user — yagona joyda
+      const user = applyAuthResponse(res.data)
 
       if (user?.role === 'super_admin') {
         window.location.href = '/admin/super-admin'

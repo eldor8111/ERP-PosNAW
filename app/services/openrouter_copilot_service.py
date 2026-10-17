@@ -38,7 +38,11 @@ def call_copilot_ai(message: str, daily_context: str, api_key: str, user: User =
         "Sizga maxsus Tools (Funksiyalar) berilgan. Agar foydalanuvchining maqsadi biron Tool'ga mos tushsa, "
         "shu Tool'ni chaqiring.\n"
         "DIQQAT: Mijoz ismini olganda HECH QANDAY qo'shimchalarsiz (masalan: 'Asrorni' o'rniga faqat 'Asror' deb) yozing. "
-        "Agar krillcha yozilgan bo'lsa, xuddi o'zidek qoldiring."
+        "Agar krillcha yozilgan bo'lsa, xuddi o'zidek qoldiring.\n"
+        "FILIAL: Agar foydalanuvchi aniq filial so'rasa, vositalarning `branch` parametrini shu filial nomi bilan to'ldiring; "
+        "aniq filial so'ramasa `branch` ni bo'sh qoldiring. Javobda doirani (masalan 'Yunusobod filiali' yoki 'Butun korxona') "
+        "vosita natijasidagi yorliqqa muvofiq aniq ayting; butun korxona raqamlarini filial raqami deb aytmang. "
+        "Filial bo'yicha ma'lumot bo'lmasa (masalan, qarz filial bo'yicha ajratilmagan), buni aniq ayting."
     )
 
     tools = AIToolRegistry.get_all_tools_for_llm(user) if user else []

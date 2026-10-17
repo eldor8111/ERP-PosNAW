@@ -20,6 +20,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   
   int? _selectedCategoryId;
   List<dynamic> _myCategories = [];
+  // T3.17: topshirish ombori (ixtiyoriy) — faqat korxonada 2+ filial bo'lsa server ro'yxat qaytaradi
+  int? _preferredWarehouseId;
+  List<dynamic> _warehouses = [];
   bool _loading = true;
   bool _saving = false;
   bool _removeBg = true;
@@ -34,6 +37,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   void initState() {
     super.initState();
     _fetchMyCategories();
+    _fetchWarehouses();
   }
 
   @override
@@ -61,6 +65,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Xatolik: $e')));
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _fetchWarehouses() async {
+    try {
+      final resp = await apiClient.dio.get('/mobile/marketplace/warehouses');
+      if (!mounted) return;
+      setState(() => _warehouses = (resp.data is List) ? resp.data : []);
+    } catch (_) {
+      // Ixtiyoriy funksiya: xato bo'lsa dropdown ko'rsatilmaydi
     }
   }
 
@@ -143,6 +157,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'barcode': _barcodeCtrl.text.trim(),
         'images': _imageUrls,
         'submit': asSubmit,
+        if (_preferredWarehouseId != null) 'preferred_warehouse_id': _preferredWarehouseId,
       });
 
       if (!mounted) return;
@@ -436,6 +451,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            if (_warehouses.isNotEmpty) ...[
+              DropdownButtonFormField<int?>(
+                initialValue: _preferredWarehouseId,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Topshirish ombori (ixtiyoriy)',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('Tanlanmagan (admin belgilaydi)')),
+                  ..._warehouses.map((w) => DropdownMenuItem<int?>(
+                    value: w['id'] as int,
+                    child: Text(
+                      w['branch_name'] != null ? '${w['name']} — ${w['branch_name']}' : '${w['name']}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )),
+                ],
+                onChanged: (val) => setState(() => _preferredWarehouseId = val),
+              ),
+              const SizedBox(height: 16),
+            ],
             TextField(
               controller: _descCtrl,
               maxLines: 4,

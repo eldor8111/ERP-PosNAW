@@ -83,8 +83,15 @@ const getTariffTheme = (name = '') => {
   };
 };
 
-function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, priceColor, handleBuyTariff, handlePayme, trialLoading, isCurrent, hasActiveSub }) {
+function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, priceColor, handleBuyTariff, handlePayme, trialLoading, isCurrent, hasActiveSub, canBuy = true, usage = null }) {
   const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const unitTxt = tf('tariffs.unit', 'ta');
+  const unlimitedTxt = tf('tariffs.limitUnlimited', 'Cheksiz');
+  // Cheksiz qoidasi backend bilan bir xil: NULL yoki >= 9999
+  const isUnl = (v) => v == null || v >= 9999;
+  // i18n kaliti qo'shilguncha (kalit topilmasa t() kalitning o'zini qaytaradi) zaxira matn
+  const ownerOnlyText = t('tariff.ownerOnly') === 'tariff.ownerOnly' ? 'Tarifni faqat korxona egasi yoki direktor sotib oladi' : t('tariff.ownerOnly');
   const [selectedMonths, setSelectedMonths] = useState(1);
 
   return (
@@ -139,6 +146,50 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
               <div className="text-sm font-black text-slate-800">{new Date(billing.subscription_ends_at).toLocaleDateString('uz-UZ')}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Joriy foydalanish: ishlatilgan / limit (T3.9) ── */}
+      {usage && usage.usage && (
+        <div className="mb-8 rounded-3xl p-5 border border-slate-200 bg-white shadow-sm">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+            {tf('tariffs.currentUsage', 'Joriy foydalanish')}
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            {[
+              ['branches', tf('tariffs.usage.branches', 'Filiallar')],
+              ['warehouses', tf('tariffs.usage.warehouses', 'Omborlar')],
+              ['users', tf('tariffs.usage.users', 'Xodimlar')],
+              ['products', tf('tariffs.usage.products', 'Tovarlar')],
+              ['agents', tf('tariffs.usage.agents', 'Agentlar')],
+              ['couriers', tf('tariffs.usage.couriers', 'Kuryerlar')],
+            ]
+              .filter(([key]) => {
+                const u = usage.usage[key];
+                if (!u) return false;
+                // agent/kuryer faqat ishlatilayotgan yoki limiti bor bo'lsa ko'rsatiladi
+                return !['agents', 'couriers'].includes(key) || u.used > 0 || (u.limit != null && u.limit > 0);
+              })
+              .map(([key, label]) => {
+                const u = usage.usage[key];
+                const near = u.limit != null && u.limit > 0 && u.used / u.limit >= 0.8;
+                const cls = u.over
+                  ? 'bg-red-50 border-red-300 text-red-700'
+                  : (u.full || near)
+                    ? 'bg-amber-50 border-amber-300 text-amber-800'
+                    : 'bg-slate-50 border-slate-200 text-slate-700';
+                return (
+                  <div
+                    key={key}
+                    title={u.over ? tf('tariffs.usageOver', 'Limitdan oshgan') : undefined}
+                    className={`px-3.5 py-2 rounded-2xl border text-sm font-bold flex items-center gap-2 ${cls}`}
+                  >
+                    <span className="font-semibold">{label}</span>
+                    <span className="font-black">{u.limit == null ? `${u.used} / ∞` : `${u.used} / ${u.limit}`}</span>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       )}
 
@@ -276,56 +327,66 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                     {/* Chap ustun: Kvotalar va Resurslar */}
                     <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2">
                       <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        Resurs Limitlari
+                        {tf('tariffs.resourceLimits', 'Resurs limitlari')}
                       </div>
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2 text-slate-600 font-medium">
                           <Package size={15} className="text-amber-600 shrink-0" />
-                          Tovar limiti:
+                          {tf('tariffs.productLimit', 'Tovar limiti:')}
                         </span>
                         <span className={`font-black ${tariff.max_products > 0 ? (isMini ? 'text-amber-700' : 'text-slate-900') : 'text-emerald-600'}`}>
-                          {tariff.max_products > 0 ? `${tariff.max_products.toLocaleString('uz-UZ')} ta` : 'Cheksiz'}
+                          {tariff.max_products > 0 ? `${tariff.max_products.toLocaleString('uz-UZ')} ${unitTxt}` : unlimitedTxt}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-2 text-slate-600 font-medium">
+                          <Store size={15} className="text-emerald-600 shrink-0" />
+                          {tf('tariffs.branchLimit', 'Filiallar:')}
+                        </span>
+                        <span className="font-black text-slate-900">
+                          {isUnl(tariff.max_branches) ? unlimitedTxt : `${tariff.max_branches} ${unitTxt}`}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2 text-slate-600 font-medium">
                           <Warehouse size={15} className="text-blue-600 shrink-0" />
-                          Omborlar:
+                          {tf('tariffs.warehouseLimit', 'Omborlar:')}
                         </span>
                         <span className="font-black text-slate-900">
-                          {tariff.max_warehouses && tariff.max_warehouses < 9999 ? `${tariff.max_warehouses} ta` : 'Cheksiz'}
+                          {tariff.max_warehouses && tariff.max_warehouses < 9999 ? `${tariff.max_warehouses} ${unitTxt}` : unlimitedTxt}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2 text-slate-600 font-medium">
                           <Users size={15} className="text-indigo-600 shrink-0" />
-                          Xodimlar:
+                          {tf('tariffs.userLimit', 'Xodimlar:')}
                         </span>
                         <span className="font-black text-slate-900">
-                          {tariff.max_users >= 9999 ? 'Cheksiz' : `${tariff.max_users} ta`}
+                          {isUnl(tariff.max_users) ? unlimitedTxt : `${tariff.max_users} ${unitTxt}`}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2 text-slate-600 font-medium">
                           <Bike size={15} className="text-violet-600 shrink-0" />
-                          Savdo agentlari:
+                          {tf('tariffs.agentLimit', 'Savdo agentlari:')}
                         </span>
-                        <span className={`font-black ${tariff.max_agents > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                          {tariff.max_agents > 0 ? `${tariff.max_agents} ta` : '—'}
+                        <span className={`font-black ${(tariff.max_agents > 0 || (tariff.max_agents == null && tariff.has_distribution)) ? 'text-blue-700' : 'text-slate-400'}`}>
+                          {tariff.max_agents > 0 ? `${tariff.max_agents} ${unitTxt}` : (tariff.max_agents == null && tariff.has_distribution ? unlimitedTxt : '—')}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2 text-slate-600 font-medium">
                           <Truck size={15} className="text-sky-600 shrink-0" />
-                          Kuryerlar:
+                          {tf('tariffs.courierLimit', 'Kuryerlar:')}
                         </span>
-                        <span className={`font-black ${tariff.max_couriers > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                          {tariff.max_couriers > 0 ? `${tariff.max_couriers} ta` : '—'}
+                        <span className={`font-black ${(tariff.max_couriers > 0 || (tariff.max_couriers == null && tariff.has_distribution)) ? 'text-blue-700' : 'text-slate-400'}`}>
+                          {tariff.max_couriers > 0 ? `${tariff.max_couriers} ${unitTxt}` : (tariff.max_couriers == null && tariff.has_distribution ? unlimitedTxt : '—')}
                         </span>
                       </div>
                     </div>
@@ -334,42 +395,42 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                     <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-3.5 space-y-2 flex flex-col justify-between">
                       <div>
                         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                          Tizim Modullari
+                          {tf('tariffs.systemModules', 'Tizim modullari')}
                         </div>
 
                         <div className="flex items-center justify-between text-xs py-1">
                           <span className="flex items-center gap-2 text-slate-600 font-medium">
                             <BarChart3 size={15} className="text-blue-600 shrink-0" />
-                            P&L 2 davr solishtirish:
+                            {tf('tariffs.module.pnlCompare', 'P&L 2 davr solishtirish:')}
                           </span>
                           <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
                             tariff.has_pnl_compare ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
                           }`}>
-                            {tariff.has_pnl_compare ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                            {tariff.has_pnl_compare ? <><Check size={12} /> {tf('tariffs.has', 'Bor')}</> : <><X size={12} /> {tf('tariffs.hasNot', "Yo'q")}</>}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-xs py-1">
                           <span className="flex items-center gap-2 text-slate-600 font-medium">
                             <Factory size={15} className="text-amber-600 shrink-0" />
-                            Ishlab chiqarish:
+                            {tf('tariffs.module.manufacturing', 'Ishlab chiqarish:')}
                           </span>
                           <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
                             tariff.has_manufacturing ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
                           }`}>
-                            {tariff.has_manufacturing ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                            {tariff.has_manufacturing ? <><Check size={12} /> {tf('tariffs.has', 'Bor')}</> : <><X size={12} /> {tf('tariffs.hasNot', "Yo'q")}</>}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-xs py-1">
                           <span className="flex items-center gap-2 text-slate-600 font-medium">
                             <Share2 size={15} className="text-purple-600 shrink-0" />
-                            Distribyutsiya:
+                            {tf('tariffs.module.distribution', 'Distribyutsiya:')}
                           </span>
                           <span className={`font-black text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 ${
                             tariff.has_distribution ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
                           }`}>
-                            {tariff.has_distribution ? <><Check size={12} /> Bor</> : <><X size={12} /> Yo'q</>}
+                            {tariff.has_distribution ? <><Check size={12} /> {tf('tariffs.has', 'Bor')}</> : <><X size={12} /> {tf('tariffs.hasNot', "Yo'q")}</>}
                           </span>
                         </div>
                       </div>
@@ -395,7 +456,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         onClick={() => handlePayme(tariff, effMonths, totalPackagePrice)}
-                        disabled={trialLoading}
+                        disabled={trialLoading || !canBuy}
                         className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                       >
                         {trialLoading ? t('tariff.waiting') : (
@@ -408,7 +469,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
                       <button
                         onClick={() => handleBuyTariff(tariff, effMonths, totalPackagePrice)}
-                        disabled={trialLoading || (hasActiveSub && !isCurrent(tariff))}
+                        disabled={trialLoading || !canBuy || (hasActiveSub && !isCurrent(tariff))}
                         className={`py-3 px-4 bg-gradient-to-r ${theme.btnGradient} text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60`}
                       >
                         {trialLoading ? t('tariff.waiting') : (
@@ -418,6 +479,9 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                           </>
                         )}
                       </button>
+                      {!canBuy && (
+                        <p className="sm:col-span-2 text-center text-xs text-slate-500">{ownerOnlyText}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -591,6 +655,8 @@ function BillingHistoryTab({ logs }) {
 export default function Tariflar() {
   const { user } = useAuth();
   const { t } = useLang();
+  // Tarif sotib olish faqat korxona egasi/direktor/super admin uchun (backend ham tekshiradi)
+  const canBuy = ['admin', 'director', 'super_admin'].includes(user?.role);
   const [tariffs, setTariffs] = useState([]);
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -599,6 +665,8 @@ export default function Tariflar() {
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
   const [tabs, setTabs] = useState('tariflar');
+  const [usage, setUsage] = useState(null);   // T3.9: ishlatilgan / limit
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 
   // API dan keladigan sozlamalar
   const [settings, setSettings] = useState({
@@ -635,6 +703,12 @@ export default function Tariflar() {
         } catch (e) {
           console.error("Failed to load my-company billing:", e);
         }
+        try {
+          const u = await api.get('/billing/my-company/usage');
+          setUsage(u.data);
+        } catch (e) {
+          console.error("Failed to load my-company usage:", e);
+        }
       } catch (e) {
         console.error("Global fetchData error:", e);
       } finally {
@@ -645,6 +719,7 @@ export default function Tariflar() {
   }, [user]);
 
   const handlePayme = async (directTariff = null, customMonths = 1, customAmount = null) => {
+    if (!canBuy) return;
     const tariffToPay = directTariff;
     if (!tariffToPay) return;
 
@@ -691,6 +766,7 @@ export default function Tariflar() {
   };
 
   const handleBuyTariff = async (tariff, customMonths = 1, customPrice = null) => {
+    if (!canBuy) return;
     setTrialLoading(true);
     try {
       // 1. Fetch latest company billing to ensure balance is up-to-date
@@ -722,16 +798,43 @@ export default function Tariflar() {
       );
       if (!confirmed) return;
 
-      // 4. Activate subscription
-      const res = await api.post('/billing/my-company/subscribe', {
+      // 4. Activate subscription (T3.9: joriy foydalanish yangi tarifdan oshsa 409 over_limit -> tasdiq)
+      const subscribe = (confirmOverLimit) => api.post('/billing/my-company/subscribe', {
         tariff_id: tariff.id,
-        months: months
-      });
+        months: months,
+        confirm_over_limit: confirmOverLimit,
+      }, { _suppressToast: true });
+      let res;
+      try {
+        res = await subscribe(false);
+      } catch (err) {
+        const d = err.response?.data?.detail;
+        if (err.response?.status === 409 && d && d.code === 'over_limit') {
+          const names = {
+            branches: tf('tariffs.usage.branches', 'Filiallar'),
+            warehouses: tf('tariffs.usage.warehouses', 'Omborlar'),
+            users: tf('tariffs.usage.users', 'Xodimlar'),
+            products: tf('tariffs.usage.products', 'Tovarlar'),
+            agents: tf('tariffs.usage.agents', 'Agentlar'),
+            couriers: tf('tariffs.usage.couriers', 'Kuryerlar'),
+          };
+          const items = (d.items || []).map(i => `${names[i.resource] || i.resource}: ${i.used}/${i.limit}`).join(', ');
+          const msg = t('tariffs.overLimitConfirm', { items });
+          const ok = window.confirm(msg === 'tariffs.overLimitConfirm'
+            ? `Joriy foydalanish yangi tarifdan oshadi: ${items}. Mavjud yozuvlar o'chirilmaydi, lekin yangisini qo'shib bo'lmaydi. Davom etasizmi?`
+            : msg);
+          if (!ok) return;
+          res = await subscribe(true);
+        } else {
+          throw err;
+        }
+      }
       setToast({ msg: res.data.message || t('tariff.subscriptionActivated'), ok: true });
 
       // Refresh billing info
       const updatedBilling = await api.get('/billing/my-company');
       setBilling(updatedBilling.data);
+      api.get('/billing/my-company/usage').then(u => setUsage(u.data)).catch(() => {});
     } catch (e) {
       setToast({ msg: e.response?.data?.detail || t('auth.errGeneral'), ok: false });
     } finally {
@@ -742,6 +845,7 @@ export default function Tariflar() {
 
 
   const activateTrial = async () => {
+    if (!canBuy) return;
     setTrialLoading(true);
     try {
       const res = await api.post('/billing/activate-my-trial');
@@ -807,7 +911,7 @@ export default function Tariflar() {
       </div>
 
       {
-        tabs === 'tariflar' && <TariflarTab hasBhm={hasBhm} billing={billing} settings={settings} tariffs={tariffs} bgAccent={bgAccent} btnColor={btnColor} priceColor={priceColor} handleBuyTariff={handleBuyTariff} handlePayme={handlePayme} trialLoading={trialLoading} isCurrent={isCurrent} hasActiveSub={hasActiveSub} />
+        tabs === 'tariflar' && <TariflarTab hasBhm={hasBhm} billing={billing} settings={settings} tariffs={tariffs} bgAccent={bgAccent} btnColor={btnColor} priceColor={priceColor} handleBuyTariff={handleBuyTariff} handlePayme={handlePayme} trialLoading={trialLoading} isCurrent={isCurrent} hasActiveSub={hasActiveSub} canBuy={canBuy} usage={usage} />
       }
       {
         tabs === 'subscription' && <SubscriptionHistoryTab logs={logs} />

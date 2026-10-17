@@ -5,7 +5,9 @@ Hech qanday tashqi API (Google, Claude) ga bog'liq emas.
 Ma'lumotlar bazasidagi raqamlarni tahlil qilib,
 o'zbek tilida tayyor xulosalar, maslahatlar va javoblar beradi.
 """
+import html
 import re
+from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from datetime import date, timedelta, datetime
@@ -14,9 +16,14 @@ from app.models.sale import Sale, SaleItem
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.inventory import StockLevel
+from app.services.branch_daily_summary import branch_day_summary
 from app.services.debt_scoring import categorize_customers
+from app.services.ai_scope import (
+    AIScope, scope_label, scope_sale_filter, company_branch_names,
+)
+from app.services.stock_report import low_stock_count_for_scope  # T2.3: yagona "kam qoldiq" ta'rifi
 from app.utils.report_utils import (
-    _date_range, local_today, day_sales_summary, sales_summary,
+    LOCAL_TZ, _date_range, local_today, day_sales_summary, sales_summary,
     sale_doc_filter, sale_or_return_filter, doc_sign, item_revenue_uzs,
 )
 
@@ -47,25 +54,36 @@ def _pct_word(pct: float) -> str:
 
 # ─── Kontekst yig'uvchi ────────────────────────────────────────────────────
 
-def build_daily_context(db: Session, company_id: int) -> str:
-    """Bugungi savdo haqida qisqacha matn kontekst."""
+def build_daily_context(db: Session, company_id: int, scope: Optional[AIScope] = None) -> str:
+    """Bugungi savdo haqida qisqacha matn kontekst. `scope` berilsa - faqat shu filial(lar) raqamlari."""
     today = local_today()
-    s = day_sales_summary(db, company_id, today)
+    sale_flt = scope_sale_filter(scope)
+    s = day_sales_summary(db, company_id, today, sale_filter=sale_flt)
     start, end = _date_range(today, today)
 
     net_qty = func.sum(doc_sign() * SaleItem.quantity)
-    top = (
+    top_q = (
         db.query(Product.name, net_qty.label("qty"))
         .join(SaleItem, SaleItem.product_id == Product.id)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .filter(Sale.created_at >= start, Sale.created_at < end, Sale.company_id == company_id, sale_or_return_filter())
-        .group_by(Product.id, Product.name)
-        .order_by(net_qty.desc())
-        .first()
     )
+    if sale_flt is not None:
+        top_q = top_q.filter(sale_flt)
+    top = top_q.group_by(Product.id, Product.name).order_by(net_qty.desc()).first()
     top_name = top[0] if top else "—"
 
+    branch_line = ""
+    if scope is None:
+        branches = company_branch_names(db, company_id)
+        if len(branches) > 1:
+            branch_line = (
+                f"Filiallar: {', '.join(branches)} — filial bo'yicha so'ralsa vositaning `branch` parametrini ishlating\n"
+            )
+
     return (
+        f"Hudud: {scope_label(scope)}\n"
+        f"{branch_line}"
         f"Sana: {today}\n"
         f"Savdolar: {s['count']} ta\n"
         f"Jami tushum: {_fmt(s['gross'])}\n"
@@ -80,33 +98,33 @@ def build_daily_context(db: Session, company_id: int) -> str:
 
 # ─── Insights (3 ta karta) ────────────────────────────────────────────────
 
-def get_insights(db: Session, company_id: int) -> list:
-    """Tahlil kartalarini qaytaradi — hech qanday API kerak emas."""
+def get_insights(db: Session, company_id: int, scope: Optional[AIScope] = None) -> list:
+    """Tahlil kartalarini qaytaradi — hech qanday API kerak emas.
+
+    Savdo/zaxira `scope` bo'yicha; qarz hozircha filial bo'yicha emas - "butun korxona" yorlig'i bilan."""
     try:
+        sale_flt = scope_sale_filter(scope)
         today = local_today()
         # Oxirgi 7 kun (bugun ham) va undan oldingi 7 kun — sof tushum (qaytarishlar ayirilgan)
         curr_start, _ = _date_range(today - timedelta(days=6), None)
         prev_start, _ = _date_range(today - timedelta(days=13), None)
         _, curr_end = _date_range(None, today)
-        prev_sales = sales_summary(db, company_id, prev_start, curr_start)["net"]
-        curr_sales = sales_summary(db, company_id, curr_start, curr_end)["net"]
+        prev_sales = sales_summary(db, company_id, prev_start, curr_start, sale_filter=sale_flt)["net"]
+        curr_sales = sales_summary(db, company_id, curr_start, curr_end, sale_filter=sale_flt)["net"]
 
         growth_pct = ((curr_sales - prev_sales) / prev_sales * 100) if prev_sales > 0 else 0.0
         trend_word = "o'sish" if growth_pct >= 0 else "pasayish"
 
-        # Zaxira holati
-        low_stock = db.query(StockLevel).filter(
-            StockLevel.quantity < 10,
-            StockLevel.warehouse.has(company_id=company_id)
-        ).count()
+        # Zaxira holati (mahsulotlar soni, doiradagi omborlar bo'yicha)
+        low_stock = low_stock_count_for_scope(db, company_id, scope)
 
-        # Qarz holati
+        # Qarz holati (T2.6 gacha filial bo'yicha emas - butun korxona)
         debt_data = categorize_customers(db, company_id)
         overdue = debt_data.get("overdue_count", 0)
         total_debt = debt_data.get("total_debt", 0)
 
         # Bugungi eng yaxshi soat
-        peak_hour = _get_peak_hour(db, company_id, today)
+        peak_hour = _get_peak_hour(db, company_id, today, sale_flt)
 
         insights = [
             {
@@ -114,6 +132,7 @@ def get_insights(db: Session, company_id: int) -> list:
                 "icon": "📈" if growth_pct >= 0 else "📉",
                 "title": "Haftalik tendensiya",
                 "body": (
+                    f"Hudud: {scope_label(scope)}. "
                     f"O'tgan haftaga nisbatan savdo {abs(growth_pct):.1f}% {trend_word} kuzatildi. "
                     f"Joriy hafta: {_fmt(curr_sales)}, o'tgan hafta: {_fmt(prev_sales)}."
                 ),
@@ -124,9 +143,9 @@ def get_insights(db: Session, company_id: int) -> list:
                 "icon": "⚠️",
                 "title": "Zaxira va qarz holati",
                 "body": (
-                    f"{low_stock} ta mahsulot zaxirasi 10 tadan kam. "
-                    f"Umumiy nasiya qarzdorlik: {_fmt(total_debt)}. "
-                    f"Muddati o'tgan: {overdue} ta mijoz."
+                    f"{low_stock} ta mahsulot zaxirasi kam ({scope_label(scope)}). "
+                    f"Umumiy nasiya qarzdorlik (butun korxona): {_fmt(total_debt)}. "
+                    f"Muddati o'tgan (butun korxona): {overdue} ta mijoz."
                 ),
                 "color": "orange" if low_stock > 0 or overdue > 0 else "green",
             },
@@ -153,11 +172,11 @@ def get_insights(db: Session, company_id: int) -> list:
         }]
 
 
-def _get_peak_hour(db: Session, company_id: int, today: date) -> int | None:
-    """Bugungi eng gavjum soatni aniqlaydi."""
+def _get_peak_hour(db: Session, company_id: int, today: date, sale_flt=None) -> int | None:
+    """Bugungi eng gavjum soatni aniqlaydi (`sale_flt` - filial doirasi sharti)."""
     try:
         start, end = _date_range(today, today)
-        result = (
+        q = (
             db.query(
                 func.extract('hour', Sale.created_at).label("hr"),
                 func.count(Sale.id).label("cnt")
@@ -168,7 +187,11 @@ def _get_peak_hour(db: Session, company_id: int, today: date) -> int | None:
                 Sale.company_id == company_id,
                 sale_doc_filter(),
             )
-            .group_by(func.extract('hour', Sale.created_at))
+        )
+        if sale_flt is not None:
+            q = q.filter(sale_flt)
+        result = (
+            q.group_by(func.extract('hour', Sale.created_at))
             .order_by(desc("cnt"))
             .first()
         )
@@ -201,16 +224,52 @@ def _generate_tip(growth_pct: float, low_stock: int, overdue: int,
 
 # ─── Kunlik hisobot (Telegram uchun) ─────────────────────────────────────
 
-def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
+MAX_BRANCH_LINES = 10   # Telegram 4096 belgi chegarasi uchun
+
+
+def _branch_breakdown_lines(db: Session, company_id: int, day: date, scope: Optional[AIScope]) -> list:
+    """`[ FILIALLAR KESIMI ]` bo'limi (T2.11). Bitta filialli korxona (yoki doira) uchun bo'sh ro'yxat."""
+    if len(company_branch_names(db, company_id)) < 2:
+        return []
+    rows = branch_day_summary(db, company_id, day)
+    if scope is not None:
+        allowed = set(scope.branch_ids)
+        rows = [r for r in rows if r["branch_id"] in allowed]
+    if len(rows) < 2:
+        return []
+    rows.sort(key=lambda r: (-r["net"], r["name"]))
+    lines = ["", "<b>[ FILIALLAR KESIMI ]</b>"]
+    for r in rows[:MAX_BRANCH_LINES]:
+        lines.append(f"🏬 <b>{html.escape(r['name'])}</b>")
+        lines.append(f"    ▫️ Sof tushum: {_fmt(r['net'])}")
+        lines.append(f"    ▫️ Xarajat: {_fmt(r['expense'])}")
+        if r["shifts_closed"] > 0:
+            lines.append(f"    ▫️ Yopilgan smenalar: {r['shifts_closed']} ta")
+        if r["shortage"] > 0:
+            lines.append(f"    ▫️ Kassa kamomadi: <b>{_fmt(r['shortage'])}</b>")
+        if r["surplus"] > 0:
+            lines.append(f"    ▫️ Kassa ortiqchasi: {_fmt(r['surplus'])}")
+    rest = len(rows) - MAX_BRANCH_LINES
+    if rest > 0:
+        lines.append(f"…yana {rest} ta filial")
+    return lines
+
+
+def build_daily_report(db: Session, company_id: int, company_name: str, scope: Optional[AIScope] = None,
+                       include_branches: bool = True) -> str:
     """
     Kunlik to'liq hisobot matni (Telegram xabar uchun).
-    Hech qanday AI API'siz — faqat matematik tahlil.
+    Hech qanday AI API'siz — faqat matematik tahlil. `scope=None` - butun korxona (scheduler shunday chaqiradi).
+    T3.16: `include_branches=False` (CompanyBot.report_by_branch o'chiq) — `[ FILIALLAR KESIMI ]` chiqmaydi;
+    filial doirasidagi (`scope`) hisobotda qarz bo'limi YO'Q (filial kesimidagi qarz — T2.6); `Company.low_stock_alert`
+    o'chiq bo'lsa zaxira bo'limi chiqmaydi.
     """
     today = local_today()
     yesterday = today - timedelta(days=1)
+    sale_flt = scope_sale_filter(scope)
 
     # ── Bugungi savdolar (qisman/to'liq qaytarilganlari ham; qaytarishlar alohida) ──
-    s = day_sales_summary(db, company_id, today)
+    s = day_sales_summary(db, company_id, today, sale_filter=sale_flt)
     sales_count = s["count"]
     total = s["gross"]
     cash = s["cash"]
@@ -221,13 +280,13 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
     refunds_amount = s["returns"]
 
     # ── Kechagi taqqoslash (sof tushum bo'yicha) ──
-    yest_net = day_sales_summary(db, company_id, yesterday)["net"]
+    yest_net = day_sales_summary(db, company_id, yesterday, sale_filter=sale_flt)["net"]
     diff_pct = ((s["net"] - yest_net) / yest_net * 100) if yest_net > 0 else 0.0
 
     # ── Top 3 mahsulot (UZS, qaytarishlar ayirilgan) ──
     start, end = _date_range(today, today)
     top_revenue = func.sum(doc_sign() * item_revenue_uzs())
-    top_products = (
+    top_q = (
         db.query(Product.name, func.sum(doc_sign() * SaleItem.quantity).label("qty"),
                  top_revenue.label("rev"))
         .join(SaleItem, SaleItem.product_id == Product.id)
@@ -238,26 +297,31 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
             Sale.company_id == company_id,
             sale_or_return_filter(),
         )
-        .group_by(Product.id, Product.name)
+    )
+    if sale_flt is not None:
+        top_q = top_q.filter(sale_flt)
+    top_products = (
+        top_q.group_by(Product.id, Product.name)
         .order_by(top_revenue.desc())
         .limit(3)
         .all()
     )
 
-    # ── Zaxira holati ──
-    low_stock = db.query(StockLevel).filter(
-        StockLevel.quantity < 10,
-        StockLevel.warehouse.has(company_id=company_id)
-    ).count()
+    # ── Zaxira holati (mahsulotlar soni, doiradagi omborlar bo'yicha) ──
+    from app.models.company import Company
+    stock_alert = db.query(Company.low_stock_alert).filter(Company.id == company_id).scalar() is not False
+    low_stock = low_stock_count_for_scope(db, company_id, scope) if stock_alert else 0
 
-    # ── Qarz holati ──
-    try:
-        debt_data = categorize_customers(db, company_id)
-        total_debtors = debt_data.get("total_debtors", 0)
-        total_debt_all = debt_data.get("total_debt", 0)
-        overdue_count = debt_data.get("overdue_count", 0)
-    except Exception:
-        total_debtors = total_debt_all = overdue_count = 0
+    # ── Qarz holati (butun korxona; filial doirasida chiqarilmaydi) ──
+    total_debtors = total_debt_all = overdue_count = 0
+    if scope is None:
+        try:
+            debt_data = categorize_customers(db, company_id)
+            total_debtors = debt_data.get("total_debtors", 0)
+            total_debt_all = debt_data.get("total_debt", 0)
+            overdue_count = debt_data.get("overdue_count", 0)
+        except Exception:
+            total_debtors = total_debt_all = overdue_count = 0
 
     # ── Matn yig'ish ──
     day_names = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
@@ -265,7 +329,8 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
 
     lines = [
         f"🏢 <b>{company_name.upper()} | KUNLIK HISOBOT</b>",
-        f"<i>Sana: {today.strftime('%d.%m.%Y')} | {day_name}</i>",
+        f"<i>Sana: {today.strftime('%d.%m.%Y')} | {day_name} | {datetime.now(LOCAL_TZ).strftime('%H:%M')} holatiga</i>",
+        f"<i>Hudud: {scope_label(scope)}</i>",
         "➖➖➖➖➖➖➖➖➖➖➖➖➖",
         "",
         "<b>[ SAVDO KO'RSATKICHLARI ]</b>",
@@ -291,34 +356,40 @@ def build_daily_report(db: Session, company_id: int, company_name: str) -> str:
         f"    ▫️ Kecha (sof): {_fmt(yest_net)}",
     ]
 
+    # Filiallar kesimi (T2.11): faqat 2 va undan ortiq filial bo'lsa
+    if include_branches:
+        lines += _branch_breakdown_lines(db, company_id, today, scope)
+
     # Top mahsulotlar
     if top_products:
         lines += ["", "<b>[ TOP MAHSULOTLAR ]</b>"]
         for i, (name, qty, rev) in enumerate(top_products, 1):
             lines.append(f" {i}. {name} — {_sf(qty):.0f} dona ({_fmt(_sf(rev))})")
 
-    # Zaxira
-    lines += ["", "<b>[ ZAXIRA HOLATI ]</b>"]
-    if low_stock > 0:
-        lines.append(f" ⚠️ Diqqat: {low_stock} turdagi mahsulot zaxirasi kritik darajada!")
-    else:
-        lines.append(" ✔️ Ombor zaxiralari barqaror holatda.")
-
-    # Qarz
-    lines += ["", "<b>[ MOLIYAVIY HOLAT (Nasiya) ]</b>"]
-    if total_debtors > 0:
-        lines.append(f"▪️ Faol qarzdorlar: <b>{total_debtors} ta</b>")
-        lines.append(f"▪️ Umumiy nasiya: <b>{_fmt(total_debt_all)}</b>")
-        if overdue_count > 0:
-            lines.append(f" ❗️ Muddati o'tgan: <b>{overdue_count} ta mijoz</b>")
+    # Zaxira (Company.low_stock_alert o'chiq bo'lsa bo'lim chiqmaydi)
+    if stock_alert:
+        lines += ["", "<b>[ ZAXIRA HOLATI ]</b>"]
+        if low_stock > 0:
+            lines.append(f" ⚠️ Diqqat: {low_stock} ta mahsulot zaxirasi kritik darajada!")
         else:
-            lines.append(" ✔️ Muddati o'tgan qarzlar yo'q.")
-    else:
-        lines.append(" ✔️ Tizimda faol qarzdorlik mavjud emas.")
+            lines.append(" ✔️ Ombor zaxiralari barqaror holatda.")
+
+    # Qarz (filial hisobotida yo'q)
+    if scope is None:
+        lines += ["", "<b>[ MOLIYAVIY HOLAT (Nasiya) ]</b>"]
+        if total_debtors > 0:
+            lines.append(f"▪️ Faol qarzdorlar (butun korxona): <b>{total_debtors} ta</b>")
+            lines.append(f"▪️ Umumiy nasiya (butun korxona): <b>{_fmt(total_debt_all)}</b>")
+            if overdue_count > 0:
+                lines.append(f" ❗️ Muddati o'tgan: <b>{overdue_count} ta mijoz</b>")
+            else:
+                lines.append(" ✔️ Muddati o'tgan qarzlar yo'q.")
+        else:
+            lines.append(" ✔️ Tizimda faol qarzdorlik mavjud emas.")
 
     # Umumiy baho va maslahat
     lines += ["", "➖➖➖➖➖➖➖➖➖➖➖➖➖", "<b>[ AI-TAHLIL VA TAVSIYALAR ]</b>"]
-    tip = _generate_tip(diff_pct, low_stock, overdue_count, total, _get_peak_hour(db, company_id, today))
+    tip = _generate_tip(diff_pct, low_stock, overdue_count, total, _get_peak_hour(db, company_id, today, sale_flt))
     lines.append(f"💡 <i>{tip}</i>")
 
     lines += ["", "➖➖➖➖➖➖➖➖➖➖➖➖➖",

@@ -1,8 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { BranchProvider } from './context/BranchContext'
 import PrivateRoute from './components/PrivateRoute'
-import { ROLE_GROUPS } from './constants/roles'
+import { ROLE_GROUPS, ROLES } from './constants/roles'
 import Toast from './components/Toast'
 import { Toaster } from 'react-hot-toast'
 import Login from './pages/Login'
@@ -39,12 +40,16 @@ const SuperAdmin      = lazy(() => import('./pages/admin/SuperAdmin'))
 const AgentsPage      = lazy(() => import('./pages/admin/SuperAdmin').then(m => ({ default: m.AgentsPage })))
 const Ombor           = lazy(() => import('./pages/admin/Ombor'))
 const Production      = lazy(() => import('./pages/admin/Production'))
+const AuditLogs       = lazy(() => import('./pages/admin/AuditLogs'))
 const Logistics       = lazy(() => import('./pages/admin/Logistics'))
 const FieldStaff      = lazy(() => import('./pages/admin/FieldStaff'))
 const Filiallar       = lazy(() => import('./pages/admin/Filiallar'))
+const BranchPlans     = lazy(() => import('./pages/admin/BranchPlans'))  // T4.7
+const Approvals       = lazy(() => import('./pages/admin/Approvals'))  // T4.6
+const PaymentReconciliation = lazy(() => import('./pages/admin/PaymentReconciliation'))  // T3.18
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
+const MarketplaceAgents = lazy(() => import('./pages/admin/MarketplaceAgents'))
 const AICopilot       = lazy(() => import('./pages/admin/AICopilot'))
-const Register        = lazy(() => import('./pages/Register'))
 const Landing         = lazy(() => import('./pages/Landing'))
 const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
 const TelegramBotlar  = lazy(() => import('./pages/TelegramBotlar'))
@@ -59,6 +64,11 @@ const NotFound        = lazy(() => import('./pages/NotFound'))
 const TelegramShop    = lazy(() => import('./pages/TelegramShop'))
 const CourierApp      = lazy(() => import('./pages/CourierApp'))
 const Privacy         = lazy(() => import('./pages/Privacy'))
+
+// Moliya/kassa sahifalari: backend (kassa.py, finance.py) bilan mos — FINANCE_ACCESS + super_admin
+const FINANCE_ROUTE_ROLES = [...ROLE_GROUPS.FINANCE_ACCESS, ROLES.SUPER_ADMIN]
+// T3.1: Sozlamalar va Filiallar — faqat yuqori boshqaruv (kassir/menejer URL ochsa /admin ga qaytadi)
+const MANAGEMENT_ROUTE_ROLES = [...ROLE_GROUPS.MANAGEMENT, ROLES.SUPER_ADMIN]
 
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
@@ -95,6 +105,7 @@ export default function App() {
       <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       <Toast />
       <AuthProvider>
+        <BranchProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/pos-login" element={<PosLogin />} />
@@ -114,10 +125,10 @@ export default function App() {
             <Route path="warehouse" element={<Suspense fallback={<PageLoader />}><Warehouse /></Suspense>} />
             <Route path="alerts" element={<Suspense fallback={<PageLoader />}><Alerts /></Suspense>} />
             <Route path="inventory-counts" element={<Suspense fallback={<PageLoader />}><InventoryCounts /></Suspense>} />
-            <Route path="finance" element={<Suspense fallback={<PageLoader />}><Finance /></Suspense>} />
-            <Route path="kirim-tolovlar" element={<Suspense fallback={<PageLoader />}><KirimTolovlar /></Suspense>} />
-            <Route path="chiqim-tolovlar" element={<Suspense fallback={<PageLoader />}><ChiqimTolovlar /></Suspense>} />
-            <Route path="kassa" element={<Suspense fallback={<PageLoader />}><Kassa /></Suspense>} />
+            <Route path="finance" element={<PrivateRoute roles={FINANCE_ROUTE_ROLES}><Suspense fallback={<PageLoader />}><Finance /></Suspense></PrivateRoute>} />
+            <Route path="kirim-tolovlar" element={<PrivateRoute roles={FINANCE_ROUTE_ROLES}><Suspense fallback={<PageLoader />}><KirimTolovlar /></Suspense></PrivateRoute>} />
+            <Route path="chiqim-tolovlar" element={<PrivateRoute roles={FINANCE_ROUTE_ROLES}><Suspense fallback={<PageLoader />}><ChiqimTolovlar /></Suspense></PrivateRoute>} />
+            <Route path="kassa" element={<PrivateRoute roles={FINANCE_ROUTE_ROLES}><Suspense fallback={<PageLoader />}><Kassa /></Suspense></PrivateRoute>} />
             <Route path="reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
             <Route path="customers/:customerId" element={<Suspense fallback={<PageLoader />}><CustomerDetail /></Suspense>} />
             <Route path="suppliers/:supplierId" element={<Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense>} />
@@ -129,7 +140,7 @@ export default function App() {
             <Route path="pos-kassa" element={<Suspense fallback={<PageLoader />}><PosKassa /></Suspense>} />
             <Route path="pos-return" element={<Suspense fallback={<PageLoader />}><PosReturn /></Suspense>} />
             <Route path="operations" element={<Suspense fallback={<PageLoader />}><Operations /></Suspense>} />
-            <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
+            <Route path="settings" element={<PrivateRoute roles={MANAGEMENT_ROUTE_ROLES}><Suspense fallback={<PageLoader />}><Settings /></Suspense></PrivateRoute>} />
             <Route path="mobile" element={<Suspense fallback={<PageLoader />}><MobileDashboard /></Suspense>} />
             <Route path="employees" element={<Suspense fallback={<PageLoader />}><Employees /></Suspense>} />
             <Route path="shifts" element={<Suspense fallback={<PageLoader />}><Shifts /></Suspense>} />
@@ -137,16 +148,20 @@ export default function App() {
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             <Route path="production" element={<FeatureGate feature="manufacturing"><Suspense fallback={<PageLoader />}><Production /></Suspense></FeatureGate>} />
+            {/* T1.19: audit jurnali — faqat admin/director (+ super_admin) */}
+            <Route path="audit-logs" element={<PrivateRoute roles={[...ROLE_GROUPS.MANAGEMENT, ROLES.SUPER_ADMIN]}><Suspense fallback={<PageLoader />}><AuditLogs /></Suspense></PrivateRoute>} />
             <Route path="logistics" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><Logistics /></Suspense></FeatureGate>} />
             <Route path="field-staff" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><FieldStaff /></Suspense></FeatureGate>} />
-            <Route path="filiallar" element={<Suspense fallback={<PageLoader />}><Filiallar /></Suspense>} />
+            <Route path="filiallar" element={<PrivateRoute roles={MANAGEMENT_ROUTE_ROLES}><Suspense fallback={<PageLoader />}><Filiallar /></Suspense></PrivateRoute>} />
+            {/* T4.7: filial savdo rejasi va reyting — hisobot rollari (backend: REPORT_ROLES) */}
+            {/* T4.6: tasdiqlash so'rovlari va qoidalari — admin/director/menejer (kassir faqat o'z so'rovlarini ko'radi) */}
+            <Route path="approvals" element={<PrivateRoute roles={[...ROLE_GROUPS.POS_ACCESS, ROLES.ACCOUNTANT, ROLES.CASHIER, ROLES.SUPER_ADMIN]}><Suspense fallback={<PageLoader />}><Approvals /></Suspense></PrivateRoute>} />
+            <Route path="branch-plans" element={<PrivateRoute roles={[...ROLE_GROUPS.REPORTS_ACCESS, ROLES.SUPER_ADMIN]}><Suspense fallback={<PageLoader />}><BranchPlans /></Suspense></PrivateRoute>} />
+            {/* T3.18: to'lovlarni provayder ko'chirmasi bilan solishtirish — alohida sahifa (backend: RECON_ROLES) */}
+            <Route path="payment-reconciliation" element={<PrivateRoute roles={[...ROLE_GROUPS.REPORTS_ACCESS, ROLES.SUPER_ADMIN]}><Suspense fallback={<PageLoader />}><div className="bg-white border border-slate-200 rounded-2xl shadow-sm m-4"><PaymentReconciliation /></div></Suspense></PrivateRoute>} />
             <Route path="tariflar" element={<Suspense fallback={<PageLoader />}><Tariflar /></Suspense>} />
+            <Route path="marketplace-agents" element={<PrivateRoute roles={ROLE_GROUPS.MANAGEMENT}><FeatureGate feature="marketplace_agents"><Suspense fallback={<PageLoader />}><MarketplaceAgents /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="ai-copilot" element={<Suspense fallback={<PageLoader />}><AICopilot /></Suspense>} />
-            <Route path="employees/create" element={
-              <PrivateRoute roles={ROLE_GROUPS.MANAGEMENT}>
-                <Suspense fallback={<PageLoader />}><Register /></Suspense>
-              </PrivateRoute>
-            } />
           </Route>
           
           <Route path="/" element={
@@ -166,6 +181,7 @@ export default function App() {
           <Route path="/maxfiylik-siyosati" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
           <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
         </Routes>
+        </BranchProvider>
       </AuthProvider>
     </Router>
   )

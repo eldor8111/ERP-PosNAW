@@ -21,8 +21,11 @@ class Courier(Base):
     transport = Column(String(30), nullable=True)  # piyoda, velosiped, moto, avto
     is_active = Column(Boolean, default=True)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)  # standart mashina
+    # T3.14: kuryer biriktirilgan filial (NULL = barcha filial)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True, index=True)
     # Mobil ilovaga kirish uchun (User.role = courier)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     company = relationship("Company")
+    branch = relationship("Branch", foreign_keys=[branch_id])

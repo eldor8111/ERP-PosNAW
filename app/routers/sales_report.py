@@ -4,6 +4,7 @@ reports.py dan ajratilgan. Umumiy qoidalar → app/utils/report_utils.py
 """
 import csv
 import io
+import re
 from datetime import date, timedelta
 from typing import Optional
 from xml.sax.saxutils import quoteattr
@@ -12,42 +13,74 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, case, cast, Date as DateType
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.dependencies import require_roles
+from app.core.dependencies import company_scope_by_key_or_roles, require_roles
+from app.core.report_scope import ReportScope, report_scope_dep, report_scope_key_or_user_dep
+from app.core.roles import REPORT_ROLES
 from app.database import get_db
 from app.models.product import Product
+from app.models.branch import Branch
 from app.models.sale import Sale, SaleItem
 from app.models.user import User, UserRole
+from app.models.warehouse import Warehouse
 from app.utils.report_utils import (
     _date_range, local_today,
     is_return_doc, sale_doc_filter, sale_or_return_filter, doc_sign,
     sale_rate, item_revenue_uzs, item_cost_uzs,
-    branch_warehouse_ids, currency_code_map,
+    sale_branch_filter, currency_code_map,
 )
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
-
-REPORT_ROLES = (UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant, UserRole.super_admin)
 
 
 def _sale_filters(db: Session, company_id: int, date_from, date_to, branch_id, doc_filter):
     start, end = _date_range(date_from, date_to)
     filters = [Sale.company_id == company_id, Sale.created_at >= start, Sale.created_at < end, doc_filter]
-    wh_ids = branch_warehouse_ids(db, company_id, branch_id)
-    if wh_ids is not None:
-        filters.append(Sale.warehouse_id.in_(wh_ids))
+    # T1.9: filial — sotuv snapshot'i (Sale.branch_id), ombor hozirgi filiali emas
+    br_filter = sale_branch_filter(branch_id)
+    if br_filter is not None:
+        filters.append(br_filter)
     return filters
+
+
+def _sale_branch_name(sale) -> str:
+    """Sotuv filiali nomi: snapshot (`Sale.branch_id`), bo'lmasa ombor filiali; filialsiz — bo'sh."""
+    if sale.branch is not None:
+        return sale.branch.name or ""
+    wh = sale.warehouse
+    if wh is not None and wh.branch is not None:
+        return wh.branch.name or ""
+    return ""
+
+
+def _ascii_slug(text: str) -> str:
+    """Fayl nomi uchun xavfsiz qism (Content-Disposition ASCII bo'lishi kerak)."""
+    return re.sub(r"[^A-Za-z0-9]+", "_", text or "").strip("_")
+
+
+def _export_filename_stem(db: Session, company_id: int, date_from, date_to, branch_id) -> str:
+    """`1c_export_{date_from}_{date_to}[_{filial}]` (T2.5). Sana berilmasa: all / bugungi sana."""
+    parts = ["1c_export", date_from.isoformat() if date_from else "all",
+             date_to.isoformat() if date_to else local_today().isoformat()]
+    if branch_id:
+        if branch_id == -1:  # UNASSIGNED_BRANCH
+            parts.append("filialsiz")
+        else:
+            name = db.query(Branch.name).filter(Branch.id == branch_id, Branch.company_id == company_id).scalar()
+            parts.append(_ascii_slug(name) or f"b{branch_id}")
+    return "_".join(parts)
 
 
 @router.get("/daily-sales")
 def daily_sales_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """Kunlik sotuv hisoboti (sotuv valyutasi bo'yicha, qaytarishlar ayirilgan)"""
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1: cheklangan menejer uchun majburan o'z filiali
     filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
     day = cast(Sale.created_at, DateType)
     rows = (
@@ -95,13 +128,14 @@ def daily_sales_report(
 def top_products_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """Eng ko'p sotilgan mahsulotlar (UZS, qaytarishlar ayirilgan)"""
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1: cheklangan menejer uchun majburan o'z filiali
     filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
     revenue = func.sum(doc_sign() * item_revenue_uzs())
     rows = (
@@ -139,12 +173,13 @@ def top_products_report(
 def cashier_report(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """Kassir bo'yicha sotuv hisoboti (sotuv valyutasi bo'yicha, qaytarishlar ayirilgan)"""
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1: cheklangan menejer uchun majburan o'z filiali
     filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
     rows = (
         db.query(
@@ -206,13 +241,14 @@ def cashier_report(
 def abc_xyz_analysis(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_dep),
 ):
     """ABC/XYZ tahlil — mahsulotlarni tushum (UZS, qaytarishlar ayirilgan) va
     xarid chastotasiga (nechta chekda uchragani) ko'ra guruhlash"""
     cid = current_user.company_id
+    branch_id = scope.branch_id  # T2.1: cheklangan menejer uchun majburan o'z filiali
     filters = _sale_filters(db, cid, date_from, date_to, branch_id, sale_or_return_filter())
     rows = (
         db.query(
@@ -278,20 +314,26 @@ def abc_xyz_analysis(
 def export_1c(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    branch_id: Optional[int] = Query(None),
     include_returns: bool = Query(False, description="Qaytarish hujjatlarini ham (manfiy summa bilan) qo'shish"),
     format: str = Query("csv", enum=["csv", "xml"]),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*REPORT_ROLES)),
+    cid: int = Depends(company_scope_by_key_or_roles(*REPORT_ROLES)),
+    scope: ReportScope = Depends(report_scope_key_or_user_dep),
 ):
     """1C Buxgalteriya uchun savdo ma'lumotlari eksporti (CSV yoki XML).
-    Summalar UZS da. Oldingi ustunlar tartibi saqlangan, yangilari oxirida."""
-    cid = current_user.company_id
+    Summalar UZS da. Oldingi ustunlar tartibi saqlangan, yangilari oxirida.
+    Kirish: `Authorization: Bearer` (REPORT_ROLES) YOKI `X-API-Key` (faqat o'z korxonasi, faqat o'qish)."""
+    branch_id = scope.branch_id  # T2.1: cheklangan menejer uchun majburan o'z filiali (API kalit — korxona darajasida)
     doc_filter = sale_or_return_filter() if include_returns else sale_doc_filter()
     filters = _sale_filters(db, cid, date_from, date_to, branch_id, doc_filter)
     sales = (
         db.query(Sale, User)
-        .options(joinedload(Sale.currency))
+        .options(
+            joinedload(Sale.currency),
+            joinedload(Sale.branch),
+            joinedload(Sale.warehouse).joinedload(Warehouse.branch),
+            joinedload(Sale.customer),
+        )
         .join(User, User.id == Sale.cashier_id)
         .filter(*filters)
         .order_by(Sale.created_at)
@@ -310,14 +352,19 @@ def export_1c(
             "currency": s.currency.code if s.currency else "UZS",
             "rate": float(s.exchange_rate or 1),
             "type": "return" if is_return else "sale",
+            # T2.5: ombor / filial / mijoz (1C hujjatlarni omborlarga taqsimlashi uchun)
+            "warehouse": s.warehouse.name if s.warehouse else "",
+            "branch": _sale_branch_name(s),
+            "customer": s.customer.name if s.customer else "",
         }
 
-    filename_date = local_today().isoformat()
+    filename_stem = _export_filename_stem(db, cid, date_from, date_to, branch_id)
 
     if format == "csv":
         buf = io.StringIO()
         writer = csv.writer(buf, lineterminator="\n")
-        writer.writerow(["Raqam", "Sana", "Kassir", "Jami summa", "Chegirma", "To'lov turi", "Valyuta", "Kurs", "Turi"])
+        writer.writerow(["Raqam", "Sana", "Kassir", "Jami summa", "Chegirma", "To'lov turi", "Valyuta", "Kurs", "Turi",
+                         "Ombor", "Filial", "Mijoz"])
         for s, u in sales:
             r = _row(s, u)
             writer.writerow([
@@ -330,11 +377,14 @@ def export_1c(
                 r["currency"],
                 f"{r['rate']:.2f}",
                 "Qaytarish" if r["type"] == "return" else "Sotuv",
+                r["warehouse"],
+                r["branch"],
+                r["customer"],
             ])
         return Response(
             content=buf.getvalue().encode("utf-8-sig"),
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=1c_export_{filename_date}.csv"},
+            headers={"Content-Disposition": f"attachment; filename={filename_stem}.csv"},
         )
 
     start, end = _date_range(date_from, date_to)
@@ -353,11 +403,14 @@ def export_1c(
             "currency": r["currency"],
             "rate": f"{r['rate']:.2f}",
             "type": r["type"],
+            "warehouse": r["warehouse"],
+            "branch": r["branch"],
+            "customer": r["customer"],
         }
         lines.append("  <Sale " + " ".join(f"{k}={quoteattr(str(v))}" for k, v in attrs.items()) + "/>")
     lines.append("</Sales>")
     return Response(
         content="\n".join(lines).encode("utf-8"),
         media_type="application/xml",
-        headers={"Content-Disposition": f"attachment; filename=1c_export_{filename_date}.xml"},
+        headers={"Content-Disposition": f"attachment; filename={filename_stem}.xml"},
     )

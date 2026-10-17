@@ -5,6 +5,10 @@ import api from '../../api/axios'
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ListOrdered, ChevronsUpDown, CheckIcon, X, RotateCcw } from 'lucide-react';
 import PartialReturnModal from './PartialReturnModal';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import { useBranches } from '../../hooks/useBranches';
+import { canAssignBranch, tBranch } from '../../components/customer/customerProfile';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
 const fmtDate = (d) => d ? new Date(d).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -85,9 +89,13 @@ function StatCard({ icon, label, value, sub, color = 'indigo' }) {
 }
 
 export default function CustomerDetail() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const tb = (key) => tBranch(t, lang, key)
+  const { user: authUser } = useAuth()
   const { customerId } = useParams()
   const navigate = useNavigate()
+  const { branches } = useBranches()   // T3.8: yagona hook (kesh)
+  const [branchSaving, setBranchSaving] = useState(false)
 
   const [tab, setTab] = useState('umumiy')
   const [stats, setStats] = useState(null)
@@ -111,10 +119,11 @@ export default function CustomerDetail() {
       .catch(() => navigate('/admin/customers'))
       .finally(() => setLoading(false))
 
-    api.get('/finance/payments/income', { _suppressToast: true })
+    // T3.8: mijoz bo'yicha filtr serverda (butun korxona ro'yxatini yuklab klientda filtrlash o'rniga)
+    api.get('/finance/payments/income', { params: { customer_id: customerId }, _suppressToast: true })
       .then(r => setIncome(r.data.items))
       .catch(() => setIncome([]))
-    api.get('/sales/', { params: { customer_id: customerId, limit: 200 }, _suppressToast: true })
+    api.get('/sales/', { params: { customer_id: customerId }, _suppressToast: true })
       .then(r => setSalesData(r.data))
       .catch(() => setSalesData([]))
     api.get('/currencies', { _suppressToast: true }).then(r => setCurrencies(r.data)).catch(() => { })
@@ -122,10 +131,24 @@ export default function CustomerDetail() {
     api.get('/finance/wallets', { _suppressToast: true }).then(r => setWallets(r.data)).catch(() => { })
   }, [customerId, navigate])
 
+  // Mijoz filialini biriktirish/ajratish (admin/director/manager); bo'sh qiymat — ajratadi
+  const assignBranch = async (value) => {
+    setBranchSaving(true)
+    try {
+      await api.put(`/customers/${customerId}/assign-branch`, null, { params: value ? { branch_id: value } : {} })
+      setStats(s => ({ ...s, branch_id: value ? Number(value) : null }))
+      toast.success(tb('customer.branchSaved'))
+    } catch (err) {
+      toast.error(err.response?.data?.detail || tb('customer.branchError'))
+    } finally {
+      setBranchSaving(false)
+    }
+  }
+
   const loadSales = useCallback(async () => {
     setLoadingTab(true)
     try {
-      const { data } = await api.get(`/sales/`, { params: { customer_id: customerId, limit: 200 }, _suppressToast: true })
+      const { data } = await api.get(`/sales/`, { params: { customer_id: customerId }, _suppressToast: true })
       setSales(data.filter(s => s.status !== 'refunded' && s.status !== 'cancelled'))
       setReturns(data.filter(s => s.status === 'refunded' || s.status === 'partial_refund'))
     } finally {
@@ -214,6 +237,26 @@ export default function CustomerDetail() {
                   {stats.phone}
                 </span>
               )}
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                {tb('customer.branch')}:{' '}
+                {canAssignBranch(authUser?.role) ? (
+                  <select
+                    value={stats.branch_id ?? ''}
+                    onChange={e => assignBranch(e.target.value)}
+                    disabled={branchSaving}
+                    title={tb('customer.assignBranch')}
+                    aria-label={tb('customer.assignBranch')}
+                    className="border border-slate-200 rounded-lg px-1.5 py-0.5 text-xs bg-white text-slate-700"
+                  >
+                    <option value="">{tb('customer.noBranch')}</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                ) : (
+                  <span className="font-medium text-slate-700">
+                    {branches.find(b => b.id === stats.branch_id)?.name || tb('customer.noBranch')}
+                  </span>
+                )}
+              </span>
               <span className="flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -850,7 +893,8 @@ const OP_LABEL_KEYS = {
 }
 
 function OperationsTable({ rows, loading }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const tb = (key) => tBranch(t, lang, key)
   if (loading) return <LoadingSpinner />
   if (!rows.length) return <Empty text={t('customerDetail.noOperations')} />
 
@@ -880,6 +924,16 @@ function OperationsTable({ rows, loading }) {
                 {r.sale_number ? <span className="ml-1 text-xs text-slate-400">#{r.sale_number}</span> : null}
               </div>
               <div className="text-xs text-slate-400 mt-0.5">{fmtDate(r.date)}</div>
+              {(r.cashier || r.warehouse_name || r.branch_name) && (
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  {r.cashier ? <span>{tb('customer.cashier')}: {r.cashier}</span> : null}
+                  {(r.warehouse_name || r.branch_name) ? (
+                    <span className={r.cashier ? 'ml-2' : ''}>
+                      {[r.warehouse_name, r.branch_name].filter(Boolean).join(' / ')}
+                    </span>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {/* Raqamlar */}
@@ -1386,10 +1440,8 @@ function KirimTolovlar({ stats, income, loading, openEdit, handleDelete }) {
     return num ? Number(num).toLocaleString('uz-UZ') : '0';
   };
 
-  // Ma'lumotlarni contagent nomi bo'yicha filtrlash
-  const correct_income = income && stats
-    ? income.filter(i => i.contragent === stats.name)
-    : [];
+  // T3.8: ro'yxat serverda shu mijoz bo'yicha filtrlangan (GET /finance/payments/income?customer_id=)
+  const correct_income = income && stats ? income : [];
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -1791,7 +1843,7 @@ function CustomerReturnModal({ customerId, warehouses, wallets, onClose, onSucce
                   <select value={walletId} onChange={e => setWalletId(e.target.value)}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
                     <option value="">{t('customerDetail.selectCashboxEllipsis')}</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} ({fmt(w.balance)} so'm)</option>)}
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}{w.balance !== undefined ? ` (${fmt(w.balance)} so'm)` : ''}</option>)}
                   </select>
                 </div>
               )}
@@ -1869,8 +1921,9 @@ function CustomerOrders({ customerId, loading }) {
   const loadOrders = async () => {
     setOrdersLoading(true)
     try {
-      const { data } = await api.get('/orders')
-      setOrders(data.filter(g => g.customer_id === customerId))
+      // Mijoz bo'yicha filtr serverda (T1.15); GET /orders sahifalangan (max 200 guruh)
+      const { data } = await api.get('/orders', { params: { customer_id: customerId, limit: 200 } })
+      setOrders(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error(err)
     } finally {

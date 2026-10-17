@@ -7,13 +7,16 @@ import { buildReceiptHtml, printReceiptHtml, getReceiptSettings, saveReceiptSett
 import { toast } from '../../utils/toast';
 import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
+import ShiftCloseModal from '../../components/ShiftCloseModal';
 import { matchesSearch } from '../../utils/translit';
 import ProductAddModal from '../../components/ProductAddModal';
 import PartialReturnModal from './PartialReturnModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { fiscalizeAndPrint } from '../../api/hippoLocal';
 import { useLang } from '../../context/LangContext';
+import { useBranch } from '../../context/BranchContext';
 import SaleDeliveryBlock from '../../components/sale/SaleDeliveryBlock';
+import CustomerPicker from '../../components/CustomerPicker';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import { EMPTY_DELIVERY, deliveryFromSale, deliveryPayload } from '../../components/sale/saleDelivery';
 
@@ -96,6 +99,7 @@ const STATUS_META = {
   completed: { lKey: 'sale.statusCompleted', c: 'bg-emerald-100 text-emerald-700' },
   cancelled: { lKey: 'sale.statusCancelled', c: 'bg-red-100 text-red-600' },
   pending: { lKey: 'wholesale.statusPendingApproval', c: 'bg-amber-100 text-amber-700 ring-1 ring-amber-300' },
+  partial_refund: { lKey: 'sale.statusPartialRefund', c: 'bg-orange-100 text-orange-700' },
 };
 const PAY_META_KEYS = {
   cash: 'pay.cash', card: 'pay.card', uzcard: 'pay.uzcard', humo: 'pay.humo', bank: 'pay.bank',
@@ -512,6 +516,9 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
 export default function UlgurjiSotuv() {
   const { t } = useLang();
   const [customers, setCustomers] = useState([]);
+  // T3.19: tanlangan mijozning individual narxlari { [product_id]: price }
+  const [custPrices, setCustPrices] = useState({});
+  const custPricesRef = useRef({});
   const [warehouses, setWarehouses] = useState([]);
 
   const handleNewFetchedCustomers = useCallback((newCusts) => {
@@ -534,9 +541,18 @@ export default function UlgurjiSotuv() {
   const [custId, setCustId] = useState(() => sessionStorage.getItem('ulgurji_customer') || localStorage.getItem('ulgurji_defaultCustomer') || '');
   const [isWholesaleMode, setIsWholesaleMode] = useState(localStorage.getItem('ulgurji_isWholesale') === 'true');
   const [warehouseId, setWarehouseId] = useState('');
+  const { defaultWarehouseId: branchDefaultWarehouseId } = useBranch();   // T1.5: ProductAddModal uchun filial default ombori
 
   // Promotions
   const [promotions, setPromotions] = useState([]);
+  // T4.3: amaldagi aksiyalar serverdan — tanlangan ombor filiali bo'yicha (ombor tanlanmasa xodim filiali)
+  useEffect(() => {
+    const wh = warehouses.find(w => String(w.id) === String(warehouseId));
+    const params = wh?.branch_id ? { branch_id: wh.branch_id } : {};
+    api.get('/promotions/active', { params, _suppressToast: true })
+      .then(r => setPromotions(Array.isArray(r.data) ? r.data.filter(p => p.is_active) : []))
+      .catch(() => setPromotions([]));
+  }, [warehouseId, warehouses]);
 
   // SessionStorage dan savatni tiklash (sahifa yangilanganda ham saqlanadi)
   const [cart, setCart] = useState(() => {
@@ -550,8 +566,9 @@ export default function UlgurjiSotuv() {
   const features = useCompanyFeatures();
   const [showPayment, setShowPayment] = useState(false);
   const [saving, setSaving] = useState(false);
-  const { hasShift, reload: reloadShift } = useActiveShift();
+  const { shift: activeShift, hasShift, reload: reloadShift } = useActiveShift();
   const [showShiftModal, setShowShiftModal] = useState(false);
+  const [showShiftClose, setShowShiftClose] = useState(false);   // T3.1: sotuv ekranidan smenani yopish
 
   // Product entry form
   const [formProduct, setFormProduct] = useState(null);
@@ -560,6 +577,7 @@ export default function UlgurjiSotuv() {
   const [formQty, setFormQty] = useState('1');
   const [formDiscType, setFormDiscType] = useState('pct');
   const [formDiscVal, setFormDiscVal] = useState('');
+  const [formPromoId, setFormPromoId] = useState(null);   // T4.3: formadagi mahsulotga qo'llangan aksiya
   // Qo'lda kiritilgan jami summa; miqdor/narx/chegirma o'zgarsa (key mos kelmasa) hisoblangan summa ko'rsatiladi
   const [formTotalEdit, setFormTotalEdit] = useState(null); // { key, text }
   const [currencies, setCurrencies] = useState([]);
@@ -600,10 +618,14 @@ export default function UlgurjiSotuv() {
       const ORDER2 = ['sale', 'wholesale', 'cost'];
       const next = ORDER2[(ORDER2.indexOf(cur) + 1) % ORDER2.length];
       return prev.map(it => {
+        if (it.price_manual) return it;
         let newPrice = it.price;
         if (next === 'wholesale' && it.wholesale_price > 0) newPrice = it.wholesale_price;
         else if (next === 'cost' && it.cost_price > 0) newPrice = it.cost_price;
         else if (it.sale_price > 0) newPrice = it.sale_price;
+        // T3.19: individual narx narx turidan ustun
+        const cp = custPricesRef.current[it.product_id];
+        if (cp != null && Number(cp) > 0 && (it.currency || 'UZS') === 'UZS') newPrice = Number(cp);
         return { ...it, price: newPrice };
       });
     });
@@ -629,17 +651,53 @@ export default function UlgurjiSotuv() {
       if (cust && cart.length > 0) {
         const pt = cust.price_type || 'sale';
         setCart(prev => prev.map(it => {
+          if (it.price_manual) return it;   // saqlangan buyurtma narxi o'zgarmaydi
           let newPrice = it.price;
           if (pt === 'wholesale' && it.wholesale_price > 0) newPrice = it.wholesale_price;
           else if (pt === 'cost' && it.cost_price > 0) newPrice = it.cost_price;
           else if (pt === 'sale' && it.sale_price > 0) newPrice = it.sale_price;
+          // T3.19: individual narx narx turidan ustun
+          const cp = custPrices[it.product_id];
+          if (cp != null && Number(cp) > 0 && (it.currency || 'UZS') === 'UZS') newPrice = Number(cp);
           return { ...it, price: newPrice };
         }));
       }
     } else {
       sessionStorage.removeItem('ulgurji_customer');
     }
-  }, [custId, customers]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [custId, customers, custPrices]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // T3.19: mijoz tanlanganda uning individual narxlarini yuklash
+  useEffect(() => {
+    custPricesRef.current = {};
+    setCustPrices({});
+    if (!custId) return undefined;
+    let cancelled = false;
+    api.get(`/customers/${custId}/prices`, { _silent: true, _suppressToast: true })
+      .then(r => {
+        if (cancelled) return;
+        const map = {};
+        (Array.isArray(r.data) ? r.data : []).forEach(row => { map[row.product_id] = Number(row.price); });
+        custPricesRef.current = map;
+        setCustPrices(map);
+      })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  }, [custId]);
+
+  // T3.19: qator narxi serverning ro'yxat narxidan (individual narx > narx turi) farq qilsa — qo'lda deb belgilanadi
+  const isPriceManual = (it) => {
+    if (it.price_manual) return true;
+    const price = Number(it.price) || 0;
+    if ((it.currency || 'UZS') !== 'UZS') return true;
+    const cp = custPrices[it.product_id];
+    if (cp != null && Number(cp) > 0) return price !== Number(cp);
+    const pt = selected?.price_type || 'sale';
+    let list = Number(it.sale_price) || 0;
+    if (pt === 'wholesale') list = Number(it.wholesale_price) || list;
+    else if (pt === 'cost') list = Number(it.cost_price) || list;
+    return price !== list;
+  };
 
   const saveSettings = () => {
     localStorage.setItem('ulgurji_autoPrint', autoPrint);
@@ -673,8 +731,31 @@ export default function UlgurjiSotuv() {
   const [pendingSaving, setPendingSaving] = useState(false);
 
   // Fiskal tasdiqlash modal
-  const [fiskalPending, setFiskalPending] = useState(null); // null | { factoryId, cart, payments, discount }
+  const [fiskalPending, setFiskalPending] = useState(null); // null | { factoryId, cart, payments, discount, saleId }
   const [isFiskalizing, setIsFiskalizing] = useState(false);
+
+  // T3.18: filial to'lov terminallari (serverdan; xato bo'lsa bo'sh = tranzaksiya raqami ixtiyoriy)
+  const [terminals, setTerminals] = useState([]);
+  useEffect(() => {
+    api.get('/payment-terminals/mine', { _silent: true, _suppressToast: true })
+      .then(r => setTerminals(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  }, []);
+  const REF_PROVIDERS = ['click', 'payme', 'uzum'];
+  const tfb = (key, fallback, vars) => {
+    let v = t(key);
+    if (v === key) v = fallback;
+    return vars ? Object.keys(vars).reduce((acc, k) => acc.replace(`{${k}}`, vars[k]), v) : v;
+  };
+  const saleBranchId = warehouses.find(w => String(w.id) === String(warehouseId))?.branch_id || null;
+  // Joriy filial terminallari (filial aniqlangan bo'lsa); butun korxona terminallari (branch_id yo'q) hammada
+  const providerTerminals = (type) => terminals.filter(x =>
+    x.provider === type && x.is_active !== false && (!saleBranchId || !x.branch_id || x.branch_id === saleBranchId));
+  const referenceRequired = (p) => {
+    if (!REF_PROVIDERS.includes(p.type)) return false;
+    const sel = p.terminal_id ? terminals.find(x => String(x.id) === String(p.terminal_id)) : null;
+    if (sel) return !!sel.require_reference;
+    return providerTerminals(p.type).some(x => x.require_reference);
+  };
 
 
 
@@ -728,8 +809,6 @@ export default function UlgurjiSotuv() {
     api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => { });
     api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => { });
     api.get('/currencies/').then(r => setCurrencies(Array.isArray(r.data) ? r.data : [])).catch(() => { });
-    // Faol aksiyalarni yuklash
-    api.get('/promotions/', { _suppressToast: true }).then(r => setPromotions(Array.isArray(r.data) ? r.data.filter(p => p.is_active) : [])).catch(() => { });
     api.get('/companies/me/receipt_templates').then(r => {
       const d = r.data?.receipt_templates || {};
       if (Object.keys(d).length) {
@@ -755,8 +834,14 @@ export default function UlgurjiSotuv() {
 
   useEffect(() => { if (tab === 'list') loadSales(); }, [tab, loadSales]);
 
+  // Qaytarish bilan bog'liq sotuv (R... hujjat, qaytarilgan/qisman qaytarilgan) —
+  // tahrirlash/o'chirish backend'da 400 (qoldiq va pul ikki marta hisoblanmasin)
+  const isReturnLinked = (s) => ['refunded', 'partial_refund'].includes(s?.status)
+    || String(s?.number || '').startsWith('R') || !!s?.original_sale_id;
+
   const loadEditSale = async (s) => {
     try {
+      if (isReturnLinked(s)) { toast.error(t('sale.cannotEditReturned')); return; }
       if (cart.length > 0 && !window.confirm(t('wholesale.confirmDiscardCartSimple'))) return;
       const r = await api.get(`/sales/${s.id}`);
       const sale = r.data;
@@ -768,6 +853,8 @@ export default function UlgurjiSotuv() {
         rate: it.exchange_rate ? Number(it.exchange_rate) : 1,
         discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
+        price_manual: true,   // T3.19: saqlangan (buyurtma/sotuv) narxi qayta hisoblanmasin
+        variant_id: it.variant_id || null,     // ← variant tahrirda yo'qolmasin
         warehouse_id: it.warehouse_id || null, // ← per-item sklad (Desktop POS dan)
         warehouse_name: it.warehouse_name || null,
       })));
@@ -804,6 +891,20 @@ export default function UlgurjiSotuv() {
     try { await api.delete(`/sales/${id}`); toast.success(t('wholesale.saleDeleted')); loadSales(); }
     catch (e) { toast.error(e.response?.data?.detail || t('wholesale.deleteError')); }
   };
+
+  // T3.8: tanlangan mijoz 200 talik oflayn zaxira ro'yxatda bo'lmasa (masalan sessiyadan tiklangan) — alohida olinadi
+  useEffect(() => {
+    if (customers.length === 0) return undefined;
+    const missing = [custId, assignCustId, defaultCustomerId].filter(id => id && !customers.some(c => String(c.id) === String(id)));
+    if (!missing.length) return undefined;
+    let alive = true;
+    missing.forEach(id => {
+      api.post(`/customers/${id}`, null, { _silent: true, _suppressToast: true })   // yagona mijoz: POST /customers/{id}
+        .then(r => { if (alive && r.data?.id) handleNewFetchedCustomers([r.data]); })
+        .catch(() => { /* topilmasa nom ko'rinmaydi, id saqlanadi */ });
+    });
+    return () => { alive = false; };
+  }, [custId, assignCustId, defaultCustomerId, customers, handleNewFetchedCustomers]);
 
   const openAssignCustomerModal = (sale) => {
     setAssignModalSale(sale);
@@ -950,6 +1051,9 @@ export default function UlgurjiSotuv() {
 
   // Mijoz narx turiga qarab mahsulot narxini olish
   const getProductPrice = useCallback((p, custOverride) => {
+    // T3.19: mijozning individual narxi (customer_prices) — eng yuqori ustuvorlik
+    const cp = custPricesRef.current[p.id];
+    if (cp != null && Number(cp) > 0) return { price: Number(cp), currency: 'UZS' };
     if (isWholesaleMode && p.wholesale_price) {
       return { price: Number(p.wholesale_price), currency: p.wholesale_currency || p.sale_currency || 'UZS' };
     }
@@ -963,10 +1067,17 @@ export default function UlgurjiSotuv() {
     const activePrs = promotions.filter(pr => {
       if (!pr.is_active) return false;
       if (pr.start_date && new Date(pr.start_date) > now) return false;
-      if (pr.end_date && new Date(pr.end_date) < now) return false;
-      // Mahsulot ro'yxatida bo'lsa yoki universal aksiya bo'lsa
-      if (!pr.products || pr.products.length === 0) return true;
-      return pr.products.some(pp => pp.product_id === productId || pp.id === productId);
+      if (pr.end_date) {
+        // T4.3: sana ko'rinishidagi (00:00) tugash kuni kun oxirigacha amal qiladi (server bilan bir xil)
+        const end = new Date(pr.end_date);
+        if (end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0) end.setDate(end.getDate() + 1);
+        if (end < now) return false;
+      }
+      // T3.19: qamrov aniq — "all" (yoki applies_to yo'q eski javobda mahsulotsiz) universal;
+      // aks holda faqat tanlangan mahsulotlar. PromotionProduct.id (pp.id) mahsulot ID'si emas.
+      if (pr.applies_to === 'all') return true;
+      if (!pr.applies_to && (!pr.products || pr.products.length === 0)) return true;
+      return (pr.products || []).some(pp => pp.product_id === productId);
     });
     if (!activePrs.length) return { discount: 0, promo: null };
     // Eng katta chegirmani olish
@@ -976,10 +1087,19 @@ export default function UlgurjiSotuv() {
       let disc = pr.discount_type === 'percent'
         ? basePrice * (Number(pr.discount_value) / 100)
         : Number(pr.discount_value);
+      // Summa turidagi chegirma asos narxdan oshib ketmasin
+      disc = Math.min(disc, basePrice);
       if (disc > bestDiscount) { bestDiscount = disc; bestPromo = pr; }
     }
     return { discount: bestDiscount, promo: bestPromo };
   }, [promotions]);
+
+  // T3.19: mijozning doimiy chegirma foizi (aksiya chegirmasi bo'lmaganda qatorga oldindan qo'yiladi)
+  const custDiscountPct = () => {
+    const c = customersRef.current.find(x => String(x.id) === String(custIdRef.current));
+    const v = Number(c?.discount_percent) || 0;
+    return v > 0 ? v : 0;
+  };
 
   const addToCart = useCallback((p) => {
     // Parent mahsulot (variantli) bo'lsa — variant picker modal ochiladi
@@ -1016,8 +1136,9 @@ export default function UlgurjiSotuv() {
         product_id: p.id, name: p.name, sku: p.sku || '', unit: p.unit || 'dona', qty: 1, price,
         currency, rate,
         discount_type: promoDisc > 0 ? 'sum' : 'pct',
-        discount_val: promoDisc > 0 ? promoDisc : 0,
+        discount_val: promoDisc > 0 ? promoDisc : custDiscountPct(),
         promo_name: promo?.name || null,
+        promo_id: promo?.id || null,
         wholesale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.wholesale_price || 0) * getRate(p.sale_currency) : Number(p.wholesale_price || 0),
         sale_price: (onlySom && p.sale_currency !== 'UZS') ? Number(p.sale_price || 0) * getRate(p.sale_currency) : Number(p.sale_price || 0),
         cost_price: Number(p.cost_price || 0),
@@ -1099,13 +1220,15 @@ export default function UlgurjiSotuv() {
 
     // Aksiya chegirmasini avtomatik qo'llash
     const { discount: promoDisc, promo } = getPromoDiscount(p.id, price);
+    setFormPromoId(promoDisc > 0 && promo ? promo.id : null);
     if (promoDisc > 0) {
       setFormDiscType('sum');
       setFormDiscVal(String(Math.round(promoDisc)));
       toast.success(t('wholesale.promoApplied', { name: promo.name, amount: Math.round(promoDisc).toLocaleString() }), { duration: 2500 });
     } else {
+      const cpct = custDiscountPct();
       setFormDiscType('pct');
-      setFormDiscVal('');
+      setFormDiscVal(cpct > 0 ? String(cpct) : '');
     }
 
     setFormPrice(String(price));
@@ -1173,6 +1296,7 @@ export default function UlgurjiSotuv() {
       return [...prev, {
         product_id: formProduct.id, name: formProduct.name, unit: formProduct.unit || 'dona',
         qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0,
+        promo_id: formPromoId || null,
         wholesale_price: (onlySom && formProduct.sale_currency !== 'UZS') ? Number(formProduct.wholesale_price || 0) * getRate(formProduct.sale_currency) : Number(formProduct.wholesale_price || 0),
         sale_price: (onlySom && formProduct.sale_currency !== 'UZS') ? Number(formProduct.sale_price || 0) * getRate(formProduct.sale_currency) : Number(formProduct.sale_price || 0),
         stock_quantity: Number(formProduct.stock_quantity || 0), image_url: formProduct.image_url,
@@ -1187,7 +1311,7 @@ export default function UlgurjiSotuv() {
         addedAt: Date.now(),
       }];
     });
-    setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal(''); setFormCurrency('UZS'); setFormTotalEdit(null);
+    setFormProduct(null); setFormPrice(''); setFormQty('1'); setFormDiscVal(''); setFormCurrency('UZS'); setFormTotalEdit(null); setFormPromoId(null);
     prodSearchRef.current?.focus();
     // switch to cart tab on mobile to show the result
     setMobileTab('cart');
@@ -1317,6 +1441,9 @@ export default function UlgurjiSotuv() {
       setMarkingModal({ idx: cart.indexOf(incompleteMarking) });
       return;
     }
+    // T3.18: click/payme/uzum to'lovida terminal talab qilsa tranzaksiya raqami majburiy
+    const missingRef = payments.find(p => parseN(p.amt) > 0 && referenceRequired(p) && !String(p.reference || '').trim());
+    if (missingRef) return toast.error(tfb('pos.referenceRequired', 'Tranzaksiya raqamini kiriting'));
     setSaving(true);
     try {
       const items = cart.map(it => {
@@ -1325,7 +1452,10 @@ export default function UlgurjiSotuv() {
           : parseN(it.discount_val);
         return {
           product_id: it.product_id, quantity: it.qty, unit_price: it.price,
+          price_manual: isPriceManual(it),
           discount: disc,
+          promotion_id: (it.promo_id && disc > 0) ? it.promo_id : undefined,   // T4.3: server tekshiradi, qo'shimcha chegirma qo'shmaydi
+          variant_id: it.variant_id || undefined,
           warehouse_id: it.warehouse_id || undefined,
           currency_code: it.currency || 'UZS',
           exchange_rate: it.rate || 1,
@@ -1337,7 +1467,10 @@ export default function UlgurjiSotuv() {
         type: p.type,
         amount: parseN(p.amt),
         currency: p.currency || 'UZS',
-        rate: getRate(p.currency)
+        rate: getRate(p.currency),
+        // T3.18: provayder tranzaksiya raqami va terminal (faqat click/payme/uzum)
+        ...(REF_PROVIDERS.includes(p.type) && String(p.reference || '').trim() ? { reference: String(p.reference).trim() } : {}),
+        ...(REF_PROVIDERS.includes(p.type) && p.terminal_id ? { terminal_id: Number(p.terminal_id) } : {}),
       }));
       // Haqiqiy qarzni valyutalar kesimida hisoblash
       const actualDebts = {};
@@ -1537,11 +1670,17 @@ export default function UlgurjiSotuv() {
       const factoryId     = JSON.parse(localStorage.getItem('fiskalId')   || 'null');
       const wasPendingBeforeEdit = editingSale && editingSale.status === 'pending';
       if (fiskalEnabled && factoryId && (!editingSale || wasPendingBeforeEdit)) {
-        setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap });
+        // T3.18: saleId — fiskallangach natijani PATCH /sales/{id}/fiscal bilan serverga yozish uchun
+        setFiskalPending({ factoryId, cartSnap, paymentsSnap, discount: discSnap, saleId: res?.data?.id ?? null });
       }
 
 
-    } catch (e) { toast.error(e?.response?.data?.detail || t('wholesale.saveError')); }
+    } catch (e) {
+      // T2.12: PUT /sales/{id} endi kredit limitdan oshganda 400 "Kredit limitidan oshadi: ..." qaytaradi —
+      // server matni (limit, joriy qarz, yangi qarz) ko'rsatiladi; sotuv tahrir holatida qoladi.
+      const detail = e?.response?.data?.detail;
+      toast.error((typeof detail === 'string' && detail) || t('wholesale.saveError'));
+    }
     finally { setSaving(false); }
   };
 
@@ -1612,7 +1751,10 @@ export default function UlgurjiSotuv() {
           : parseN(it.discount_val);
         return {
           product_id: it.product_id, quantity: it.qty, unit_price: it.price,
+          price_manual: isPriceManual(it),
           discount: disc,
+          promotion_id: (it.promo_id && disc > 0) ? it.promo_id : undefined,   // T4.3: server tekshiradi, qo'shimcha chegirma qo'shmaydi
+          variant_id: it.variant_id || undefined,
           warehouse_id: it.warehouse_id || undefined,
           currency: it.currency || 'UZS',
           rate: it.rate || 1,
@@ -1692,6 +1834,7 @@ export default function UlgurjiSotuv() {
         rate: it.exchange_rate ? Number(it.exchange_rate) : 1,
         discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
         wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
+        price_manual: true,   // T3.19: saqlangan (buyurtma/sotuv) narxi qayta hisoblanmasin
         addedAt: Date.now(),
         warehouse_id: it.warehouse_id || null, // ← per-item sklad
         warehouse_name: it.warehouse_name || null,
@@ -1728,7 +1871,8 @@ export default function UlgurjiSotuv() {
   return (
     <div className="absolute inset-0 flex flex-col bg-slate-100 overflow-hidden">
       {showShiftModal && <ShiftOpenModal onOpened={() => { reloadShift(); setShowShiftModal(false); }} onCancel={() => setShowShiftModal(false)} />}
-      {showProdAddModal && <ProductAddModal onClose={() => setShowProdAddModal(false)} onSaved={p => { selectFormProduct(p); setShowProdAddModal(false); }} />}
+      {showShiftClose && activeShift && <ShiftCloseModal shift={activeShift} onClosed={() => { setShowShiftClose(false); reloadShift(); }} onCancel={() => setShowShiftClose(false)} />}
+      {showProdAddModal && <ProductAddModal warehouses={warehouses} defaultWarehouseId={warehouseId || branchDefaultWarehouseId || ''} onClose={() => setShowProdAddModal(false)} onSaved={p => { selectFormProduct(p); setShowProdAddModal(false); }} />}
       {returnSale && <PartialReturnModal sale={returnSale} onClose={() => setReturnSale(null)} onSuccess={() => { setReturnSale(null); loadSales(); }} />}
 
       {/* ── FISKAL TASDIQLASH MODAL ─────────────────────────────────────── */}
@@ -1764,9 +1908,30 @@ export default function UlgurjiSotuv() {
                 onClick={async () => {
                   setIsFiskalizing(true);
                   try {
-                    const { factoryId, cartSnap, paymentsSnap, discount } = fiskalPending;
-                    await fiscalizeAndPrint({ factoryId, cart: cartSnap, payments: paymentsSnap, discountAmount: discount });
+                    const { factoryId, cartSnap, paymentsSnap, discount, saleId } = fiskalPending;
+                    const { fiscal } = await fiscalizeAndPrint({ factoryId, cart: cartSnap, payments: paymentsSnap, discountAmount: discount });
                     toast.success(t('wholesale.fiscalReceiptSent'));
+                    // T3.18: natijani serverga yozish (xato bo'lsa sotuv bekor qilinmaydi, faqat ogohlantirish)
+                    const sign = fiscal?.fiscal_sign ?? fiscal?.FiscalSign;
+                    if (saleId && sign) {
+                      const seq = Number(fiscal?.receipt_seq ?? fiscal?.receipt_number ?? fiscal?.ReceiptSeq);
+                      const txId = fiscal?.transaction_id ?? fiscal?.TransactionID;
+                      const body = {
+                        fiscal_sign: String(sign),
+                        fiscal_qr_url: fiscal?.qr_code_url ?? fiscal?.QRCodeURL ?? undefined,
+                        fiscal_receipt_seq: Number.isFinite(seq) && seq >= 0 ? seq : undefined,
+                        fiscal_transaction_id: txId != null ? String(txId) : undefined,
+                        fiscal_at: new Date().toISOString().slice(0, 19),
+                        fiscal_factory_id: factoryId,
+                      };
+                      try {
+                        await api.patch(`/sales/${saleId}/fiscal`, body, { _suppressToast: true });
+                      } catch (patchErr) {
+                        toast.warning(tfb('pos.fiscalSaveFailed', 'Fiskal chek berildi, lekin natija serverga yozilmadi: {message}', {
+                          message: patchErr?.response?.data?.detail || patchErr?.message || t('wholesale.unknown'),
+                        }));
+                      }
+                    }
                   } catch (err) {
                     toast.error(t('wholesale.fiscalError', { msg: err?.message || t('wholesale.unknown') }));
                   } finally {
@@ -1844,6 +2009,13 @@ export default function UlgurjiSotuv() {
           )}
 
           <div className="w-px h-5 bg-slate-200 mx-1 hidden md:block" />
+
+          {activeShift && (
+            <button onClick={() => setShowShiftClose(true)}
+              className="shrink-0 px-2.5 md:px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 text-[10px] md:text-sm font-bold transition-colors">
+              {(() => { const v = t('shift.closeAction'); return v === 'shift.closeAction' ? 'Smenani yopish' : v; })()}
+            </button>
+          )}
 
           <button onClick={() => setSettingsOpen(true)}
             className="shrink-0 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-colors">
@@ -2536,10 +2708,12 @@ export default function UlgurjiSotuv() {
                           </button>
                           {openMenuId === s.id && (
                             <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 min-w-[170px]" onMouseLeave={() => setOpenMenuId(null)}>
-                              <button onClick={() => loadEditSale(s)} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
-                                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                {t('common.edit')}
-                              </button>
+                              {!isReturnLinked(s) && (
+                                <button onClick={() => loadEditSale(s)} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
+                                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                  {t('common.edit')}
+                                </button>
+                              )}
                               <button onClick={() => { openAssignCustomerModal(s); setOpenMenuId(null); }}
                                 className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
                                 <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -2561,7 +2735,7 @@ export default function UlgurjiSotuv() {
                                 {t('sale.return')}
                               </button>
                               <div className="border-t border-slate-100 my-1" />
-                              <button onClick={() => { deleteSale(s.id); setOpenMenuId(null); }}
+                              <button onClick={() => { if (isReturnLinked(s)) toast.error(t('sale.cannotDeleteReturned')); else deleteSale(s.id); setOpenMenuId(null); }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 {t('common.delete')}
@@ -2734,7 +2908,7 @@ export default function UlgurjiSotuv() {
                         <div key={line.id} className="bg-slate-50/50 border border-slate-100 rounded-xl p-2 space-y-2">
                           <div className="flex items-center gap-2">
                             <div className="relative flex-1">
-                              <select value={line.type} onChange={e => updateLine(line.id, 'type', e.target.value)}
+                              <select value={line.type} onChange={e => updateLine(line.id, { type: e.target.value, reference: '', terminal_id: '' })}
                                 className="w-full h-10 pl-3 pr-8 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white appearance-none cursor-pointer">
                                 {PAY_TYPES.map(p => <option key={p.id} value={p.id}>{t(p.labelKey)}</option>)}
                               </select>
@@ -2792,6 +2966,28 @@ export default function UlgurjiSotuv() {
                               </button>
                             )}
                           </div>
+
+                          {/* T3.18: provayder to'lovi — terminal (bir nechta bo'lsa) va tranzaksiya raqami */}
+                          {REF_PROVIDERS.includes(line.type) && (providerTerminals(line.type).length > 0 || line.type !== 'uzum') && (
+                            <div className="flex items-center gap-2">
+                              {providerTerminals(line.type).length > 1 && (
+                                <select value={line.terminal_id || ''} onChange={e => updateLine(line.id, 'terminal_id', e.target.value)}
+                                  className="h-10 px-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+                                  <option value="">—</option>
+                                  {providerTerminals(line.type).map(x => (
+                                    <option key={x.id} value={x.id}>{x.label || x.terminal_id || x.merchant_id || `#${x.id}`}</option>
+                                  ))}
+                                </select>
+                              )}
+                              <input
+                                data-no-scan
+                                value={line.reference || ''}
+                                onChange={e => updateLine(line.id, 'reference', e.target.value)}
+                                placeholder={tfb('pos.referencePlaceholder', 'Tranzaksiya raqami') + (referenceRequired(line) ? ' *' : '')}
+                                className={`flex-1 min-w-0 h-10 px-3 bg-white border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 ${referenceRequired(line) && !String(line.reference || '').trim() ? 'border-amber-400' : 'border-slate-200'}`}
+                              />
+                            </div>
+                          )}
 
                           {line.currency && line.currency !== 'UZS' && amtInUZS > 0 && (
                             <div className="text-[10px] font-bold text-blue-500 pl-1">
@@ -3086,7 +3282,13 @@ export default function UlgurjiSotuv() {
             <div className="p-6 space-y-6">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">{t('wholesale.defaultCustomer')}</label>
-                <CustomerSearch customers={customers} value={defaultCustomerId} onChange={setDefaultCustomerId} onFetch={handleNewFetchedCustomers} />
+                <CustomerPicker
+                  customers={customers}
+                  value={defaultCustomerId}
+                  onChange={(id, c) => { if (c) handleNewFetchedCustomers([c]); setDefaultCustomerId(id === '' ? '' : String(id)); }}
+                  onResolve={c => handleNewFetchedCustomers([c])}
+                  placeholder={t('wholesale.selectOrSearchCustomer')}
+                />
                 <p className="text-[11px] text-slate-400 mt-1">{t('wholesale.defaultCustomerHint')}</p>
               </div>
               <div className='flex items-center justify-between'>

@@ -3,6 +3,10 @@ import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
 import toast from 'react-hot-toast';
 import { PERMISSIONS } from '../../constants/permissions';
+import RoleSelect from '../../components/users/RoleSelect';
+import BranchSelect, { branchLabel } from '../../components/users/BranchSelect';
+import { formatBalances } from '../../utils/money';
+import { useBranches } from '../../hooks/useBranches';
 
 // super_admin ni dropdown dan yashiramiz — faqat DB orqali beriladi
 // courier/agent — faqat E-code Mobile ilovasi orqali ishlaydi (veb-panelga kira olmaydi)
@@ -27,9 +31,9 @@ const ROLE_COLORS = {
   agent: 'bg-violet-100 text-violet-700',
 };
 
-const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', role_id: null, branch_id: '', permissions: {} };
+const BLANK_FORM = { name: '', phone: '', email: '', password: '', role: 'cashier', role_id: null, branch_id: '', branch_ids: [], permissions: {} };
 
-const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+const inp = "w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed";
 
 function StatCard({ label, value, color = 'slate' }) {
   const txt = {
@@ -53,54 +57,29 @@ function Field({ label, children }) {
   );
 }
 
-function RoleSelect({ form, setField, dynamicRoles }) {
-  const { t } = useLang();
-  const val = form.role_id ? `dyn_${form.role_id}` : form.role;
+// T1.2: filial tanlash — manager/accountant uchun bir nechta (branch_ids), boshqa rollar uchun bitta
+const MULTI_BRANCH_ROLES = ['manager', 'accountant'];
 
-  const handleChange = (e) => {
-    const v = e.target.value;
-    if (v.startsWith('dyn_')) {
-      const rId = parseInt(v.split('_')[1]);
-      setField('role_id', rId);
-      setField('role', 'cashier'); // default base role
-    } else {
-      setField('role_id', null);
-      setField('role', v);
-    }
-  };
-
-  return (
-    <Field label={t('user.role')}>
-      <select value={val || ''} onChange={handleChange} className={inp} required>
-        <option value="" disabled>{t('user.selectRolePlaceholder')}</option>
-        <option value="admin">{t('user.adminAllRights')}</option>
-        {dynamicRoles && dynamicRoles.map(r => (
-          <option key={`dyn_${r.id}`} value={`dyn_${r.id}`}>{r.name}</option>
-        ))}
-      </select>
-    </Field>
-  );
+// Foydalanuvchining filial id'lari (jadval uchun): branch_ids, bo'lmasa branch_id
+function userBranchIds(u) {
+  if (Array.isArray(u.branch_ids) && u.branch_ids.length) return u.branch_ids;
+  return u.branch_id ? [u.branch_id] : [];
 }
 
-function BranchSelect({ value, onChange, branches }) {
-  const { t } = useLang();
-  return (
-    <Field label={t('branch.title')}>
-      <select value={value} onChange={e => onChange(e.target.value)} className={inp}>
-        <option value="">{t('user.noBranch')}</option>
-        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-      </select>
-    </Field>
-  );
+// Formadagi tanlov -> API: multi rollar branch_ids (birinchisi asosiy branch_id), boshqalar bitta branch_id
+function branchPayload(form) {
+  if (MULTI_BRANCH_ROLES.includes(form.role)) {
+    const ids = (form.branch_ids && form.branch_ids.length ? form.branch_ids : (form.branch_id ? [form.branch_id] : [])).map(Number);
+    return { branch_id: ids.length ? ids[0] : null, branch_ids: ids };
+  }
+  return { branch_id: form.branch_id ? Number(form.branch_id) : null, branch_ids: [] };
 }
-
-
 
 // OTP bosqichlari: 'form' → 'otp_sent' → 'otp_verified'
 export default function Users() {
   const { t } = useLang();
   const [users, setUsers] = useState([]);
-  const [branches, setBranches] = useState([]);
+  const { branches } = useBranches({ includeInactive: true });   // T3.8: yagona filial hooki
   const [wallets, setWallets] = useState([]);
   const [dynamicRoles, setDynamicRoles] = useState([]);
   const [userWallets, setUserWallets] = useState([]); // {wallet_id, is_default}
@@ -114,6 +93,16 @@ export default function Users() {
 
   const ROLE_LABELS = getRoleLabels(t);
 
+  // i18n kaliti hali qo'shilmagan bo'lsa (t() kalitni qaytaradi) — o'zbekcha zaxira matn
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+  })();
+  // Bir nechta korxonada ishlaydigan xodimning shaxsiy ma'lumotlarini faqat o'zi o'zgartiradi (T0.38)
+  const sharedLocked = !!selected?.is_shared && selected.id !== currentUser?.id && currentUser?.role !== 'super_admin';
+  // Filialsiz eski xodimni tahrirlashda filial majburiy emas (T3.4: backend ham faqat yuborilgan branch_id ni tekshiradi)
+  const editHadBranch = !!(selected && (selected.branch_id || (selected.branch_ids || []).length));
+
   const load = useCallback(() => {
     api.get('/users/').then(r => setUsers(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
   }, [t]);
@@ -126,18 +115,19 @@ export default function Users() {
 
   useEffect(() => {
     load();
-    api.get('/branches').then(r => setBranches(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     api.get('/kassa').then(r => setWallets(r.data)).catch(() => { });
     api.get('/roles/').then(r => setDynamicRoles(r.data)).catch(() => { });
   }, [load]);
 
   const openCreate = () => {
-    setForm(BLANK_FORM);
+    // Bitta faol filial bo'lsa shu filial oldindan tanlanadi ("Filialsiz" standart bo'lib qolmasin)
+    const activeBranches = branches.filter(b => b.is_active !== false);
+    setForm({ ...BLANK_FORM, branch_id: activeBranches.length === 1 ? String(activeBranches[0].id) : '' });
     setError('');
     setModal('create');
   };
   const openEdit = (u) => {
-    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, role_id: u.role_id || null, branch_id: u.branch_id ?? '', permissions: u.permissions || {} });
+    setForm({ name: u.name, phone: u.phone, email: u.email || '', password: '', role: u.role, role_id: u.role_id || null, branch_id: u.branch_id ?? '', branch_ids: u.branch_ids || (u.branch_id ? [u.branch_id] : []), permissions: u.permissions || {} });
     setSelected(u); setError(''); setModal('edit');
   };
   const openKassa = async (u) => {
@@ -147,7 +137,10 @@ export default function Users() {
         api.get('/kassa'),
         api.get(`/users/${u.id}/wallets`).catch(() => ({ data: [] }))
       ]);
-      setWallets(walletsRes.data);
+      // T1.10: xodim filiali (va umumiy) kassalari yuqorida; boshqa filial kassalari pastda, "boshqa filial" belgisi bilan
+      const ub = u.branch_id ?? null;
+      const isOwn = (w) => ub == null || w.branch_id == null || w.branch_id === ub;
+      setWallets([...(walletsRes.data || [])].sort((a, b) => Number(isOwn(b)) - Number(isOwn(a))));
       setUserWallets((uwRes.data || []).map(w => ({ wallet_id: w.id, is_default: w.is_default })));
     } catch { setUserWallets([]); }
     setModal('kassa');
@@ -162,11 +155,12 @@ export default function Users() {
   const toggleWallet = async (walletId, checked) => {
     try {
       if (checked) {
-        await api.post(`/users/${selected.id}/wallets`, {
+        const res = await api.post(`/users/${selected.id}/wallets`, {
           wallet_id: walletId,
           is_default: userWallets.length === 0
         });
         setUserWallets(prev => [...prev, { wallet_id: walletId, is_default: prev.length === 0 }]);
+        if (res?.data?.warning) toast(res.data.warning, { icon: '⚠️' }); // T1.10: kassa filiali xodim filialiga mos emas
       } else {
         await api.delete(`/users/${selected.id}/wallets/${walletId}`);
         setUserWallets(prev => prev.filter(w => w.wallet_id !== walletId));
@@ -179,7 +173,8 @@ export default function Users() {
 
   const setDefaultWallet = async (walletId) => {
     try {
-      await api.post(`/users/${selected.id}/wallets/${walletId}/set-default`);
+      const res = await api.post(`/users/${selected.id}/wallets/${walletId}/set-default`);
+      if (res?.data?.warning) toast(res.data.warning, { icon: '⚠️' });
       setUserWallets(prev => prev.map(w => ({ ...w, is_default: w.wallet_id === walletId })));
       toast.success(t('user.defaultWalletSet'));
     } catch (err) {
@@ -207,7 +202,7 @@ export default function Users() {
         role: form.role,
         role_id: form.role_id,
         permissions: form.permissions,
-        branch_id: form.branch_id ? Number(form.branch_id) : null,
+        ...branchPayload(form),
       };
       await api.post('/users/', payload);
       close(); load();
@@ -227,11 +222,23 @@ export default function Users() {
         role: form.role,
         role_id: form.role_id,
         permissions: form.permissions,
-        branch_id: form.branch_id ? Number(form.branch_id) : null,
+        ...branchPayload(form),
       };
+      if (sharedLocked) {
+        // Umumiy xodim: shaxsiy maydonlar yuborilmaydi (filial esa korxona bo'yicha — T1.2, yuboriladi)
+        delete payload.name; delete payload.phone; delete payload.email;
+        delete payload.role_id;
+      }
+      // Filialsiz eski xodim va filial tanlanmagan — branch_id yuborilmaydi (majburiylik tekshiruvi ishga tushmasin)
+      if (!editHadBranch && !form.branch_id && !(form.branch_ids || []).length) {
+        delete payload.branch_id; delete payload.branch_ids;
+      }
       await api.put(`/users/${selected.id}`, payload);
       close(); load();
-    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
+    } catch (err) {
+      const msg = err.response?.data?.detail || t('common.error');
+      setError(msg); toast.error(msg);
+    }
     finally { setSaving(false); }
   };
 
@@ -240,7 +247,10 @@ export default function Users() {
     try {
       await api.patch(`/users/${selected.id}/password`, { new_password: newPwd });
       close();
-    } catch (err) { setError(err.response?.data?.detail || t('common.error')); }
+    } catch (err) {
+      const msg = err.response?.data?.detail || t('common.error');
+      setError(msg); toast.error(msg);
+    }
     finally { setSaving(false); }
   };
 
@@ -250,6 +260,15 @@ export default function Users() {
       await api.delete(`/users/${u.id}`);
       load();
     } catch (err) { alert(err.response?.data?.detail || t('common.error')); }
+  };
+
+  // Admin-bot Telegram bog'lanishini uzish (xodim botda /start + kontakt bilan qayta ulanadi)
+  const handleUnlinkTelegram = async (u) => {
+    if (!confirm(tf('user.unlinkTelegramConfirm', `${u.name}: Telegram bog'lanishini uzishni tasdiqlaysizmi?`))) return;
+    try {
+      await api.post(`/users/${u.id}/unlink-telegram`);
+      toast.success(tf('user.unlinkTelegramDone', 'Telegram bog\'lanishi uzildi'));
+    } catch (err) { toast.error(err.response?.data?.detail || t('common.error')); }
   };
 
   return (
@@ -272,7 +291,7 @@ export default function Users() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label={t('user.totalEmployees') || "Jami xodimlar"} value={users.length} color="indigo" />
         <StatCard label={t('user.cashiers') || "Kassirlar"} value={users.filter(u => u.role === 'cashier').length} color="emerald" />
         <StatCard label={t('user.managers') || "Menejerlar"} value={users.filter(u => u.role === 'manager').length} color="violet" />
@@ -303,7 +322,7 @@ export default function Users() {
                 <td className="px-6 py-4 text-sm text-slate-500">{u.phone}</td>
                 <td className="px-6 py-4 text-sm text-slate-500">{u.email || '—'}</td>
                 <td className="px-6 py-4 text-sm text-slate-500">
-                  {u.branch_id ? (branches.find(b => b.id === u.branch_id)?.name || '—') : '—'}
+                  {userBranchIds(u).length ? userBranchIds(u).map(id => branchLabel(branches, id, tf)).join(', ') : '—'}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${u.role_id ? 'bg-blue-50 text-blue-700' : (ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600')}`}>
@@ -345,6 +364,12 @@ export default function Users() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                           </svg>
                           {t('user.changePassword')}
+                        </button>
+                        <button onClick={() => { setActiveMenu(null); handleUnlinkTelegram(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-sky-600 transition-colors">
+                          <svg className="w-5 h-5 text-slate-400 group-hover:text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1M6 18L18 6" />
+                          </svg>
+                          {tf('user.unlinkTelegram', 'Telegramni uzish')}
                         </button>
                         <div className="h-px bg-slate-100 my-1 mx-2"></div>
                         <button onClick={() => { setActiveMenu(null); handleDeactivate(u); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
@@ -416,10 +441,10 @@ export default function Users() {
                   />
                 </Field>
 
-                <RoleSelect form={form} setField={setField} dynamicRoles={dynamicRoles} />
+                <RoleSelect role={form.role} roleId={form.role_id} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} onChange={({ role, role_id }) => { setField('role', role); setField('role_id', role_id); }} />
                 
                 {branches.length > 0 && (
-                  <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+                  <BranchSelect role={form.role} multi={MULTI_BRANCH_ROLES.includes(form.role)} value={form.branch_id} onChange={v => { setField('branch_id', v); setField('branch_ids', []); }} values={form.branch_ids && form.branch_ids.length ? form.branch_ids : (form.branch_id ? [form.branch_id] : [])} onChangeMany={ids => { setField('branch_ids', ids); setField('branch_id', ids.length ? ids[0] : ''); }} branches={branches} />
                 )}
               </div>
               
@@ -452,18 +477,19 @@ export default function Users() {
             </div>
             <form onSubmit={handleEdit} className="p-6 overflow-y-auto flex flex-col gap-6" style={{ scrollbarWidth: 'thin' }}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sharedLocked && <div className="sm:col-span-2"><div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl">{tf('user.sharedNote', "Bu xodim boshqa korxonalarda ham ishlaydi, shaxsiy ma'lumotlarni faqat o'zi o'zgartiradi")}</div></div>}
                 <Field label={`${t('common.name')} *`}>
-                  <input type="text" required value={form.name} onChange={e => setField('name', e.target.value)} className={inp} autoFocus />
+                  <input type="text" required value={form.name} onChange={e => setField('name', e.target.value)} className={inp} autoFocus={!sharedLocked} disabled={sharedLocked} />
                 </Field>
                 <Field label={`${t('common.phone')} *`}>
-                  <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className={inp} />
+                  <input type="text" required value={form.phone} onChange={e => setField('phone', e.target.value)} className={inp} disabled={sharedLocked} />
                 </Field>
                 <Field label={t('user.email')}>
-                  <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} />
+                  <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} className={inp} disabled={sharedLocked} />
                 </Field>
-                <RoleSelect form={form} setField={setField} dynamicRoles={dynamicRoles} />
+                <RoleSelect role={form.role} roleId={form.role_id} roles={ROLES} roleLabels={ROLE_LABELS} dynamicRoles={dynamicRoles} onChange={({ role, role_id }) => { setField('role', role); setField('role_id', role_id); }} />
                 {branches.length > 0 && (
-                  <BranchSelect value={form.branch_id} onChange={v => setField('branch_id', v)} branches={branches} />
+                  <BranchSelect role={form.role} required={editHadBranch ? undefined : false} multi={MULTI_BRANCH_ROLES.includes(form.role)} value={form.branch_id} onChange={v => { setField('branch_id', v); setField('branch_ids', []); }} values={form.branch_ids && form.branch_ids.length ? form.branch_ids : (form.branch_id ? [form.branch_id] : [])} onChangeMany={ids => { setField('branch_ids', ids); setField('branch_id', ids.length ? ids[0] : ''); }} branches={branches} />
                 )}
               </div>
               
@@ -495,16 +521,17 @@ export default function Users() {
             </div>
             <form onSubmit={handlePwd} className="p-6 space-y-4">
               <p className="text-sm text-slate-600"><strong>{selected.name}</strong></p>
+              {sharedLocked && <div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl">{tf('user.sharedNote', "Bu xodim boshqa korxonalarda ham ishlaydi, shaxsiy ma'lumotlarni faqat o'zi o'zgartiradi")}</div>}
               <Field label={t('user.password')}>
                 <input
-                  type="password" required minLength={6} value={newPwd} autoFocus
-                  onChange={e => setNewPwd(e.target.value)}
+                  type="password" required minLength={6} value={newPwd} autoFocus={!sharedLocked}
+                  onChange={e => setNewPwd(e.target.value)} disabled={sharedLocked}
                   placeholder={t('user.minCharsHint')} className={inp} />
               </Field>
               {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
               <div className="flex gap-3">
                 <button type="button" onClick={close} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                <button type="submit" disabled={saving || sharedLocked} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                   {saving ? '...' : t('common.save')}
                 </button>
               </div>
@@ -533,6 +560,7 @@ export default function Users() {
               {wallets.map(w => {
                 const assigned = userWallets.find(uw => uw.wallet_id === w.id);
                 const isDefault = assigned?.is_default;
+                const otherBranch = selected.branch_id != null && w.branch_id != null && w.branch_id !== selected.branch_id;
                 return (
                   <div key={w.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${assigned ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-slate-50'}`}>
                     <input
@@ -543,7 +571,10 @@ export default function Users() {
                     />
                     <div className="flex-1">
                       <div className="text-sm font-semibold text-slate-800">{w.name}</div>
-                      <div className="text-xs text-slate-400">{w.type} • {((w.balances?.total) || 0).toLocaleString()} {t('common.sum')}</div>
+                      <div className="text-xs text-slate-400">
+                        {w.type} • {formatBalances(w.balances?.total, t)}
+                        {w.branch_name && <span className={`ml-1.5 px-1.5 py-0.5 rounded ${otherBranch ? 'bg-amber-100 text-amber-700' : 'bg-sky-50 text-sky-700'}`}>{w.branch_name}{otherBranch ? ` · ${t('user.otherBranchWallet')}` : ''}</span>}
+                      </div>
                     </div>
                     {assigned && (
                       <button

@@ -14,12 +14,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user
+from app.core.audit import log_action
+from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.company import Company
 from app.models.customer import Customer
 from app.models.customer_document import CustomerDocument
-from app.models.user import User
+from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -30,6 +31,10 @@ DOC_DIR = os.path.join(PRIVATE_ROOT, "customer_docs")
 PHOTO_MAX = 5 * 1024 * 1024
 DOC_MAX = 10 * 1024 * 1024
 MAX_DOCS_PER_CUSTOMER = 20
+
+# Pasport/shartnoma/litsenziya — shaxsiy ma'lumot: faqat vakolatli rollar (super_admin require_roles'da o'tadi)
+DOC_VIEW_ROLES = (UserRole.admin, UserRole.director, UserRole.manager)
+DOC_DELETE_ROLES = (UserRole.admin, UserRole.director)
 
 # Kengaytma content_type/magic bytes'dan olinadi — foydalanuvchi fayl nomiga ishonilmaydi
 IMAGE_SIGNATURES = {
@@ -119,7 +124,7 @@ def _doc_out(d: CustomerDocument) -> dict:
 
 @router.get("/{customer_id}/documents")
 def list_customer_documents(customer_id: int, db: Session = Depends(get_db),
-                            current_user: User = Depends(get_current_user)):
+                            current_user: User = Depends(require_roles(*DOC_VIEW_ROLES))):
     _get_customer(db, customer_id, current_user)
     docs = db.query(CustomerDocument).filter(
         CustomerDocument.customer_id == customer_id,
@@ -130,9 +135,13 @@ def list_customer_documents(customer_id: int, db: Session = Depends(get_db),
 
 @router.post("/{customer_id}/documents", status_code=201)
 async def upload_customer_document(customer_id: int, file: UploadFile = File(...),
-                                   db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+                                   db: Session = Depends(get_db),
+                                   current_user: User = Depends(require_roles(*DOC_VIEW_ROLES))):
     _get_customer(db, customer_id, current_user)
-    count = db.query(CustomerDocument).filter(CustomerDocument.customer_id == customer_id).count()
+    count = db.query(CustomerDocument).filter(
+        CustomerDocument.customer_id == customer_id,
+        CustomerDocument.company_id == current_user.company_id,
+    ).count()
     if count >= MAX_DOCS_PER_CUSTOMER:
         raise HTTPException(status_code=400, detail=f"Bitta mijozga ko'pi bilan {MAX_DOCS_PER_CUSTOMER} ta hujjat")
 
@@ -163,6 +172,9 @@ async def upload_customer_document(customer_id: int, file: UploadFile = File(...
         uploaded_by=current_user.id,
     )
     db.add(doc)
+    db.flush()
+    log_action(db, "DOC_UPLOAD", "customer_document", doc.id, user_id=current_user.id,
+               new_values={"customer_id": customer_id, "original_name": original, "size": len(content)})
     db.commit()
     db.refresh(doc)
     return _doc_out(doc)
@@ -189,11 +201,15 @@ def _safe_doc_path(rel_path: str) -> str:
 
 @router.get("/{customer_id}/documents/{doc_id}/file")
 def download_customer_document(customer_id: int, doc_id: int, db: Session = Depends(get_db),
-                               current_user: User = Depends(get_current_user)):
+                               current_user: User = Depends(require_roles(*DOC_VIEW_ROLES))):
     doc = _get_doc(db, customer_id, doc_id, current_user)
     path = _safe_doc_path(doc.file_path)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="Fayl topilmadi")
+    # log_action commit qilmaydi — yuklab olish izi saqlanishi uchun shu yerda commit
+    log_action(db, "DOC_DOWNLOAD", "customer_document", doc.id, user_id=current_user.id,
+               new_values={"customer_id": customer_id, "original_name": doc.original_name})
+    db.commit()
     # attachment — brauzer faylni sahifa sifatida bajarmasligi uchun
     return FileResponse(
         path,
@@ -207,9 +223,11 @@ def download_customer_document(customer_id: int, doc_id: int, db: Session = Depe
 
 @router.delete("/{customer_id}/documents/{doc_id}", status_code=204)
 def delete_customer_document(customer_id: int, doc_id: int, db: Session = Depends(get_db),
-                             current_user: User = Depends(get_current_user)):
+                             current_user: User = Depends(require_roles(*DOC_DELETE_ROLES))):
     doc = _get_doc(db, customer_id, doc_id, current_user)
     path = _safe_doc_path(doc.file_path)
+    log_action(db, "DOC_DELETE", "customer_document", doc.id, user_id=current_user.id,
+               old_values={"customer_id": customer_id, "original_name": doc.original_name})
     db.delete(doc)
     db.commit()
     if os.path.isfile(path):
@@ -217,6 +235,24 @@ def delete_customer_document(customer_id: int, doc_id: int, db: Session = Depend
             os.remove(path)
         except OSError:
             pass
+
+
+def delete_customer_files(db: Session, customer: Customer) -> None:
+    """Mijoz o'chirilganda uning hujjat yozuvlari, hujjat fayllari va rasmini olib tashlaydi.
+    Commit qilmaydi — chaqiruvchi o'zi commit qiladi (fayllar diskdan darhol o'chadi)."""
+    docs = db.query(CustomerDocument).filter(
+        CustomerDocument.customer_id == customer.id,
+        CustomerDocument.company_id == customer.company_id,
+    ).all()
+    for d in docs:
+        try:
+            path = _safe_doc_path(d.file_path)
+            if os.path.isfile(path):
+                os.remove(path)
+        except (HTTPException, OSError):
+            pass
+        db.delete(d)
+    _remove_static_photo(customer.photo_url)
 
 
 # ── Telegram orqali joylashuv so'rash ───────────────────────────────────────

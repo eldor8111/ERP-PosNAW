@@ -5,6 +5,7 @@ import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { useLang } from '../../context/LangContext';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { ChevronDown, CreditCard, Users, ListOrdered, ChevronsUpDown, CheckIcon, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, EllipsisVertical, History, Star, Banknote, Layers, CircleCheck, Plus, Minus, Package, Truck } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
@@ -13,10 +14,11 @@ import Couriers from './Couriers';
 import DistributorsReport from './Distributors';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import CustomerProfileSection from '../../components/customer/CustomerProfileSection';
-import { emptyProfile, profileFromCustomer, profilePayload, uploadPendingFiles } from '../../components/customer/customerProfile';
+import CustomerPricesSection from '../../components/customer/CustomerPricesSection';
+import { emptyProfile, profileFromCustomer, profilePayload, uploadPendingFiles, canAssignBranch, tBranch } from '../../components/customer/customerProfile';
 import CustomerBarcodePrintModal from '../../components/CustomerBarcodeTemplates';
 
-const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, price_type: 'retail', customer_type: 'retail', territory: '', debts: [{ amount: '', currency: 'UZS' }], ...emptyProfile() });
+const getEmptyForm = () => ({ name: '', phone: '', debt_limit: '', loyalty_points: 0, card_number: '', cashback_percent: 0, price_type: 'sale', customer_type: 'retail', territory: '', branch_id: '', debts: [{ amount: '', currency: 'UZS' }], ...emptyProfile() });
 const emptyForm = getEmptyForm();
 
 const TIERS = {
@@ -45,6 +47,10 @@ const Avatar = ({ name, size = 'sm' }) => {
     </div>
   );
 };
+
+// Backend CUSTOMER_DEBT_ROLES / CUSTOMER_TERMS_ROLES bilan bir xil (T0.26)
+const CUSTOMER_DEBT_ROLES = ['super_admin', 'admin', 'director', 'accountant'];
+const CUSTOMER_TERMS_ROLES = ['super_admin', 'admin', 'director', 'manager', 'accountant'];
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
 
@@ -82,7 +88,7 @@ function CustSearch({ customers, value, onChange, onAfterSelect }) {
   );
 }
 
-function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode, hasDebt }) {
+function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode, hasDebt, canDebt = true }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0, visible: false });
   const { t } = useLang();
@@ -141,11 +147,13 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode,
               {t('customer.payDebt')}
             </button>
           )}
-          <button onClick={() => { onPoints(); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 transition-colors font-medium">
-            <Star className="w-4 h-4" />
-            {t('customer.adjustPoints')}
-          </button>
+          {canDebt && (
+            <button onClick={() => { onPoints(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 transition-colors font-medium">
+              <Star className="w-4 h-4" />
+              {t('customer.adjustPoints')}
+            </button>
+          )}
           <button onClick={() => { onHistory(); setOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 transition-colors font-medium">
             <History className="w-4 h-4" />
@@ -166,13 +174,15 @@ function RowMenu({ onEdit, onDelete, onPay, onPoints, onHistory, onPrintBarcode,
             </svg>
             {t('common.edit')}
           </button>
-          <button onClick={() => { onDelete(); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            {t('common.delete')}
-          </button>
+          {canDebt && (
+            <button onClick={() => { onDelete(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {t('common.delete')}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -211,7 +221,14 @@ const parseExcelNumeric = (val) => {
 
 export function SotuvMijozlar({ stats, reloadStats, customerType }) {
   const navigate = useNavigate();
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const tb = (key) => tBranch(t, lang, key);
+  const { user: authUser } = useAuth();
+  // T1.15: mijoz filialini belgilash — faqat admin/director/manager (backend CUSTOMER_BRANCH_ROLES)
+  const canBranch = canAssignBranch(authUser?.role);
+  // T0.26: qarz/ball/o'chirish — CUSTOMER_DEBT_ROLES; limit/keshbek/narx turi — CUSTOMER_TERMS_ROLES
+  const canDebt = CUSTOMER_DEBT_ROLES.includes(authUser?.role);
+  const canTerms = CUSTOMER_TERMS_ROLES.includes(authUser?.role);
   const features = useCompanyFeatures();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
@@ -224,6 +241,10 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
   const [payInfo, setPayInfo] = useState('');
   const [wallets, setWallets] = useState([]);
   const [pointsDelta, setPointsDelta] = useState('');
+  const [pointsReason, setPointsReason] = useState('');
+  const [adjustDebtOpen, setAdjustDebtOpen] = useState(false);
+  const [adjustRows, setAdjustRows] = useState([{ currency: 'UZS', delta: '' }]);
+  const [adjustReason, setAdjustReason] = useState('');
   const [totalRecords, setTotalRecords] = useState(0);
   const [limit, setLimit] = useState(() => Number(localStorage.getItem('customers_products_limit') || 50));
   const [page, setPage] = useState(1);
@@ -270,7 +291,12 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
   const [skipRows, setSkipRows] = useState(1);
   const [allowUpdate, setAllowUpdate] = useState(false);
   const [importDebtCurrency, setImportDebtCurrency] = useState('');
+  const [importBranchId, setImportBranchId] = useState('');   // T4.5: barcha qatorlar uchun standart filial
   const [currencies, setCurrencies] = useState([]);
+
+  const [branches, setBranches] = useState([]);
+  const [branchFilter, setBranchFilter] = useState('');
+  const branchName = (id) => (id ? branches.find(b => b.id === id)?.name || '' : '');
 
   const IMPORT_LIMIT = 50;
 
@@ -284,6 +310,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     { key: 'Karta raqami', label: t('customer.cardNumber') },
     { key: 'Cashback', label: t('customer.importFieldCashback') },
     { key: 'Bonus', label: t('customer.bonusBalance') },
+    { key: 'Filial', label: tb('customer.branch') },
     { key: '__SKIP__', label: t('customer.importSkipField') },
   ];
 
@@ -291,7 +318,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     setImportOpen(false); setImportRows([]); setImportFile(null);
     setImportResult(null); setImportError(''); setColMap({}); setImportPage(1);
     setSkipRows(1); setAllowUpdate(false); setImportProgress(0);
-    setImportDebtCurrency('');
+    setImportDebtCurrency(''); setImportBranchId('');
   };
   const openImport = () => { resetImport(); setImportOpen(true); };
 
@@ -357,7 +384,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     const ws = XLSX.utils.json_to_sheet([{
       'Ism': 'Javohir Toshmatov', 'Telefon': '+998901234567',
       'Qarz': 0, 'Kredit limit': 1000000, 'Sodiqlik ballari': 100,
-      'Karta raqami': '8888 1234 5678 9012', 'Cashback': 3.5, 'Bonus': 0
+      'Karta raqami': '8888 1234 5678 9012', 'Cashback': 3.5, 'Bonus': 0, 'Filial': ''
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Mijozlar');
@@ -375,7 +402,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
 
       for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
         const chunk = payload.slice(i, i + CHUNK_SIZE);
-        const { data } = await api.post(`/customers/bulk-import?allow_update=${allowUpdate}`, chunk);
+        const { data } = await api.post(`/customers/bulk-import?allow_update=${allowUpdate}${importBranchId ? `&branch_id=${importBranchId}` : ''}`, chunk);
         totC += data.created || 0;
         totU += data.updated || 0;
         totS += data.skipped || 0;
@@ -397,6 +424,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     if (sortBy) url += `&sort_by=${sortBy}`;
     if (sortOrder) url += `&sort_order=${sortOrder}`;
     if (customerType) url += `&customer_type=${customerType}`;
+    if (branchFilter) url += `&branch_id=${branchFilter}`;
 
     if (filterAmount && filterType !== 'all') {
       if (filterType === 'eq') url += `&exact_debt=${filterAmount}`;
@@ -411,7 +439,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
       })
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || t('auth.errGeneral')) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, limit, sortBy, sortOrder, filterType, filterAmount, customerType]);
+  }, [page, limit, sortBy, sortOrder, filterType, filterAmount, customerType, branchFilter]);
 
   useEffect(() => {
     load();
@@ -426,18 +454,31 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
 
   useEffect(() => {
     setPage(1);
-  }, [search, limit]);
+  }, [search, limit, branchFilter]);
+
+  // Filiallar ro'yxati (ro'yxat filtri, ustun nomi va forma select'i uchun)
+  useEffect(() => {
+    api.get('/branches', { _suppressToast: true })
+      .then(r => setBranches(Array.isArray(r.data) ? r.data : []))
+      .catch(() => { });
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 400);
     return () => clearTimeout(t);
   }, [search, load]);
 
+  // T2.12: yagona format — bo'shliqsiz 13 xonali, "29" prefiksi (tarozi shtrix-kodlari 20/21/22 bilan to'qnashmaydi)
   const generateCard = () => {
-    return '8888 ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000) + ' ' + Math.floor(1000 + Math.random() * 9000);
+    let n = '29';
+    for (let i = 0; i < 11; i++) n += Math.floor(Math.random() * 10);
+    return n;
   };
+  // Kredit limit faqat distribyutorga qo'llansa, oddiy mijoz uchun maydon o'chiriladi (korxona sozlamasi)
+  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const creditLimitIgnored = (features?.credit_limit_scope || 'distributor') === 'distributor' && form.customer_type !== 'distributor';
 
-  const openAdd = () => { setForm({ ...getEmptyForm(), card_number: generateCard(), customer_type: customerType || 'retail' }); setPendingFiles({ photo: null, docs: [] }); setError(''); setModal('add'); };
+  const openAdd = () => { setForm({ ...getEmptyForm(), card_number: generateCard(), customer_type: customerType || 'retail', branch_id: authUser?.branch_id ? String(authUser.branch_id) : '' }); setPendingFiles({ photo: null, docs: [] }); setError(''); setModal('add'); };
   const openEdit = (c) => {
     let debts = [{ amount: '', currency: 'UZS' }];
     if (c.debt_balances && typeof c.debt_balances === 'object' && Object.keys(c.debt_balances).length > 0) {
@@ -455,6 +496,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
       price_type: c.price_type || 'sale',
       customer_type: c.customer_type || 'retail',
       territory: c.territory || '',
+      branch_id: c.branch_id ? String(c.branch_id) : '',
       debts,
       ...profileFromCustomer(c),
     });
@@ -469,7 +511,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     setError('');
     setModal('pay');
   };
-  const openPoints = (c) => { setSelected(c); setPointsDelta(''); setError(''); setModal('points'); };
+  const openPoints = (c) => { setSelected(c); setPointsDelta(''); setPointsReason(''); setError(''); setModal('points'); };
   const openHistory = async (c) => {
     setSelected(c); setModal('history'); setError(''); setLoadingHistory(true); setHistory([]);
     try {
@@ -504,18 +546,26 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
       const payload = {
         name: form.name,
         phone: form.phone ? (form.phone.length === 9 ? '998' + form.phone : form.phone) : null,
-        debt_balance: totalInUZS,
-        debt_currency: 'UZS',
-        debt_balances: debtBalances,
-        debt_limit: form.debt_limit ? Number(form.debt_limit) : 0,
-        loyalty_points: form.loyalty_points ? Number(form.loyalty_points) : 0,
         card_number: form.card_number || null,
-        cashback_percent: form.cashback_percent ? Number(form.cashback_percent) : 0,
-        price_type: form.price_type || 'retail',
         customer_type: form.customer_type || 'retail',
         territory: form.customer_type === 'distributor' ? (form.territory || null) : null,
         ...profilePayload(form),
       };
+      // T1.15: filial faqat vakolatli rollardan yuboriladi (boshqa rolda server mavjud filialni saqlaydi)
+      if (canBranch) payload.branch_id = form.branch_id ? Number(form.branch_id) : null;
+      // T0.26: qarz va ballar tahrirda hech qachon yuborilmaydi (faqat "Qarzni tuzatish" / "Ballarni sozlash"
+      // orqali); yangi mijozda — faqat qarz-vakolatli rol. Shartlar — faqat canTerms.
+      if (modal === 'add' && canDebt) {
+        payload.debt_balance = totalInUZS;
+        payload.debt_currency = 'UZS';
+        payload.debt_balances = debtBalances;
+        payload.loyalty_points = form.loyalty_points ? Number(form.loyalty_points) : 0;
+      }
+      if (canTerms) {
+        payload.debt_limit = form.debt_limit ? Number(form.debt_limit) : 0;
+        payload.cashback_percent = form.cashback_percent ? Number(form.cashback_percent) : 0;
+        payload.price_type = form.price_type || 'sale';
+      }
       if (modal === 'add') {
         const { data: created } = await api.post('/customers', payload);
         const fileErrors = await uploadPendingFiles(created.id, pendingFiles);
@@ -578,18 +628,60 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     try {
       await api.post(`/customers/${selected.id}/adjust-points`, {
         delta: Number(pointsDelta),
-        reason: 'Manual adjustment',
+        reason: pointsReason.trim(),
       });
       closeModal(); load(); reloadStats?.();
     } catch (err) {
-      setError(err.response?.data?.detail || t('auth.errGeneral'));
+      const detail = err.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join(', ') : (detail || t('auth.errGeneral')));
+    } finally { setSaving(false); }
+  };
+
+  const openAdjustDebt = () => {
+    setAdjustRows([{ currency: 'UZS', delta: '' }]);
+    setAdjustReason('');
+    setError('');
+    setAdjustDebtOpen(true);
+  };
+  const closeAdjustDebt = () => { setAdjustDebtOpen(false); setError(''); };
+
+  const handleAdjustDebt = async (e) => {
+    e.preventDefault();
+    setSaving(true); setError('');
+    try {
+      const changes = adjustRows
+        .filter(r => r.delta !== '' && !isNaN(Number(r.delta)) && Number(r.delta) !== 0)
+        .map(r => ({ currency: r.currency, delta: String(Number(r.delta)) }));
+      const { data } = await api.post(`/customers/${selected.id}/adjust-debt`, {
+        reason: adjustReason.trim(),
+        changes,
+      });
+      // Serverdan kelgan yangi qarzni ko'rsatamiz (forma ro'yxatdagi qiymat bilan qolib ketmasin)
+      setSelected(data);
+      setForm(f => ({
+        ...f,
+        debts: Object.keys(data.debt_balances || {}).length
+          ? Object.entries(data.debt_balances).map(([curr, amt]) => ({ amount: amt, currency: curr }))
+          : [{ amount: '', currency: 'UZS' }],
+      }));
+      setAdjustDebtOpen(false);
+      load(); reloadStats?.();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join(', ') : (detail || t('auth.errGeneral')));
     } finally { setSaving(false); }
   };
 
   const deleteCustomer = async (id) => {
-    if (!confirm(t('customer.deleteConfirm'))) return;
-    await api.delete(`/customers/${id}`);
-    load(); reloadStats?.();
+    if (!confirm(`${t('customer.deleteConfirm')}\n\n${t('customer.deleteArchived')}`)) return;
+    try {
+      await api.delete(`/customers/${id}`);
+      load(); reloadStats?.();
+    } catch (err) {
+      // 400: ochiq qarz / faol buyurtma; 403: ruxsat yo'q
+      const detail = err.response?.data?.detail;
+      toast.error((typeof detail === 'string' && detail) || t('customer.deleteBlockedDebt'));
+    }
   };
 
   const totalDebt = stats?.total_debt || 0;
@@ -658,6 +750,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                   [t('customer.creditLimit')]: Number(c.debt_limit || 0),
                   [t('customer.exportBonusPointColumn')]: c.loyalty_points || 0,
                   [t('customer.exportCashbackPercentColumn')]: c.cashback_percent || 0,
+                  [tb('customer.branch')]: branchName(c.branch_id),
                 };
               }));
               const wb = XLSX.utils.book_new();
@@ -788,6 +881,21 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
           </Listbox>
         </div>
 
+        {/* Filial filtri (faqat ma'lumot filtri — mijozlar bazasi korxona bo'yicha umumiy) */}
+        {branches.length > 0 && (
+          <div className="w-full sm:w-auto min-w-[180px] flex-1 sm:flex-none">
+            <select
+              value={branchFilter}
+              onChange={e => setBranchFilter(e.target.value)}
+              aria-label={tb('customer.branch')}
+              className="w-full px-3 py-2 xl:px-4 xl:py-3 rounded-xl border border-slate-200 text-sm xl:text-base bg-white text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            >
+              <option value="">{tb('customer.allBranches')}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+        )}
+
         {/* Debt Filter */}
         <div className="w-full sm:w-auto min-w-[300px] flex-1 sm:flex-none">
           <div className="flex items-center px-3 py-2 xl:px-4 xl:py-3 rounded-xl border border-slate-200 bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-500 transition-all">
@@ -837,7 +945,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {[t('common.rowNumber'), t('common.name'), t('common.phone'), t('customer.debtBalance'), t('customer.creditLimit'), `${t('customer.bonusBalance')} / ${t('customer.cashback')}`, t('common.actions')].map(h => (
+                {[t('common.rowNumber'), t('common.name'), t('common.phone'), tb('customer.branch'), t('customer.debtBalance'), t('customer.creditLimit'), `${t('customer.bonusBalance')} / ${t('customer.cashback')}`, t('common.actions')].map(h => (
                   <th key={h} className="px-6 py-3.5 text-left text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -858,7 +966,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                           <span className="text-xs cursor-pointer md:text-sm font-medium text-blue-700 hover:underline">{c.name}</span>
                           {c.customer_type === 'distributor' && (
                             <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
-                              <Truck className="size-3" />{t('distributor.typeDistributor')}{c.territory ? ` · ${c.territory}` : ''}
+                              <Truck className="size-3" />{t('distributor.typeDistributor')}{c.territory ? ` · ${c.territory}${c.region ? ` (${c.region})` : ''}` : ''}
                             </span>
                           )}
                           {(c.district || c.address || c.lat != null) && (
@@ -870,6 +978,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                       </button>
                     </td>
                     <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{c.phone || '—'}</td>
+                    <td className="px-6 py-4 text-xs md:text-sm text-slate-500">{branchName(c.branch_id) || '—'}</td>
                     <td className="px-6 py-4">
                       {(() => {
                         const entries = getDebtEntries(c);
@@ -916,6 +1025,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                         onPoints={() => openPoints(c)}
                         onHistory={() => openHistory(c)}
                         onPrintBarcode={() => setBarcodeCustomer(c)}
+                        canDebt={canDebt}
                         hasDebt={Number(c.debt_balance) > 0 || (c.debt_balances && typeof c.debt_balances === 'object' && Object.values(c.debt_balances).some(v => Number(v) > 0))}
                       />
                     </td>
@@ -1048,17 +1158,43 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                     />
                   </div>
                 </div>
+                {(modal === 'edit' || canDebt) && (
                 <div className="col-span-2">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-slate-600">{t('customer.initialCurrentDebt')}</label>
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, debts: [...form.debts, { amount: '', currency: 'UZS' }] })}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg"
-                    >
-                      <Plus className="size-3" /> {t('common.add')}
-                    </button>
+                    {modal === 'edit' ? (
+                      canDebt && (
+                        <button
+                          type="button"
+                          onClick={openAdjustDebt}
+                          className="text-xs text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg"
+                        >
+                          {t('customer.adjustDebt')}
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, debts: [...form.debts, { amount: '', currency: 'UZS' }] })}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg"
+                      >
+                        <Plus className="size-3" /> {t('common.add')}
+                      </button>
+                    )}
                   </div>
+                  {modal === 'edit' ? (
+                    <div className="space-y-1.5">
+                      {getDebtEntries(selected).length === 0 ? (
+                        <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-500">0</div>
+                      ) : getDebtEntries(selected).map(({ currency: curr, amount: amt }) => (
+                        <div key={curr} className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                          <span className="font-semibold text-slate-600">{curr}</span>
+                          <span className="font-bold text-red-500">{fmt(amt)}</span>
+                        </div>
+                      ))}
+                      <p className="text-[11px] text-slate-400">{t('customer.debtReadOnlyHint')}</p>
+                    </div>
+                  ) : (
                   <div className="space-y-2">
                     {form.debts.map((debt, idx) => (
                       <div key={idx} className="flex gap-2 items-center group">
@@ -1108,21 +1244,30 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                       </div>
                     ))}
                   </div>
+                  )}
                 </div>
+                )}
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.creditLimit')} ({t('common.sum')})</label>
                   <input
                     type="number" min="0"
+                    disabled={!canTerms || creditLimitIgnored}
+                    title={!canTerms ? t('customer.noPermissionField') : undefined}
                     value={form.debt_limit}
                     onChange={e => setForm({ ...form, debt_limit: e.target.value })}
                     placeholder="1000000"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
                   />
+                  {creditLimitIgnored && (
+                    <p className="mt-1 text-[11px] text-amber-600">{tf('customer.creditLimitDistributorOnly', "Kredit limit faqat distribyutor mijozlarga qo'llanadi (Sozlamalar → Sodiqlik dasturi)")}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.initialBonusPoints')}</label>
                   <input
                     type="number" min="0"
+                    disabled={modal === 'edit' || !canDebt}
+                    title={modal === 'edit' || !canDebt ? t('customer.noPermissionField') : undefined}
                     value={form.loyalty_points}
                     onChange={e => setForm({ ...form, loyalty_points: e.target.value })}
                     placeholder="0"
@@ -1142,7 +1287,8 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                   </div>
                   <input
                     value={form.card_number}
-                    onChange={e => setForm({ ...form, card_number: e.target.value })}
+                    inputMode="numeric"
+                    onChange={e => setForm({ ...form, card_number: e.target.value.replace(/\D/g, '') })}
                     placeholder={t('customer.cardNumberPlaceholder')}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   />
@@ -1151,6 +1297,8 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.cashbackPercentLabel')}</label>
                   <input
                     type="number" min="0" max="100" step="0.1"
+                    disabled={!canTerms}
+                    title={!canTerms ? t('customer.noPermissionField') : undefined}
                     value={form.cashback_percent}
                     onChange={e => setForm({ ...form, cashback_percent: e.target.value })}
                     placeholder={t('customer.cashbackPlaceholderExample')}
@@ -1182,11 +1330,27 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                       placeholder={t('distributor.territoryPlaceholder')}
                       className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    <p className="mt-1 text-[11px] text-slate-400">{t('distributor.territoryRegionHint')}</p>
                   </div>
                 )}
               </div>
               {form.customer_type === 'distributor' && (
                 <p className="-mt-2 text-[11px] text-slate-400">{t('distributor.limitHint')}</p>
+              )}
+
+              {/* Filial (mijozning "uy filiali") — admin/director/manager */}
+              {canBranch && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{tb('customer.branch')}</label>
+                  <select
+                    value={form.branch_id}
+                    onChange={e => setForm({ ...form, branch_id: e.target.value })}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">{tb('customer.noBranch')}</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
               )}
 
               {/* Narx turi */}
@@ -1201,8 +1365,10 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                     const isActive = form.price_type === val;
                     return (
                       <button key={val} type="button"
+                        disabled={!canTerms}
+                        title={!canTerms ? t('customer.noPermissionField') : undefined}
                         onClick={() => setForm(f => ({ ...f, price_type: val }))}
-                        className={`relative p-3 rounded-xl border text-left transition-all overflow-hidden ${isActive ? `border-${color}-500 bg-${color}-50 ring-4 ring-${color}-500/10` : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300'}`}>
+                        className={`relative p-3 rounded-xl border text-left transition-all overflow-hidden disabled:opacity-60 disabled:cursor-not-allowed ${isActive ? `border-${color}-500 bg-${color}-50 ring-4 ring-${color}-500/10` : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300'}`}>
                         {isActive && <div className={`absolute top-0 left-0 w-1 h-full bg-${color}-500`} />}
                         <div className="flex items-start gap-2.5">
                           <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isActive ? `bg-${color}-500 text-white` : 'bg-slate-100 text-slate-400'}`}>
@@ -1218,6 +1384,11 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                   })}
                 </div>
               </div>
+
+              {/* T3.19: maxsus (individual) narxlar — faqat mavjud mijozni tahrirlashda */}
+              {modal === 'edit' && selected?.id && (
+                <CustomerPricesSection customerId={selected.id} canEdit={canTerms} />
+              )}
               </div>
               <div className="lg:border-l lg:border-slate-100 lg:pl-8">
                 <CustomerProfileSection
@@ -1314,7 +1485,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                   <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
                     className="w-full h-11 md:h-12 px-3 md:px-4 border border-slate-200 rounded-xl bg-white text-xs md:text-sm font-medium focus:border-blue-500 outline-none transition-all">
                     <option value="">{t('customer.mainCashier')}</option>
-                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmt(w.balance)} {t('common.sum')}</option>)}
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}{w.balance !== undefined ? ` — ${fmt(w.balance)} ${t('common.sum')}` : ''}</option>)}
                   </select>
                 </div>
 
@@ -1557,6 +1728,84 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
         );
       })()}
 
+      {/* ── QARZNI TUZATISH MODALI (T0.26) ───────────────────── */}
+      {adjustDebtOpen && selected && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={closeAdjustDebt}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">{t('customer.adjustDebt')}</h3>
+              <button type="button" onClick={closeAdjustDebt} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleAdjustDebt} className="p-6 space-y-4">
+              <div className="p-3 bg-slate-50 rounded-xl text-sm">
+                <div className="font-bold text-slate-800">{selected.name}</div>
+                <div className="text-slate-500 mt-0.5">
+                  {t('customer.importFieldCurrentDebt')}:{' '}
+                  <span className="font-semibold text-red-500">
+                    {getDebtEntries(selected).length
+                      ? getDebtEntries(selected).map(d => `${fmt(d.amount)} ${d.currency}`).join(' + ')
+                      : '0'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-600">{t('customer.adjustDebtDelta')}</label>
+                {adjustRows.map((row, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <select
+                      value={row.currency}
+                      onChange={e => setAdjustRows(rs => rs.map((r, i) => i === idx ? { ...r, currency: e.target.value } : r))}
+                      className="h-[42px] px-2 border border-slate-200 rounded-xl text-sm font-semibold bg-white"
+                    >
+                      {(currencies?.length ? currencies : [{ code: 'UZS' }]).map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
+                    <input
+                      type="number" step="any" required={idx === 0}
+                      value={row.delta}
+                      onChange={e => setAdjustRows(rs => rs.map((r, i) => i === idx ? { ...r, delta: e.target.value } : r))}
+                      placeholder="-50000"
+                      className="h-[42px] flex-1 w-full px-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    {adjustRows.length > 1 && (
+                      <button type="button" onClick={() => setAdjustRows(rs => rs.filter((_, i) => i !== idx))}
+                        className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors">
+                        <Minus className="size-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" onClick={() => setAdjustRows(rs => [...rs, { currency: 'UZS', delta: '' }])}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg">
+                  <Plus className="size-3" /> {t('common.add')}
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.adjustDebtReason')}</label>
+                <input
+                  required minLength={3}
+                  value={adjustReason}
+                  onChange={e => setAdjustReason(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
+              <div className="flex gap-3">
+                <button type="button" onClick={closeAdjustDebt} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
+                  {t('common.cancel')}
+                </button>
+                <button type="submit" disabled={saving || adjustReason.trim().length < 3} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                  {saving ? '...' : t('common.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ── LOYALTY POINTS MODAL ─────────────────────────────── */}
       {modal === 'points' && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={closeModal}>
@@ -1605,12 +1854,21 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                     </p>
                   )}
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('customer.pointsReason')}</label>
+                  <input
+                    required minLength={3}
+                    value={pointsReason}
+                    onChange={e => setPointsReason(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
                 {error && <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{error}</div>}
                 <div className="flex gap-3">
                   <button type="button" onClick={closeModal} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium text-sm rounded-xl hover:bg-slate-50 transition-colors">
                     {t('common.cancel')}
                   </button>
-                  <button type="submit" disabled={saving || !pointsDelta} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
+                  <button type="submit" disabled={saving || !pointsDelta || pointsReason.trim().length < 3} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-colors">
                     {saving ? '...' : t('common.save')}
                   </button>
                 </div>
@@ -1705,11 +1963,35 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                                     <span className="font-bold text-red-500">{fmt(item.debt)} {t('common.sum')}</span>
                                   </div>
                                 )}
+                                {item.cashier && (
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">{tb('customer.cashier')}:</span>
+                                    <span className="font-medium text-slate-600">{item.cashier}</span>
+                                  </div>
+                                )}
+                                {(item.warehouse_name || item.branch_name) && (
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">{tb('customer.warehouseBranch')}:</span>
+                                    <span className="font-medium text-slate-600">{[item.warehouse_name, item.branch_name].filter(Boolean).join(' / ')}</span>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">{t('customer.paidAmount')}:</span>
                                 <span className="font-bold text-emerald-600 text-base">+{fmt(item.amount)} {t('common.sum')}</span>
+                              </div>
+                            )}
+                            {!isSale && (item.cashier || item.branch_name) && (
+                              <div className="mt-1 flex justify-between text-xs">
+                                <span className="text-slate-400">{item.cashier ? `${tb('customer.cashier')}: ${item.cashier}` : ''}</span>
+                                <span className="font-medium text-slate-600">{item.branch_name || ''}</span>
+                              </div>
+                            )}
+                            {item.op_type === 'debt_edit' && (item.edited_by || item.reason) && (
+                              <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 space-y-0.5">
+                                {item.edited_by && <div>{t('customer.historyEditedBy')}: <span className="font-semibold text-slate-700">{item.edited_by.name}</span></div>}
+                                {item.reason && <div>{t('customer.historyReason')}: <span className="font-semibold text-slate-700">{item.reason}</span></div>}
                               </div>
                             )}
                           </div>
@@ -1779,6 +2061,17 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                       </div>
                       <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">{t('customer.updateCustomersIfExists')}</span>
                     </label>
+                    {/* T4.5: barcha qatorlar uchun filial ("Filial" ustuni bo'lsa o'sha ustun ustun) */}
+                    {branches.length > 0 && (
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700" title={t('customer.importBranchHint')}>
+                        {t('customer.importBranchLabel')}:
+                        <select value={importBranchId} onChange={e => setImportBranchId(e.target.value)}
+                          className="h-9 px-3 border border-slate-200 rounded-xl text-sm font-semibold bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">{t('customer.importBranchNone')}</option>
+                          {branches.filter(b => b.is_active !== false).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </select>
+                      </label>
+                    )}
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">

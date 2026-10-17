@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Index, text, \
-    SmallInteger, JSON
+    SmallInteger, JSON, CheckConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy import Date
 
@@ -23,6 +23,8 @@ class Product(Base):
     sku = Column(String(50), nullable=False, index=True)
     barcode = Column(String(50), nullable=False, index=True)
     product_code = Column(String(100), nullable=True, index=True)
+    # T3.12: tarozi PLU kodi (1..99999) — korxona ichida unikal; tarozi fayllari va POS skaneri bir xil kodni ishlatadi
+    plu_code = Column(Integer, nullable=True)
     name = Column(String(200), nullable=False)
     name_ru = Column(String(200), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
@@ -55,7 +57,9 @@ class Product(Base):
     tags = Column(JSON, nullable=True, default=list) # e.g. ["New", "Discount"]
 
     category = relationship("Category", back_populates="products")
-    stock_level = relationship("StockLevel", back_populates="product", uselist=False)
+    # Faqat o'qish uchun (ko'p omborda bir nechta qator bo'ladi) — yozish
+    # get_or_create_stock / receive_stock / adjust_stock orqali (T0.34)
+    stock_level = relationship("StockLevel", viewonly=True, uselist=False)
     stock_movements = relationship("StockMovement", back_populates="product")
     sale_items = relationship("SaleItem", back_populates="product")
     customer_prices = relationship("CustomerPrice", back_populates="product", cascade="all, delete-orphan")
@@ -117,6 +121,9 @@ class Product(Base):
               postgresql_where=text('is_deleted = false')),
         Index('uq_products_barcode_active', 'company_id', 'barcode', unique=True,
               postgresql_where=text('is_deleted = false')),
+        Index('uq_products_plu_active', 'company_id', 'plu_code', unique=True,
+              postgresql_where=text('is_deleted = false AND plu_code IS NOT NULL')),
+        CheckConstraint('plu_code BETWEEN 1 AND 99999', name='ck_products_plu_range'),
     )
 
 

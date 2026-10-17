@@ -16,9 +16,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.branch_context import BRANCH_FORBIDDEN, BranchContext, get_branch_context
 from app.core.dependencies import require_roles
 from app.core.features import require_feature
 from app.database import get_db
+from app.models.branch import Branch
 from app.models.courier import Courier
 from app.models.customer import Customer
 from app.models.delivery_route import DeliveryRoute, DeliveryRouteStatus, DeliveryRouteStop
@@ -26,6 +28,7 @@ from app.models.order import Order, OrderStatus
 from app.models.sale_delivery import SaleDelivery, SaleDeliveryStatus
 from app.models.user import User, UserRole
 from app.models.vehicle import Vehicle
+from app.models.warehouse import Warehouse
 from app.services import sale_delivery_service as sd_service
 
 router = APIRouter(prefix="/logistics", tags=["logistics"],
@@ -135,6 +138,7 @@ class RouteIn(BaseModel):
     route_date: date
     courier_id: int
     vehicle_id: Optional[int] = None
+    origin_branch_id: Optional[int] = None  # T3.14: boshlang'ich (olib ketish) filial, ixtiyoriy
     note: Optional[str] = None
     group_keys: List[str] = Field(..., min_length=1)
 
@@ -241,7 +245,27 @@ class _Stop:
             if o.status not in FINAL:
                 o.status, o.courier_id, o.assigned_at, o.on_way_at = OrderStatus.confirmed, None, None, None
 
-    def summary(self, customers: dict) -> dict:
+    def pickup_branch_id(self, branches=None) -> Optional[int]:
+        """Tovar olinadigan filial. Sotuv: `sale.branch_id`, yo'q bo'lsa ombor filiali;
+        Telegram buyurtmasi: ombor filiali (bo'lsa), yo'q bo'lsa `Order.branch_id`."""
+        wh = getattr(branches, "wh_branch", None) or {}
+        if self.is_sale:
+            sale = self.delivery.sale
+            return sale.branch_id or wh.get(sale.warehouse_id)
+        first = self.orders[0]
+        return wh.get(getattr(first, "warehouse_id", None)) or first.branch_id
+
+    def pickup(self, branches=None) -> dict:
+        bid = self.pickup_branch_id(branches)
+        b = (branches or {}).get(bid) if bid else None
+        return {
+            "pickup_branch_id": bid,
+            "pickup_branch_name": b.name if b else None,
+            "pickup_address": b.address if b else None,
+            "pickup_phone": b.phone if b else None,
+        }
+
+    def summary(self, customers: dict, branches=None) -> dict:
         cust = customers.get(self.customer_id)
         if self.is_sale:
             d, sale = self.delivery, self.delivery.sale
@@ -263,6 +287,7 @@ class _Stop:
                 "note": d.note,
                 "status": self.status,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
+                **self.pickup(branches),
             }
         first = self.orders[0]
         return {
@@ -282,6 +307,7 @@ class _Stop:
             "items_count": len(self.orders),
             "status": self.status,
             "created_at": first.created_at.isoformat() if first.created_at else None,
+            **self.pickup(branches),
         }
 
 
@@ -335,6 +361,52 @@ def _customers_map(db: Session, stops: dict) -> dict:
     return {c.id: c for c in db.query(Customer).filter(Customer.id.in_(ids)).all()}
 
 
+class _BranchMap(dict):
+    """{branch_id: Branch}; `wh_branch` — {warehouse_id: branch_id} (ombor orqali aniqlangan filial)."""
+
+    def __init__(self):
+        super().__init__()
+        self.wh_branch: dict = {}
+
+
+def _branches_map(db: Session, stops) -> "_BranchMap":
+    """To'xtovlarning olib ketish filiallari (+ ombor filiallari) — bitta so'rovlar to'plamida."""
+    stops = list(stops.values()) if isinstance(stops, dict) else list(stops)
+    direct, wh_ids = set(), set()
+    for s in stops:
+        if s.is_sale:
+            sale = s.delivery.sale
+            if sale.branch_id:
+                direct.add(sale.branch_id)
+            elif sale.warehouse_id:
+                wh_ids.add(sale.warehouse_id)
+        elif s.orders:
+            first = s.orders[0]
+            wid = getattr(first, "warehouse_id", None)
+            if wid:
+                wh_ids.add(wid)
+            if first.branch_id:
+                direct.add(first.branch_id)
+    result = _BranchMap()
+    if wh_ids:
+        for wid, bid in db.query(Warehouse.id, Warehouse.branch_id).filter(Warehouse.id.in_(list(wh_ids))).all():
+            if bid:
+                result.wh_branch[wid] = bid
+    ids = direct | set(result.wh_branch.values())
+    if ids:
+        for b in db.query(Branch).filter(Branch.id.in_(list(ids))).all():
+            result[b.id] = b
+    return result
+
+
+def order_group_pickup(db: Session, orders: list) -> dict:
+    """Telegram buyurtma guruhi uchun olib ketish filiali (kuryer xabari / boti uchun)."""
+    if not orders:
+        return {"pickup_branch_id": None, "pickup_branch_name": None, "pickup_address": None, "pickup_phone": None}
+    st = _Stop(_group_key(orders[0]), orders=orders)
+    return st.pickup(_branches_map(db, [st]))
+
+
 def _keys_on_active_routes(db: Session, company_id: int, exclude_route_id: Optional[int] = None) -> set:
     q = db.query(DeliveryRouteStop.group_key).join(DeliveryRoute).filter(
         DeliveryRoute.company_id == company_id, DeliveryRoute.status.in_(ACTIVE_ROUTE),
@@ -347,8 +419,9 @@ def _keys_on_active_routes(db: Session, company_id: int, exclude_route_id: Optio
 def _route_out(db: Session, route: DeliveryRoute, with_stops: bool = True) -> dict:
     loaded = _load_stops(db, route.company_id, [s.group_key for s in route.stops])
     customers = _customers_map(db, loaded)
+    branches = _branches_map(db, loaded)
     stops = [
-        {"sequence": s.sequence, **loaded[s.group_key].summary(customers)}
+        {"sequence": s.sequence, **loaded[s.group_key].summary(customers, branches)}
         for s in route.stops if s.group_key in loaded
     ]
     delivered = sum(1 for s in stops if s["status"] == "delivered")
@@ -363,6 +436,8 @@ def _route_out(db: Session, route: DeliveryRoute, with_stops: bool = True) -> di
         "courier_phone": route.courier.phone if route.courier else None,
         "vehicle_id": route.vehicle_id,
         "vehicle_plate": route.vehicle.plate_number if route.vehicle else None,
+        "origin_branch_id": route.origin_branch_id,
+        "origin_branch_name": route.origin_branch.name if route.origin_branch else None,
         "note": route.note,
         "stops_total": len(stops),
         "stops_delivered": delivered,
@@ -439,9 +514,14 @@ def _notify_courier_sales(db: Session, stops: list, courier_id: int) -> None:
         if not company or not getattr(company, "courier_bot_token", None):
             return
         lines = [f"🆕 <b>Sizga {len(stops)} ta yetkazma biriktirildi</b>\n"]
+        branches = _branches_map(db, stops)
         for st in stops:
             d = st.delivery
             lines.append(f"🧾 #{d.sale.number} — {d.address or 'manzil kiritilmagan'}")
+            pk = st.pickup(branches)
+            if pk["pickup_branch_name"]:
+                lines.append("🏬 Olib ketish: " + pk["pickup_branch_name"]
+                             + (f", {pk['pickup_address']}" if pk["pickup_address"] else ""))
         lines.append("\n📦 Buyurtmalarim tugmasi orqali boshqaring.")
         send_tg_sync(company.courier_bot_token, courier.tg_chat_id, "\n".join(lines))
     except Exception:
@@ -468,37 +548,64 @@ def _notify_assigned(background_tasks: BackgroundTasks, db: Session, changed: li
         background_tasks.add_task(_notify_courier_sales, db, sale_stops, courier_id)
 
 
+def _check_branch(db: Session, company_id: int, branch_id: Optional[int]) -> None:
+    if branch_id is None:
+        return
+    if not db.query(Branch.id).filter(Branch.id == branch_id, Branch.company_id == company_id).first():
+        raise HTTPException(status_code=404, detail="Filial topilmadi")
+
+
 @router.get("/available-orders")
-def available_orders(db: Session = Depends(get_db), current_user: User = Depends(require_roles(*MANAGE_ROLES))):
+def available_orders(branch_id: Optional[int] = None, db: Session = Depends(get_db),
+                     current_user: User = Depends(require_roles(*MANAGE_ROLES)),
+                     ctx: BranchContext = Depends(get_branch_context)):
     """Marshrutga qo'shsa bo'ladigan yetkazmalar: Telegram buyurtmalari
-    (guruhlab) va ulgurji sotuv yetkazmalari."""
+    (guruhlab) va ulgurji sotuv yetkazmalari. `branch_id` — faqat shu filial
+    buyurtmalari/yetkazmalari; bermasa joriy filial doirasi (T1.1), admin/director uchun hammasi."""
+    from sqlalchemy import and_, or_
     from app.models.sale import Sale, SaleStatus
     cid = current_user.company_id
+    _check_branch(db, cid, branch_id)
+    scope = ctx.scope_ids()
+    if branch_id is not None:
+        if scope is not None and branch_id not in scope:
+            raise HTTPException(status_code=403, detail=BRANCH_FORBIDDEN)
+        scope = frozenset({branch_id})
     busy = _keys_on_active_routes(db, cid)
     stops: dict = {}
 
-    orders = db.query(Order).join(Customer, Customer.id == Order.customer_id).filter(
+    q = db.query(Order).join(Customer, Customer.id == Order.customer_id).filter(
         Customer.company_id == cid,
         Order.delivery_type == "delivery",
         Order.status.in_(ROUTABLE),
-    ).order_by(Order.created_at.asc()).all()
+    )
+    if scope is not None:
+        q = q.filter(Order.branch_id.in_(list(scope)))
+    orders = q.order_by(Order.created_at.asc()).all()
     for o in orders:
         k = _group_key(o)
         if k not in busy:
             stops.setdefault(k, _Stop(k)).orders.append(o)
 
-    deliveries = db.query(SaleDelivery).join(Sale, Sale.id == SaleDelivery.sale_id).filter(
+    dq = db.query(SaleDelivery).join(Sale, Sale.id == SaleDelivery.sale_id).filter(
         SaleDelivery.company_id == cid,
         SaleDelivery.status.in_(SALE_ROUTABLE),
         Sale.status.notin_([SaleStatus.cancelled, SaleStatus.refunded]),
-    ).order_by(SaleDelivery.planned_date.asc().nullslast(), SaleDelivery.created_at.asc()).all()
+    )
+    if scope is not None:
+        wh_sub = db.query(Warehouse.id).filter(Warehouse.branch_id.in_(list(scope)))
+        # sotuv filiali; u bo'lmasa (eski sotuvlar) ombor filiali
+        dq = dq.filter(or_(Sale.branch_id.in_(list(scope)),
+                           and_(Sale.branch_id.is_(None), Sale.warehouse_id.in_(wh_sub))))
+    deliveries = dq.order_by(SaleDelivery.planned_date.asc().nullslast(), SaleDelivery.created_at.asc()).all()
     for d in deliveries:
         k = f"{SALE_PREFIX}{d.sale_id}"
         if k not in busy:
             stops[k] = _Stop(k, delivery=d)
 
     customers = _customers_map(db, stops)
-    return [st.summary(customers) for st in stops.values()]
+    branches = _branches_map(db, stops)
+    return [st.summary(customers, branches) for st in stops.values()]
 
 
 @router.get("/routes")
@@ -524,7 +631,20 @@ def create_route(data: RouteIn, background_tasks: BackgroundTasks, db: Session =
                  current_user: User = Depends(require_roles(*MANAGE_ROLES))):
     cid = current_user.company_id
     courier, vehicle_id = _validate_courier_vehicle(db, cid, data.courier_id, data.vehicle_id)
+    _check_branch(db, cid, data.origin_branch_id)
     stops = _validate_stops(db, cid, data.group_keys)
+
+    # T3.14: to'xtov boshqa filialniki bo'lsa rad etilmaydi, faqat ogohlantiriladi
+    expected_branch = data.origin_branch_id or courier.branch_id
+    warnings: List[str] = []
+    if expected_branch:
+        branches = _branches_map(db, stops)
+        exp_name = (db.query(Branch.name).filter(Branch.id == expected_branch).scalar()) or str(expected_branch)
+        for k in data.group_keys:
+            pb = stops[k].pickup_branch_id(branches)
+            if pb and pb != expected_branch:
+                other = branches[pb].name if pb in branches else str(pb)
+                warnings.append(f"{k}: tovar \"{other}\" filialidan olinadi (marshrut filiali: \"{exp_name}\")")
 
     route = DeliveryRoute(
         number=_generate_route_number(db, cid, data.route_date),
@@ -532,6 +652,7 @@ def create_route(data: RouteIn, background_tasks: BackgroundTasks, db: Session =
         route_date=data.route_date,
         courier_id=courier.id,
         vehicle_id=vehicle_id,
+        origin_branch_id=data.origin_branch_id,
         status=DeliveryRouteStatus.planned,
         note=(data.note or "").strip() or None,
         created_by=current_user.id,
@@ -545,7 +666,7 @@ def create_route(data: RouteIn, background_tasks: BackgroundTasks, db: Session =
 
     if changed:
         _notify_assigned(background_tasks, db, changed, courier.id)
-    return _route_out(db, route)
+    return {**_route_out(db, route), "warnings": warnings}
 
 
 @router.put("/routes/{route_id}/stops")
@@ -634,7 +755,7 @@ def set_stop_status(route_id: int, group_key: str, data: StopStatusIn, backgroun
         background_tasks.add_task(_notify_customer_status, db, st.orders, new_status)
         if delivered:
             from app.services.order_to_sale import maybe_create_sale_for_delivered_group
-            background_tasks.add_task(maybe_create_sale_for_delivered_group, db, st.orders)
+            background_tasks.add_task(maybe_create_sale_for_delivered_group, db, st.orders, current_user)
     return _route_out(db, route)
 
 

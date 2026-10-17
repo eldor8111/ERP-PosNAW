@@ -1,0 +1,14 @@
+{
+  "uz": {
+    "finance.selectWallet": "Kassani tanlang",
+    "finance.createWalletFirst": "Avval kassa yarating"
+  },
+  "ru": {
+    "finance.selectWallet": "Выберите кассу",
+    "finance.createWalletFirst": "Сначала создайте кассу"
+  },
+  "en": {
+    "finance.selectWallet": "Select a cash register",
+    "finance.createWalletFirst": "Create a cash register first"
+  }
+}

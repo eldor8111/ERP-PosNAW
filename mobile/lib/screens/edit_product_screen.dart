@@ -23,6 +23,8 @@ class _EditProductScreenState extends State<EditProductScreen> {
   int? _selectedCategoryId;
   String _selectedCategoryName = '';
   List<dynamic> _myCategories = [];
+  List<dynamic> _warehouses = [];
+  int? _preferredWarehouseId;
   bool _loading = true;
   bool _saving = false;
   bool _removeBg = true;
@@ -45,6 +47,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
     _selectedCategoryId = p['category_id'] as int?;
     _selectedCategoryName = p['category_name'] ?? '';
+    _preferredWarehouseId = p['preferred_warehouse_id'] as int?;
 
     final imgs = p['images'] as List<dynamic>? ?? [];
     for (var img in imgs) {
@@ -54,6 +57,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
     }
 
     _fetchCategories();
+    _fetchWarehouses();
   }
 
   @override
@@ -82,6 +86,16 @@ class _EditProductScreenState extends State<EditProductScreen> {
       });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _fetchWarehouses() async {
+    try {
+      final resp = await apiClient.dio.get('/mobile/marketplace/warehouses');
+      if (!mounted) return;
+      setState(() => _warehouses = (resp.data is List) ? resp.data : []);
+    } catch (_) {
+      // Ixtiyoriy funksiya: xato bo'lsa dropdown ko'rsatilmaydi
     }
   }
 
@@ -191,6 +205,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
         'description': _descCtrl.text.trim(),
         'barcode': _barcodeCtrl.text.trim(),
         'images': _existingImages,
+        'preferred_warehouse_id': _preferredWarehouseId,
         'submit': true,
       });
 
@@ -469,6 +484,32 @@ class _EditProductScreenState extends State<EditProductScreen> {
             ),
 
             const SizedBox(height: 16),
+
+            // Topshirish ombori (ixtiyoriy)
+            if (_warehouses.isNotEmpty) ...[
+              DropdownButtonFormField<int?>(
+                initialValue: _preferredWarehouseId,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Topshirish ombori (ixtiyoriy)',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('Tanlanmagan (admin belgilaydi)')),
+                  ..._warehouses.map((w) => DropdownMenuItem<int?>(
+                    value: w['id'] as int,
+                    child: Text(
+                      w['branch_name'] != null ? '${w['name']} — ${w['branch_name']}' : '${w['name']}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )),
+                ],
+                onChanged: (val) => setState(() => _preferredWarehouseId = val),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Name
             const Text(

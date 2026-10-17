@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     AreaChart, Area, BarChart, Bar,
     XAxis, YAxis, CartesianGrid, Tooltip,
@@ -8,6 +8,9 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import { ROLES, ROLE_LABELS } from '../../constants/roles';
+import { useReportScope } from '../../hooks/useReportScope';
+import { useBranches } from '../../hooks/useBranches';
 import toast from 'react-hot-toast';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import { ChevronsUpDown, CheckIcon, Building2, Warehouse } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
@@ -81,14 +84,86 @@ const CustomTooltip = ({ active, payload, label }) => {
     );
 };
 
-export default function Profile() {
-    const { user } = useAuth();
+/* Profilni tahrirlash: ism, email, parol. Telefon login identifikatori — bu yerdan o'zgartirilmaydi. */
+function EditProfileModal({ user, onClose, onSaved }) {
     const { t } = useLang();
+    const [form, setForm] = useState({ name: user?.name || '', email: user?.email || '', current_password: '', new_password: '', confirm: '' });
+    const [saving, setSaving] = useState(false);
+    const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+    const submit = async (e) => {
+        e.preventDefault();
+        if (form.name.trim().length < 2) { toast.error(t('profile.nameTooShort')); return; }
+        if (form.new_password) {
+            if (form.new_password.length < 6) { toast.error(t('profile.passwordTooShort')); return; }
+            if (form.new_password !== form.confirm) { toast.error(t('profile.passwordMismatch')); return; }
+            if (!form.current_password) { toast.error(t('profile.currentPasswordRequired')); return; }
+        }
+        setSaving(true);
+        try {
+            const payload = { name: form.name.trim(), email: form.email.trim() };
+            if (form.new_password) { payload.current_password = form.current_password; payload.new_password = form.new_password; }
+            const { data } = await api.put('/auth/me', payload);
+            onSaved(data);
+            toast.success(t('profile.saved'));
+            onClose();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const field = "w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+            <form onSubmit={submit} onClick={e => e.stopPropagation()} className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-4">
+                <h3 className="text-lg font-bold text-slate-900">{t('profile.editTitle')}</h3>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">{t('profile.nameLabel')}</label>
+                    <input id="profile-name" className={field} value={form.name} onChange={set('name')} maxLength={100} autoFocus />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">{t('profile.emailLabel')}</label>
+                    <input id="profile-email" type="email" className={field} value={form.email} onChange={set('email')} placeholder="name@example.com" />
+                </div>
+                <div className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                    {t('profile.phoneNote', { phone: '+' + (user?.phone || '') })}
+                </div>
+                <div className="border-t border-slate-100 pt-3 space-y-3">
+                    <p className="text-xs font-semibold text-slate-500">{t('profile.changePassword')}</p>
+                    <input id="profile-current-password" type="password" className={field} value={form.current_password} onChange={set('current_password')} placeholder={t('profile.currentPassword')} autoComplete="current-password" />
+                    <input id="profile-new-password" type="password" className={field} value={form.new_password} onChange={set('new_password')} placeholder={t('profile.newPassword')} autoComplete="new-password" />
+                    <input id="profile-confirm-password" type="password" className={field} value={form.confirm} onChange={set('confirm')} placeholder={t('profile.confirmPassword')} autoComplete="new-password" />
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">{t('common.cancel')}</button>
+                    <button type="submit" disabled={saving} className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60">
+                        {saving ? t('common.saving') : t('common.save')}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
+// Dashboard (/reports/dashboard) backendda faqat shu rollarga ochiq; qolganlar uchun faqat profil kartasi
+const DASHBOARD_ROLES = [ROLES.ADMIN, ROLES.DIRECTOR, ROLES.MANAGER];
+
+export default function Profile() {
+    const { user, updateUser } = useAuth();
+    const { t } = useLang();
+    // yangi kalit lug'atda hali bo'lmasa — o'zbekcha zaxira matn
+    const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+    const [editOpen, setEditOpen] = useState(false);
     const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const canDashboard = DASHBOARD_ROLES.includes(user?.role);
+    const [loading, setLoading] = useState(canDashboard);
     const [error, setError] = useState(null);
+    const stopRef = useRef(false); // 403 bo'lsa avtomatik yangilash to'xtatiladi
     const [warehouses, setWarehouses] = useState([]);
-    const [branches, setBranches] = useState([]);
+    const { branches: allBranches, loading: branchesLoading } = useBranches();   // T3.8: yagona filial hooki
+    const branches = allBranches.filter(b => b.is_active);
     const [companyName, setCompanyName] = useState("");
     const [warehouseId, setWarehouseId] = useState(() => {
         const saved = localStorage.getItem('dashboard_warehouse_id');
@@ -98,47 +173,64 @@ export default function Profile() {
         const saved = localStorage.getItem('dashboard_branch_id');
         return saved ? Number(saved) : '';
     });
+    // T2.1: o'z filiali bilan cheklangan foydalanuvchi — filial qulflanadi, saqlangan tanlov e'tiborsiz
+    const reportScope = useReportScope();
+    const scopeReady = !canDashboard || reportScope.loaded;
+    const lockedBranchId = reportScope.restricted && reportScope.branchId ? Number(reportScope.branchId) : null;
+    useEffect(() => {
+        if (lockedBranchId) setBranchId(lockedBranchId);
+    }, [lockedBranchId]);
 
     useEffect(() => {
         if (user?.role !== 'super_admin') {
-            api.get('/billing/my-company').then(r => setCompanyName(r.data.name)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
-            api.get('/warehouses').then(r => {
-                const list = r.data;
-                setWarehouses(list);
-                // localStorage da saqlangan warehouseId haqiqiy omborlar ro'yxatida bo'lmasa — tozalaymiz
-                const savedWh = localStorage.getItem('dashboard_warehouse_id');
-                if (savedWh && !list.find(w => w.id === Number(savedWh))) {
-                    localStorage.removeItem('dashboard_warehouse_id');
-                    setWarehouseId('');
-                }
-            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
-            api.get('/branches').then(r => {
-                const list = r.data.filter(b => b.is_active);
-                setBranches(list);
-                // localStorage da saqlangan branchId haqiqiy filiallar ro'yxatida bo'lmasa — tozalaymiz
-                const savedBr = localStorage.getItem('dashboard_branch_id');
-                if (savedBr && !list.find(b => b.id === Number(savedBr))) {
-                    localStorage.removeItem('dashboard_branch_id');
-                    setBranchId('');
-                }
-            }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
+            api.get('/billing/my-company', canDashboard ? undefined : { _suppressToast: true })
+                .then(r => setCompanyName(r.data.name))
+                .catch((err) => { if (canDashboard) toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
         }
     }, [user]);
+
+    // localStorage da saqlangan branchId haqiqiy filiallar ro'yxatida bo'lmasa — tozalaymiz
+    useEffect(() => {
+        if (user?.role === 'super_admin' || branchesLoading || allBranches.failed) return;
+        const savedBr = localStorage.getItem('dashboard_branch_id');
+        if (savedBr && !lockedBranchId && !branches.find(b => b.id === Number(savedBr))) {
+            localStorage.removeItem('dashboard_branch_id');
+            setBranchId('');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, branchesLoading, allBranches]);
+
+    // Ombor ro'yxati tanlangan filialga qarab yuklanadi (T2.4); faqat dashboard rollari uchun
+    useEffect(() => {
+        if (!canDashboard || !scopeReady) return;
+        api.get('/warehouses', { params: branchId ? { branch_id: branchId } : {} }).then(r => {
+            const list = r.data;
+            setWarehouses(list);
+            // saqlangan warehouseId joriy ro'yxatda bo'lmasa — tozalaymiz
+            const savedWh = localStorage.getItem('dashboard_warehouse_id');
+            if (savedWh && !list.find(w => w.id === Number(savedWh))) {
+                localStorage.removeItem('dashboard_warehouse_id');
+                setWarehouseId('');
+            }
+        }).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('profile.errorOccurred')) });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, branchId, scopeReady]);
 
 
     const UserCreatedAt = user.created_at;
     const dateObj = new Date(UserCreatedAt);
 
     const load = (showSpinner = false) => {
-        if (user?.role === 'super_admin') return;
-        if (showSpinner) setLoading(true);
+        if (user?.role === 'super_admin' || !canDashboard) return;
+        if (showSpinner) { setLoading(true); stopRef.current = false; }
         setError(null);
         const params = {};
         if (warehouseId) params.warehouse_id = warehouseId;
         if (branchId) params.branch_id = branchId;
-        api.get('/reports/dashboard', { params })
+        api.get('/reports/dashboard', { params, _suppressToast: true })
             .then(res => { setData(res.data); setError(null); })
             .catch(err => {
+                if (err?.response?.status === 403) stopRef.current = true;
                 const msg = err?.response?.data?.detail || err?.message || t('profile.unknownError');
                 setError(msg);
             })
@@ -146,11 +238,15 @@ export default function Profile() {
     };
 
     useEffect(() => {
+        if (!canDashboard || !scopeReady) return;
         load(true);
-        const interval = setInterval(() => load(false), 120_000);
+        const interval = setInterval(() => {
+            if (stopRef.current || document.visibilityState !== 'visible') return;
+            load(false);
+        }, 300_000);   // T2.3: og'ir hisob-kitob — 5 daqiqada bir marta, faqat ko'rinib turgan tabda
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [warehouseId, branchId]);
+    }, [warehouseId, branchId, scopeReady]);
 
     const handleWarehouseChange = (e) => {
         const val = e.target.value;
@@ -160,8 +256,12 @@ export default function Profile() {
     };
 
     const handleBranchChange = (e) => {
+        if (lockedBranchId) return;  // T2.1: cheklangan foydalanuvchida filial almashmaydi
         const val = e.target.value;
         setBranchId(val ? Number(val) : '');
+        // filial almashganda eski ombor tanlovi tozalanadi (ombor filialni jimgina bekor qilmasin)
+        setWarehouseId('');
+        localStorage.removeItem('dashboard_warehouse_id');
         if (val) localStorage.setItem('dashboard_branch_id', val);
         else localStorage.removeItem('dashboard_branch_id');
     };
@@ -196,7 +296,7 @@ export default function Profile() {
                     </div>
                     <p className="text-slate-700 font-semibold text-lg">{t('dashboard.errorTitle')}</p>
                     <p className="text-slate-400 text-sm mt-1 mb-5">{t('dashboard.errorDesc')}</p>
-                    <button onClick={load} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-200">
+                    <button onClick={() => load(true)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-200">
                         {t('common.refresh')}
                     </button>
                 </div>
@@ -204,8 +304,9 @@ export default function Profile() {
         );
     }
 
-    if (!data) return null;
-    const kpis = [
+    if (canDashboard && !data) return null;
+    const userBranchName = branches.find(b => b.id === user?.branch_id)?.name;
+    const kpis = !data ? [] : [
         {
             label: t('dashboard.todaySales'),
             value: fmtCurrency(data.today?.sales),
@@ -259,7 +360,10 @@ export default function Profile() {
             ),
         },
         {
-            label: t('customer.totalDebt'),
+            // Qarz hali filialsiz: filial/ombor tanlanganda ham korxona bo'yicha (T2.3)
+            label: (branchId || warehouseId) && data.debts?.scope === 'company'
+                ? `${t('customer.totalDebt')} (${tf('profile.companyScope', "Korxona bo'yicha")})`
+                : t('customer.totalDebt'),
             value: fmtCurrency(data.debts?.total_debt),
             sub: data.debts?.overdue_count > 0
                 ? `⚠ ${data.debts.overdue_count} ${t('common.item')} ${t('common.warning').toLowerCase()}`
@@ -312,7 +416,7 @@ export default function Profile() {
                                     {user.name ? user.name.charAt(0).toUpperCase() + user.name.slice(1) : t('profile.unknownUser')}
                                 </h2>
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-50 to-blue-50 text-blue-700 border border-blue-100/60 shadow-sm uppercase tracking-wider">
-                                    {user.role || t('profile.userFallback')}
+                                    {ROLE_LABELS[user.role] || user.role || t('profile.userFallback')}
                                 </span>
                             </div>
 
@@ -324,6 +428,13 @@ export default function Profile() {
                                     </svg>
                                     {companyName || t('profile.companyNameFallback')}
                                 </div>
+
+                                {userBranchName && (
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200">
+                                        <Building2 className="size-3.5 text-slate-400" />
+                                        {userBranchName}
+                                    </div>
+                                )}
 
                                 <div className="flex items-center gap-2 text-gray-700 bg-gray-50/80 px-2.5 py-1 rounded-lg border border-gray-100/50 backdrop-blur-sm">
                                     <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -343,7 +454,7 @@ export default function Profile() {
                     </div>
 
                     {/* O'ng tomon: Neon effektli Tahrirlash tugmasi */}
-                    <button className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-2 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-violet-600 rounded-xl shadow-sm hover:from-blue-500 hover:to-violet-500 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                    <button type="button" onClick={() => setEditOpen(true)} className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-2 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-violet-600 rounded-xl shadow-sm hover:from-blue-500 hover:to-violet-500 active:scale-[0.98] transition-all duration-200 cursor-pointer border border-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                         <svg className="w-4 h-4 text-blue-100" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
                         </svg>
@@ -352,7 +463,15 @@ export default function Profile() {
 
                 </div>
             </div>
+            {editOpen && (
+                <EditProfileModal
+                    user={user}
+                    onClose={() => setEditOpen(false)}
+                    onSaved={(u) => updateUser({ name: u.name, email: u.email })}
+                />
+            )}
 
+            {canDashboard && data && (<>
             {/* Toolbar */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-4 flex-wrap w-full sm:w-auto">
@@ -361,10 +480,11 @@ export default function Profile() {
                         <div className="flex flex-col w-max">
                             <Listbox
                                 value={branchId}
+                                disabled={!!lockedBranchId}
                                 onChange={(value) => handleBranchChange({ target: { value } })} // Eski handleBranchChange mantiqini buzmaslik uchun
                             >
                                 <div className="relative">
-                                    <ListboxButton className="w-full cursor-pointer flex items-center px-3 py-2 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-sm text-left">
+                                    <ListboxButton title={lockedBranchId ? tf('reports.scopeRestricted', "Siz faqat o'z filialingiz hisobotini ko'rasiz") : undefined} className="data-[disabled]:cursor-not-allowed data-[disabled]:bg-slate-50 w-full cursor-pointer flex items-center px-3 py-2 justify-between rounded-lg border border-slate-200 text-[1rem] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-sm text-left">
                                         <span className="flex items-center gap-3">
                                             <Building2 className="size-5 shrink-0 text-slate-400" />
                                             <span className="block truncate">
@@ -382,6 +502,7 @@ export default function Profile() {
                                         className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md outline-0 bg-white text-base border border-slate-200 transition duration-100 ease-in data-[closed]:opacity-0 sm:text-sm shadow-lg"
                                     >
                                         {/* Barcha filiallar varianti (Bo'sh qiymat uchun) */}
+                                        {!lockedBranchId && (
                                         <ListboxOption
                                             value=""
                                             className="group relative py-2.5 pr-9 pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden"
@@ -396,9 +517,10 @@ export default function Profile() {
                                                 <CheckIcon aria-hidden="true" className="size-5" />
                                             </span>
                                         </ListboxOption>
+                                        )}
 
-                                        {/* Dinamik filiallar ro'yxati */}
-                                        {branches.map((b) => (
+                                        {/* Dinamik filiallar ro'yxati (cheklangan foydalanuvchida faqat o'z filiali) */}
+                                        {(lockedBranchId ? branches.filter(b => b.id === lockedBranchId) : branches).map((b) => (
                                             <ListboxOption
                                                 key={b.id}
                                                 value={b.id}
@@ -423,7 +545,7 @@ export default function Profile() {
                     )}
 
                     {/* 2. OMBORLAR (WAREHOUSES) SELECTBOX */}
-                    {warehouses.length > 1 && (
+                    {(warehouses.length > 1 || warehouseId) && (
                         <div className="flex flex-col min-w-[200px] flex-1 sm:flex-none">
                             <Listbox
                                 value={warehouseId}
@@ -630,7 +752,7 @@ export default function Profile() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {data.cashier_performance.map((c, i) => (
-                                        <tr key={c.name} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                        <tr key={c.cashier_id ?? c.name} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                                             <td className="px-6 py-3.5">
                                                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-amber-100 text-amber-700' :
                                                     i === 1 ? 'bg-slate-100 text-slate-600' :
@@ -639,7 +761,7 @@ export default function Profile() {
                                             </td>
                                             <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{c.name}</td>
                                             <td className="px-4 py-3.5 text-center text-sm text-slate-500">{c.count} {t('dashboard.salesCount')}</td>
-                                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-emerald-600">{fmt(c.total)}</td>
+                                            <td className="px-6 py-3.5 text-right text-sm font-semibold text-emerald-600">{fmtCurrency(c.totals)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -704,6 +826,7 @@ export default function Profile() {
                     </div>
                 )}
             </div>
+            </>)}
         </div>
     );
 }

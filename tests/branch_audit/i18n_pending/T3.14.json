@@ -1,0 +1,32 @@
+{
+  "uz": {
+    "logistics.pickupBranch": "Olib ketish",
+    "logistics.originBranch": "Boshlang'ich filial",
+    "logistics.branchFilter": "Buyurtmalar filiali",
+    "courier.branch": "Filial",
+    "courier.allBranches": "Barcha filiallar",
+    "m.handoverOtherBranch": "Bu boshqa filial kassasi. Baribir topshirasizmi?",
+    "m.handoverCancel": "Bekor qilish",
+    "m.walletClosedSuffix": "(yopiq)"
+  },
+  "ru": {
+    "logistics.pickupBranch": "Забрать в",
+    "logistics.originBranch": "Начальный филиал",
+    "logistics.branchFilter": "Филиал заказов",
+    "courier.branch": "Филиал",
+    "courier.allBranches": "Все филиалы",
+    "m.handoverOtherBranch": "Это касса другого филиала. Всё равно сдать?",
+    "m.handoverCancel": "Отменить",
+    "m.walletClosedSuffix": "(закрыта)"
+  },
+  "en": {
+    "logistics.pickupBranch": "Pickup",
+    "logistics.originBranch": "Origin branch",
+    "logistics.branchFilter": "Orders branch",
+    "courier.branch": "Branch",
+    "courier.allBranches": "All branches",
+    "m.handoverOtherBranch": "This is another branch's cash register. Hand over anyway?",
+    "m.handoverCancel": "Cancel",
+    "m.walletClosedSuffix": "(closed)"
+  }
+}

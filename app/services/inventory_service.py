@@ -17,57 +17,60 @@ def _deduct_batches_fifo(
     company_id: int,
     variant_id: Optional[int] = None,
     strict: bool = True,
-) -> None:
+) -> list[tuple]:
     """FEFO yoki FIFO tartibida Batch qoldiqlarini kamaytirish (chiqim/boshqa chiqim turlari uchun).
     strict=False: partiyalar yetmasa xato bermaydi, borini kamaytiradi — narxsiz kirim
-    qilingan (partiyasiz) qoldiqlar uchun."""
-    from app.models.batch import Batch
-    from datetime import date
-    from sqlalchemy import nulls_last
-    
-    product = db.query(Product).filter(Product.id == product_id).first()
-    is_perishable = False
-    if product and product.category:
-        is_perishable = product.category.is_perishable
-
-    q = db.query(Batch).filter(
-        Batch.product_id == product_id,
-        Batch.quantity > 0,
-        Batch.company_id == company_id,
+    qilingan (partiyasiz) qoldiqlar uchun.
+    Qaytaradi: [(Batch, olingan_miqdor), ...] — haqiqiy yechilgan partiyalar (tannarx hisobi uchun);
+    chaqiruvchilar xohlasa e'tiborsiz qoldirishi mumkin."""
+    from app.services.batch_allocator import (
+        allocate_batches, apply_allocations, is_perishable_product, tashkent_today,
     )
-    if variant_id is not None:
-        q = q.filter(Batch.variant_id == variant_id)
-    else:
-        q = q.filter(Batch.variant_id.is_(None))
-    if warehouse_id is not None:
-        q = q.filter(Batch.warehouse_id == warehouse_id)
-        
-    if is_perishable:
-        today_date = date.today()
-        q = q.filter((Batch.expiry_date == None) | (Batch.expiry_date >= today_date))
-        q = q.order_by(nulls_last(Batch.expiry_date.asc()), Batch.id.asc())
-    else:
-        q = q.order_by(Batch.created_at.asc(), Batch.id.asc())
-        
-    batches = q.with_for_update().all()
-    
-    total_available = sum(b.quantity for b in batches)
-    if strict and total_available < quantity:
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    # T1.6: yagona qoida — avval shu ombor partiyalari, so'ng omborsiz (NULL) eskilari;
+    # perishable kategoriyada muddati o'tganlar chiqariladi va FEFO tartib.
+    # (warehouse_id=None — ombor cheklovi yo'q, eski chaqiruvlar uchun)
+    allocations, shortfall = allocate_batches(
+        db, company_id=company_id, product_id=product_id, variant_id=variant_id,
+        warehouse_id=warehouse_id, quantity=quantity,
+        perishable=is_perishable_product(product), today=tashkent_today(),
+        deduct=not strict,
+    )
+    if strict and shortfall > 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Sotuv uchun yetarli yaroqli mahsulot (yoki yaroqlilik muddati o'tmagan qoldiq) yo'q. Hozirgi imkoniyat: {total_available}"
+            detail=f"Sotuv uchun yetarli yaroqli mahsulot (yoki yaroqlilik muddati o'tmagan qoldiq) yo'q. Hozirgi imkoniyat: {Decimal(str(quantity)) - shortfall}"
         )
-        
-    remaining = quantity
-    for batch in batches:
-        if remaining <= 0:
-            break
-        take = min(remaining, batch.quantity)
-        batch.quantity -= take
-        remaining -= take
+    if strict:
+        apply_allocations(allocations)
+    return [(a["batch"], a["quantity"]) for a in allocations]
 
 
-def get_or_create_stock(db: Session, product_id: int, warehouse_id: Optional[int] = None, variant_id: Optional[int] = None) -> StockLevel:
+def first_active_warehouse_id(db: Session, company_id: Optional[int]) -> Optional[int]:
+    """T1.7: korxonaning birinchi faol ombori (ORDER BY id) — ombor berilmagan oqimlar uchun zaxira."""
+    if not company_id:
+        return None
+    from app.models.warehouse import Warehouse
+    row = (
+        db.query(Warehouse.id)
+        .filter(Warehouse.company_id == company_id, Warehouse.is_active == True)  # noqa: E712
+        .order_by(Warehouse.id.asc())
+        .first()
+    )
+    return row[0] if row else None
+
+
+def get_or_create_stock(
+    db: Session,
+    product_id: int,
+    warehouse_id: Optional[int] = None,
+    variant_id: Optional[int] = None,
+    allow_null: bool = False,
+) -> StockLevel:
+    # T1.7: omborsiz (NULL) qoldiq qatori yaratilmaydi — faqat migratsiya/tozalash skripti allow_null=True beradi
+    if warehouse_id is None and not allow_null:
+        raise HTTPException(status_code=400, detail="Ombor ko'rsatilmagan")
     q = db.query(StockLevel).filter(StockLevel.product_id == product_id)
     if warehouse_id is not None:
         q = q.filter(StockLevel.warehouse_id == warehouse_id)
@@ -223,9 +226,14 @@ def deduct_stock(
         # Agar qoldiq yetarli bo'lmasa lekin allow_negative=True bo'lsa,
         # qoldiq nol bo'lgan omborga minus qilib yozib qoyamiz (yoki birinchi omborga)
         if total_available < quantity and allow_negative:
-            # Agar umuman stock yo'q bo'lsa, bitta dummy stock yaratamiz default warehouse bilan (yo'q bo'lsa warehouse_id=None)
+            # T1.7: umuman qoldiq bo'lmasa — korxonaning birinchi faol omborida qator ochiladi
+            # (NULL-omborli "egasiz" qator yaratilmaydi); ombor yo'q bo'lsa 400
             if not stocks:
-                stock = get_or_create_stock(db, product_id, None, variant_id)
+                company_id = db.query(Product.company_id).filter(Product.id == product_id).scalar()
+                fallback_wh_id = first_active_warehouse_id(db, company_id)
+                if fallback_wh_id is None:
+                    raise HTTPException(status_code=400, detail="Korxonada faol ombor yo'q")
+                stock = get_or_create_stock(db, product_id, fallback_wh_id, variant_id)
                 stocks = [stock]
             
             diff = quantity - total_available
@@ -291,12 +299,25 @@ def adjust_stock(
     reason: str,
     warehouse_id: Optional[int] = None,
     variant_id: Optional[int] = None,
+    company_id: Optional[int] = None,
 ) -> StockMovement:
     from app.models.product import Product
     from fastapi import HTTPException
-    
-    p = db.query(Product).filter(Product.id == product_id).first()
-    if p and p.product_type == 'sell':
+
+    # Ombor majburiy: aks holda get_or_create_stock tasodifiy (yoki NULL-omborli) qator oladi
+    if warehouse_id is None:
+        raise HTTPException(status_code=400, detail="Omborni tanlang")
+    if company_id is None:
+        raise HTTPException(status_code=400, detail="Korxona aniqlanmadi")
+
+    p = db.query(Product).filter(
+        Product.id == product_id,
+        Product.company_id == company_id,
+        Product.is_deleted == False,  # noqa: E712
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail=f"Mahsulot ID={product_id} topilmadi")
+    if p.product_type in ('sell', 'service'):
         raise HTTPException(status_code=400, detail="Tarkibiy (Kalkulyatsiya) mahsulot qoldig'ini o'zgartirib bo'lmaydi")
 
     stock = get_or_create_stock(db, product_id, warehouse_id, variant_id)
@@ -307,10 +328,12 @@ def adjust_stock(
     movement = StockMovement(
         product_id=product_id,
         variant_id=variant_id,
+        warehouse_id=warehouse_id,
         type=MovementType.ADJUST,
         qty_before=qty_before,
         qty_after=new_quantity,
         quantity=abs(diff),
+        reference_type="adjustment",
         user_id=user_id,
         reason=reason,
     )
@@ -319,17 +342,49 @@ def adjust_stock(
     return movement
 
 
+def resolve_chiqim_warehouse(db: Session, user, warehouse_id: Optional[int]) -> int:
+    """T1.8: chiqim ombori majburiy. Ko'rsatilsa — korxona/faollik/(non-admin uchun) filial tekshiriladi
+    (404/403). Ko'rsatilmasa (eski mijoz) — foydalanuvchi ko'lamida aynan bitta faol ombor bo'lsa shu,
+    aks holda 400 "Ombor tanlanmagan"."""
+    from app.models.warehouse import Warehouse
+    from app.services.tenant_guards import get_company_warehouse
+    if warehouse_id:
+        return get_company_warehouse(db, user, warehouse_id).id
+    q = db.query(Warehouse.id).filter(
+        Warehouse.company_id == user.company_id,
+        Warehouse.is_active == True,  # noqa: E712
+    )
+    if user.branch_id:
+        q = q.filter(Warehouse.branch_id == user.branch_id)
+    ids = [r[0] for r in q.order_by(Warehouse.id.asc()).limit(2).all()]
+    if len(ids) == 1:
+        return ids[0]
+    raise HTTPException(status_code=400, detail="Ombor tanlanmagan")
+
+
+def _next_chiqim_ref(db: Session) -> int:
+    """T1.8: chiqim hujjat raqami — PostgreSQL sequence (parallel so'rovlarda ham noyob);
+    sequence bo'lmagan muhitda (testlar/SQLite) max()+1."""
+    from sqlalchemy import func, text
+    if db.get_bind().dialect.name == "postgresql":
+        return int(db.execute(text("SELECT nextval('stock_chiqim_ref_seq')")).scalar())
+    max_ref = db.query(func.max(StockMovement.reference_id)).filter(StockMovement.reference_type == "chiqim").scalar()
+    return (max_ref or 0) + 1
+
+
 def create_chiqim_batch(
     db: Session,
     items,  # type: List[ChiqimBatchItem]
     user_id: int,
     company_id: Optional[int] = None,
     warehouse_id: Optional[int] = None,
+    reference_id: Optional[int] = None,
 ) -> int:
-    from sqlalchemy import func
     from app.models.product import ProductConversion, Product
-    max_ref = db.query(func.max(StockMovement.reference_id)).filter(StockMovement.reference_type == "chiqim").scalar()
-    ref_id = (max_ref or 0) + 1
+    # T1.8: ombor majburiy — aks holda deduct_stock "eng ko'p qoldiqli" tasodifiy ombordan yechardi
+    if not warehouse_id:
+        raise HTTPException(status_code=400, detail="Ombor tanlanmagan")
+    ref_id = reference_id if reference_id is not None else _next_chiqim_ref(db)
 
     for item in items:
         reason_parts = [item.type]
@@ -339,14 +394,19 @@ def create_chiqim_batch(
             reason_parts.append(item.reason)
         full_reason = " | ".join(reason_parts)
 
-        # Mahsulotni tekshiramiz
-        product = db.query(Product).filter(Product.id == item.product_id).first()
+        # Mahsulotni tekshiramiz (begona korxona mahsuloti — 404)
+        pq = db.query(Product).filter(Product.id == item.product_id)
+        if company_id is not None:
+            pq = pq.filter(Product.company_id == company_id)
+        product = pq.first()
+        if company_id is not None and product is None:
+            raise HTTPException(status_code=404, detail=f"Mahsulot ID={item.product_id} topilmadi")
         if product and getattr(product, 'product_type', 'stock') == 'sell':
             # Tarkibiy mahsulot: uning xom-ashyolarini chiqim qilamiz
             conversions = db.query(ProductConversion).filter(ProductConversion.sell_product_id == product.id).all()
             if not conversions:
                 raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot uchun xom-ashyo (konversiya) topilmadi")
-            
+
             for conv in conversions:
                 qty_needed = conv.ratio * item.quantity
                 deduct_stock(
@@ -362,7 +422,9 @@ def create_chiqim_batch(
                     variant_id=getattr(item, 'variant_id', None)
                 )
                 if company_id is not None and qty_needed > 0:
-                    _deduct_batches_fifo(db, conv.source_product_id, qty_needed, None, company_id, variant_id=getattr(item, 'variant_id', None))
+                    # strict=False: import/revizya/qaytarish orqali kirgan partiyasiz qoldiq ham chiqim qilinadi
+                    _deduct_batches_fifo(db, conv.source_product_id, qty_needed, warehouse_id, company_id,
+                                         variant_id=getattr(item, 'variant_id', None), strict=False)
         else:
             # Oddiy mahsulot
             deduct_stock(
@@ -378,34 +440,64 @@ def create_chiqim_batch(
                 variant_id=getattr(item, 'variant_id', None)
             )
             if company_id is not None and item.quantity > 0:
-                _deduct_batches_fifo(db, item.product_id, item.quantity, None, company_id, variant_id=getattr(item, 'variant_id', None))
+                _deduct_batches_fifo(db, item.product_id, item.quantity, warehouse_id, company_id,
+                                     variant_id=getattr(item, 'variant_id', None), strict=False)
 
     db.flush()
     return ref_id
 
 
-def delete_chiqim_batch(db: Session, reference_id: int, user_id: int, company_id: Optional[int] = None):
-    movements = db.query(StockMovement).filter(
+def active_chiqim_movements(db: Session, company_id: Optional[int], reference_id: int):
+    """T1.8: chiqim hujjatining JORIY harakatlari. Bekor qilishda asl harakatlar o'chirilmaydi
+    (T1.19), tahrirda esa shu reference_id bilan yangilari yoziladi — shuning uchun oxirgi
+    `chiqim_revert` (storno) dan keyingi harakatlargina joriy hisoblanadi."""
+    from sqlalchemy import func
+    rq = db.query(func.max(StockMovement.id)).join(Product, Product.id == StockMovement.product_id).filter(
+        StockMovement.reference_type == "chiqim_revert",
+        StockMovement.reference_id == reference_id,
+    )
+    if company_id is not None:
+        rq = rq.filter(Product.company_id == company_id)
+    last_revert = rq.scalar() or 0
+    q = db.query(StockMovement).join(Product, Product.id == StockMovement.product_id).filter(
         StockMovement.reference_type == "chiqim",
-        StockMovement.reference_id == reference_id
-    ).all()
-    
+        StockMovement.reference_id == reference_id,
+        StockMovement.id > last_revert,
+    )
+    if company_id is not None:
+        q = q.filter(Product.company_id == company_id)
+    return q.order_by(StockMovement.id.asc()).all()
+
+
+def delete_chiqim_batch(db: Session, reference_id: int, user_id: int, company_id: Optional[int] = None):
+    movements = active_chiqim_movements(db, company_id, reference_id)
+
     if not movements:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Chiqim topilmadi")
+        # Hujjat umuman yo'qmi yoki allaqachon bekor qilinganmi — farqlaymiz
+        eq = db.query(StockMovement.id).join(Product, Product.id == StockMovement.product_id).filter(
+            StockMovement.reference_type == "chiqim",
+            StockMovement.reference_id == reference_id,
+        )
+        if company_id is not None:
+            eq = eq.filter(Product.company_id == company_id)
+        if not eq.first():
+            raise HTTPException(status_code=404, detail="Chiqim topilmadi")
+        # T1.19: asl harakatlar o'chirilmaydi (tarix saqlanadi) — takroriy bekor qilishda qoldiq ikki marta qaytmaydi
+        raise HTTPException(status_code=400, detail="Chiqim allaqachon bekor qilingan")
 
-    from app.models.warehouse import Warehouse
-    # Omborni aniqlash (birinchi valid omborga qaytarib qo'yamiz)
-    wh = db.query(Warehouse).filter(Warehouse.company_id == company_id, Warehouse.is_active == True).first() if company_id else None
-    wh_id = wh.id if wh else None
+    # Eski (warehouse_id NULL) harakatlar uchungina zaxira: korxonaning birinchi faol ombori
+    fallback_wh_id = first_active_warehouse_id(db, company_id)
 
-    # Guruhlash (chunki deduct_stock bitta mahsulot uchun bir nechta movement yaratgan bo'lishi mumkin)
-    product_totals = {}
+    # (mahsulot, variant, ombor) bo'yicha guruhlash — deduct_stock bitta mahsulot uchun bir nechta harakat yozgan bo'lishi mumkin
+    totals = {}
     for mov in movements:
-        product_totals[mov.product_id] = product_totals.get(mov.product_id, Decimal("0")) + mov.quantity
+        key = (mov.product_id, mov.variant_id, mov.warehouse_id or fallback_wh_id)
+        totals[key] = totals.get(key, Decimal("0")) + mov.quantity
 
-    for product_id, total_qty in product_totals.items():
+    for (product_id, variant_id, wh_id), total_qty in totals.items():
         if total_qty > 0:
+            if wh_id is None:
+                raise HTTPException(status_code=400, detail="Korxonada faol ombor yo'q")
             receive_stock(
                 db=db,
                 product_id=product_id,
@@ -415,30 +507,31 @@ def delete_chiqim_batch(db: Session, reference_id: int, user_id: int, company_id
                 reference_type="chiqim_revert",
                 reference_id=reference_id,
                 warehouse_id=wh_id,
-                variant_id=mov.variant_id
+                variant_id=variant_id
             )
 
-            # FIFO: bekor qilingan chiqimni so'nggi Batch'ga qaytarish
+            # FIFO: bekor qilingan chiqimni shu ombordagi so'nggi Batch'ga qaytarish
             if company_id is not None:
                 from app.models.batch import Batch
                 q_last_batch = db.query(Batch).filter(
                     Batch.product_id == product_id,
                     Batch.company_id == company_id,
+                    Batch.warehouse_id == wh_id,
                 )
-                if mov.variant_id is not None:
-                    q_last_batch = q_last_batch.filter(Batch.variant_id == mov.variant_id)
+                if variant_id is not None:
+                    q_last_batch = q_last_batch.filter(Batch.variant_id == variant_id)
                 else:
                     q_last_batch = q_last_batch.filter(Batch.variant_id.is_(None))
-                    
+
                 last_batch = q_last_batch.order_by(Batch.created_at.desc(), Batch.id.desc()).first()
-                
+
                 if last_batch:
                     last_batch.quantity += total_qty
                 else:
                     product_obj = db.query(Product).filter(Product.id == product_id).first()
                     db.add(Batch(
                         product_id=product_id,
-                        variant_id=mov.variant_id,
+                        variant_id=variant_id,
                         warehouse_id=wh_id,
                         lot_number="chiqim-revert",
                         initial_quantity=total_qty,
@@ -446,8 +539,5 @@ def delete_chiqim_batch(db: Session, reference_id: int, user_id: int, company_id
                         purchase_price=product_obj.cost_price if product_obj else Decimal("0"),
                         company_id=company_id,
                     ))
-
-    for mov in movements:
-        db.delete(mov)
 
     db.flush()

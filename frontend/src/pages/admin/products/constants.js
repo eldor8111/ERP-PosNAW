@@ -125,7 +125,7 @@ export const emptyBulkRow = () => ({
 });
 
 export const emptyCategory = { name: '', parent_id: '', sort_order: 0, is_perishable: false };
-export const emptyBinLoc = { code: '', label: '' };
+export const emptyBinLoc = { code: '', label: '', warehouse_id: '' };
 
 /* ─── String helpers ───────────────────────────────── */
 export const normalizeApos = (s) => s

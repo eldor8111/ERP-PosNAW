@@ -1,3 +1,5 @@
+import logging
+from types import SimpleNamespace
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional, Union
@@ -5,22 +7,35 @@ from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, BackgroundTasks
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload, aliased
+from sqlalchemy.orm import Session, joinedload, aliased, object_session
 
+from app.core.branch_context import BranchContext, apply_branch_scope, get_branch_context
 from app.core.dependencies import get_current_user, require_roles
+from app.config import settings
 from app.database import get_db
+from app.models.company import Company
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
+from app.models.warehouse import Warehouse
 from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate, SalePage, SaleAssignCustomer
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale, reassign_sale_customer
 from app.services.sale_partial_return import process_partial_return
+from app.services.sale_helpers import apply_sale_branch_filter
 from app.services.hippo_fiscalize import fiscalize_sale
-from app.admin_tg_bot.notifications import trigger_instant_notification
+from app.routers.fiscal_devices import company_has_active_devices, device_allowed_for_branch
+from app.routers.payment_terminals import attach_payment_references, validate_sale_payment_terminals
+from app.admin_tg_bot.notifications import notify_new_sale
+from app.utils.telegram_text import esc
 
 router = APIRouter(prefix="/sales", tags=["Sales (POS)"])
 
 POS_ROLES = (UserRole.admin, UserRole.director, UserRole.cashier, UserRole.manager)
+# Sotuv detali/cheki/ro'yxatini ko'ra oladigan rollar (mobil rollar — courier/agent/marketplace_agent — chiqarilgan)
+SALE_VIEW_ROLES = (
+    UserRole.admin, UserRole.director, UserRole.manager,
+    UserRole.accountant, UserRole.cashier, UserRole.warehouse,
+)
 
 
 def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
@@ -32,12 +47,55 @@ def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
             joinedload(Sale.payments),
             joinedload(Sale.cashier),
             joinedload(Sale.customer),
+            joinedload(Sale.branch),
+            joinedload(Sale.warehouse).joinedload(Warehouse.branch),  # T3.7: chek rekvizitlari
         )
         .filter(Sale.id == sale_id)
     )
     if user and user.role != UserRole.super_admin:
         q = q.filter(Sale.company_id == user.company_id)
+        # Filial ruxsati (admin/director/super_admin cheklanmaydi)
+        q = apply_sale_branch_filter(q, db, user)
     return q.first()
+
+
+def _sale_branch(sale: Sale):
+    """Sotuv filiali: `sale.branch_id` snapshoti (T1.9), bo'lmasa ombor filiali (eski sotuvlar)."""
+    if sale.branch is not None:
+        return sale.branch
+    wh = sale.warehouse
+    return wh.branch if wh is not None else None
+
+
+def _presale_branch_id(db: Session, user: User, ctx: BranchContext, data) -> Optional[int]:
+    """Sotuv yaratilishidan oldin filialni taxminan aniqlaydi (T3.18, terminal tekshiruvi uchun):
+    ombor filiali -> joriy filial konteksti. Aniqlanmasa None (terminal tekshiruvi butun korxona terminallari bilan)."""
+    if getattr(data, "warehouse_id", None):
+        bid = db.query(Warehouse.branch_id).filter(
+            Warehouse.id == data.warehouse_id, Warehouse.company_id == user.company_id,
+        ).scalar()
+        if bid:
+            return bid
+    return ctx.branch_id
+
+
+def _sale_receipt_meta(sale: Sale) -> dict:
+    """Chek rekvizitlari (T3.7): filial nomi/manzili/telefoni, ombor va korxona nomi. Aniqlanmasa — None."""
+    br = _sale_branch(sale)
+    db = object_session(sale)
+    company_name = None
+    if db is not None and sale.company_id is not None:
+        company_name = db.query(Company.name).filter(Company.id == sale.company_id).scalar()
+    return {
+        "branch_name": br.name if br else None,
+        "branch_address": br.address if br else None,
+        "branch_phone": br.phone if br else None,
+        # T4.2: filial yuridik nomi va STIR (chek sarlavhasi; bo'sh bo'lsa frontend korxona shablonini ishlatadi)
+        "branch_legal_name": br.legal_name if br else None,
+        "branch_stir": br.stir if br else None,
+        "warehouse_name": sale.warehouse.name if sale.warehouse else None,
+        "company_name": company_name,
+    }
 
 
 def _delivery_dict(d) -> Optional[dict]:
@@ -56,7 +114,7 @@ def _delivery_dict(d) -> Optional[dict]:
     }
 
 
-def _build_sale_out(sale: Sale) -> SaleOut:
+def _build_sale_out(sale: Sale, hide_cost: bool = False) -> SaleOut:
     items = [
         SaleItemOut(
             id=i.id,
@@ -65,7 +123,7 @@ def _build_sale_out(sale: Sale) -> SaleOut:
             sku=i.product.sku if i.product else None,
             quantity=i.quantity,
             unit_price=i.unit_price,
-            cost_price=i.cost_price,
+            cost_price=None if hide_cost else i.cost_price,
             discount=i.discount,
             subtotal=i.subtotal,
             returned_quantity=getattr(i, 'returned_quantity', None) or Decimal("0"),
@@ -78,6 +136,8 @@ def _build_sale_out(sale: Sale) -> SaleOut:
             ),
             currency_code=getattr(i, 'currency_code', 'UZS'),
             exchange_rate=getattr(i, 'exchange_rate', Decimal("1.0")),
+            promotion_id=getattr(i, 'promotion_id', None),  # C4.1 (T4.3)
+            promotion_discount=getattr(i, 'promotion_discount', None),
         )
         for i in sale.items
     ]
@@ -86,7 +146,9 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         SalePaymentOut(
             id=p.id,
             payment_type=p.payment_type,
-            amount=p.amount
+            amount=p.amount,
+            reference=getattr(p, 'reference', None),
+            terminal_id=getattr(p, 'terminal_id', None),
         )
         for p in sale.payments
     ] if hasattr(sale, 'payments') else []
@@ -97,8 +159,10 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         cashier_id=sale.cashier_id,  # type: ignore
         cashier_name=sale.cashier.name if sale.cashier else f"ID={sale.cashier_id}",
         customer_id=sale.customer_id,  # type: ignore
-        customer_name=sale.customer.name if getattr(sale, 'customer', None) else None,
+        customer_name=sale.customer.name if getattr(sale, 'customer', None) and sale.customer.company_id == sale.company_id else None,
         warehouse_id=sale.warehouse_id,  # type: ignore
+        branch_id=sale.branch_id,  # type: ignore
+        **_sale_receipt_meta(sale),
         total_amount=sale.total_amount,  # type: ignore
         discount_amount=sale.discount_amount,  # type: ignore
         paid_amount=sale.paid_amount,  # type: ignore
@@ -121,7 +185,9 @@ def _build_sale_out(sale: Sale) -> SaleOut:
         fiscal_receipt_seq=getattr(sale, 'fiscal_receipt_seq', None),
         fiscal_transaction_id=getattr(sale, 'fiscal_transaction_id', None),
         fiscal_at=getattr(sale, 'fiscal_at', None),
+        fiscal_factory_id=getattr(sale, 'fiscal_factory_id', None),
         delivery=_delivery_dict(getattr(sale, "delivery", None)),
+        original_sale_id=getattr(sale, 'original_sale_id', None),
     )
 
 
@@ -130,6 +196,8 @@ def _build_sale_list_out(sale: Sale) -> SaleListOut:
     return SaleListOut(
         id=sale.id,  # type: ignore
         number=sale.number,  # type: ignore
+        branch_id=sale.branch_id,  # type: ignore
+        **_sale_receipt_meta(sale),
         cashier_name=sale.cashier.name if sale.cashier else f"ID={sale.cashier_id}",
         total_amount=sale.total_amount,  # type: ignore
         discount_amount=sale.discount_amount,  # type: ignore
@@ -140,12 +208,13 @@ def _build_sale_list_out(sale: Sale) -> SaleListOut:
         payment_type=sale.payment_type,
         status=sale.status,
         customer_id=sale.customer_id,  # type: ignore
-        customer_name=sale.customer.name if getattr(sale, 'customer', None) else None,
+        customer_name=sale.customer.name if getattr(sale, 'customer', None) and sale.customer.company_id == sale.company_id else None,
         items_count=len(sale.items),  # type: ignore
         created_at=sale.created_at,  # type: ignore
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
         debt_amounts=getattr(sale, 'debt_amounts', None),
         before_debt_balances=getattr(sale, 'before_debt_balances', None),
+        original_sale_id=getattr(sale, 'original_sale_id', None),
     )
 
 
@@ -156,6 +225,7 @@ def make_sale(
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*POS_ROLES)),
+        ctx: BranchContext = Depends(get_branch_context),  # T1.5: X-Branch-Id -> sotuv filiali/ombori (db.info)
 ):
     """POS — yangi sotuv amalga oshirish"""
     ip = request.client.host if request.client else None
@@ -175,6 +245,10 @@ def make_sale(
         if existing:
             return _build_sale_list_out(existing)
 
+    # T3.18: terminal korxona/filialga tegishliligi va majburiy tranzaksiya raqami (sotuv yaratilishidan oldin)
+    validate_sale_payment_terminals(db, current_user, data, _presale_branch_id(db, current_user, ctx, data))
+    _apply_header_approval(request, data)  # C4.1 (T4.6): X-Approval-Id -> data.approval_id
+
     try:
         sale = create_sale(db=db, data=data, current_user=current_user, ip=ip, background_tasks=background_tasks, idempotency_key=idem_key)
     except IntegrityError:
@@ -188,30 +262,37 @@ def make_sale(
             ).first()
             if dup:
                 return _build_sale_list_out(dup)
-        raise
-    cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
+        # Kutilmagan unique to'qnashuv (raqam hisoblagichi bilan nazariy) — 500 emas, 409 (T1.14)
+        logging.getLogger(__name__).exception("Sotuvni saqlashda IntegrityError")
+        raise HTTPException(status_code=409, detail="Sotuvni saqlashda ziddiyat, qayta urinib ko'ring")
+    attach_payment_references(db, sale, data)  # T3.18: payments[].reference/terminal_id -> SalePayment
+    cust_name = db.query(Customer.name).filter(Customer.id == sale.customer_id, Customer.company_id == sale.company_id).scalar() if sale.customer_id else None
 
     # ── Hippo fiskalizatsiya (background) ────────────────────────────────────
-    # Kassir X-Hippo-Factory-Id headerini yuborsa — chek fiskallashtiriladi.
+    # T3.18: faqat HIPPO_SERVER_ENABLED=true bo'lsa (standart o'chiq): lokal ko'prik o'zi fiskallaydi va natijani
+    # PATCH /sales/{id}/fiscal bilan yozadi — server ham fiskallasa chek ikki marta fiskallanardi.
     # Header bo'lmasa — xato ko'tarilmaydi, sotuv normal saqlanadi.
-    _factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip()
-    if _factory_id:
+    _factory_id = request.headers.get("X-Hippo-Factory-Id", "").strip() if settings.HIPPO_SERVER_ENABLED else ""
+    if _factory_id and (
+        not company_has_active_devices(db, sale.company_id)
+        or device_allowed_for_branch(db, sale.company_id, _factory_id, sale.branch_id)
+    ):
         background_tasks.add_task(fiscalize_sale, db, sale.id, _factory_id)  # type: ignore[arg-type]
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── Telegram bildirishnoma ──
+    # Javobdan KEYIN event loop'da yuboriladi (Telegram kechikishi chekni ushlab turmaydi, T3.16);
+    # xabar matni (filial/ombor/kassir/mijoz) fon vazifasida o'z sessiyasida tuziladi
     try:
-        msg = f"🛒 <b>Yangi Sotuv!</b>\n🧾 Chek: #{sale.number}\n👤 Kassir: {current_user.name}\n"
-        if cust_name:
-            msg += f"🤝 Mijoz: {cust_name}\n"
-        msg += f"💰 Summa: {float(sale.total_amount):,.0f} UZS"
-        trigger_instant_notification(current_user.company_id, msg, "sale")
+        background_tasks.add_task(notify_new_sale, sale.id)
     except Exception as e:
         print(f"Telegram notification error: {e}")
 
     return SaleListOut(
         id=sale.id,  # type: ignore
         number=sale.number,  # type: ignore
+        branch_id=sale.branch_id,  # type: ignore
+        **_sale_receipt_meta(sale),
         cashier_name=current_user.name,  # type: ignore
         total_amount=sale.total_amount,  # type: ignore
         discount_amount=sale.discount_amount,  # type: ignore
@@ -239,8 +320,12 @@ def make_bulk_sales(
         background_tasks: BackgroundTasks,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*POS_ROLES)),
+        ctx: BranchContext = Depends(get_branch_context),  # T1.5: X-Branch-Id -> sotuv filiali/ombori (db.info)
 ):
     """POS — Oflayn rejimdagi to'plangan sotuvlarni bir vaqtda jo'natish"""
+    # C4.1 (T4.6): bulk uchun yagona X-Approval-Id sarlavhasi QO'LLANMAYDI (bitta tasdiq bir marta ishlatiladi, to'plam
+    # esa ko'p sotuv). `block` qoidasi va tanadagi `sales[].approval_id` har sotuvda alohida ishlaydi; tasdiq talab
+    # qilinadigan (`require_approval`) sotuv butun to'plamni emas, faqat o'zini `errors` ga tushiradi.
     ip = request.client.host if request.client else None
     successful = []
     errors = []
@@ -249,13 +334,17 @@ def make_bulk_sales(
         try:
             # Har bir sotuvni yangi savepoint ichida yaratamiz (birortasi xato qilsa hammasi to'xtamasligi uchun)
             with db.begin_nested():
+                validate_sale_payment_terminals(db, current_user, sale_data, _presale_branch_id(db, current_user, ctx, sale_data))
                 sale = create_sale(db=db, data=sale_data, current_user=current_user, ip=ip, background_tasks=background_tasks)
+                # C4.1: reference/terminal_id create_sale ichida SalePayment ga yoziladi (attach_payment_references kerak emas)
                 
-                cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
+                cust_name = db.query(Customer.name).filter(Customer.id == sale.customer_id, Customer.company_id == sale.company_id).scalar() if sale.customer_id else None
                 
                 successful.append(SaleListOut(
                     id=sale.id,  # type: ignore
                     number=sale.number,  # type: ignore
+                    branch_id=sale.branch_id,  # type: ignore
+                    **_sale_receipt_meta(sale),
                     cashier_name=current_user.name,  # type: ignore
                     total_amount=sale.total_amount,  # type: ignore
                     discount_amount=sale.discount_amount,  # type: ignore
@@ -295,14 +384,17 @@ def make_pending_sale(
         request: Request,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*POS_ROLES)),
+        ctx: BranchContext = Depends(get_branch_context),  # T1.5: X-Branch-Id -> sotuv filiali/ombori (db.info)
 ):
     """Ulgurji sotuv — to'lovsiz (pending) holatda saqlash. Stock tegilmaydi."""
     ip = request.client.host if request.client else None
     sale = create_pending_sale(db=db, data=data, current_user=current_user, ip=ip)
-    cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
+    cust_name = db.query(Customer.name).filter(Customer.id == sale.customer_id, Customer.company_id == sale.company_id).scalar() if sale.customer_id else None
     return SaleListOut(
         id=sale.id,  # type: ignore
         number=sale.number,  # type: ignore
+        branch_id=sale.branch_id,  # type: ignore
+        **_sale_receipt_meta(sale),
         cashier_name=current_user.name,  # type: ignore
         total_amount=sale.total_amount,  # type: ignore
         discount_amount=sale.discount_amount,  # type: ignore
@@ -321,6 +413,45 @@ def make_pending_sale(
     )
 
 
+def _approval_id_from_header(request: Request) -> Optional[int]:
+    """C4.1 (T4.6): `X-Approval-Id` sarlavhasi (tasdiqlangan so'rov id si); noto'g'ri qiymat e'tiborsiz."""
+    raw = (request.headers.get("X-Approval-Id") or "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+def _apply_header_approval(request: Request, data) -> None:
+    """Tanada `approval_id` bo'lmasa `X-Approval-Id` sarlavhasidan qo'yadi (tana ustuvor)."""
+    if getattr(data, "approval_id", None) is None:
+        hdr = _approval_id_from_header(request)
+        if hdr is not None:
+            data.approval_id = hdr
+
+
+def _read_idempotency_key(request: Request) -> Optional[str]:
+    """Idempotency-Key sarlavhasi (bo'sh bo'lsa None); 64 belgidan uzun bo'lsa 400."""
+    idem_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    if idem_key and len(idem_key) > 64:
+        raise HTTPException(status_code=400, detail="Idempotency-Key 64 belgidan oshmasligi kerak")
+    return idem_key
+
+
+def _find_by_idempotency_key(db: Session, user: User, idem_key: Optional[str]) -> Optional[Sale]:
+    if not idem_key:
+        return None
+    return db.query(Sale).filter(
+        Sale.idempotency_key == idem_key,
+        Sale.company_id == user.company_id,
+    ).first()
+
+
+def _partial_return_out(db: Session, return_doc: Sale, user: User) -> SaleOut:
+    """Takror kalit: birinchi javobdagi kabi asl sotuvning hozirgi holati qaytariladi."""
+    target = None
+    if return_doc.original_sale_id:
+        target = _load_sale(db, return_doc.original_sale_id, user)
+    return _build_sale_out(target or return_doc, hide_cost=user.role == UserRole.cashier)
+
+
 @router.post("/{sale_id}/return-items", response_model=SaleOut)
 def partial_return(
     sale_id: int,
@@ -330,14 +461,31 @@ def partial_return(
     current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     ip = request.client.host if request.client else None
-    updated_sale = process_partial_return(
-        db=db,
-        sale_id=sale_id,
-        data=data,
-        current_user=current_user,
-        ip=ip
-    )
-    return _build_sale_out(updated_sale)
+
+    # Takroriy qaytarishdan himoya (make_sale dagi kabi): shu kalit bilan hujjat bor bo'lsa — mavjudini qaytaramiz
+    idem_key = _read_idempotency_key(request)
+    existing = _find_by_idempotency_key(db, current_user, idem_key)
+    if existing:
+        return _partial_return_out(db, existing, current_user)
+    _apply_header_approval(request, data)  # C4.1 (T4.6)
+
+    try:
+        updated_sale = process_partial_return(
+            db=db,
+            sale_id=sale_id,
+            data=data,
+            current_user=current_user,
+            ip=ip,
+            idempotency_key=idem_key,
+        )
+    except IntegrityError:
+        # Poyga holati: xuddi shu kalit bilan parallel so'rov allaqachon yaratib ulgurgan
+        db.rollback()
+        dup = _find_by_idempotency_key(db, current_user, idem_key)
+        if dup:
+            return _partial_return_out(db, dup, current_user)
+        raise
+    return _build_sale_out(updated_sale, hide_cost=current_user.role == UserRole.cashier)
 
 
 
@@ -350,11 +498,28 @@ def make_return_sale(
 ):
     """POS — qaytarish (vazvrat) amalga oshirish"""
     ip = request.client.host if request.client else None
-    sale = create_return_sale(db=db, data=data, current_user=current_user, ip=ip)
-    cust_name = sale.customer.name if getattr(sale, 'customer', None) else (db.query(Customer.name).filter(Customer.id == sale.customer_id).scalar() if sale.customer_id else None)
+
+    # Takroriy qaytarishdan himoya (make_sale dagi kabi): shu kalit bilan hujjat bor bo'lsa — mavjudini qaytaramiz
+    idem_key = _read_idempotency_key(request)
+    existing = _find_by_idempotency_key(db, current_user, idem_key)
+    if existing:
+        return _build_sale_list_out(existing)
+    _apply_header_approval(request, data)  # C4.1 (T4.6)
+
+    try:
+        sale = create_return_sale(db=db, data=data, current_user=current_user, ip=ip, idempotency_key=idem_key)
+    except IntegrityError:
+        db.rollback()
+        dup = _find_by_idempotency_key(db, current_user, idem_key)
+        if dup:
+            return _build_sale_list_out(dup)
+        raise
+    cust_name = db.query(Customer.name).filter(Customer.id == sale.customer_id, Customer.company_id == sale.company_id).scalar() if sale.customer_id else None
     return SaleListOut(
         id=sale.id,  # type: ignore
         number=sale.number,  # type: ignore
+        branch_id=sale.branch_id,  # type: ignore
+        **_sale_receipt_meta(sale),
         cashier_name=current_user.name,  # type: ignore
         total_amount=sale.total_amount,  # type: ignore
         discount_amount=sale.discount_amount,  # type: ignore
@@ -388,42 +553,25 @@ def list_sales(
         skip: int = Query(0, ge=0),
         limit: int = Query(50, ge=1, le=200),
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_roles(*POS_ROLES, UserRole.accountant)),
+        current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
+        ctx: BranchContext = Depends(get_branch_context),
 ):
-    from app.models.warehouse import Warehouse
-    from sqlalchemy import func, select
-    # items_count subquery — one SQL COUNT per sale, no joinedloading all items
-    items_count_sq = (
-        select(SaleItem.sale_id, func.count(SaleItem.id).label("cnt"))
-        .group_by(SaleItem.sale_id)
-        .subquery()
-    )
+    from sqlalchemy import func
+    # T3.8: items_count butun sale_items jadvalini guruhlamaydi — sahifadagi sale_id'lar uchun
+    # alohida (IN) so'rov bilan hisoblanadi; asosiy so'rov oddiy Sale so'rovi (count() ham tez).
     q = (
-        db.query(Sale, func.coalesce(items_count_sq.c.cnt, 0).label("items_count"))
-        .outerjoin(items_count_sq, items_count_sq.c.sale_id == Sale.id)
-        .options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency))
+        db.query(Sale)
+        .options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency), joinedload(Sale.branch))
     )
     q = q.filter(Sale.company_id == current_user.company_id)
 
-    # Branch isolation: admin/director hammani ko'radi, qolganlari faqat o'z filialini
-    ADMIN_ROLES_S = (UserRole.admin, UserRole.director)
-    if current_user.role not in ADMIN_ROLES_S:
-        if not current_user.branch_id:
-            # Filialsiz non-admin foydalanuvchi hech qanday sotuvni ko'ra olmaydi
-            return {"items": [], "total": 0} if with_total else []
-        branch_wh_ids = [
-            wh.id for wh in db.query(Warehouse.id).filter(
-                Warehouse.branch_id == current_user.branch_id
-            ).all()
-        ]
-        q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
-    elif branch_id:
-        branch_wh_ids = [
-            wh.id for wh in db.query(Warehouse.id).filter(
-                Warehouse.branch_id == branch_id
-            ).all()
-        ]
-        q = q.filter(Sale.warehouse_id.in_(branch_wh_ids))
+    # T1.1: yagona filial konteksti (X-Branch-Id / users.branch_id). Filial biriktirilmagan
+    # operatsion xodim (2+ filialli korxona) hech narsa ko'rmaydi; aniq `?branch_id=`
+    # parametri header'dan ustun (faqat ruxsat doirasida).
+    if ctx.needs_assignment:
+        return {"items": [], "total": 0} if with_total else []
+    # T1.9: filial — sotuv snapshot'i (Sale.branch_id); ombori yo'q (NULL) sotuv ham o'z filialida ko'rinadi
+    q = apply_branch_scope(q, ctx, Sale.branch_id, explicit_branch_id=branch_id)
 
     if cashier_id:
         q = q.filter(Sale.cashier_id == cashier_id)
@@ -455,7 +603,12 @@ def list_sales(
     rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
 
     from app.models.sale_delivery import SaleDelivery
-    _ids = [s.id for s, _ in rows]
+    _ids = [s.id for s in rows]
+    items_counts = {
+        sid: cnt
+        for sid, cnt in db.query(SaleItem.sale_id, func.count(SaleItem.id))
+        .filter(SaleItem.sale_id.in_(_ids)).group_by(SaleItem.sale_id).all()
+    } if _ids else {}
     delivery_status = {
         sid: st.value if hasattr(st, "value") else st
         for sid, st in db.query(SaleDelivery.sale_id, SaleDelivery.status).filter(SaleDelivery.sale_id.in_(_ids)).all()
@@ -465,6 +618,8 @@ def list_sales(
         SaleListOut(
             id=s.id,
             number=s.number,
+            branch_id=s.branch_id,
+            branch_name=s.branch.name if s.branch else None,
             cashier_name=s.cashier.name if s.cashier else f"ID={s.cashier_id}",
             total_amount=s.total_amount,
             discount_amount=s.discount_amount,
@@ -475,14 +630,14 @@ def list_sales(
             payment_type=s.payment_type,
             status=s.status,
             customer_id=s.customer_id,
-            customer_name=s.customer.name if s.customer else None,
-            items_count=cnt,
+            customer_name=s.customer.name if s.customer and s.customer.company_id == s.company_id else None,
+            items_count=items_counts.get(s.id, 0),
             created_at=s.created_at,
             currency_code=s.currency.code if getattr(s, 'currency', None) else "UZS",
             debt_amounts=getattr(s, 'debt_amounts', None),
             delivery_status=delivery_status.get(s.id),
         )
-        for s, cnt in rows
+        for s in rows
     ]
     if with_total:
         return {"items": items, "total": total}
@@ -493,12 +648,12 @@ def list_sales(
 def get_sale(
         sale_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
 ):
     sale = _load_sale(db, sale_id, current_user)
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
-    return _build_sale_out(sale)
+    return _build_sale_out(sale, hide_cost=current_user.role == UserRole.cashier)
 
 
 @router.patch("/{sale_id}/fiscal", response_model=SaleOut)
@@ -535,7 +690,15 @@ def update_sale_fiscal(
             detail="Sotuvda fiskal belgi allaqachon mavjud — uni faqat admin/direktor almashtira oladi",
         )
 
-    ALLOWED = {"fiscal_sign", "fiscal_qr_url", "fiscal_receipt_seq", "fiscal_transaction_id", "fiscal_at"}
+    # T3.18: korxonada fiskal qurilmalar ro'yxati bo'lsa, factory_id sotuv filialidagi qurilmalardan biri bo'lishi shart.
+    # Ro'yxat bo'sh korxonalarda tekshiruv o'tkazib yuboriladi (orqaga moslik).
+    new_factory = update_data.get("fiscal_factory_id")
+    if new_factory and sale.company_id is not None and company_has_active_devices(db, sale.company_id):
+        _br = _sale_branch(sale)
+        if not device_allowed_for_branch(db, sale.company_id, new_factory, _br.id if _br is not None else None):
+            raise HTTPException(status_code=409, detail="Fiskal modul bu filialga biriktirilmagan")
+
+    ALLOWED = {"fiscal_sign", "fiscal_qr_url", "fiscal_receipt_seq", "fiscal_transaction_id", "fiscal_at", "fiscal_factory_id"}
     old_values = {k: getattr(sale, k, None) for k in ALLOWED}
     for k, v in update_data.items():
         if k in ALLOWED:
@@ -549,14 +712,14 @@ def update_sale_fiscal(
     )
     db.commit()
     db.refresh(sale)
-    return _build_sale_out(sale)
+    return _build_sale_out(sale, hide_cost=current_user.role == UserRole.cashier)
 
 
 @router.get("/{sale_id}/receipt")
 def get_receipt(
         sale_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
 ):
     """Chek ma'lumotlarini olish"""
     sale = _load_sale(db, sale_id, current_user)
@@ -582,6 +745,9 @@ def get_receipt(
         "paid": str(sale.paid_amount),
         "change": str(max(sale.paid_amount - sale.total_amount, 0)),
         "payment_type": sale.payment_type.value,
+        # T3.7: chek rekvizitlari
+        "branch_id": sale.branch_id,
+        **_sale_receipt_meta(sale),
     }
 
 
@@ -593,9 +759,15 @@ def edit_sale(
         current_user: User = Depends(require_roles(*POS_ROLES)),
 ):
     """Sotuvni tahrirlash: holat, izoh, to'lov miqdori"""
+    # C4.1: payments[].terminal_id / reference SalePayment ga yoziladi -> yaratishdagi kabi korxona/filial/reference
+    # tekshiruvi (begona korxona terminali 404, mos kelmasa 400). Sotuv topilmasa update_sale o'zi 404 beradi.
+    if data.payments:
+        _row = db.query(Sale.company_id, Sale.branch_id).filter(Sale.id == sale_id).first()
+        if _row is not None and (current_user.role == UserRole.super_admin or _row.company_id == current_user.company_id):
+            validate_sale_payment_terminals(db, SimpleNamespace(company_id=_row.company_id), data, _row.branch_id)
     sale = update_sale(db=db, sale_id=sale_id, data=data, current_user=current_user)
     sale = _load_sale(db, sale.id, current_user)  # type: ignore
-    return _build_sale_out(sale)
+    return _build_sale_out(sale, hide_cost=current_user.role == UserRole.cashier)
 
 
 @router.put("/{sale_id}/assign-customer", response_model=SaleOut)
@@ -608,17 +780,18 @@ def assign_sale_customer_endpoint(
     """Sotuvga yangi mijoz biriktirish (qarzni yangi mijozga ko'chirish va sotuv sanasini saqlab qolish)."""
     sale = reassign_sale_customer(db=db, sale_id=sale_id, new_customer_id=data.customer_id, current_user=current_user)
     sale = _load_sale(db, sale.id, current_user)  # type: ignore
-    return _build_sale_out(sale)
+    return _build_sale_out(sale, hide_cost=current_user.role == UserRole.cashier)
 
 
 @router.delete("/{sale_id}")
 def remove_sale(
         sale_id: int,
+        request: Request,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager)),
 ):
     """Sotuvni o'chirish va mahsulot qoldiqlarini qaytarish"""
-    delete_sale(db=db, sale_id=sale_id, current_user=current_user)
+    delete_sale(db=db, sale_id=sale_id, current_user=current_user, approval_id=_approval_id_from_header(request))  # C4.1 (T4.6)
     return {"message": "Sotuv o'chirildi va qoldiqlar qaytarildi"}
 
 

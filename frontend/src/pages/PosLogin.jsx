@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { useLang } from '../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../api/axios';
 import { ECodeIconLight } from '../components/ECodeLogo';
 
 export default function PosLogin() {
   const { t } = useLang();
 
-  const { login } = useAuth();
+  const { login, selectCompany: selectCompanyAuth } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({ phone: '', password: '' });
@@ -22,20 +21,22 @@ export default function PosLogin() {
 
   // Korxona tanlash state
   const [companies, setCompanies] = useState(null); // null = yo'q, [] = ro'yxat
+  const [tempToken, setTempToken] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const user = await login(form.phone, form.password);
+      const res = await login(form.phone, form.password);
 
-      // Agar foydalanuvchi bir nechta korxonaga ulangan bo'lsa
-      if (user?.companies && user.companies.length > 1) {
+      // Foydalanuvchi bir nechta korxonaga ulangan bo'lsa (backend: needs_company_selection + temp_token)
+      if (res?.needs_company_selection) {
         // Korxona tanlash ekranini ko'rsat
-        setCompanies(user.companies);
+        setTempToken(res.temp_token);
+        setCompanies(res.companies || []);
       } else {
-        navigate('/admin/pos-desktop');
+        navigate('/admin/pos-kassa');
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Telefon yoki parol noto'g'ri");
@@ -46,14 +47,14 @@ export default function PosLogin() {
 
   const selectCompany = async (company) => {
     setLoading(true);
+    setError('');
     try {
-      // Korxonani aktiv qilib belgilash
-      await api.post('/auth/select-company', { company_id: company.id });
-      navigate('/admin/pos-desktop');
-    } catch {
-      // Agar endpoint yo'q bo'lsa ham POS ga o'tishni davom ettir
-      localStorage.setItem('active_company_id', company.id);
-      navigate('/admin/pos-desktop');
+      // Korxonani tanlash: temp_token bilan; javobdagi tokenlar va user saqlanadi (T1.2)
+      await selectCompanyAuth(tempToken, company.company_id);
+      navigate('/admin/pos-kassa');
+    } catch (err) {
+      // Xato yutilmaydi — foydalanuvchiga ko'rsatiladi (eski token/tokensiz POS ochilmasin)
+      setError(err.response?.data?.detail || err.message || "Korxona tanlashda xato");
     } finally {
       setLoading(false);
     }
@@ -70,20 +71,25 @@ export default function PosLogin() {
             <p className="text-slate-400 text-sm">{t('pos.selectEnterpriseSub')}</p>
           </div>
 
+          {error && (
+            <div className="flex items-center gap-2.5 bg-red-950/60 border border-red-800 text-red-400 rounded-2xl px-4 py-3 mb-5 text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="space-y-3">
             {companies.map((company) => (
               <button
-                key={company.id}
+                key={company.company_id}
                 onClick={() => selectCompany(company)}
                 disabled={loading}
                 className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-blue-500 rounded-2xl p-5 flex items-center gap-4 text-left transition-all group disabled:opacity-50"
               >
                 <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-lg shrink-0 group-hover:scale-105 transition-transform shadow-lg shadow-blue-500/20">
-                  {company.name?.slice(0, 1)?.toUpperCase() || 'K'}
+                  {company.company_name?.slice(0, 1)?.toUpperCase() || 'K'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-white font-bold text-base truncate">{company.name}</div>
-                  {company.address && <div className="text-slate-400 text-sm mt-0.5 truncate">📍 {company.address}</div>}
+                  <div className="text-white font-bold text-base truncate">{company.company_name}</div>
                 </div>
                 <svg className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

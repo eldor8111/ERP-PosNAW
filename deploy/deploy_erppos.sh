@@ -81,6 +81,11 @@ fi
 if systemctl is-enabled --quiet erppos-bgworker 2>/dev/null; then
   systemctl restart erppos-bgworker && echo "erppos-bgworker qayta ishga tushirildi"
 fi
+# Fon vazifalari ishchisi (scheduler + admin bot; install_worker.sh o'rnatgan bo'lsa) — yangi kod uchun
+# qayta ishga tushiriladi. Rahbarlik ijarasi (background_leases) tufayli qisqa uzilish xavfsiz.
+if systemctl is-enabled --quiet erppos-worker 2>/dev/null; then
+  systemctl restart erppos-worker && echo "erppos-worker qayta ishga tushirildi"
+fi
 
 sleep 12
 if journalctl -u "$SERVICE" --since '30 sec ago' --no-pager | grep -q "Application startup complete"; then

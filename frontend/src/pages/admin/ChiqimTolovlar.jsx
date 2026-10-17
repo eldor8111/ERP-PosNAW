@@ -4,6 +4,7 @@ import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import { useLang } from '../../context/LangContext';
 import { matchesSearch } from '../../utils/translit';
 import toast from 'react-hot-toast';
+import BranchSelect from '../../components/BranchSelect';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ') + " so'm";
 const fmtCurr = (v, curr) => {
@@ -36,6 +37,9 @@ export default function ChiqimTolovlar() {
   const [loading, setLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
+  // T2.5: filial filtri ('' — barcha, '-1' — filialsiz)
+  const [branchId, setBranchId] = useState('');
+  const [branches, setBranches] = useState([]);
 
   // Edit modal state
   const [editItem, setEditItem] = useState(null);
@@ -61,7 +65,9 @@ export default function ChiqimTolovlar() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/finance/payments/expense?date_from=${dateFrom}&date_to=${dateTo}`);
+      const res = await api.get('/finance/payments/expense', {
+        params: { date_from: dateFrom, date_to: dateTo, ...(branchId ? { branch_id: branchId } : {}) },
+      });
       setData(res.data);
     } catch (e) {
       console.error(e);
@@ -70,10 +76,18 @@ export default function ChiqimTolovlar() {
     }
   };
 
-  useEffect(() => { loadData(); }, [dateFrom, dateTo]);
+  useEffect(() => { loadData(); }, [dateFrom, dateTo, branchId]);
+
+  // T2.5: filial ro'yxati (yopilganlari ham — eski to'lovlarni filtrlash uchun)
+  useEffect(() => {
+    api.get('/branches', { params: { include_inactive: true }, _suppressToast: true })
+      .then(r => setBranches(Array.isArray(r.data) ? r.data : [])).catch(() => setBranches([]));
+  }, []);
 
   const summaryData = useMemo(() => {
     if (!data?.items) return {};
+    // Server jamisi (butun davr, limitdan mustaqil, valyuta bo'yicha) bo'lsa — shuni ishlatamiz
+    if (data.summary_by_currency && typeof data.summary_by_currency === 'object') return data.summary_by_currency;
     const res = {};
     data.items.forEach(i => {
       const cur = i.currency_code || 'UZS';
@@ -95,7 +109,7 @@ export default function ChiqimTolovlar() {
       }
     });
     return res;
-  }, [data?.items]);
+  }, [data?.items, data?.summary_by_currency]);
 
   const groupedItems = useMemo(() => {
     if (!data?.items || !Array.isArray(data.items)) return [];
@@ -278,6 +292,8 @@ export default function ChiqimTolovlar() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">{t('chiqimTolov.title')}</h1>
         <div className="flex items-center gap-3">
+          {/* T2.5: filial filtri — tanlangan branch_id so'rovga parametr sifatida yuboriladi */}
+          <BranchSelect value={branchId} onChange={setBranchId} branches={branches} allowUnassigned />
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
             className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
@@ -369,7 +385,7 @@ export default function ChiqimTolovlar() {
                       <td className="px-2 py-2 text-center border-x border-slate-50 whitespace-nowrap">{renderTypeAmounts(pt => pt === 'uzum')}</td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100">
-                          {g.reference_type === 'supplier_payment' || g.reference_type === 'purchase_order' ? t('chiqimTolov.sourceSupplier') : g.reference_type === 'expense' ? t('chiqimTolov.sourceExpense') : t('chiqimTolov.sourceCustomerReturn')}
+                          {g.reference_type === 'supplier_payment' || g.reference_type === 'purchase_order' ? t('chiqimTolov.sourceSupplier') : g.reference_type === 'expense' ? t('chiqimTolov.sourceExpense') : g.reference_type === 'shift' ? t('chiqimTolov.sourceShift') : t('chiqimTolov.sourceCustomerReturn')}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-slate-600 whitespace-nowrap">{g.wallet}</td>
@@ -389,7 +405,7 @@ export default function ChiqimTolovlar() {
                       <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{new Date(g.created_at).toLocaleString('uz-UZ')}</td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         <div className="flex gap-1.5">
-                          {g.reference_type !== 'purchase_order' ? (
+                          {!['purchase_order', 'sale_refund', 'shift'].includes(g.reference_type) ? (
                             <>
                               <button
                                 onClick={() => openEdit(g)}
@@ -405,7 +421,7 @@ export default function ChiqimTolovlar() {
                               </button>
                             </>
                           ) : (
-                            <span className="text-[10px] text-red-400 italic bg-red-50 px-1 py-0.5 rounded">{t('chiqimTolov.editFromPurchases')}</span>
+                            <span className="text-[10px] text-red-400 italic bg-red-50 px-1 py-0.5 rounded">{g.reference_type === 'purchase_order' ? t('chiqimTolov.editFromPurchases') : t('chiqimTolov.fromRelatedSection')}</span>
                           )}
                         </div>
                       </td>
@@ -643,7 +659,7 @@ export default function ChiqimTolovlar() {
                     <select value={payWallet} onChange={e => setPayWallet(e.target.value)}
                       className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">{t('chiqimTolov.mainWallet')}</option>
-                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name} — {fmtNum(w.balance)} {t('common.sum')}</option>)}
+                      {wallets.map(w => <option key={w.id} value={w.id}>{w.name}{w.balance !== undefined ? ` — ${fmtNum(w.balance)} ${t('common.sum')}` : ''}</option>)}
                     </select>
                   </div>
 

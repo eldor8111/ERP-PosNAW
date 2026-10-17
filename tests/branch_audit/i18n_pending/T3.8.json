@@ -1,0 +1,14 @@
+{
+  "uz": {
+    "customerPicker.searching": "Qidirilmoqda...",
+    "customerPicker.offline": "Oflayn rejim: saqlangan ro'yxatdan qidirilmoqda"
+  },
+  "ru": {
+    "customerPicker.searching": "Идёт поиск...",
+    "customerPicker.offline": "Офлайн-режим: поиск по сохранённому списку"
+  },
+  "en": {
+    "customerPicker.searching": "Searching...",
+    "customerPicker.offline": "Offline mode: searching the saved list"
+  }
+}

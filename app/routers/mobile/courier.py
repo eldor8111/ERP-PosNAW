@@ -78,11 +78,12 @@ def courier_today(db: Session = Depends(get_db), current_user: User = Depends(co
         if k not in on_routes:
             loose[k] = L._Stop(k, delivery=d)
     customers = L._customers_map(db, loose)
+    branches = L._branches_map(db, loose)
     db.commit()  # ensure_courier_profile birinchi marta bog'lagan bo'lsa
     return {
         "courier": {"id": courier.id, "name": courier.name},
         "routes": routes_out,
-        "loose": [st.summary(customers) for st in loose.values()],
+        "loose": [st.summary(customers, branches) for st in loose.values()],
     }
 
 
@@ -90,7 +91,7 @@ def courier_today(db: Session = Depends(get_db), current_user: User = Depends(co
 def stop_detail(key: str, db: Session = Depends(get_db), current_user: User = Depends(courier_user)):
     courier = _me(db, current_user)
     st = _my_stop(db, current_user, courier, key)
-    summary = st.summary(L._customers_map(db, {key: st}))
+    summary = st.summary(L._customers_map(db, {key: st}), L._branches_map(db, {key: st}))
     if st.is_sale:
         rows = db.query(SaleItem, Product.name, Product.unit).join(Product, Product.id == SaleItem.product_id).filter(
             SaleItem.sale_id == st.delivery.sale_id).all()

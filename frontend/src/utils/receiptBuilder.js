@@ -2,6 +2,34 @@
 export const RECEIPT_KEY = 'erp_receipt_settings';
 
 /**
+ * HTML ga qo'yishdan oldin matnni escape qiladi (XSS himoyasi).
+ * Chek HTML i iframe orqali ota-origin da ochiladi, shuning uchun
+ * barcha dinamik matn qiymatlari shu funksiyadan o'tishi shart.
+ */
+export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[ch]));
+
+/**
+ * Rasm manzili xavfsizmi: faqat data:image/(png|jpeg|gif|webp|svg+xml);base64 yoki https://.
+ * Xavfsiz bo'lsa — atributga qo'yishga tayyor (escape qilingan) qiymat, aks holda ''.
+ */
+export const safeUrl = (u) => {
+  const v = String(u ?? '').trim();
+  if (!v) return '';
+  if (/^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/i.test(v) || /^https:\/\/[^\s"'<>]+$/i.test(v)) {
+    return esc(v);
+  }
+  return '';
+};
+
+/** <script> ichiga JSON qo'yish uchun: `<` belgisini \u003c ga almashtiradi (</script> blokdan chiqarmasin). */
+const safeJson = (v) => JSON.stringify(v)
+  .replace(/</g, '\\u003c')
+  .replace(/\u2028/g, '\\u2028')
+  .replace(/\u2029/g, '\\u2029');
+
+/**
  * Chekni shu brauzer oynasida iframe orqali chop etadi (yangi tab ochmaydi).
  */
 export function printReceiptHtml(html) {
@@ -105,6 +133,20 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   const sh2 = (key1, key2, def = true) =>
     cfg[key1] !== undefined ? cfg[key1] : (cfg[key2] !== undefined ? cfg[key2] : def);
 
+  // T3.7: filial rekvizitlari sotuv javobidan (SaleOut.branch_*); filialda bo'sh bo'lsa shablon qiymati zaxira.
+  // T4.2: yuridik nom va STIR ham filialdan (branch_legal_name / branch_stir); bo'sh bo'lsa korxona shabloni.
+  const br = { name: sale.branch_name || sale.account_name, address: sale.branch_address, phone: sale.branch_phone };
+  const hdr = {
+    company: sale.branch_legal_name || cfg.company || sale.company_name,
+    address: br.address || cfg.address,
+    phone: br.phone || cfg.phone,
+    inn: sale.branch_stir || cfg.inn,
+  };
+  // Eski saqlangan shablonlarda `show_account_name` ham filialni, ham mijozni boshqargan:
+  // yangi kalitlar yo'q bo'lsa eskisiga tushamiz (chek oldingidek chiqadi).
+  const showBranch = cfg.show_branch ?? cfg.show_account_name ?? true;
+  const showCustomer = cfg.show_customer ?? cfg.show_account_name ?? true;
+
   const useCurrency = sale.currency_code && sale.currency_code !== 'UZS';
   const rate = Number(sale.exchange_rate) || 1.0;
   const currCode = sale.currency_code || 'UZS';
@@ -119,7 +161,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
         : converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       if (currCode === 'USD') return `$ ${formatted}`;
       if (currCode === 'RUB') return `₽ ${formatted}`;
-      return `${formatted} ${currCode}`;
+      return `${formatted} ${esc(currCode)}`;
     }
     return val.toLocaleString('uz-UZ') + " so'm";
   };
@@ -257,9 +299,10 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
     const nakLogoPos = c.logo_position || 'center';
     const nakLogoAlign = nakLogoPos === 'left' ? 'left' : nakLogoPos === 'right' ? 'right' : 'center';
-    const nakLogoSz = c.logo_size || 50;
-    const nakLogoHtml = c.logo
-      ? `<div style="text-align:${nakLogoAlign};margin-bottom:6px"><img src="${c.logo}" style="height:${nakLogoSz}px;max-width:${Math.round(nakLogoSz*3)}px;object-fit:contain" alt="logo"/></div>`
+    const nakLogoSz = Number(c.logo_size) || 50;
+    const nakLogoSrc = safeUrl(c.logo);
+    const nakLogoHtml = nakLogoSrc
+      ? `<div style="text-align:${nakLogoAlign};margin-bottom:6px"><img src="${nakLogoSrc}" style="height:${nakLogoSz}px;max-width:${Math.round(nakLogoSz*3)}px;object-fit:contain" alt="logo"/></div>`
       : '';
 
     // Table columns
@@ -306,7 +349,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
           case 'item_qty':             val = qty; break;
           case 'item_total':           val = itemUseCur ? sub.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : sub.toLocaleString('uz-UZ'); break;
         }
-        return `<td style="text-align:${col.align}">${val}</td>`;
+        return `<td style="text-align:${col.align}">${esc(val)}</td>`;
       }).join('');
       return `<tr>${cells}</tr>`;
     }).join('');
@@ -326,12 +369,12 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
       : (sale.customer?.phone || '___');
       
     const infoLines = [
-      sh('show_contractor_name') ? `<div><b>Mijoz:</b> ${clientName || '___'}</div>` : '',
-      sh('show_account_name') ? `<div><b>Filial:</b> ${sale.account_name || '___'}</div>` : '',
-      sh('show_account_username') ? `<div><b>Foydalanuvchi:</b> ${sale.account_username || '___'}</div>` : '',
-      sh('show_employee') ? `<div><b>Xodim:</b> ${sale.employee_name || sale.cashier_name || '___'}</div>` : '',
-      sh('show_status') ? `<div><b>Holat:</b> ${sale.status || '___'}</div>` : '',
-      sh('show_contractor_contacts') ? `<div><b>Kontakt:</b> ${contactInfo}</div>` : '',
+      sh('show_contractor_name') ? `<div><b>Mijoz:</b> ${esc(clientName || '___')}</div>` : '',
+      showBranch && br.name ? `<div><b>Filial:</b> ${esc(br.name)}</div>` : '',
+      sh('show_account_username') ? `<div><b>Foydalanuvchi:</b> ${esc(sale.account_username || '___')}</div>` : '',
+      sh('show_employee') ? `<div><b>Xodim:</b> ${esc(sale.employee_name || sale.cashier_name || '___')}</div>` : '',
+      sh('show_status') ? `<div><b>Holat:</b> ${esc(sale.status || '___')}</div>` : '',
+      sh('show_contractor_contacts') ? `<div><b>Kontakt:</b> ${esc(contactInfo)}</div>` : '',
     ].filter(Boolean).join('');
 
     const totalQty = (sale.items || []).reduce((sum, i) => sum + Number(i.quantity || i.qty_ordered || 0), 0);
@@ -340,15 +383,15 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     const totalsHtml = sh('show_totals') ? `
       <table class="totals" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
         <tr style="border-bottom: 1px dashed #ccc;"><td style="vertical-align:top; padding:4px 0;">JAMI:</td><td style="padding:4px 0;"><b>${jamiStr}</b></td></tr>
-        ${sh('show_total_national') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Milliy valyutada:</td><td style="padding:4px 0;">${sale.total_national || '___'}</td></tr>` : ''}
+        ${sh('show_total_national') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Milliy valyutada:</td><td style="padding:4px 0;">${esc(sale.total_national || '___')}</td></tr>` : ''}
         ${sh('show_total_quantity') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Jami miqdor:</td><td style="padding:4px 0;">${totalQty}</td></tr>` : ''}
         ${sh('show_exact_discounts') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">Chegirma:</td><td style="padding:4px 0;">-${fmtVal(sale.discount_amount || 0)}</td></tr>` : ''}
-        ${sh('show_percent_discount') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">% Chegirma:</td><td style="padding:4px 0;">${sale.percent_discount || '___'}%</td></tr>` : ''}
+        ${sh('show_percent_discount') ? `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">% Chegirma:</td><td style="padding:4px 0;">${esc(sale.percent_discount || '___')}%</td></tr>` : ''}
         ${sh('show_payment_amounts') ? (
           sale.payment_currencies && sale.payment_currencies.length > 0
-            ? sale.payment_currencies.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${pt.type || pt.currency}):</td><td style="padding:4px 0;">${fmtCurrencyAmt(pt.amount, pt.currency || 'UZS')}</td></tr>`).join('')
+            ? sale.payment_currencies.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${esc(pt.type || pt.currency)}):</td><td style="padding:4px 0;">${fmtCurrencyAmt(pt.amount, pt.currency || 'UZS')}</td></tr>`).join('')
             : (sale.payment_types_array && sale.payment_types_array.length > 0
-              ? sale.payment_types_array.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${pt.type}):</td><td style="padding:4px 0;">${fmtVal(pt.amount)}</td></tr>`).join('')
+              ? sale.payment_types_array.map(pt => `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'lov (${esc(pt.type)}):</td><td style="padding:4px 0;">${fmtVal(pt.amount)}</td></tr>`).join('')
               : `<tr style="border-bottom: 1px dashed #ccc;"><td style="padding:4px 0;">To'langan:</td><td style="padding:4px 0;">${fmtVal(sale.paid_amount)}</td></tr>`)
         ) : ''}
 
@@ -361,14 +404,14 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
     // Signatures
     const sigsHtml = `<div class="sigs">
-      ${sh('show_director') ? `<div>Direktor: ${c.director || '___________'}</div>` : ''}
-      ${sh('show_accountant') ? `<div>Buxgalter: ${c.accountant || '___________'}</div>` : ''}
-      ${sh('show_storekeeper') ? `<div>Omborchi: ${c.storekeeper || '___________'}</div>` : ''}
+      ${sh('show_director') ? `<div>Direktor: ${esc(c.director || '___________')}</div>` : ''}
+      ${sh('show_accountant') ? `<div>Buxgalter: ${esc(c.accountant || '___________')}</div>` : ''}
+      ${sh('show_storekeeper') ? `<div>Omborchi: ${esc(c.storekeeper || '___________')}</div>` : ''}
     </div>`;
 
-    const noteHtml = sh('show_note') ? `<div style="margin-top:6px;font-size:9px;color:#555">Izoh: ${sale.note || '___'}</div>` : '';
+    const noteHtml = sh('show_note') ? `<div style="margin-top:6px;font-size:9px;color:#555">Izoh: ${esc(sale.note || '___')}</div>` : '';
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nakladnoy ${sale.number || sale.id}</title>
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nakladnoy ${esc(sale.number || sale.id)}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: Arial, sans-serif; font-size: 10px; padding: 15px; }
@@ -388,13 +431,13 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 </style></head><body>
   ${nakLogoHtml}
   <div class="hdr">
-    <h1>${c.company || 'KORXONA NOMI'}</h1>
-    ${c.address ? `<p>${c.address}</p>` : ''}
-    ${c.phone ? `<p>Tel: ${c.phone}</p>` : ''}
-    ${c.inn ? `<p>STIR: ${c.inn}</p>` : ''}
-    ${c.bank ? `<p>Bank: ${c.bank}${c.account ? ` | H/r: ${c.account}` : ''}${c.mfo ? ` | MFO: ${c.mfo}` : ''}</p>` : ''}
+    <h1>${esc(hdr.company || 'KORXONA NOMI')}</h1>
+    ${hdr.address ? `<p>${esc(hdr.address)}</p>` : ''}
+    ${hdr.phone ? `<p>Tel: ${esc(hdr.phone)}</p>` : ''}
+    ${hdr.inn ? `<p>STIR: ${esc(hdr.inn)}</p>` : ''}
+    ${c.bank ? `<p>Bank: ${esc(c.bank)}${c.account ? ` | H/r: ${esc(c.account)}` : ''}${c.mfo ? ` | MFO: ${esc(c.mfo)}` : ''}</p>` : ''}
   </div>
-  <div class="title">NAKLADNOY № ${sh('show_number') ? (sale.number || sale.id) : '___'} ${sh('show_date') ? `/ ${new Date(sale.created_at || Date.now()).toLocaleDateString('uz-UZ')}` : ''}</div>
+  <div class="title">NAKLADNOY № ${sh('show_number') ? esc(sale.number || sale.id) : '___'} ${sh('show_date') ? `/ ${new Date(sale.created_at || Date.now()).toLocaleDateString('uz-UZ')}` : ''}</div>
   ${infoLines ? `<div class="info">${infoLines}</div>` : ''}
   <table>
     <thead><tr>${headerRow}</tr></thead>
@@ -404,14 +447,15 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   ${totalsHtml}
   ${noteHtml}
   ${sigsHtml}
-  ${c.footer_note ? `<div style="text-align:center;margin-top:8px;font-size:9px;color:#555;font-style:italic">${c.footer_note}</div>` : ''}
+  ${c.footer_note ? `<div style="text-align:center;margin-top:8px;font-size:9px;color:#555;font-style:italic">${esc(c.footer_note)}</div>` : ''}
 </body></html>`;
   }
 
   // Thermal Receipt (58mm or 80mm)
-  const thermalSz = cfg.logo_size || 40;
-  const thermalLogoHtml = cfg.logo
-    ? `<div style="text-align:center;margin-bottom:3px"><img src="${cfg.logo}" style="height:${thermalSz}px;max-width:${Math.round(thermalSz*3)}px;object-fit:contain" alt="logo"/></div>`
+  const thermalSz = Number(cfg.logo_size) || 40;
+  const thermalLogoSrc = safeUrl(cfg.logo);
+  const thermalLogoHtml = thermalLogoSrc
+    ? `<div style="text-align:center;margin-bottom:3px"><img src="${thermalLogoSrc}" style="height:${thermalSz}px;max-width:${Math.round(thermalSz*3)}px;object-fit:contain" alt="logo"/></div>`
     : '';
 
   const fsMid = narrow ? '12px' : '14px';
@@ -440,17 +484,17 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     const printUp = itemUseCur ? (up / itemRate).toFixed(4).replace(/\.?0+$/, '') : up.toLocaleString('uz-UZ');
     const printSub = itemUseCur ? (sub / itemRate).toFixed(4).replace(/\.?0+$/, '') : sub.toLocaleString('uz-UZ');
     const printDisc = itemUseCur ? (disc / itemRate).toFixed(4).replace(/\.?0+$/, '') : disc.toLocaleString('uz-UZ');
-    const displaySym = itemUseCur ? (itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : itemCurr)) : "so'm";
+    const displaySym = itemUseCur ? (itemCurr === 'USD' ? '$' : (itemCurr === 'RUB' ? '₽' : esc(itemCurr))) : "so'm";
 
     const orderNum = sh('show_ordering_number') ? `${idx + 1}. ` : '';
-    const unitStr = sh('show_unit', false) && (i.unit || i.measurement_name) ? ` ${i.unit || i.measurement_name}` : '';
+    const unitStr = sh('show_unit', false) && (i.unit || i.measurement_name) ? ` ${esc(i.unit || i.measurement_name)}` : '';
     const leftSide = sh('show_price_per_unit')
       ? `${qty}${unitStr} x ${printUp} ${itemUseCur ? displaySym : ''}`
       : `${qty}${unitStr}`;
     const rightSide = sh('show_total') ? `${printSub} ${displaySym}` : '';
 
     return `
-      <div>${orderNum}${i.product_name || i.product?.name || `ID=${i.product_id}`}</div>
+      <div>${orderNum}${esc(i.product_name || i.product?.name || `ID=${i.product_id}`)}</div>
       <div class="flex">
         <span>${leftSide}</span>
         <span>${rightSide}</span>
@@ -477,7 +521,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
 
   const clientName = sale.contractor_name || sale.customer_name || (sale.customer && sale.customer.name) || '';
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chek ${sale.number || sale.id}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chek ${esc(sale.number || sale.id)}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   body { font-family: 'Courier New', monospace; font-size: ${fsMid}; font-weight:bold; color:#000; width: ${width}; padding: 10px; line-height: 1.4; }
@@ -488,18 +532,19 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   @media print { body { width:auto; margin:0; padding:2px; } @page { size: ${narrow ? '58mm' : '80mm'} auto; margin:1mm; } }
 </style></head><body>
   ${thermalLogoHtml}
-  ${cfg.company ? `<div class="center" style="margin-bottom:8px;font-size:16px;">${cfg.company}</div>` : ''}
-  ${cfg.address ? `<div class="center" style="margin-bottom:4px;">${cfg.address}</div>` : ''}
-  ${cfg.phone ? `<div class="center" style="margin-bottom:4px;">Tel: ${cfg.phone}</div>` : ''}
-  ${cfg.inn ? `<div class="center" style="margin-bottom:6px;">STIR: ${cfg.inn}</div>` : ''}
+  ${hdr.company ? `<div class="center" style="margin-bottom:8px;font-size:16px;">${esc(hdr.company)}</div>` : ''}
+  ${showBranch && br.name ? `<div class="center" style="margin-bottom:4px;">Filial: ${esc(br.name)}</div>` : ''}
+  ${hdr.address ? `<div class="center" style="margin-bottom:4px;">${esc(hdr.address)}</div>` : ''}
+  ${hdr.phone ? `<div class="center" style="margin-bottom:4px;">Tel: ${esc(hdr.phone)}</div>` : ''}
+  ${hdr.inn ? `<div class="center" style="margin-bottom:6px;">STIR: ${esc(hdr.inn)}</div>` : ''}
   
   ${sh('show_number') ? `<div class="flex">
     <span>Chek:</span>
-    <span>${sale.number || sale.id || '---'}</span>
+    <span>${esc(sale.number || sale.id || '---')}</span>
   </div>` : ''}
   ${sh('show_cashier') ? `<div class="flex">
     <span>Kassir:</span>
-    <span>${sale.cashier_name || sale.cashier?.name || 'Kassir'}</span>
+    <span>${esc(sale.cashier_name || sale.cashier?.name || 'Kassir')}</span>
   </div>` : ''}
   ${sh('show_date') ? `<div class="flex">
     <span>Sana:</span>
@@ -507,13 +552,13 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   </div>` : ''}
   ${sh('show_status', false) && sale.status ? `<div class="flex">
     <span>Holat:</span>
-    <span>${sale.status}</span>
+    <span>${esc(sale.status)}</span>
   </div>` : ''}
   <hr class="dash"/>
 
-  ${sh('show_account_name') && clientName ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${clientName}</span></div>` : ''}
-  ${sh2('show_contractor_contact', 'show_contractor_contacts') && sale.contractor_contacts?.length ? `<div class="flex"><span>Tel:</span><span>${sale.contractor_contacts.map(c => c.value || c).join(', ')}</span></div>` : ''}
-  ${(sh('show_account_name') && clientName) || (sh2('show_contractor_contact', 'show_contractor_contacts') && sale.contractor_contacts?.length) ? `<hr class="dash"/>` : ''}
+  ${showCustomer && clientName ? `<div class="flex"><span>Mijoz:</span><span style="text-transform:uppercase">${esc(clientName)}</span></div>` : ''}
+  ${sh2('show_contractor_contact', 'show_contractor_contacts') && sale.contractor_contacts?.length ? `<div class="flex"><span>Tel:</span><span>${esc(sale.contractor_contacts.map(c => c.value || c).join(', '))}</span></div>` : ''}
+  ${(showCustomer && clientName) || (sh2('show_contractor_contact', 'show_contractor_contacts') && sale.contractor_contacts?.length) ? `<hr class="dash"/>` : ''}
 
   ${rows}
 
@@ -522,7 +567,7 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
     <span>${xilMaxsulot} xil mahsulot</span>
   </div>
   <hr/>
-  ${sh('show_note') && sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-weight:bold;">Izoh: ${sale.note}</div><hr/>` : ''}
+  ${sh('show_note') && sale.note ? `<div style="text-align:center;margin-top:4px;margin-bottom:4px;font-weight:bold;">Izoh: ${esc(sale.note)}</div><hr/>` : ''}
 
   <div class="flex" style="align-items:flex-start;">
     <span>JAMI:</span>
@@ -531,9 +576,9 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   <hr class="dash"/>
 
   ${sh2('show_payment_type', 'show_payment_amounts') ? `${sale.payment_currencies && sale.payment_currencies.length > 0
-    ? sale.payment_currencies.map(pt => `<div class="flex"><span>To'lov (${pt.type || pt.currency}):</span><span>${fmtCurrencyAmt(pt.amount, pt.currency || 'UZS')}</span></div>`).join('')
+    ? sale.payment_currencies.map(pt => `<div class="flex"><span>To'lov (${esc(pt.type || pt.currency)}):</span><span>${fmtCurrencyAmt(pt.amount, pt.currency || 'UZS')}</span></div>`).join('')
     : (sale.payment_types_array && sale.payment_types_array.length > 0
-      ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${pt.type}):</span><span>${fmtVal(pt.amount)}</span></div>`).join('')
+      ? sale.payment_types_array.map(pt => `<div class="flex"><span>To'lov (${esc(pt.type)}):</span><span>${fmtVal(pt.amount)}</span></div>`).join('')
       : `<div class="flex"><span>To'lov:</span><span>${fmtVal(paidAmount)}</span></div>`)
   }
   <hr class="dash"/>` : ''}
@@ -545,15 +590,15 @@ export function buildReceiptHtml(sale, tpl, cfg = {}) {
   ${sh('show_barcode', false) ? `<div class="center" style="margin-top:8px"><svg id="__chek_barcode"></svg></div>` : ''}
   ${sh('show_qr', false) ? `<div class="center" style="margin-top:8px"><div id="__chek_qr" style="display:inline-block"></div></div>` : ''}
 
-    <div class="center" style="margin-top:15px;">${cfg.footer || 'Xaridingiz uchun raxmat!'}</div>
+    <div class="center" style="margin-top:15px;">${esc(cfg.footer || 'Xaridingiz uchun raxmat!')}</div>
   ${sh('show_barcode', false) ? `<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>` : ''}
   ${sh('show_qr', false) ? `<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script>` : ''}
   ${sh('show_barcode', false) || sh('show_qr', false) ? `<script>
-    try { if (window.JsBarcode && document.getElementById('__chek_barcode')) JsBarcode('#__chek_barcode', ${JSON.stringify(String(sale.number || sale.id || ''))}, { format: 'CODE128', width: 1.5, height: 38, displayValue: true, fontSize: 12, margin: 0 }); } catch (e) {}
+    try { if (window.JsBarcode && document.getElementById('__chek_barcode')) JsBarcode('#__chek_barcode', ${safeJson(String(sale.number || sale.id || ''))}, { format: 'CODE128', width: 1.5, height: 38, displayValue: true, fontSize: 12, margin: 0 }); } catch (e) {}
     try {
       if (window.qrcode && document.getElementById('__chek_qr')) {
         var __q = qrcode(0, 'M');
-        __q.addData(${JSON.stringify(`Chek: ${sale.number || sale.id || ''} | Jami: ${Number(sale.total_amount || 0).toLocaleString('uz-UZ')}`)});
+        __q.addData(${safeJson(`Chek: ${sale.number || sale.id || ''} | Jami: ${Number(sale.total_amount || 0).toLocaleString('uz-UZ')}`)});
         __q.make();
         document.getElementById('__chek_qr').innerHTML = __q.createImgTag(3, 2);
       }

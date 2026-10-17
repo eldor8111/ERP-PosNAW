@@ -1,8 +1,31 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import { useLang } from '../../context/LangContext';
+import BranchSelect from '../../components/BranchSelect';
+import { useBranch } from '../../context/BranchContext';
+import toast from 'react-hot-toast';
+import { WAREHOUSE_TYPES as WH_TYPE_DEFS } from '../../constants/warehouseTypes';
+import { useBranches } from '../../hooks/useBranches';
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('uz-UZ');
+// T1.3: ombor varianti "Ombor — Filial" ko'rinishida (bir xil nomli omborlar chalkashmasin)
+const whLabel = (w) => (w.branch_name ? `${w.name} — ${w.branch_name}` : w.name);
+// Kalit i18n fayllarida hali bo'lmasa — o'zbekcha zaxira matn
+const tOr = (t, key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+// Yuklash xatosi (T3.5): jim yutmaymiz — toast (interceptor 422/5xx uchun o'zi chiqaradi) va xato holati
+const loadErrToast = (e, t) => {
+  const st = e?.response?.status;
+  if (!(st === 422 || st >= 500)) toast.error(e?.response?.data?.detail || t('common.loadError'));
+};
+const LoadError = ({ t, onRetry }) => (
+  <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+    <p className="text-sm text-red-500">{t('common.loadError')}</p>
+    <button type="button" onClick={onRetry}
+      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors">
+      {t('common.retry')}
+    </button>
+  </div>
+);
 const fmtDate = (s) =>
   s
     ? new Date(s).toLocaleString('ru-RU', {
@@ -21,8 +44,14 @@ const StatusBadge = ({ status }) => {
     in:        { label: t('ops.incoming'),          cls: "bg-emerald-100 text-emerald-700" },
     out:       { label: t('ops.outgoing'),           cls: "bg-blue-100 text-blue-700"     },
     adjust:    { label: t('ombor.statusAdjust'),     cls: "bg-blue-100 text-blue-700"     },
+    // T3.3: transfer holatlari (backend: pending / in_transit / received / cancelled)
+    received:  { label: t('ombor.statusReceived'),  cls: "bg-emerald-100 text-emerald-700" },
+    in_transit: { label: t('ombor.statusInTransit'), cls: "bg-blue-100 text-blue-700"     },
+    transfer_in:  { label: t('ops.incoming'),       cls: "bg-emerald-100 text-emerald-700" },
+    transfer_out: { label: t('ops.outgoing'),       cls: "bg-blue-100 text-blue-700"     },
   };
-  const m = map[status] || { label: status, cls: "bg-slate-100 text-slate-600" };
+  // Harakat turlari backendda katta harfda keladi (IN / OUT / TRANSFER_IN ...)
+  const m = map[status] || map[String(status ?? '').toLowerCase()] || { label: status, cls: "bg-slate-100 text-slate-600" };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${m.cls}`}>
       {m.label}
@@ -40,25 +69,63 @@ const TABS = [
 ];
 
 // ─── QOLDIQLAR TAB ─────────────────────────────────────────────────────────
+const PAGE_SIZE = 200;   // /inventory/stock sahifasi (backend limiti 500)
 function QoldiqlarTab() {
   const { t } = useLang();
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch]   = useState('');
   const [lowOnly, setLowOnly] = useState(false);
+  // T2.3: filial/ombor filtri va sahifalash ("Yana yuklash")
+  const { branches } = useBranches();   // T3.8: yagona filial hooki (keshlangan)
+  const [warehouses, setWarehouses] = useState([]);
+  const [branchId, setBranchId]     = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [hasMore, setHasMore]       = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const buildParams = useCallback((skip) => ({
+    search: search || undefined, low_stock_only: lowOnly, limit: PAGE_SIZE, skip,
+    branch_id: branchId || undefined, warehouse_id: warehouseId || undefined,
+  }), [search, lowOnly, branchId, warehouseId]);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
-      const { data } = await api.get('/inventory/stock', {
-        params: { search: search || undefined, low_stock_only: lowOnly, limit: 200 },
-      });
+      const { data } = await api.get('/inventory/stock', { params: buildParams(0), _silent: true, _suppressToast: true });
       setItems(data);
-    } catch (e) { console.error(e); }
+      setHasMore(data.length >= PAGE_SIZE);
+    } catch (e) { setLoadError(true); loadErrToast(e, t); }
     finally { setLoading(false); }
-  }, [search, lowOnly]);
+  }, [buildParams, t]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const { data } = await api.get('/inventory/stock', { params: buildParams(items.length), _silent: true, _suppressToast: true });
+      setItems(prev => [...prev, ...data]);
+      setHasMore(data.length >= PAGE_SIZE);
+    } catch (e) { loadErrToast(e, t); }
+    finally { setLoadingMore(false); }
+  };
 
   useEffect(() => { load(); }, [load]);
+
+  // Ombor selektori tanlangan filial omborlari bilan to'ldiriladi
+  useEffect(() => {
+    api.get('/inventory/warehouses', { params: { scope: 'all', ...(branchId ? { branch_id: branchId } : {}) }, _silent: true })
+      .catch(() => api.get('/inventory/warehouses', { params: branchId ? { branch_id: branchId } : {}, _silent: true }))
+      .then(r => setWarehouses(r.data || []))
+      .catch(() => setWarehouses([]));
+  }, [branchId]);
+
+  const onBranchChange = (v) => { setBranchId(v); setWarehouseId(''); };
+
+  // Mahsulot darajasida (bir mahsulot bir necha omborda/variantda bo'lishi mumkin)
+  const uniqueProducts = new Set(items.map(i => i.product_id));
+  const lowProducts = new Set(items.filter(i => i.is_low_stock).map(i => i.product_id));
 
   return (
     <div className="space-y-4">
@@ -75,6 +142,15 @@ function QoldiqlarTab() {
             className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <BranchSelect value={branchId} onChange={onBranchChange} branches={branches} />
+        <select
+          value={warehouseId}
+          onChange={e => setWarehouseId(e.target.value)}
+          className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="">{t('common.allWarehouses')}</option>
+          {warehouses.map(w => <option key={w.id} value={String(w.id)}>{whLabel(w)}</option>)}
+        </select>
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} className="w-4 h-4 rounded text-blue-600" />
           <span className="text-sm text-slate-600 font-medium">{t('product.lowStock')}</span>
@@ -85,11 +161,11 @@ function QoldiqlarTab() {
       </div>
 
       {/* summary cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { label: t('dashboard.totalProducts'), value: items.length, color: "indigo" },
-          { label: t('product.lowStock'),         value: items.filter(i => i.is_low_stock).length, color: "amber" },
-          { label: t('product.active'),            value: items.filter(i => !i.is_low_stock).length, color: "emerald" },
+          { label: t('dashboard.totalProducts'), value: uniqueProducts.size, color: "indigo" },
+          { label: t('product.lowStock'),         value: lowProducts.size, color: "amber" },
+          { label: t('product.active'),            value: uniqueProducts.size - lowProducts.size, color: "emerald" },
         ].map(c => (
           <div key={c.label} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
             <p className="text-xs text-slate-500 font-medium">{c.label}</p>
@@ -104,6 +180,8 @@ function QoldiqlarTab() {
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : loadError ? (
+          <LoadError t={t} onRetry={load} />
         ) : (
           <table className="min-w-full">
             <thead>
@@ -111,20 +189,24 @@ function QoldiqlarTab() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">#</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.product') || 'Mahsulot'}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">SKU</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{tOr(t, 'warehouse.warehouseCol', 'Ombor')}</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.balance') || 'Qoldiq'}</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.min')}</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{tOr(t, 'ombor.max', 'Max')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.status') || 'Holat'}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.updated')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {items.map((it, i) => (
-                <tr key={it.product_id} className="hover:bg-slate-50 transition-colors">
+                <tr key={`${it.product_id}-${it.variant_id ?? 0}-${it.warehouse_id ?? 0}`} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-sm text-slate-400">{i + 1}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-800">{it.product_name}</td>
                   <td className="px-4 py-3 text-sm text-slate-500 font-mono">{it.product_sku || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{it.warehouse_name || '—'}</td>
                   <td className="px-4 py-3 text-sm text-right font-bold text-slate-800">{fmt(it.quantity)}</td>
                   <td className="px-4 py-3 text-sm text-right text-slate-500">{fmt(it.min_stock)}</td>
+                  <td className="px-4 py-3 text-sm text-right text-slate-500">{it.max_stock == null ? '—' : fmt(it.max_stock)}</td>
                   <td className="px-4 py-3">
                     {it.is_low_stock
                       ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-600">⚠ {t('product.lowStock')}</span>
@@ -135,30 +217,47 @@ function QoldiqlarTab() {
                 </tr>
               ))}
               {items.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
+      {hasMore && !loading && (
+        <div className="flex justify-center">
+          <button onClick={loadMore} disabled={loadingMore}
+            className="px-5 py-2 bg-white border border-slate-200 text-sm font-semibold text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-60">
+            {loadingMore ? '...' : tOr(t, 'warehouse.loadMore', 'Yana yuklash')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── HARAKATLAR (Kirim / Chiqim) TAB ──────────────────────────────────────
+// T3.3: Kirim tabi — IN + TRANSFER_IN, Chiqim tabi — OUT + TRANSFER_OUT (backend `type` ko'p qiymatli)
+const MOVEMENT_TYPES = { in: ['IN', 'TRANSFER_IN'], out: ['OUT', 'TRANSFER_OUT'] };
+
 function MovementsTab({ type }) {
   const { t } = useLang();
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
-      const { data } = await api.get('/inventory/movements', { params: { type, limit: 100 } });
+      const { data } = await api.get('/inventory/movements', {
+        params: { type: MOVEMENT_TYPES[type] || String(type).toUpperCase(), limit: 100 },
+        paramsSerializer: { indexes: null },   // type=IN&type=TRANSFER_IN
+        _silent: true, _suppressToast: true, _noCache: true,
+      });
       setItems(data);
-    } catch (e) { console.error(e); }
+    } catch (e) { setLoadError(true); loadErrToast(e, t); }
     finally { setLoading(false); }
-  }, [type]);
+  }, [type, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -178,6 +277,8 @@ function MovementsTab({ type }) {
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : loadError ? (
+          <LoadError t={t} onRetry={load} />
         ) : (
           <table className="min-w-full">
             <thead>
@@ -188,6 +289,7 @@ function MovementsTab({ type }) {
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.qty') || 'Miqdor'}</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.before')}</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.after')}</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('movements.warehouse')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('ombor.reason')}</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('admin.dict.date') || 'Sana'}</th>
               </tr>
@@ -201,12 +303,13 @@ function MovementsTab({ type }) {
                   <td className="px-4 py-3 text-sm text-right font-bold text-slate-800">{fmt(it.quantity)}</td>
                   <td className="px-4 py-3 text-sm text-right text-slate-500">{fmt(it.qty_before)}</td>
                   <td className="px-4 py-3 text-sm text-right text-slate-500">{fmt(it.qty_after)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{it.warehouse_name || '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-500 max-w-[160px] truncate">{it.reason || '—'}</td>
                   <td className="px-4 py-3 text-xs text-slate-400">{fmtDate(it.created_at)}</td>
                 </tr>
               ))}
               {items.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-400">{t('common.noData')}</td></tr>
               )}
             </tbody>
           </table>
@@ -216,37 +319,113 @@ function MovementsTab({ type }) {
   );
 }
 
+// ─── MAHSULOT QIDIRUV COMBOBOX (T3.3) ──────────────────────────────────────
+// Serverdan qidiradi (debounce 300ms): GET /products/?search=&warehouse_id=<manba>&limit=30.
+// warehouse_id berilganda stock_quantity — shu ombor qoldig'i.
+function ProductCombo({ warehouseId, value, onSelect, disabled }) {
+  const { t } = useLang();
+  const [q, setQ]             = useState('');
+  const [open, setOpen]       = useState(false);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !warehouseId) return undefined;
+    let alive = true;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get('/products/', {
+          params: { search: q.trim() || undefined, warehouse_id: warehouseId, limit: 30 },
+          _silent: true, _suppressToast: true, _noCache: true,
+        });
+        const list = Array.isArray(data) ? data : (data?.items || []);
+        if (alive) setResults(list.filter(p => p.product_type !== 'sell'));
+      } catch (e) {
+        if (alive) { setResults([]); loadErrToast(e, t); }
+      } finally { if (alive) setLoading(false); }
+    }, q.trim() ? 300 : 0);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [q, open, warehouseId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="relative flex-1 min-w-0" ref={ref}>
+      <input
+        value={open ? q : (value?.name || '')}
+        disabled={disabled}
+        onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => { setQ(''); setOpen(true); }}
+        placeholder={disabled ? tOr(t, 'ombor.selectSourceFirst', 'Avval manba omborni tanlang') : t('ombor.selectProductEllipsis')}
+        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
+      />
+      {open && !disabled && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 max-h-60 overflow-y-auto">
+          {loading && results.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-slate-400 text-center">{t('common.loading')}</div>
+          ) : results.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-slate-400 text-center">{q.trim() ? `«${q.trim()}» ${t('ops.notFoundBy')}` : t('common.noData')}</div>
+          ) : results.map(p => (
+            <button key={p.id} type="button"
+              onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
+              className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-slate-800 truncate">{p.name}</div>
+                <div className="text-[11px] text-slate-400 truncate">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
+              </div>
+              <div className={`text-xs font-semibold shrink-0 ${Number(p.stock_quantity) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                {fmt(p.stock_quantity)} {p.unit || ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── KO'CHIRISH TAB ────────────────────────────────────────────────────────
+const EMPTY_ITEM = { product_id: '', product: null, variant_id: '', quantity: '' };
+
 function KochirTab() {
   const { t } = useLang();
   const [transfers, setTransfers]       = useState([]);
   const [warehouses, setWarehouses]     = useState([]);
-  const [products, setProducts]         = useState([]);
+  // T1.3: maqsad ombor — korxonaning barcha filiallari omborlari (scope=all); manba — joriy filial konteksti
+  const [targetWarehouses, setTargetWarehouses] = useState([]);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState(false);
   const [showModal, setShowModal]       = useState(false);
-  const [form, setForm]                 = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', variant_id: '', quantity: '' }] });
+  const [form, setForm]                 = useState({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ ...EMPTY_ITEM }] });
   const [saving, setSaving]             = useState(false);
   const [err, setErr]                   = useState('');
   /* detail state reserved for future transfer detail view */
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
-      const [tr, wh, pr] = await Promise.all([
-        api.get('/transfers', { params: { limit: 50 } }),
-        api.get('/inventory/warehouses'),
-        api.get('/products/', { params: { limit: 300 } }),
+      const [tr, wh, whAll] = await Promise.all([
+        api.get('/transfers', { params: { limit: 50 }, _silent: true, _suppressToast: true }),
+        api.get('/inventory/warehouses', { _silent: true, _suppressToast: true }),
+        api.get('/inventory/warehouses', { params: { scope: 'all' }, _silent: true, _suppressToast: true }).catch(() => null),
       ]);
       setTransfers(tr.data);
       setWarehouses(wh.data);
-      setProducts(pr.data?.items || pr.data || []);
-    } catch (e) { console.error(e); }
+      setTargetWarehouses((whAll?.data) || wh.data);
+    } catch (e) { setLoadError(true); loadErrToast(e, t); }
     finally { setLoading(false); }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
-  const addItem = () => setForm(f => ({ ...f, items: [...f.items, { product_id: '', variant_id: '', quantity: '' }] }));
+  const addItem = () => setForm(f => ({ ...f, items: [...f.items, { ...EMPTY_ITEM }] }));
   const removeItem = (idx) => setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
   const setItem = (idx, key, val) => setForm(f => {
     const items = [...f.items];
@@ -254,6 +433,16 @@ function KochirTab() {
     if (key === 'product_id') items[idx].variant_id = ''; // mahsulot almashtirilsa variant tozalanadi
     return { ...f, items };
   });
+  // T3.3: qidiruv natijasidan mahsulot tanlash (stock_quantity — manba ombor qoldig'i)
+  const pickProduct = (idx, p) => setForm(f => {
+    const items = [...f.items];
+    items[idx] = { ...items[idx], product_id: p.id, product: p, variant_id: '' };
+    return { ...f, items };
+  });
+  // Manba ombor o'zgarsa qoldiqlar eskirgan — qatorlar tozalanadi
+  const setFromWarehouse = (val) => setForm(f => (
+    String(f.from_warehouse_id) === String(val) ? f : { ...f, from_warehouse_id: val, items: [{ ...EMPTY_ITEM }] }
+  ));
 
   const submit = async () => {
     if (!form.from_warehouse_id || !form.to_warehouse_id) { setErr(t('ombor.selectWarehouses')); return; }
@@ -262,11 +451,11 @@ function KochirTab() {
     if (!validItems.length) { setErr(t('ombor.atLeastOneProduct')); return; }
     // Variantli mahsulotda variant tanlanishi shart (aks holda qaysi variant
     // ko'chirilayotgani noaniq bo'lib, qoldiq noto'g'ri joyga tushib qoladi)
-    const missingVariant = validItems.find(i => {
-      const p = products.find(pp => String(pp.id) === String(i.product_id));
-      return p?.variants?.length > 0 && !i.variant_id;
-    });
-    if (missingVariant) { setErr(t('ombor.selectVariantError') || 'Variant tanlang'); return; }
+    const missingVariant = validItems.find(i => i.product?.variants?.length > 0 && !i.variant_id);
+    if (missingVariant) { setErr(tOr(t, 'ombor.selectVariantError', 'Variant tanlang')); return; }
+    // Manba ombor qoldig'i (qidiruvdan kelgan, shu ombor bo'yicha) dan oshmasin
+    const overStock = validItems.find(i => !i.product?.variants?.length && Number(i.quantity) > Number(i.product?.stock_quantity ?? 0));
+    if (overStock) { setErr(`${overStock.product?.name}: ${t('ops.qtyExceedsStock')} (${fmt(overStock.product?.stock_quantity)})`); return; }
     setSaving(true); setErr('');
     try {
       await api.post('/transfers', {
@@ -280,20 +469,29 @@ function KochirTab() {
         })),
       });
       setShowModal(false);
-      setForm({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ product_id: '', variant_id: '', quantity: '' }] });
+      setForm({ from_warehouse_id: '', to_warehouse_id: '', note: '', items: [{ ...EMPTY_ITEM }] });
       load();
     } catch (e) { setErr(e.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
 
-  const confirm = async (id) => {
-    try { await api.post(`/transfers/${id}/confirm`); load(); }
-    catch (e) { alert(e.response?.data?.detail || t('common.error')); }
+  // T4.1: pending -> in_transit (faqat manba ombor kamayadi)
+  const send = async (id) => {
+    try { await api.post(`/transfers/${id}/send`); toast.success(tOr(t, 'transfers.sentOk', 'Transfer yuborildi')); load(); }
+    catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
   };
-  const cancel = async (id) => {
-    if (!window.confirm(t('ombor.cancelTransferConfirm'))) return;
+  // T4.1: yo'ldagi transferni to'liq qabul qilish (haqiqiy miqdor/kamomad — Operatsiyalar > Transferlar)
+  const receive = async (id) => {
+    if (!window.confirm(tOr(t, 'transfers.receiveFullConfirm', "Hamma tovar to'liq qabul qilinganini tasdiqlaysizmi? Kamomad bo'lsa Operatsiyalar bo'limida haqiqiy miqdorni kiriting."))) return;
+    try { await api.post(`/transfers/${id}/receive`, { items: [] }); toast.success(tOr(t, 'transfers.receivedOk', 'Transfer qabul qilindi')); load(); }
+    catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
+  };
+  const cancel = async (id, received = false) => {
+    // T3.3: qabul qilingan (received) transfer bekor qilinsa qoldiq manba omborga qaytadi
+    // T4.1: yo'lda (in_transit) bekor qilinsa yuborilgan miqdor manba omborga qaytadi
+    if (!window.confirm(received ? tOr(t, 'ombor.cancelReceivedConfirm', "Qabul qilingan transfer bekor qilinadi va qoldiq manba omborga qaytariladi. Davom etasizmi?") : t('ombor.cancelTransferConfirm'))) return;
     try { await api.post(`/transfers/${id}/cancel`); load(); }
-    catch (e) { alert(e.response?.data?.detail || t('common.error')); }
+    catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
   };
 
   return (
@@ -307,7 +505,7 @@ function KochirTab() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          {t('warehouse.newTransfer')}
+          {t('ops.newTransfer')}
         </button>
       </div>
 
@@ -316,6 +514,8 @@ function KochirTab() {
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : loadError ? (
+          <LoadError t={t} onRetry={load} />
         ) : (
           <table className="min-w-full">
             <thead>
@@ -332,23 +532,36 @@ function KochirTab() {
               {transfers.map((tr) => (
                 <tr key={tr.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-sm font-mono text-slate-700 font-semibold">{tr.number}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{tr.from_warehouse_name}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{tr.to_warehouse_name}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{whLabel({ name: tr.from_warehouse_name, branch_name: tr.from_branch_name })}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{whLabel({ name: tr.to_warehouse_name, branch_name: tr.to_branch_name })}</td>
                   <td className="px-4 py-3"><StatusBadge status={tr.status} /></td>
                   <td className="px-4 py-3 text-xs text-slate-400">{fmtDate(tr.created_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      {tr.status === 'pending' && (
-                        <>
-                          <button onClick={() => confirm(tr.id)}
-                            className="px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors">
-                            {t('common.confirm')}
-                          </button>
-                          <button onClick={() => cancel(tr.id)}
-                            className="px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
-                            {t('common.cancel')}
-                          </button>
-                        </>
+                      {/* T4.1: tugmalar holat va filial ruxsatiga qarab (server can_send / can_receive / can_cancel) */}
+                      {tr.status === 'pending' && tr.can_send && (
+                        <button onClick={() => send(tr.id)}
+                          className="px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                          {tOr(t, 'transfers.send', 'Yuborish')}
+                        </button>
+                      )}
+                      {tr.status === 'in_transit' && tr.can_receive && (
+                        <button onClick={() => receive(tr.id)}
+                          className="px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors">
+                          {tOr(t, 'transfers.receive', 'Qabul qilish')}
+                        </button>
+                      )}
+                      {(tr.status === 'pending' || tr.status === 'in_transit') && tr.can_cancel && (
+                        <button onClick={() => cancel(tr.id)}
+                          className="px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                          {t('common.cancel')}
+                        </button>
+                      )}
+                      {tr.status === 'received' && tr.can_cancel && (
+                        <button onClick={() => cancel(tr.id, true)}
+                          className="px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                          {tOr(t, 'ombor.cancelReceived', 'Bekor qilish (qoldiqni qaytarish)')}
+                        </button>
                       )}
                     </div>
                   </td>
@@ -367,7 +580,7 @@ function KochirTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-800">{t('warehouse.newTransfer')}</h3>
+              <h3 className="text-base font-bold text-slate-800">{t('ops.newTransfer')}</h3>
               <button onClick={() => { setShowModal(false); setErr(''); }} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -378,10 +591,10 @@ function KochirTab() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">{t('ombor.fromWarehouse')}</label>
-                  <select value={form.from_warehouse_id} onChange={e => setForm(f => ({...f, from_warehouse_id: e.target.value}))}
+                  <select value={form.from_warehouse_id} onChange={e => setFromWarehouse(e.target.value)}
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">{t('admin.dict.select') || 'Tanlang...'}</option>
-                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    {warehouses.map(w => <option key={w.id} value={w.id}>{whLabel(w)}</option>)}
                   </select>
                 </div>
                 <div>
@@ -389,10 +602,22 @@ function KochirTab() {
                   <select value={form.to_warehouse_id} onChange={e => setForm(f => ({...f, to_warehouse_id: e.target.value}))}
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">{t('admin.dict.select') || 'Tanlang...'}</option>
-                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    {targetWarehouses.map(w => <option key={w.id} value={w.id}>{whLabel(w)}</option>)}
                   </select>
+                  {targetWarehouses.length <= 1 && (
+                    <p className="mt-1 text-xs text-amber-600">{tOr(t, 'ombor.noTargetWarehouse', "Maqsad ombor yo'q — avval boshqa ombor yarating")}</p>
+                  )}
                 </div>
               </div>
+              {(() => {
+                const fw = warehouses.find(w => String(w.id) === String(form.from_warehouse_id));
+                const tw = targetWarehouses.find(w => String(w.id) === String(form.to_warehouse_id));
+                return fw?.branch_id && tw?.branch_id && fw.branch_id !== tw.branch_id ? (
+                  <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                    {tOr(t, 'transfers.twoStepHint', "Boshqa filialga ko'chirish ikki bosqichli: yuborilgach tovar \"yo'lda\" bo'ladi, qoldiq esa qabul qiluvchi filial tasdiqlagandan keyin o'tadi.")}
+                  </p>
+                ) : null;
+              })()}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">{t('ombor.noteOptional')}</label>
                 <input value={form.note} onChange={e => setForm(f => ({...f, note: e.target.value}))}
@@ -406,19 +631,21 @@ function KochirTab() {
                   <button onClick={addItem} className="text-xs text-blue-600 font-semibold hover:text-blue-800">+ {t('common.add')}</button>
                 </div>
                 {form.items.map((it, idx) => {
-                  const selectedProduct = products.find(p => String(p.id) === String(it.product_id));
+                  const selectedProduct = it.product;
                   const hasVariants = selectedProduct?.variants?.length > 0;
                   return (
                     <div key={idx} className="flex gap-2 items-center">
-                      <select value={it.product_id} onChange={e => setItem(idx, 'product_id', e.target.value)}
-                        className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">{t('ombor.selectProductEllipsis')}</option>
-                        {products.filter(p => p.product_type !== 'sell').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
+                      <ProductCombo warehouseId={form.from_warehouse_id} value={selectedProduct}
+                        disabled={!form.from_warehouse_id} onSelect={p => pickProduct(idx, p)} />
+                      {selectedProduct && (
+                        <span className={`text-[11px] font-semibold whitespace-nowrap ${Number(selectedProduct.stock_quantity) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {tOr(t, 'ombor.stockInSource', 'Manbada')}: {fmt(selectedProduct.stock_quantity)}
+                        </span>
+                      )}
                       {hasVariants && (
                         <select value={it.variant_id} onChange={e => setItem(idx, 'variant_id', e.target.value)}
                           className="w-32 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                          <option value="">{t('ombor.selectVariant') || 'Variant...'}</option>
+                          <option value="">{tOr(t, 'ombor.selectVariant', 'Variant...')}</option>
                           {selectedProduct.variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                         </select>
                       )}
@@ -459,9 +686,11 @@ function KochirTab() {
 // ─── OMBORLAR TAB ──────────────────────────────────────────────────────────
 function OmborlarTab() {
   const { t } = useLang();
+  const { currentBranchId, assignedBranchId, canSelectAll } = useBranch();
   const [warehouses, setWarehouses] = useState([]);
-  const [branches, setBranches]     = useState([]);
+  const { branches } = useBranches();   // T3.8: yagona filial hooki (keshlangan)
   const [loading, setLoading]       = useState(true);
+  const [loadError, setLoadError]   = useState(false);
   const [modal, setModal]           = useState(null);
   const [name, setName]             = useState('');
   const [branchId, setBranchId]     = useState('');
@@ -470,57 +699,63 @@ function OmborlarTab() {
   const [err, setErr]               = useState('');
   const [delConfirm, setDelConfirm] = useState(null);
 
-  const WAREHOUSE_TYPES = [
-    { value: 'main', label: t('branch.typeMain') },
-    { value: 'shop', label: t('branch.typeShop') },
-    { value: 'transit', label: t('branch.typeTransit') },
-    { value: 'returns', label: t('branch.typeReturns') },
-    { value: 'raw_material', label: t('branch.typeRawMaterial') },
-    { value: 'wip', label: t('branch.typeWip') },
-  ];
+  // T3.1: ombor turlari umumiy constants/warehouseTypes.js dan
+  const WAREHOUSE_TYPES = WH_TYPE_DEFS.map(wt => ({ value: wt.value, label: t(wt.labelKey) }));
 
   const load = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
-      const [wh, br] = await Promise.all([
-        api.get('/warehouses'),
-        api.get('/branches').catch(() => ({ data: [] })),
-      ]);
+      // T1.3: boshqaruv sahifasi — barcha filiallar omborlari (ruxsat bo'lmasa — joriy kontekst)
+      const wh = await api.get('/warehouses', { params: { scope: 'all' }, _silent: true, _suppressToast: true }).catch(() => api.get('/warehouses', { _silent: true, _suppressToast: true }));
       setWarehouses(wh.data);
-      setBranches(br.data);
-    } catch (e) { console.error(e); }
+    } catch (e) { setLoadError(true); loadErrToast(e, t); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
     if (!name.trim()) { setErr(t('ombor.nameEmptyError')); return; }
+    // T3.3: filiallar bor bo'lsa filial majburiy ("Filialsiz" faqat filial cheklovi yo'q admin/director uchun)
+    if (branches.length > 0 && !canSelectAll && !branchId) { setErr(tOr(t, 'warehouse.branchRequiredError', 'Filialni tanlang')); return; }
     setSaving(true); setErr('');
     try {
       const payload = { name: name.trim(), branch_id: branchId ? Number(branchId) : null, type: whType };
-      if (modal.mode === 'create') await api.post('/warehouses', payload);
-      else await api.patch(`/warehouses/${modal.wh.id}`, payload);
+      if (modal.mode === 'create') {
+        const created = await api.post('/warehouses', payload);
+        // Filialga biriktirilgan foydalanuvchi o'z filialiga tegishli bo'lmagan omborni ro'yxatda ko'rmaydi
+        if (assignedBranchId && (created?.data?.branch_id ?? null) !== assignedBranchId) {
+          toast(tOr(t, 'warehouse.notVisibleWarning', "Ombor yaratildi, lekin u sizning filialingiz ro'yxatida ko'rinmaydi"), { duration: 7000 });
+        }
+      } else await api.patch(`/warehouses/${modal.wh.id}`, payload);
       setModal(null); load();
     } catch (e) { setErr(e.response?.data?.detail || t('common.error')); }
     finally { setSaving(false); }
   };
   const remove = async () => {
     try { await api.delete(`/warehouses/${delConfirm.id}`); setDelConfirm(null); load(); }
-    catch (e) { alert(e.response?.data?.detail || t('common.error')); }
+    catch (e) { toast.error(e.response?.data?.detail || t('common.error')); }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">{t('ombor.allWarehousesList')}</p>
+        <p className="text-sm text-slate-500">
+          {assignedBranchId ? tOr(t, 'ombor.branchWarehousesList', "Filial omborlari ro'yxati") : t('ombor.allWarehousesList')}
+        </p>
         <button
-          onClick={() => { setName(''); setBranchId(''); setWhType('main'); setErr(''); setModal({ mode: 'create' }); }}
+          onClick={() => {
+            setName('');
+            // T3.3: standart filial — joriy / biriktirilgan filial, bo'lmasa yagona filial
+            setBranchId(currentBranchId ?? assignedBranchId ?? (branches.length === 1 ? branches[0].id : ''));
+            setWhType('main'); setErr(''); setModal({ mode: 'create' });
+          }}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          {t('warehouse.newTransfer')}
+          {t('warehouse.addWarehouse')}
         </button>
       </div>
 
@@ -529,6 +764,8 @@ function OmborlarTab() {
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : loadError ? (
+          <LoadError t={t} onRetry={load} />
         ) : (
           <table className="min-w-full">
             <thead>
@@ -568,7 +805,7 @@ function OmborlarTab() {
                 </tr>
               ))}
               {warehouses.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">{t('warehouse.noStocks')}</td></tr>
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">{t('warehouse.noWarehouses')}</td></tr>
               )}
             </tbody>
           </table>
@@ -581,7 +818,7 @@ function OmborlarTab() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-800">
-                {modal.mode === 'create' ? t('warehouse.newTransfer') : t('common.edit')}
+                {modal.mode === 'create' ? t('warehouse.addWarehouse') : t('common.edit')}
               </h3>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -605,12 +842,17 @@ function OmborlarTab() {
               </div>
               {branches.length > 0 && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">{t('ombor.branchOptional')}</label>
-                  <select value={branchId} onChange={e => setBranchId(e.target.value)}
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">{canSelectAll ? t('ombor.branchOptional') : `${t('ombor.branch')} *`}</label>
+                  <select value={branchId} onChange={e => setBranchId(e.target.value)} required
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">{t('ombor.noBranch')}</option>
+                    {canSelectAll ? <option value="">{t('ombor.noBranch')}</option>
+                      : !branchId && <option value="" disabled>{tOr(t, 'warehouse.branchRequiredError', 'Filialni tanlang')}</option>}
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
+                  {/* T4.5: filialsiz tanlansa, tahrirlangan ombor filialdan ajratiladi */}
+                  {modal.mode === 'edit' && modal.wh?.branch_id && !branchId && (
+                    <p className="mt-1 text-xs font-semibold text-amber-600">{t('ombor.detachFromBranchHint')}</p>
+                  )}
                 </div>
               )}
               {err && <p className="text-sm text-red-500">{err}</p>}
@@ -687,6 +929,8 @@ export default function Ombor() {
         ].map(tab => (
           <button
             key={tab.id}
+            title={tab.label}
+            aria-label={tab.label}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
               activeTab === tab.id

@@ -22,7 +22,7 @@ class ProductionOrder(Base):
     __tablename__ = "production_orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    number = Column(String(30), unique=True, nullable=False, index=True)
+    number = Column(String(40), unique=True, nullable=False, index=True)
 
     bom_id = Column(Integer, ForeignKey("boms.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)

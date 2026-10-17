@@ -20,6 +20,10 @@ from app.models.warehouse import Warehouse, WarehouseType  # type: ignore
 from app.models.inventory import StockLevel  # type: ignore
 from app.models.order import Order, OrderStatus  # type: ignore
 from app.models.branch import Branch  # type: ignore
+from app.services.shop_branch import (  # type: ignore
+    catalog_branch_id, list_pickup_branches, pick_fulfillment_warehouse, resolve_order_branch, shop_warehouses,
+)
+from app.services.warehouse_scope import NON_SELLABLE_TYPES  # type: ignore
 from app.models.sale import Sale, PaymentType  # type: ignore
 
 router = APIRouter(prefix="/shop", tags=["shop"])
@@ -49,48 +53,21 @@ def _verify_init_data(init_data: str, bot_token: str) -> Optional[dict]:
 
 
 def _generate_card_number_for_shop(db: Session, company_id: int) -> str:
-    """13 xonali unique loyallik karta raqami (telegram.py bilan bir xil mantiq)."""
-    import random
-    existing = {
+    """13 xonali unique loyallik karta raqami (`29…`, telegram.py bilan bir xil yagona funksiya)."""
+    from app.utils.loyalty_card import generate_card_number
+    existing = [
         r[0] for r in db.query(Customer.card_number).filter(
             Customer.company_id == company_id,
             Customer.card_number.isnot(None),
         ).all()
-    }
-    while True:
-        num = "2" + "".join(str(random.randint(0, 9)) for _ in range(12))
-        if num not in existing:
-            return num
+    ]
+    return generate_card_number(existing)
 
 
-def _shop_warehouse_ids(db: Session, company_id: int) -> List[int]:
-    """Mijozlarga ko'rsatiladigan omborlar.
-
-    Amaliyotda WarehouseType.shop deyarli ishlatilmaydi — foydalanuvchilar
-    ombor turini "main" holida qoldirib, faqat nomini "Do'kon" deb qo'yishadi.
-    Shuning uchun avval type=shop, topilmasa nomi "do'kon"/"dokon"/"shop"
-    so'zini o'z ichiga olgan faol omborlarni ishlatamiz.
-    """
-    typed = db.query(Warehouse).filter(
-        Warehouse.company_id == company_id,
-        Warehouse.type == WarehouseType.shop,
-        Warehouse.is_active == True,  # noqa: E712
-    ).all()
-    if typed:
-        return [w.id for w in typed]
-
-    all_active = db.query(Warehouse).filter(
-        Warehouse.company_id == company_id,
-        Warehouse.is_active == True,  # noqa: E712
-    ).all()
-
-    def _looks_like_shop(name: str) -> bool:
-        n = (name or "").lower()
-        for ch in ("'", "ʼ", "’", "`"):
-            n = n.replace(ch, "")
-        return "dokon" in n or "shop" in n or "магазин" in n
-
-    return [w.id for w in all_active if _looks_like_shop(w.name)]
+def _shop_warehouse_ids(db: Session, company_id: int, branch_id: Optional[int] = None) -> List[int]:
+    """Mijozlarga ko'rsatiladigan omborlar (T3.13: mantiq `shop_branch.shop_warehouses` da;
+    `branch_id` berilsa faqat shu filial omborlari)."""
+    return [w.id for w in shop_warehouses(db, company_id, branch_id)]
 
 
 def _verify_shop_token(chat_id: str, token: str, bot_token: str) -> bool:
@@ -130,6 +107,7 @@ def _resolve_shop_context(
     customer = db.query(Customer).filter(
         Customer.company_id == company.id,
         Customer.tg_chat_id == chat_id,
+        Customer.is_active.is_(True),  # T0.26: arxivlangan mijoz do'konga kira olmaydi
     ).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Mijoz topilmadi. /start bosing.")
@@ -166,6 +144,8 @@ class OrderIn(BaseModel):
     contact_phone: Optional[str] = None
     delivery_lat: Optional[float] = None
     delivery_lng: Optional[float] = None
+    # T3.13: olib ketish filiali (ixtiyoriy; yuborilmasa server zanjiri: mijoz -> standart -> birinchi filial)
+    branch_id: Optional[int] = None
 
 
 @router.get("/{company_id}/info")
@@ -174,10 +154,21 @@ def shop_info(company_id: int, db: Session = Depends(get_db)):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Do'kon topilmadi")
+    # T3.13: olib ketish filiallari (faol, do'kon omborli) — Mini App filial tanlovi uchun
+    pickup = list_pickup_branches(db, company.id)
+    pickup_ids = [b.id for b in pickup]
+    if company.shop_default_branch_id in pickup_ids:
+        default_branch_id = company.shop_default_branch_id
+    else:
+        default_branch_id = pickup_ids[0] if pickup_ids else None
     return {
         "id": company.id,
         "name": company.name,
         "delivery_fee": float(getattr(company, "delivery_fee", 0) or 0),
+        "branches": [
+            {"id": b.id, "name": b.name, "address": b.address, "phone": b.phone} for b in pickup
+        ],
+        "default_branch_id": default_branch_id,
         # Qoldiqsiz mahsulotlarga buyurtma ruxsati (CRM sozlamasi) —
         # frontend savat cheklovini shu bayroqqa qarab qo'llaydi.
         "allow_out_of_stock": company.shop_allow_out_of_stock_orders is not False,
@@ -189,6 +180,7 @@ def shop_products(
     company_id: int,
     q: Optional[str] = None,
     category_id: Optional[int] = None,
+    branch_id: Optional[int] = None,
     u: Optional[str] = None,
     t: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -196,11 +188,20 @@ def shop_products(
 ):
     company, customer = _resolve_shop_context(db, company_id, x_init_data, u, t)
 
-    wh_ids = _shop_warehouse_ids(db, company.id)
+    # T3.13: qoldiq tanlangan filial (yoki mijoz/standart filial) omborlaridan; ikkalasi ham yo'q bo'lsa
+    # eski xatti-harakat — barcha do'kon omborlari yig'indisi
+    wh_ids = _shop_warehouse_ids(db, company.id, catalog_branch_id(db, company, customer, branch_id))
     if not wh_ids:
         return []
 
-    stock_query = db.query(StockLevel).filter(StockLevel.warehouse_id.in_(wh_ids))
+    # Qoldiq: do'kon omborlari (faol, xom ashyosiz) bo'yicha yig'indi, NULL-ombor qatorlarisiz
+    stock_query = db.query(StockLevel).join(
+        Warehouse, Warehouse.id == StockLevel.warehouse_id,
+    ).filter(
+        StockLevel.warehouse_id.in_(wh_ids),
+        Warehouse.is_active == True,  # noqa: E712
+        Warehouse.type.notin_(NON_SELLABLE_TYPES),
+    )
     stock_by_product = {}
     for stock in stock_query.all():
         stock_by_product[stock.product_id] = stock_by_product.get(stock.product_id, 0) + float(stock.quantity or 0)
@@ -274,11 +275,24 @@ def shop_my_orders(
         for p in db.query(Product.id, Product.name).filter(Product.id.in_(product_ids)).all():
             product_names[p.id] = p.name
 
+    # T3.13: olib ketish filiali nomi/manzili (bitta so'rov)
+    branch_ids = {o.branch_id for o in orders if o.branch_id}
+    branches_by_id = {}
+    if branch_ids:
+        for b in db.query(Branch.id, Branch.name, Branch.address).filter(
+            Branch.id.in_(branch_ids), Branch.company_id == company.id,
+        ).all():
+            branches_by_id[b.id] = b
+
     result = []
     for order in orders:
+        order_branch = branches_by_id.get(order.branch_id)
+        is_pickup = (getattr(order, "delivery_type", None) or "pickup") == "pickup"
         result.append({
             "id": order.id,
             "order_group_id": order.order_group_id,
+            "branch_name": order_branch.name if order_branch else None,
+            "pickup_address": order_branch.address if (order_branch and is_pickup) else None,
             "product_name": product_names.get(order.product_id, "—"),
             "quantity": order.quantity,
             "unit_price": float(order.unit_price),
@@ -387,6 +401,7 @@ def shop_me(
         "name": customer.name,
         "phone": customer.phone,
         "card_number": customer.card_number,
+        "branch_id": customer.branch_id,  # T3.13: Mini App filial tanlovini oldindan belgilash uchun
         "loyalty_points": float(customer.loyalty_points or 0),
         "tier": customer.tier,
         "debt_balance": float(customer.debt_balance or 0),
@@ -442,20 +457,17 @@ def shop_create_order(
     if not data.items:
         raise HTTPException(status_code=400, detail="Savat bo'sh")
 
-    wh_ids = _shop_warehouse_ids(db, company.id)
-    if not wh_ids:
+    if not _shop_warehouse_ids(db, company.id):
         raise HTTPException(status_code=400, detail="Do'konda sotuvga qo'yilgan ombor topilmadi")
-    shop_warehouses = db.query(Warehouse).filter(Warehouse.id.in_(wh_ids)).all()
 
-    default_branch_id = customer.branch_id
-    if not default_branch_id:
-        wh_with_branch = next((w for w in shop_warehouses if w.branch_id), None)
-        default_branch_id = wh_with_branch.branch_id if wh_with_branch else None
-    if not default_branch_id:
-        first_branch = db.query(Branch).filter(Branch.company_id == company.id).first()
-        default_branch_id = first_branch.id if first_branch else None
-    if not default_branch_id:
-        raise HTTPException(status_code=400, detail="Kompaniyada filial topilmadi")
+    # T3.13: so'ralgan filial -> mijoz filiali -> korxona standart filiali -> yagona/eng kichik id li filial.
+    # Boshqa korxona, nofaol yoki do'kon omborsiz filial 400 beradi.
+    default_branch_id = resolve_order_branch(db, company, customer, data.branch_id)
+    fulfillment_wh = pick_fulfillment_warehouse(db, company.id, default_branch_id)
+    if not fulfillment_wh:
+        raise HTTPException(status_code=400, detail="Tanlangan filial topilmadi yoki do'kon ombori yo'q")
+    # Qoldiq tekshiruvi faqat tanlangan filialning do'kon omborlari bo'yicha
+    wh_ids = _shop_warehouse_ids(db, company.id, default_branch_id)
 
     # Bitta checkout'dagi barcha mahsulotlarni bitta buyurtma sifatida
     # guruhlash uchun — CRM'da alohida qatorlarga bo'linib ketmasin.
@@ -505,8 +517,10 @@ def shop_create_order(
 
         order = Order(
             order_group_id=order_group_id,
+            company_id=company.id,
             customer_id=customer.id,
             branch_id=default_branch_id,
+            warehouse_id=fulfillment_wh.id,
             product_id=product.id,
             quantity=item.quantity,
             unit_price=unit_price,
@@ -526,6 +540,10 @@ def shop_create_order(
 
     if not created_orders:
         raise HTTPException(status_code=400, detail="Savatdagi mahsulotlar topilmadi")
+
+    # T3.13: mijozda filial bo'sh bo'lsa tanlangan filial unga yoziladi (keyingi buyurtmalar/katalog shu filialdan)
+    if not customer.branch_id:
+        customer.branch_id = default_branch_id
 
     try:
         db.commit()

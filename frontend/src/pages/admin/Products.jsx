@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import api from '../../api/axios';
 import BarcodePrintModal from '../../components/BarcodeTemplates';
+import BranchSelect from '../../components/BranchSelect';
 import { useLang } from '../../context/LangContext';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import { ChevronsUpDown, CheckIcon, Search, Layers, ToggleLeft, Warehouse, ListOrdered, SearchIcon, Flame, CircleCheck, PencilRuler, TrendingUp, TrendingDown, Banknote, Wallet, BarChart3, Box, EllipsisVertical, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight, ChevronDown, Binary, Trash2, Folder, FolderOpen, CornerDownRight, Plus } from 'lucide-react';
@@ -24,6 +26,11 @@ import {
 } from './products/SharedComponents';
 import SizeMatrixModal from './products/SizeMatrixModal';
 import useBulkVoice from './products/useBulkVoice';
+import { isScaleUnit } from '../../utils/scale';
+import { buildShtrixM, buildTma, buildRongta } from '../../utils/scaleExport';
+
+/* Saqlash joylarini o'zgartira oladigan rollar (backend BIN_WRITE_ROLES bilan bir xil) */
+const BIN_WRITE_ROLES = ['super_admin', 'admin', 'director', 'warehouse', 'manager'];
 
 /* MXIK sinxronizatsiya holati — rang va izoh */
 const getMxikStatusMeta = (t) => ({
@@ -34,8 +41,112 @@ const getMxikStatusMeta = (t) => ({
 });
 
 /* ═══════════════════════════════════════════════════ */
+// T4.3: mahsulot kartochkasida filial narxlari (korxona narxini filial bo'yicha ustidan yozish)
+const BRANCH_PRICE_ROLES = ['admin', 'director', 'manager', 'super_admin'];
+function BranchPricesSection({ productId }) {
+  const { t } = useLang();
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const [rows, setRows] = useState([]);   // [{ branch, item, sale, wholesale, busy }]
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const br = await api.get('/branches', { _suppressToast: true });
+      const branches = Array.isArray(br.data) ? br.data : [];
+      const out = await Promise.all(branches.map(async (b) => {
+        try {
+          const r = await api.get('/branch-prices', { params: { branch_id: b.id, product_id: productId, limit: 1 }, _suppressToast: true });
+          const item = r.data?.items?.[0] || null;
+          return {
+            branch: b, item,
+            sale: item?.branch_sale_price != null ? String(Number(item.branch_sale_price)) : '',
+            wholesale: item?.branch_wholesale_price != null ? String(Number(item.branch_wholesale_price)) : '',
+          };
+        } catch { return { branch: b, item: null, sale: '', wholesale: '', denied: true }; }
+      }));
+      setRows(out);
+    } catch { setRows([]); }
+    setLoading(false);
+  }, [productId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setField = (id, field, val) => setRows(rs => rs.map(r => (r.branch.id === id ? { ...r, [field]: val } : r)));
+
+  const save = async (r) => {
+    const num = (v) => (v === '' ? null : Number(v));
+    setField(r.branch.id, 'busy', true);
+    try {
+      await api.put(`/branch-prices/${r.branch.id}/${productId}`, { sale_price: num(r.sale), wholesale_price: num(r.wholesale) });
+      toast.success(tf('branchPrices.saved', 'Filial narxi saqlandi'));
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || tf('branchPrices.saveFailed', "Saqlab bo'lmadi"));
+      setField(r.branch.id, 'busy', false);
+    }
+  };
+
+  const remove = async (r) => {
+    setField(r.branch.id, 'busy', true);
+    try {
+      await api.delete(`/branch-prices/${r.branch.id}/${productId}`);
+      toast.success(tf('branchPrices.removed', 'Korxona narxiga qaytarildi'));
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || tf('branchPrices.saveFailed', "Saqlab bo'lmadi"));
+      setField(r.branch.id, 'busy', false);
+    }
+  };
+
+  if (loading) return null;
+  if (rows.length === 0) return null;
+  const co = rows.find(r => r.item)?.item || null;
+  return (
+    <div className="border border-slate-200 rounded-xl p-4 bg-white">
+      <div className="font-bold text-slate-700 mb-1">{tf('branchPrices.title', 'Filial narxlari')}</div>
+      <p className="text-xs text-slate-500 mb-3">{tf('branchPrices.hint', "Bo'sh qoldirilsa korxona narxi qo'llanadi")}</p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-slate-500">
+            <th className="py-1 pr-2">{tf('branchPrices.branch', 'Filial')}</th>
+            <th className="py-1 pr-2">{tf('branchPrices.retail', 'Chakana')}{co ? ` (${Number(co.sale_price).toLocaleString()})` : ''}</th>
+            <th className="py-1 pr-2">{tf('branchPrices.wholesale', 'Ulgurji')}{co && co.wholesale_price != null ? ` (${Number(co.wholesale_price).toLocaleString()})` : ''}</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.branch.id} className="border-t border-slate-100">
+              <td className="py-1.5 pr-2 text-slate-700">{r.branch.name}</td>
+              <td className="py-1.5 pr-2">
+                <input type="number" min="0" disabled={r.denied} className="w-28 px-2 py-1 border border-slate-200 rounded-lg"
+                  value={r.sale} onChange={e => setField(r.branch.id, 'sale', e.target.value)} />
+              </td>
+              <td className="py-1.5 pr-2">
+                <input type="number" min="0" disabled={r.denied} className="w-28 px-2 py-1 border border-slate-200 rounded-lg"
+                  value={r.wholesale} onChange={e => setField(r.branch.id, 'wholesale', e.target.value)} />
+              </td>
+              <td className="py-1.5 text-right whitespace-nowrap">
+                <button type="button" disabled={r.busy || r.denied || (r.sale === '' && r.wholesale === '')} onClick={() => save(r)}
+                  className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded-lg disabled:opacity-40">{tf('common.save', 'Saqlash')}</button>
+                {r.item?.has_override && (
+                  <button type="button" disabled={r.busy} onClick={() => remove(r)}
+                    className="ml-2 px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 rounded-lg disabled:opacity-40">{tf('branchPrices.reset', 'Korxona narxiga qaytarish')}</button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function Products() {
   const { t } = useLang();
+  const { user: authUser } = useAuth();
+  const canEditBin = BIN_WRITE_ROLES.includes(String(authUser?.role?.value ?? authUser?.role ?? ''));
   const MXIK_STATUS_META = getMxikStatusMeta(t);
   const [printProduct, setPrintProduct] = useState(null);
   const [printProducts, setPrintProducts] = useState(null);   // ommaviy shtrix-kod chop etish
@@ -60,6 +171,9 @@ export default function Products() {
   const [filterCat, setFilterCat] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterWarehouse, setFilterWarehouse] = useState('');
+  // T2.3: filial filtri (ombor ro'yxatini ham shu filial omborlari bilan toraytiradi)
+  const [filterBranch, setFilterBranch] = useState('');
+  const [branchList, setBranchList] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [measure, setMeasure] = useState("Barcha birlik");
   const [paginated, setPaginated] = useState([]);
@@ -193,7 +307,7 @@ export default function Products() {
   /* bin location state */
   const [blModal, setBlModal] = useState(null);
   const [blSelected, setBlSelected] = useState(null);
-  const [blForm, setBlForm] = useState(emptyBinLoc);
+  const [blForm, setBlForm] = useState({ ...emptyBinLoc, warehouse_id: '' });
   const [blSaving, setBlSaving] = useState(false);
   const [blError, setBlError] = useState('');
 
@@ -204,6 +318,7 @@ export default function Products() {
   /* MXIK bulk sync + tarozi export modal */
   const [mxikSyncing, setMxikSyncing] = useState(false);
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
+  const [scaleBranch, setScaleBranch] = useState(''); // T3.12: tarozi fayli filiali ('' = barcha filiallar)
 
   /* size matrix modal */
   const [sizeMatrix, setSizeMatrix] = useState(false);
@@ -268,14 +383,50 @@ export default function Products() {
     }
   }, [mpStatus]);
 
-  const handleApproveMpProduct = async (id) => {
+  // T3.17: tasdiqlash — kirim qilinadigan omborni tanlash modali (yangi matnlar: i18n kaliti yoki zaxira)
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+  const [approveModal, setApproveModal] = useState(null); // { product, mode: 'approve' | 'receive' }
+  const [approveWh, setApproveWh] = useState('');
+  const [approveReceive, setApproveReceive] = useState(true);
+  const [approving, setApproving] = useState(false);
+  const [approveError, setApproveError] = useState('');
+
+  const openApproveModal = (product, mode = 'approve') => {
+    const active = warehouses.filter(w => w.is_active !== false);
+    const pref = active.find(w => String(w.id) === String(product.preferred_warehouse_id));
+    setApproveWh(pref ? String(pref.id) : (active.length === 1 ? String(active[0].id) : ''));
+    setApproveReceive(true);
+    setApproveError('');
+    setApproveModal({ product, mode });
+  };
+
+  const handleApproveMpProduct = async () => {
+    if (!approveModal || approving) return;
+    const { product, mode } = approveModal;
+    if (mode === 'receive' && !approveWh) {
+      setApproveError(tf('mpApprove.pickWarehouse', "Qabul qilinadigan omborni tanlang"));
+      return;
+    }
+    setApproving(true);
+    setApproveError('');
     try {
-      await api.post(`/marketplace-agents/products/${id}/approve`);
-      toast.success("Mahsulot tasdiqlandi va Mir-maza ga yuborildi!");
+      if (mode === 'receive') {
+        await api.post(`/marketplace-agents/products/${product.id}/receive`, { warehouse_id: Number(approveWh) }, { _suppressToast: true });
+        toast.success(tf('mpApprove.received', "Mahsulot omborga kirim qilindi"));
+      } else {
+        const body = { receive_stock: approveReceive };
+        if (approveWh) body.warehouse_id = Number(approveWh);
+        await api.post(`/marketplace-agents/products/${product.id}/approve`, body, { _suppressToast: true });
+        toast.success("Mahsulot tasdiqlandi va Mir-maza ga yuborildi!");
+      }
+      setApproveModal(null);
       loadMarketplaceProducts();
       loadProducts();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Tasdiqlashda xatolik");
+      // 409 "ombor tanlang" va boshqa server xabarlari modal ichida ko'rsatiladi
+      setApproveError(e.response?.data?.detail || "Tasdiqlashda xatolik");
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -305,6 +456,7 @@ export default function Products() {
     if (filterCat) params.append('category_id', filterCat);
     if (filterStatus) params.append('status', filterStatus);
     if (filterWarehouse) params.append('warehouse_id', filterWarehouse);
+    if (filterBranch) params.append('branch_id', filterBranch);
     if (filterMeasure) params.append('unit', filterMeasure); // o'lchov birligi filter
     if (filterStock) params.append('stock_status', filterStock); // ombor holati filter
     if (sortBy && sortOrder) {
@@ -326,10 +478,10 @@ export default function Products() {
       })
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false));
-  }, [search, filterCat, filterStatus, filterWarehouse, filterMeasure, filterStock, sortBy, sortOrder, limit, page]);
+  }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, page]);
 
   // Filter yoki saralash o'zgarganda 1-sahifaga qaytish
-  useEffect(() => { setPage(1); }, [search, filterCat, filterStatus, filterWarehouse, filterMeasure, filterStock, sortBy, sortOrder, limit]);
+  useEffect(() => { setPage(1); }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit]);
 
   useEffect(() => {
     loadCategories();
@@ -337,6 +489,7 @@ export default function Products() {
 
     api.get('/currencies/').then(r => setCurrencies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
+    api.get('/branches', { _silent: true }).then(r => setBranchList(r.data || [])).catch(() => setBranchList([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -345,7 +498,7 @@ export default function Products() {
     if (activeTab === 'categories') { loadCategories(); loadBinLocations(); }
     if (activeTab === 'marketplace') loadMarketplaceProducts();
     // esliet-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, page, filterCat, filterStatus, filterWarehouse, filterMeasure, filterStock, sortBy, sortOrder, limit, loadMarketplaceProducts]);
+  }, [activeTab, page, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, loadMarketplaceProducts]);
 
   useEffect(() => {
     if (activeTab !== 'products') return;
@@ -356,7 +509,7 @@ export default function Products() {
 
   /* ── product CRUD ───────────────────────────────── */
   const fillFormFromProduct = (p) => ({
-    name: p.name, sku: p.sku, product_code: p.product_code || '',
+    name: p.name, sku: p.sku, plu_code: p.plu_code ? String(p.plu_code) : '', product_code: p.product_code || '',
     extra_product_codes: Array.isArray(p.extra_product_codes) ? p.extra_product_codes : [],
     barcode: p.barcode,
     barcode_format: 'ean8',
@@ -370,8 +523,9 @@ export default function Products() {
     wholesale_price_cur: getCurrencyIdByCode(p.wholesale_currency || p.sale_currency),
     sale_price_cur: getCurrencyIdByCode(p.sale_currency),
     price_currency_id: getCurrencyIdByCode(p.sale_currency),
-    initial_stock: p.stock_quantity !== undefined ? String(Number(p.stock_quantity)) : '',
-    initial_warehouse_id: p.warehouse_stocks?.[0]?.warehouse_id ? String(p.warehouse_stocks[0].warehouse_id) : '',
+    // Tahrirda qoldiq yuborilmaydi (STOCK-01): faqat yangi mahsulotda to'ldiriladi
+    initial_stock: '',
+    initial_warehouse_id: '',
     min_stock: (p.min_stock !== null && p.min_stock !== undefined) ? String(p.min_stock) : '',
     max_stock: (p.max_stock !== null && p.max_stock !== undefined) ? String(p.max_stock) : '',
     bin_location: p.bin_location || '',
@@ -509,6 +663,7 @@ export default function Products() {
       const payload = {
         name: form.name.trim(),
         sku: form.sku?.trim() || undefined,
+        plu_code: isScaleUnit(form.unit) && form.plu_code ? Number(form.plu_code) : undefined,
         product_code: form.product_code?.trim() || null,
         extra_product_codes: (form.extra_product_codes || []).filter(c => c.trim()),
         mxik_code: mxikCode?.trim() || null,
@@ -552,7 +707,7 @@ export default function Products() {
       } else if (modal === 'edit' && selected?.conversion) {
         payload.conversion = null;
       }
-      if (effectiveType !== 'sell') {
+      if (effectiveType !== 'sell' && modal === 'add') {
         payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
         payload.initial_warehouse_id = form.initial_warehouse_id ? Number(form.initial_warehouse_id) : undefined;
       }
@@ -743,10 +898,10 @@ export default function Products() {
   };
 
   /* ── bin location CRUD ──────────────────────────── */
-  const openAddBl = () => { setBlForm(emptyBinLoc); setBlError(''); setBlModal('add'); };
+  const openAddBl = () => { setBlForm({ ...emptyBinLoc, warehouse_id: '' }); setBlError(''); setBlModal('add'); };
   const openEditBl = (b) => {
     setBlSelected(b);
-    setBlForm({ code: b.code, label: b.label || '' });
+    setBlForm({ code: b.code, label: b.label || '', warehouse_id: b.warehouse_id ? String(b.warehouse_id) : '' });
     setBlError('');
     setBlModal('edit');
   };
@@ -756,7 +911,7 @@ export default function Products() {
     e.preventDefault();
     setBlSaving(true); setBlError('');
     try {
-      const payload = { code: blForm.code.trim(), label: blForm.label?.trim() || null };
+      const payload = { code: blForm.code.trim(), label: blForm.label?.trim() || null, warehouse_id: blForm.warehouse_id ? Number(blForm.warehouse_id) : null };
       if (blModal === 'add') await api.post('/bin-locations', payload);
       else await api.put(`/bin-locations/${blSelected.id}`, payload);
       closeBlModal();
@@ -823,6 +978,7 @@ export default function Products() {
     { key: 'Holat', label: t('product.importFieldStatus') },
     { key: 'Brand', label: t('product.importFieldBrand') },
     { key: 'Kategoriya', label: t('product.importFieldCategoryName') },
+    { key: 'Ombor', label: t('product.importFieldWarehouse') },   // T4.5: qator bo'yicha ombor (nom)
     { key: '__SKIP__', label: t('product.importFieldSkip') },
   ];
 
@@ -900,13 +1056,14 @@ export default function Products() {
     }
     const check = async () => {
       try {
-        const { data } = await api.post(`/products/bulk-check?search_by_sku=${searchBySku}`, payload);
+        const whQ = importWarehouseId ? `&warehouse_id=${importWarehouseId}` : '';
+        const { data } = await api.post(`/products/bulk-check?search_by_sku=${searchBySku}${whQ}`, payload);
         setPrecheck(data);
       } catch (err) { }
     };
     const t = setTimeout(check, 400);
     return () => clearTimeout(t);
-  }, [colMap, skipRows, importRows, searchBySku, allowUpdate, importOpen]);
+  }, [colMap, skipRows, importRows, searchBySku, allowUpdate, importOpen, importWarehouseId]);
 
   // Auto-map columns by matching excel header to known field label/key
   const autoMap = (rows) => {
@@ -944,7 +1101,8 @@ export default function Products() {
     const ws = XLSX.utils.json_to_sheet([{
       'Nomi': 'Coca-Cola 0.5L', 'SKU': '', 'Kod': 'CL-001', 'Barkod': '12345678',
       "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
-      'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol'
+      'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol',
+      'Ombor': ''   // T4.5: ixtiyoriy - ombor nomi (bo'sh bo'lsa tanlangan ombor)
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
@@ -958,6 +1116,8 @@ export default function Products() {
     try {
       let totC = 0, totU = 0, totS = 0;
       let errs = [];
+      let warns = [];
+      let whName = null;
       const CHUNK_SIZE = 500;
       const whParam = importWarehouseId ? `&warehouse_id=${importWarehouseId}` : '';
 
@@ -970,10 +1130,14 @@ export default function Products() {
         if (data.errors?.length && errs.length < 300) {
           errs = [...errs, ...data.errors].slice(0, 300);
         }
+        if (data.warnings?.length && warns.length < 300) {
+          warns = [...warns, ...data.warnings].slice(0, 300);
+        }
+        if (data.warehouse_name) whName = data.warehouse_name;
         setImportProgress(Math.round(((i + chunk.length) / payload.length) * 100));
       }
 
-      setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
+      setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs, warnings: warns, warehouse_name: whName });
       if (totC > 0 || totU > 0) {
         loadProducts();
         loadCategories();
@@ -1175,199 +1339,51 @@ export default function Products() {
     if (created > 0) loadProducts();
   };
 
-  const exportToShtrixM = async () => {
-    try {
-      const apiData = await api.get('/products/')
-        .then(r => {
-          return r.data
-        })
-        .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
-
-      const filteredData = apiData.filter(prod => prod.unit === "kg");
-      let txtContent = "";
-
-      filteredData.forEach(prod => {
-        // 1. PLU: kiritilgan SKU (artikul) ishlatiladi, yo'q bo'lsa ID 5 xonali qilinadi
-        const plu = prod.sku && prod.sku.trim() ? prod.sku.trim() : String(prod.id).padStart(5, '0');
-
-        // 2. Mahsulot nomi (ichidagi ';' belgilari tozalanadi)
-        const name = prod.name ? prod.name.replace(/;/g, ' ') : 'Nomsiz';
-
-        // 3. Guruh — bo'sh qoldiriladi
-        const group = '';
-
-        // 4. Chakana sotish narxi (Yaxlitlangan butun son)
-        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
-
-        // 5. Haqiqiy shtrix-kod (Sizning APIdagi 'barcode' maydoningiz)
-        const barcode = plu
-
-        // Saytingizda yo'q maydonlar o'rniga o'zgarmas '0' va standart sana qo'yiladi (Majburiy)
-        const tara = 0;
-        const yaroqlilik_muddati = 0;
-        const maxsulot_turi = 0; // 0 - tarozibop
-
-        // Qat'iy ketma-ketlik:
-        txtContent += `${plu};${name};${group};${price};${tara};${yaroqlilik_muddati};${maxsulot_turi};${barcode};0;0;0;01.01.01;0;\r\n`;
-      });
-
-      // Windows-1251 kodirovkasiga o'girish va yuklab olish (Avvalgidek)
+  // T3.12: tarozi fayllari — butun katalogdan (sahifalashsiz), ixtiyoriy filial kesimida; PLU = plu_code
+  const downloadScaleFile = (content, fileName, win1251) => {
+    let blob;
+    if (win1251) {
       const encoder = new window.TextEncoder('windows-1251', { NONSTANDARD_allowLegacyEncoding: true });
-      const u8Array = encoder.encode(txtContent);
-      const blob = new Blob([u8Array], { type: 'text/plain;charset=windows-1251' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'Shtrix-M.txt');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-    } catch (error) {
-      toast.error(t('product.exportError'));
+      blob = new Blob([encoder.encode(content)], { type: 'text/plain;charset=windows-1251' });
+    } else {
+      blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     }
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   };
 
-  const exportToTMA = async () => {
-    try {
-      const apiData = await api.get('/products/')
-        .then(r => r.data)
-        .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi"); return []; });
-
-      const filteredData = apiData.filter(prod => prod.unit === "kg" || prod.unit === "g");
-      
-      if (!filteredData || filteredData.length === 0) {
-        toast.warning(t('product.noScaleProducts'));
-        return;
-      }
-
-      const lines = [];
-      
-      // 1. Mahsulotlar (PLU) ro'yxatini yuklaymiz
-      // Tarozi sozlamalari (Print=1100, Barcode=10) har bir mahsulot qatorida (8, 9 ustunlar) yuboriladi
-      lines.push('ECS\tVER\t100\t');
-      lines.push('DWL\tPLU\t');
-
-      filteredData.forEach((prod) => {
-        // Ism (bo'shliq, enterni tozalash)
-        const name = (prod.name || 'Nomsiz')
-          .replace(/[\t\r\n]/g, ' ')
-          .trim()
-          .substring(0, 28);
-
-        // Narx (TMS formatida vergul bilan)
-        const priceRaw = prod.sale_price ? parseFloat(prod.sale_price) : 0;
-        const priceStr = priceRaw.toFixed(1).replace('.', ',');
-
-        // ItemCode (5 xonali raqam, PLU raqami sifatida ishlashiga moslangan)
-        const rawPlu = prod.sku && String(prod.sku).trim()
-          ? String(prod.sku).trim().replace(/\D/g, '')
-          : String(prod.id);
-        const itemCode = rawPlu ? rawPlu.slice(-5).padStart(5, '0') : String(prod.id).padStart(5, '0');
-        const itemCodeNum = parseInt(itemCode, 10);
-        const itemCodeStr = String(itemCodeNum || 0);
-
-        // Qatorni TM-xA 69 ustunli to'liq formatida yig'amiz
-        const row = [
-          'PLU', // 0
-          itemCodeStr, // 1 (PLU Number: Barcode-10 aynan shu yerdan kodni oladi!)
-          '0', // 2
-          '', // 3
-          '3', // 4 (Unit: kg)
-          priceStr, // 5
-          '0,0', '0,0', // 6,7
-          '1100', // 8 (Print format)
-          '10', // 9 (Barcode format)
-          '0', '0', '0', '0', // 10-13
-          itemCodeStr, // 14 (Item Code)
-          name, // 15 (Name)
-          '', '', '', '', '', '', '', // 16-22
-          '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', // 23-34
-          '0,0', '0,0', // 35,36
-          '0', '127', '0,0', '0,0', '0,0', // 37-41
-          '0', '127', '0,0', '0,0', '0,0', // 42-46
-          '0', '127', '0,0', '0,0', '0,0', // 47-51
-          '0', '127', '0,0', '0,0', '0,0', // 52-56
-          '0', '0', '0', '0', '0', '0', '0', // 57-63
-          name, // 64 (Name 2)
-          '0', '0', '0', '' // 65-68
-        ];
-
-        lines.push(row.join('\t'));
-      });
-
-      lines.push('END\tPLU\t');
-      lines.push('END\tECS\t');
-
-      const tmsContent = lines.join('\r\n');
-      const blob = new Blob([tmsContent], { type: 'text/plain;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'TMA_import.tms');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success(t('product.exportSuccessCount', { count: filteredData.length, file: 'TMA_import.tms' }));
-    } catch (error) {
-      toast.error(t('product.exportError'));
-    }
-  };
-
-  const exportToRongta = (allProducts) => {
-    try {
-      const filteredData = allProducts.filter(prod => prod.unit === "kg" || prod.unit === "g");
-
-      if (!filteredData || filteredData.length === 0) {
-        toast.warning(t('product.noScaleProducts'));
-        return;
-      }
-
-      const lines = [];
-      filteredData.forEach((prod) => {
-        // Kod: product_code, aks holda sku, aks holda id (faqat raqam, boshidagi nollarni saqlab qolamiz)
-        const rawCode = prod.product_code || prod.sku || String(prod.id);
-        let code = String(rawCode).replace(/\D/g, '');
-        if (!code) code = '0'; // Agar bo'sh bo'lsa
-        
-        // Ism — katta harflarda
-        const name = (prod.name || 'NOMSIZ').toUpperCase().trim();
-
-        // Narx — butun son, chakana narx (sale_price)
-        const price = prod.sale_price ? Math.round(parseFloat(prod.sale_price)) : 0;
-
-        // Rongta 13-field format (Foydalanuvchi xohlagan qolip):
-        // CODE;NAME;;PRICE;0;0;0;CODE;0;0;0;01.01.01;0
-        lines.push(`${code};${name};;${price};0;0;0;${code};0;0;0;01.01.01;0`);
-      });
-
-      const txtContent = lines.join('\r\n');
-      const encoder = new window.TextEncoder('windows-1251', { NONSTANDARD_allowLegacyEncoding: true });
-      const u8Array = encoder.encode(txtContent);
-      const blob = new Blob([u8Array], { type: 'text/plain;charset=windows-1251' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'RONGTA.txt');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      toast.success(t('product.exportSuccessCount', { count: filteredData.length, file: 'RONGTA.txt' }));
-    } catch (error) {
-      toast.error(t('product.exportError'));
-    }
-  };
-
-  const runScaleExport = (type) => {
+  const runScaleExport = async (type) => {
     setScaleModalOpen(false);
-    if (type === 'shtrix-m') exportToShtrixM(products);
-    else if (type === 'tma') exportToTMA();
-    else if (type === 'rongta') exportToRongta(products);
+    try {
+      const { data } = await api.get('/products/export/scale', {
+        params: scaleBranch ? { branch_id: scaleBranch } : {},
+      });
+      const items = Array.isArray(data) ? data : [];
+      if (items.length === 0) {
+        toast.warning(t('product.noScaleProducts'));
+        return;
+      }
+      let fileName;
+      if (type === 'shtrix-m') {
+        fileName = 'Shtrix-M.txt';
+        downloadScaleFile(buildShtrixM(items), fileName, true);
+      } else if (type === 'tma') {
+        fileName = 'TMA_import.tms';
+        downloadScaleFile(buildTma(items), fileName, false);
+      } else {
+        fileName = 'RONGTA.txt';
+        downloadScaleFile(buildRongta(items), fileName, true);
+      }
+      toast.success(t('product.exportSuccessCount', { count: items.length, file: fileName }));
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || t('product.exportError'));
+    }
   };
 
   const syncMxikCodes = async () => {
@@ -1409,6 +1425,17 @@ export default function Products() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-slate-800 font-bold text-lg mb-1">{t('product.scaleFileTitle')}</h3>
             <p className="text-slate-500 text-sm mb-4">{t('product.scaleFileSubtitle')}</p>
+            {branchList.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{tf('product.scaleBranch', 'Filial')}</label>
+                <BranchSelect
+                  value={scaleBranch}
+                  onChange={setScaleBranch}
+                  branches={branchList}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <button onClick={() => runScaleExport('shtrix-m')}
                 className="w-full cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-mist-50 hover:bg-mist-100 text-mist-700 font-semibold rounded-lg border border-mist-200 transition-colors">
@@ -1529,6 +1556,7 @@ export default function Products() {
                       if (filterCat) params.append('category_id', filterCat);
                       if (filterStatus) params.append('status', filterStatus);
                       if (filterWarehouse) params.append('warehouse_id', filterWarehouse);
+                      if (filterBranch) params.append('branch_id', filterBranch);
                       params.append('limit', '9999');
                       params.append('skip', '0');
                       const res = await api.get('/products/paginated?' + params.toString());
@@ -1783,6 +1811,23 @@ export default function Products() {
               </Listbox>
             </div>
 
+            {/* 3.5 FILIAL (T2.3): ombor ro'yxati va qoldiq shu filial doirasida */}
+            {branchList.length > 1 && (
+              <div className="w-full sm:w-auto min-w-[160px] flex-1 sm:flex-none">
+                <BranchSelect
+                  value={filterBranch}
+                  onChange={(v) => {
+                    setFilterBranch(v);
+                    // tanlangan ombor yangi filialga tegishli bo'lmasa tozalanadi
+                    const wh = warehouses.find(w => String(w.id) === String(filterWarehouse));
+                    if (v && wh && String(wh.branch_id) !== String(v)) setFilterWarehouse('');
+                  }}
+                  branches={branchList}
+                  className="w-full px-2 py-1 xl:px-3 xl:py-2.5 rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:ring-1 focus:ring-blue-500 shadow-xs"
+                />
+              </div>
+            )}
+
             {/* 4. OMBORLAR (WAREHOUSES) LISTBOX */}
             {warehouses.length > 0 && (
               <div className="w-full sm:w-auto min-w-[180px] flex-1 sm:flex-none">
@@ -1808,7 +1853,7 @@ export default function Products() {
                           <CheckIcon aria-hidden="true" className="size-4 xl:size-5" />
                         </span>
                       </ListboxOption>
-                      {warehouses.map((w) => (
+                      {warehouses.filter(w => !filterBranch || String(w.branch_id) === String(filterBranch)).map((w) => (
                         <ListboxOption key={w.id} value={w.id} className="group relative py-1.5 xl:py-2.5 pr-7 xl:pr-9 pl-2 xl:pl-3 select-none cursor-pointer text-slate-800 data-[focus]:bg-blue-600 data-[focus]:text-white outline-hidden">
                           <div className="flex items-center gap-2">
                             <CircleCheck className="size-4 xl:size-5 shrink-0 text-gray-400 group-data-[focus]:text-white" />
@@ -2683,20 +2728,20 @@ export default function Products() {
                 <p className="text-[11px] sm:text-xs text-slate-400 font-medium">{t('product.totalLocationsCount', { count: binLocations.length })}</p>
               </div>
             </div>
-            <button onClick={openAddBl}
+            {canEditBin && <button onClick={openAddBl}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] sm:text-sm font-bold rounded-xl transition-all shadow-sm active:scale-[0.98]">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
               </svg>
               {t('product.newBinLocation')}
-            </button>
+            </button>}
           </div>
 
           <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
             <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {[t('product.binCode'), t('product.binDescLabel'), ''].map(h => (
+                  {[t('product.binCode'), t('product.binDescLabel'), t('product.warehouse'), ''].map(h => (
                     <th key={h} className="px-6 py-4 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -2708,8 +2753,9 @@ export default function Products() {
                       <span className="inline-flex px-3 py-1 bg-blue-50 text-blue-700 text-[13px] font-mono font-bold rounded-lg border border-blue-100">{b.code}</span>
                     </td>
                     <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{b.label || <span className="text-slate-300 italic">{t('product.noDescription')}</span>}</td>
+                    <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{b.warehouse_name || <span className="text-slate-300 italic">{t('common.allWarehouses')}</span>}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {canEditBin && <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => openEditBl(b)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -2720,13 +2766,13 @@ export default function Products() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
-                      </div>
+                      </div>}
                     </td>
                   </tr>
                 ))}
                 {binLocations.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-6 py-20 text-center">
+                    <td colSpan={4} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center gap-3 text-slate-400">
                         <Warehouse size={40} className="opacity-20" />
                         <span className="text-sm font-medium">{t('product.noLocations')}</span>
@@ -2856,7 +2902,7 @@ export default function Products() {
                           {p.status === 'review' && (
                             <>
                               <button
-                                onClick={() => handleApproveMpProduct(p.id)}
+                                onClick={() => openApproveModal(p)}
                                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all active:scale-95"
                               >
                                 Tasdiqlash
@@ -2870,9 +2916,24 @@ export default function Products() {
                             </>
                           )}
                           {p.status === 'approved' && (
-                            <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                              ✓ Mir-maza da faol
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                                ✓ Mir-maza da faol
+                              </span>
+                              {p.warehouse_name && (
+                                <span className="text-[11px] text-slate-500">
+                                  {tf('mpApprove.receivedTo', 'Qabul qilindi')}: {p.warehouse_name}
+                                </span>
+                              )}
+                              {!p.purchase_order_id && Number(p.qty) > 0 && (
+                                <button
+                                  onClick={() => openApproveModal(p, 'receive')}
+                                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold rounded-lg transition-all active:scale-95"
+                                >
+                                  {tf('mpApprove.receiveNow', 'Omborga kirim qilish')}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
@@ -2881,6 +2942,71 @@ export default function Products() {
                 </tbody>
               </table>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* T3.17: Tasdiqlash / kirim qilish — ombor tanlash modali */}
+      {approveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-800 mb-1">
+              {approveModal.mode === 'receive'
+                ? tf('mpApprove.receiveTitle', 'Mahsulotni omborga kirim qilish')
+                : tf('mpApprove.title', 'Mahsulotni tasdiqlash')}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              {approveModal.product.name} — {approveModal.product.qty} × {fmt(approveModal.product.price)} so'm
+            </p>
+
+            {approveError && (
+              <div className="px-3 py-2 mb-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">{approveError}</div>
+            )}
+
+            {(approveModal.mode === 'receive' || approveReceive) && Number(approveModal.product.qty) > 0 && (
+              <label className="block mb-4">
+                <span className="block text-xs font-semibold text-slate-600 mb-1">
+                  {tf('mpApprove.warehouse', 'Qabul qilinadigan ombor')}
+                </span>
+                <select
+                  value={approveWh}
+                  onChange={(e) => setApproveWh(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  {approveModal.mode !== 'receive' && (
+                    <option value="">{tf('mpApprove.defaultWarehouse', 'Standart ombor (server tanlaydi)')}</option>
+                  )}
+                  {warehouses.filter(w => w.is_active !== false).map(w => (
+                    <option key={w.id} value={w.id}>{w.name}{w.branch_name ? ` — ${w.branch_name}` : ''}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {approveModal.mode !== 'receive' && Number(approveModal.product.qty) > 0 && (
+              <label className="flex items-center gap-2 mb-4 text-sm text-slate-700">
+                <input type="checkbox" checked={approveReceive} onChange={(e) => setApproveReceive(e.target.checked)} />
+                {tf('mpApprove.receiveStock', "Tovarni omborga kirim qilish (xarid va ta'minotchi qarzi yoziladi)")}
+              </label>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setApproveModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl"
+              >
+                {tf('mpApprove.cancel', 'Bekor qilish')}
+              </button>
+              <button
+                onClick={handleApproveMpProduct}
+                disabled={approving}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50"
+              >
+                {approveModal.mode === 'receive'
+                  ? tf('mpApprove.receiveConfirm', 'Kirim qilish')
+                  : tf('mpApprove.confirm', 'Tasdiqlash')}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3230,31 +3356,60 @@ export default function Products() {
                   )}
                 </div>
 
+                {/* T4.3: filial narxlari (faqat tahrirda, rahbariyat uchun) */}
+                {modal === 'edit' && selected?.id && form.product_type !== 'sell' && BRANCH_PRICE_ROLES.includes(String(authUser?.role?.value ?? authUser?.role ?? '')) && (
+                  <BranchPricesSection productId={selected.id} />
+                )}
+
                 {/* Stock (Yuqoriga ko'chirildi) */}
                 {form.product_type !== 'sell' && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {(modal === 'add' || modal === 'edit') && (
+                    {modal === 'add' && (
                       <>
-                        <Field label={modal === 'add' ? t('product.initialStock') : t('product.currentStockLabel')}>
+                        <Field label={t('product.initialStock')}>
                           <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
                             value={form.initial_stock}
                             onChange={e => setForm({ ...form, initial_stock: e.target.value.replace(/[^0-9.]/g, '') })}
                             placeholder="0" />
                         </Field>
-                        <Field label={t('product.whichWarehouseLabel')} required={modal === 'add' && Number(form.initial_stock) > 0}>
+                        <Field label={t('product.whichWarehouseLabel')} required={Number(form.initial_stock) > 0}>
                           <select
-                            className={`${inputCls} ${modal === 'add' && Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
+                            className={`${inputCls} ${Number(form.initial_stock) > 0 && !form.initial_warehouse_id ? errCls : ''}`}
                             value={form.initial_warehouse_id}
                             onChange={e => setForm({ ...form, initial_warehouse_id: e.target.value })}
                           >
                             <option value="">{t('product.selectWarehouseOption')}</option>
                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                           </select>
-                          {modal === 'add' && Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
+                          {Number(form.initial_stock) > 0 && !form.initial_warehouse_id && (
                             <p className="text-xs text-red-500 mt-1">⚠ {t('product.warehouseRequiredHint')}</p>
                           )}
                         </Field>
                       </>
+                    )}
+                    {modal === 'edit' && (
+                      /* Tahrirda qoldiq faqat o'qish uchun — omborlar kesimida (STOCK-01) */
+                      <div className="col-span-2 sm:col-span-3">
+                        <Field label={t('product.stockByWarehouse')}>
+                          <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                            <table className="w-full text-sm">
+                              <tbody>
+                                {(selected?.warehouse_stocks || []).map((ws, idx) => (
+                                  <tr key={ws.warehouse_id ?? idx} className="border-b border-slate-100 bg-white">
+                                    <td className="px-3 py-1.5 text-slate-600">{ws.warehouse_name}</td>
+                                    <td className="px-3 py-1.5 text-right font-semibold text-slate-800">{fmt(ws.quantity)} {form.unit}</td>
+                                  </tr>
+                                ))}
+                                <tr>
+                                  <td className="px-3 py-1.5 font-semibold text-slate-700">{t('product.currentStockLabel')}</td>
+                                  <td className="px-3 py-1.5 text-right font-black text-slate-900">{fmt(selected?.stock_quantity || 0)} {form.unit}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">{t('product.stockEditHint')}</p>
+                        </Field>
+                      </div>
                     )}
                     <Field label={t('product.minStockLabel')}>
                       <input type="text" inputMode="decimal" className={`${inputCls} text-base`}
@@ -3299,6 +3454,16 @@ export default function Products() {
                         </Field>
                       </div>
                     </div>
+
+                    {isScaleUnit(form.unit) && (
+                      <div className="w-full">
+                        <Field label={tf('product.pluCode', 'PLU kodi (1-99999)')} hint={tf('product.pluHint', "Tarozi kodi; bo'sh qoldirilsa avtomatik beriladi")}>
+                          <input className={`${inputCls} font-mono`} type="number" inputMode="numeric" min={1} max={99999}
+                            value={form.plu_code ?? ''}
+                            onChange={e => setForm({ ...form, plu_code: e.target.value })} placeholder="1-99999" />
+                        </Field>
+                      </div>
+                    )}
 
                     <div className="sm:col-span-6 w-full">
                       <Field label={t('product.primaryBarcodeLabel')} required>
@@ -3654,6 +3819,13 @@ export default function Products() {
               <input required className={inputCls} value={blForm.code}
                 onChange={e => setBlForm({ ...blForm, code: e.target.value.toUpperCase() })}
                 placeholder="A-01" />
+            </Field>
+            <Field label={t('product.warehouse')}>
+              <select className={inputCls} value={blForm.warehouse_id || ''}
+                onChange={e => setBlForm({ ...blForm, warehouse_id: e.target.value })}>
+                <option value="">{t('common.allWarehouses')}</option>
+                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
             </Field>
             <Field label={t('product.binDescLabel')}>
               <input className={inputCls} value={blForm.label}
@@ -4303,6 +4475,12 @@ export default function Products() {
                         <span className="text-slate-500 text-sm">{t('product.existsInDbLabel')}:</span>
                         <span className="font-bold text-amber-600 ml-2 text-base">{precheck.found_count} {t('common.item')}</span>
                       </div>
+                      {precheck.stock_will_change > 0 && (
+                        <div className="px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+                          <span className="text-slate-500 text-sm">{t('product.importStockWillChange')}:</span>
+                          <span className="font-bold text-blue-600 ml-2 text-base">{precheck.stock_will_change} {t('common.item')}</span>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-400">
@@ -4323,7 +4501,12 @@ export default function Products() {
                         className="h-9 px-3 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[150px] text-slate-700"
                       >
                         <option value="">{t('product.firstWarehouseOption')}</option>
-                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        {/* T4.5: omborlar filial bo'yicha guruhlangan */}
+                        {[...new Set(warehouses.map(w => w.branch_name || ''))].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b))).map(bn => (
+                          <optgroup key={bn || '__none'} label={bn || t('product.importNoBranch')}>
+                            {warehouses.filter(w => (w.branch_name || '') === bn).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                          </optgroup>
+                        ))}
                       </select>
                     </div>
                   )}
@@ -4353,6 +4536,14 @@ export default function Products() {
                   <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">{t('product.allowUpdateLabel')}</span>
                 </label>
               </div>
+              {/* T4.5: qoldiq faqat tanlangan (yoki "Ombor" ustunidagi) omborga yoziladi */}
+              {Object.values(colMap).includes('Qoldiq') && (
+                <p className="mt-2 text-xs font-semibold text-blue-600">
+                  {Object.values(colMap).includes('Ombor')
+                    ? t('product.importStockToColumnWarehouse')
+                    : t('product.importStockToSelectedWarehouse')}
+                </p>
+              )}
             </div>
 
             {!importFile ? (
@@ -4566,12 +4757,23 @@ export default function Products() {
                     <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>{t('product.skippedLabel')}</div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    {importResult.errors?.length > 0 && (
+                    {importResult.warehouse_name && (
+                      <div className="text-xs text-slate-500 mb-1">
+                        {t('product.importWarehouseUsed')}: <span className="font-semibold text-slate-700">{importResult.warehouse_name}</span>
+                      </div>
+                    )}
+                    {(importResult.errors?.length > 0 || importResult.warnings?.length > 0) && (
                       <div className="space-y-1 max-h-32 overflow-y-auto">
-                        {importResult.errors.map((e, i) => (
-                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
+                        {importResult.errors?.map((e, i) => (
+                          <div key={`e${i}`} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
                             <span className="font-bold text-amber-600 shrink-0">#{e.row}</span>
                             <span className="text-amber-700">{e.name && <span className="font-semibold">{e.name}: </span>}{e.error}</span>
+                          </div>
+                        ))}
+                        {importResult.warnings?.map((w, i) => (
+                          <div key={`w${i}`} className="flex items-start gap-2 px-3 py-2 bg-sky-50 border border-sky-100 rounded-lg text-sm">
+                            <span className="font-bold text-sky-600 shrink-0">#{w.row}</span>
+                            <span className="text-sky-700">{w.name && <span className="font-semibold">{w.name}: </span>}{w.warning}</span>
                           </div>
                         ))}
                       </div>

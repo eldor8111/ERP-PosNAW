@@ -146,6 +146,13 @@ def _sf(val):
 def _fmt(amount: float) -> str:
     return f"{amount:,.0f}".replace(",", " ") + " so'm"
 
+# T2.9: ixtiyoriy filial parametri (LLM tool-schema). Noma'lum qiymat xato emas - aniqlashtiruvchi javob.
+BRANCH_PARAM = {
+    "type": "string",
+    "description": "Filial nomi (ixtiyoriy). Foydalanuvchi aniq filial so'rasa shu nomni yozing; "
+                   "aks holda bo'sh qoldiring (butun korxona yoki foydalanuvchining o'z filiali).",
+}
+
 PERIOD_NAMES = {"today": "Bugun", "yesterday": "Kecha", "week": "Oxirgi 7 kun", "month": "Oxirgi 30 kun"}
 
 def _period_range(period: str):
@@ -273,39 +280,20 @@ class RecordDebtPaymentTool(AITool):
         customer, err = _find_customer(db, company_id, customer_name)
         if err: return {"reply": err}
 
-        from app.models.moliya import Wallet, Transaction
-        from sqlalchemy.orm.attributes import flag_modified
-        
-        wallet = db.query(Wallet).filter(
-            Wallet.company_id == company_id, Wallet.is_open == True, Wallet.is_active == True
-        ).first()
+        # T2.6: yagona servis (`customer_ledger.pay_debt`) — Mijozlar/Moliya sahifalari bilan bir xil mantiq:
+        # kassa yagona qoida bilan (kassirning kassasi -> filial kassasi), kassa topilmasa qarz O'ZGARMAYDI,
+        # qarzdan ortiq to'lov rad etiladi, filial 0 yozilmaydi, jurnalga tushadi
+        from fastapi import HTTPException
+        from app.services import customer_ledger
+        try:
+            customer_ledger.pay_debt(
+                db, customer, user=user,
+                payments=[{"amount": amount, "currency": "UZS", "payment_type": "cash"}],
+                reason=f"AI orqali qarz to'lovi: {customer.name}",
+            )
+        except HTTPException as exc:
+            return {"reply": f"❌ {exc.detail}"}
 
-        old_balance = _sf(customer.debt_balance)
-        new_balance = max(0, old_balance - amount)
-        customer.debt_balance = new_balance
-        
-        if customer.debt_balances and "UZS" in customer.debt_balances:
-            customer.debt_balances["UZS"] = max(0, float(customer.debt_balances["UZS"]) - amount)
-            flag_modified(customer, "debt_balances")
-        
-        if wallet:
-            wallet.balance = float(wallet.balance or 0) + amount
-
-        tx = Transaction(
-            company_id=company_id,
-            branch_id=user.branch_id or 0,
-            wallet_id=wallet.id if wallet else None,
-            type="income",
-            currency_code="UZS",
-            payment_type="cash",
-            reference_type="customer_payment",
-            reference_id=customer.id,
-            description=f"AI orqali qarz to'lovi: {customer.name}",
-            amount=amount,
-            user_id=user.id,
-        )
-        db.add(tx)
-        
         return {
             "reply": (
                 f"✅ Muvaffaqiyatli! {customer.name} mijozning qarzidan "
@@ -339,24 +327,26 @@ class RecordNewDebtTool(AITool):
         customer, err = _find_customer(db, company_id, customer_name)
         if err: return {"reply": err}
 
+        # T2.6: yagona servis — balans (UZS chelagi va hosila agregat), jurnal (kind='ai', kim va sabab bilan)
         from sqlalchemy.orm.attributes import flag_modified
+        from app.services import customer_ledger
         old_balance = _sf(customer.debt_balance)
-        new_balance = old_balance + amount
-        
-        if customer.debt_balances:
-            customer.debt_balances["UZS"] = float(customer.debt_balances.get("UZS", 0)) + amount
-            flag_modified(customer, "debt_balances")
-        
+        reason = "AI orqali nasiya qo'shish"
+        customer_ledger.add_debt(
+            db, customer, currency="UZS", amount=amount, kind="ai", user=user, reason=reason,
+        )
+
         history = list(customer.debt_edited or [])
         history.append({
             "edited_from": {"UZS": old_balance},
-            "edited_to": {"UZS": new_balance},
+            "edited_to": {"UZS": _sf(customer.debt_balance)},
             "edited_at": datetime.now(timezone.utc).isoformat(),
-            "reason": "AI orqali nasiya qo'shish"
+            "edited_by": {"id": user.id, "name": user.name},
+            "user_id": user.id,
+            "reason": reason,
         })
         customer.debt_edited = history
         flag_modified(customer, "debt_edited")
-        customer.debt_balance = new_balance
 
         return {
             "reply": (
@@ -387,20 +377,26 @@ class GetSalesSummaryTool(AITool):
     parameters = {
         "type": "object",
         "properties": {
-            "period": {"type": "string", "description": "'today', 'yesterday', 'week', 'month' - davr", "enum": ["today", "yesterday", "week", "month"]}
+            "period": {"type": "string", "description": "'today', 'yesterday', 'week', 'month' - davr", "enum": ["today", "yesterday", "week", "month"]},
+            "branch": BRANCH_PARAM,
         },
         "required": []
     }
     def execute(self, db: Session, company_id: int, user: User, **kwargs):
         from app.utils.report_utils import sales_summary
+        from app.services.ai_scope import resolve_tool_scope, scope_header, scope_sale_filter
+        scope, note, err = resolve_tool_scope(db, user, kwargs)
+        if err:
+            return err
+        head = scope_header(scope, note)
         period = kwargs.get("period", "today")
         start, end = _period_range(period)
-        s = sales_summary(db, company_id, start, end)
+        s = sales_summary(db, company_id, start, end, sale_filter=scope_sale_filter(scope))
         count = s["count"]
         pname = PERIOD_NAMES.get(period, "Bugun")
 
         if count == 0 and s["returns_count"] == 0:
-            return {"reply": f"📊 {pname} uchun hech qanday sotuv topilmadi."}
+            return {"reply": f"{head}📊 {pname} uchun hech qanday sotuv topilmadi."}
 
         returns_lines = (
             f"• Qaytarishlar: {s['returns_count']} ta, {_fmt(s['returns'])}\n"
@@ -408,6 +404,7 @@ class GetSalesSummaryTool(AITool):
         ) if s["returns_count"] else ""
         return {
             "reply": (
+                f"{head}"
                 f"📊 {pname} savdo xulosasi:\n"
                 f"• Jami tushum: {_fmt(s['gross'])}\n"
                 f"{returns_lines}"
@@ -427,7 +424,8 @@ class GetTopProductsTool(AITool):
     parameters = {
         "type": "object",
         "properties": {
-            "limit": {"type": "integer", "description": "Ko'rsatiladigan mahsulotlar soni (default: 5)"}
+            "limit": {"type": "integer", "description": "Ko'rsatiladigan mahsulotlar soni (default: 5)"},
+            "branch": BRANCH_PARAM,
         },
         "required": []
     }
@@ -435,12 +433,17 @@ class GetTopProductsTool(AITool):
         from app.models.sale import SaleItem, Sale
         from app.models.product import Product
         from app.utils.report_utils import sale_or_return_filter, doc_sign, item_revenue_uzs
+        from app.services.ai_scope import resolve_tool_scope, scope_header, scope_sale_filter
+        scope, note, err = resolve_tool_scope(db, user, kwargs)
+        if err:
+            return err
+        head = scope_header(scope, note)
         limit = min(int(kwargs.get("limit", 5)), 10)
         start, end = _period_range("month")
 
         # Sof miqdor va UZS tushum (qaytarishlar ayirilgan)
         net_qty = sqlfunc.sum(doc_sign() * SaleItem.quantity)
-        results = db.query(
+        q = db.query(
             Product.name,
             net_qty.label("qty"),
             sqlfunc.sum(doc_sign() * item_revenue_uzs()).label("revenue")
@@ -451,17 +454,21 @@ class GetTopProductsTool(AITool):
             sale_or_return_filter(),
             Sale.created_at >= start,
             Sale.created_at < end,
-         ).group_by(Product.id, Product.name).order_by(net_qty.desc()).limit(limit).all()
+         )
+        sale_flt = scope_sale_filter(scope)
+        if sale_flt is not None:
+            q = q.filter(sale_flt)
+        results = q.group_by(Product.id, Product.name).order_by(net_qty.desc()).limit(limit).all()
 
         if not results:
-            return {"reply": "📦 Oxirgi 30 kunda hech qanday sotuv topilmadi."}
+            return {"reply": f"{head}📦 Oxirgi 30 kunda hech qanday sotuv topilmadi."}
 
         lines = []
         for i, (name, qty, rev) in enumerate(results, 1):
             lines.append(f"{i}. {name} — {int(qty or 0)} ta, {_fmt(_sf(rev))}")
 
         return {
-            "reply": f"🏆 Eng ko'p sotilgan {limit} ta mahsulot (oxirgi 30 kun):\n" + "\n".join(lines),
+            "reply": f"{head}🏆 Eng ko'p sotilgan {limit} ta mahsulot (oxirgi 30 kun):\n" + "\n".join(lines),
             "action": {"type": "show_data"}
         }
 
@@ -474,30 +481,38 @@ class GetLowStockTool(AITool):
     parameters = {
         "type": "object",
         "properties": {
-            "threshold": {"type": "integer", "description": "Minimal zaxira chegarasi (default: 10)"}
+            "threshold": {"type": "integer", "description": "Zaxira chegarasi (berilmasa har bir mahsulotning minimal zaxirasi ishlatiladi)"},
+            "branch": BRANCH_PARAM,
         },
         "required": []
     }
     def execute(self, db: Session, company_id: int, user: User, **kwargs):
-        from app.models.product import Product
-        from app.models.inventory import StockLevel
-        threshold = int(kwargs.get("threshold", 10))
+        from app.services.ai_scope import resolve_tool_scope, scope_header, low_stock_query
+        scope, note, err = resolve_tool_scope(db, user, kwargs)
+        if err:
+            return err
+        head = scope_header(scope, note)
+        # threshold berilmasa - yagona ta'rif (T2.3): min_stock > 0 va doiradagi jami qoldiq <= min_stock;
+        # berilsa - mahsulot darajasidagi SUM(qoldiq) < threshold
+        threshold = int(kwargs["threshold"]) if kwargs.get("threshold") else None
+        limit_text = f"{threshold} tadan kam" if threshold else "minimal chegaradan kam"
 
-        low_items = db.query(
-            Product.name,
-            sqlfunc.sum(StockLevel.quantity).label("qty")
-        ).join(StockLevel, Product.id == StockLevel.product_id)\
-         .filter(Product.company_id == company_id)\
-         .group_by(Product.id, Product.name)\
-         .having(sqlfunc.sum(StockLevel.quantity) < threshold)\
-         .order_by(sqlfunc.sum(StockLevel.quantity)).limit(15).all()
+        # Qoldiq faqat doiradagi omborlar bo'yicha yig'iladi; o'chirilgan mahsulotlar kirmaydi
+        if threshold:
+            low_items = low_stock_query(db, company_id, scope, threshold).order_by("qty").limit(15).all()
+        else:
+            from app.services import stock_report
+            low_items = [
+                (r["product_id"], r["product_name"], r["current_qty"])
+                for r in stock_report.low_stock_products(db, company_id, stock_report.scope_wh_ids(scope), limit=15)
+            ]
 
         if not low_items:
-            return {"reply": f"✅ Zaxirasi {threshold} tadan kam bo'lgan mahsulot topilmadi. Ombor to'la!"}
+            return {"reply": f"{head}✅ Zaxirasi {limit_text} bo'lgan mahsulot topilmadi. Ombor to'la!"}
 
-        lines = [f"{i}. {name} — {int(qty or 0)} ta" for i, (name, qty) in enumerate(low_items, 1)]
+        lines = [f"{i}. {name} — {int(qty or 0)} ta" for i, (_pid, name, qty) in enumerate(low_items, 1)]
         return {
-            "reply": f"⚠️ Tugayotgan {len(lines)} ta mahsulot (zaxirasi {threshold} tadan kam):\n" + "\n".join(lines),
+            "reply": f"{head}⚠️ Tugayotgan {len(lines)} ta mahsulot (zaxirasi {limit_text}):\n" + "\n".join(lines),
             "action": {"type": "show_data"}
         }
 
@@ -511,12 +526,21 @@ class GetDebtorsListTool(AITool):
         "type": "object",
         "properties": {
             "min_amount": {"type": "number", "description": "Minimal qarz summasi (default: 0)"},
-            "limit": {"type": "integer", "description": "Ko'rsatiladigan mijozlar soni (default: 10)"}
+            "limit": {"type": "integer", "description": "Ko'rsatiladigan mijozlar soni (default: 10)"},
+            "branch": BRANCH_PARAM,
         },
         "required": []
     }
     def execute(self, db: Session, company_id: int, user: User, **kwargs):
         from app.models.customer import Customer
+        from app.services.ai_scope import resolve_tool_scope
+        scope, note, err = resolve_tool_scope(db, user, kwargs)
+        if err:
+            return err
+        # Qarz T2.6 gacha filial bo'yicha ajratilmagan: aniq "butun korxona" yorlig'i (chalg'itmaslik uchun)
+        head = "📍 Butun korxona qarzi (qarz filial bo'yicha ajratilmagan)\n"
+        if note:
+            head += f"ℹ️ {note}\n"
         min_amount = _sf(kwargs.get("min_amount", 0))
         limit = min(int(kwargs.get("limit", 10)), 20)
 
@@ -526,14 +550,14 @@ class GetDebtorsListTool(AITool):
         ).order_by(Customer.debt_balance.desc()).limit(limit).all()
 
         if not debtors:
-            return {"reply": "✅ Qarz chegarasidan yuqori mijoz topilmadi."}
+            return {"reply": f"{head}✅ Qarz chegarasidan yuqori mijoz topilmadi."}
 
         lines = []
         for i, c in enumerate(debtors, 1):
             lines.append(f"{i}. {c.name} — {_format_debt(c)}")
 
         return {
-            "reply": f"📋 Qarzdorlar ro'yxati ({len(lines)} ta mijoz):\n" + "\n".join(lines),
+            "reply": f"{head}📋 Qarzdorlar ro'yxati ({len(lines)} ta mijoz):\n" + "\n".join(lines),
             "action": {"type": "show_data"}
         }
 
@@ -546,24 +570,34 @@ class GetProfitTodayTool(AITool):
     parameters = {
         "type": "object",
         "properties": {
-            "period": {"type": "string", "description": "'today', 'yesterday', 'week', 'month'", "enum": ["today", "yesterday", "week", "month"]}
+            "period": {"type": "string", "description": "'today', 'yesterday', 'week', 'month'", "enum": ["today", "yesterday", "week", "month"]},
+            "branch": BRANCH_PARAM,
         },
         "required": []
     }
     def execute(self, db: Session, company_id: int, user: User, **kwargs):
         from app.models.sale import Sale, SaleItem
         from app.utils.report_utils import sale_or_return_filter, doc_sign, item_revenue_uzs, item_cost_uzs
+        from app.services.ai_scope import resolve_tool_scope, scope_header, scope_sale_filter
+        scope, note, err = resolve_tool_scope(db, user, kwargs)
+        if err:
+            return err
+        head = scope_header(scope, note)
         period = kwargs.get("period", "today")
         start, end = _period_range(period)
 
         # UZS da, qaytarishlar ayirilgan — Hisobotlar bo'limidagi "Foyda" bilan bir xil
-        revenue_sum, cost_sum = db.query(
+        q = db.query(
             sqlfunc.coalesce(sqlfunc.sum(doc_sign() * item_revenue_uzs()), 0),
             sqlfunc.coalesce(sqlfunc.sum(doc_sign() * item_cost_uzs()), 0),
         ).select_from(SaleItem).join(Sale, Sale.id == SaleItem.sale_id).filter(
             Sale.company_id == company_id, sale_or_return_filter(),
             Sale.created_at >= start, Sale.created_at < end,
-        ).one()
+        )
+        sale_flt = scope_sale_filter(scope)
+        if sale_flt is not None:
+            q = q.filter(sale_flt)
+        revenue_sum, cost_sum = q.one()
 
         revenue = _sf(revenue_sum)
         cost = _sf(cost_sum)
@@ -574,6 +608,7 @@ class GetProfitTodayTool(AITool):
 
         return {
             "reply": (
+                f"{head}"
                 f"💰 {pname} foyda hisobi:\n"
                 f"• Jami tushum: {_fmt(revenue)}\n"
                 f"• Tannarx: {_fmt(cost)}\n"

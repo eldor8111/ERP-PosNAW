@@ -10,7 +10,7 @@ import { fmtMoney, inputCls } from '../format';
 
 export default function Cash() {
   const { t } = useLang();
-  const { refreshProfile } = useMobileAuth();
+  const { refreshProfile, user } = useMobileAuth();
   const [data, setData] = useState(null);
   const [form, setForm] = useState({ wallet_id: '', amount: '' });
   const [busy, setBusy] = useState(false);
@@ -26,11 +26,28 @@ export default function Cash() {
     if (!form.wallet_id || !amount) return;
     if (amount > data.balance) { toast.error(t('m.handoverTooMuch')); return; }
     if (!window.confirm(t('m.confirmHandover', { amount: fmtMoney(amount) }))) return;
+    // T3.14: tanlangan kassa boshqa filialniki bo'lsa — alohida tasdiq (backend aks holda 409 qaytaradi)
+    const wallet = data.wallets.find(w => String(w.id) === String(form.wallet_id));
+    const ownBranchId = data.own_branch_id ?? user?.branch_id ?? data.wallets[0]?.branch_id ?? null;
+    const otherBranch = wallet?.branch_id != null && ownBranchId != null && wallet.branch_id !== ownBranchId;
+    if (otherBranch && !window.confirm(t('m.handoverOtherBranch'))) return;
     setBusy(true);
-    await enqueue({ url: '/mobile/cash/handover', body: { wallet_id: Number(form.wallet_id), amount }, label: `${t('m.handover')}: ${fmtMoney(amount)}` });
+    // 409/4xx javob outbox'da 'failed' bo'ladi (qayta urinilmaydi) — foydalanuvchi xatoni ko'radi
+    await enqueue({
+      url: '/mobile/cash/handover',
+      body: { wallet_id: Number(form.wallet_id), amount, ...(otherBranch ? { confirm_other_branch: true } : {}) },
+      label: `${t('m.handover')}: ${fmtMoney(amount)}`,
+    });
     setForm(f => ({ ...f, amount: '' }));
     toast.success(t('m.handoverSent'));
     setTimeout(() => { load(); refreshProfile().catch(() => {}); setBusy(false); }, 1500);
+  };
+
+  const cancelHandover = async (id) => {
+    try {
+      await api.post(`/mobile/cash/handover/${id}/cancel`);
+      load(); refreshProfile().catch(() => {});
+    } catch (e) { toast.error(errText(e)); }
   };
 
   return (
@@ -47,7 +64,8 @@ export default function Cash() {
               {data.pending_handovers.map(h => (
                 <div key={h.id} className="flex items-center gap-2 text-sm text-ink-500">
                   <Clock className="size-4 text-warning" />
-                  {t('m.awaitingAccept', { amount: fmtMoney(h.amount), wallet: h.receiver })}
+                  <span className="flex-1">{t('m.awaitingAccept', { amount: fmtMoney(h.amount), wallet: h.receiver })}</span>
+                  <button onClick={() => cancelHandover(h.id)} className="shrink-0 px-2.5 py-1 rounded-lg border border-line text-xs font-semibold text-danger">{t('m.handoverCancel')}</button>
                 </div>
               ))}
             </Card>
@@ -57,7 +75,11 @@ export default function Cash() {
             <Card className="space-y-2">
               <div className="font-semibold text-ink-900">{t('m.handover')}</div>
               <select value={form.wallet_id} onChange={e => setForm(f => ({ ...f, wallet_id: e.target.value }))} className={inputCls}>
-                {data.wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                {data.wallets.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}{w.branch_name ? ` — ${w.branch_name}` : ''}{w.is_open === false ? ` ${t('m.walletClosedSuffix')}` : ''}
+                  </option>
+                ))}
               </select>
               <div className="flex gap-2">
                 <input type="number" inputMode="numeric" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}

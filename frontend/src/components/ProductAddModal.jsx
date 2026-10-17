@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { ImageUploadZone, uploadProductImage } from '../pages/admin/products/SharedComponents';
+import { useLang } from '../context/LangContext';
 
 const genBarcode = () => Math.floor(10000000 + Math.random() * 90000000).toString();
 const BARCODE_FORMATS = [
@@ -144,7 +145,10 @@ function ProdSearch({ value, onChange, placeholder = 'Asosiy mahsulotni qidiring
   );
 }
 
-export default function ProductAddModal({ onClose, onSaved }) {
+export default function ProductAddModal({ onClose, onSaved, warehouses = [], defaultWarehouseId = '' }) {
+  const { t } = useLang();
+  // T1.5: boshlang'ich qoldiq yoziladigan ombor (bo'sh — backend filial default omborini tanlaydi)
+  const [initialWhId, setInitialWhId] = useState(defaultWarehouseId ? String(defaultWarehouseId) : '');
   const [form, setForm] = useState({ ...emptyForm, barcode: genBarcodeByFormat('ean8') });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -221,6 +225,7 @@ export default function ProductAddModal({ onClose, onSaved }) {
         dimensions:       form.dimensions?.trim() || null,
         status:           form.status,
         initial_stock:    form.initial_stock !== '' ? Number(form.initial_stock) : 0,
+        initial_warehouse_id: initialWhId ? Number(initialWhId) : undefined,
         product_type:     effectiveType === 'stock' ? 'simple' : effectiveType,
         expiry_date:      form.expiry_date || null,
         attributes: [
@@ -635,6 +640,14 @@ export default function ProductAddModal({ onClose, onSaved }) {
                     <input type="number" min="0" step="0.01" className={`${inputCls} text-base`}
                       value={form.initial_stock} onChange={e => setForm({ ...form, initial_stock: e.target.value })} placeholder="0" />
                   </Field>
+                  {warehouses.length > 0 && (
+                    <Field label={t('product.warehouse')}>
+                      <select className={`${inputCls} text-base`} value={initialWhId} onChange={e => setInitialWhId(e.target.value)}>
+                        <option value="">—</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                      </select>
+                    </Field>
+                  )}
                   <Field label="Min qoldiq">
                     <input type="number" min="0" className={`${inputCls} text-base`}
                       value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} />

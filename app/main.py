@@ -14,17 +14,21 @@ from app.core.limiter import limiter  # type: ignore
 from app.routers import (
     roles,
     auth, categories, inventory, products, product_search, product_import,
-    reports, sales_report, finance_report, sales, users,
+    reports, sales_report, finance_report, branch_reports, sales, users,
     suppliers, purchase_orders, transfers, inventory_counts,
     finance, customers, shifts, dashboard_mobile, currencies, api_keys,
     warehouses, branches, super_admin, companies, dashboard, promotions, roles, orders, shop, couriers, production, logistics, customer_profile, field_staff
 )
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import bin_locations, uploads, agents, telegram, lead, courier_bot  # type: ignore
+from app.routers import label_templates as label_templates_router  # type: ignore  # T3.7
+from app.routers import branch_prices as branch_prices_router  # type: ignore  # T4.3
 from app.routers import mxik as mxik_router  # type: ignore
 from app.routers import billing  # type: ignore
 from app.routers import payme as payme_router  # type: ignore
 from app.routers import kassa  # type: ignore
+from app.routers import loyalty as loyalty_router  # type: ignore  # T2.12
+from app.routers import audit_logs as audit_logs_router  # type: ignore
 from app.routers import sms as sms_router  # type: ignore
 from app.routers import hippo as hippo_router  # type: ignore
 from app.models import company  # noqa: F401 — ensure Alembic detects Company model
@@ -36,6 +40,7 @@ from app.models import order  # noqa: F401 — ensure orders table exists
 from app.models import marketplace  # noqa: F401 — ensure marketplace tables exist
 from dotenv import load_dotenv
 from app.services.scheduler import start_scheduler
+from app.services.background_jobs import run_as_leader, background_jobs_enabled
 
 
 load_dotenv()
@@ -64,6 +69,8 @@ def _run_auto_migrations(engine):
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) DEFAULT 0;",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50);",
+        # T0.7: model nullable=True; eski alembic (84a37ca12068) NOT NULL yaratgan bo'lishi mumkin
+        "ALTER TABLE transactions ALTER COLUMN branch_id DROP NOT NULL;",
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS debt_due_date DATE;",
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS loyalty_points_earned INTEGER DEFAULT 0;",
         "ALTER TABLE sales ADD COLUMN IF NOT EXISTS loyalty_points_used INTEGER DEFAULT 0;",
@@ -311,6 +318,26 @@ def _run_auto_migrations(engine):
             created_at TIMESTAMP DEFAULT NOW()
         );""",
         "CREATE INDEX IF NOT EXISTS ix_mp_notif_agent ON marketplace_agent_notifications(agent_id);",
+        # ── T0.21: bin_locations ni korxona va omborga bog'lash ──
+        "ALTER TABLE bin_locations ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id);",
+        "ALTER TABLE bin_locations ADD COLUMN IF NOT EXISTS warehouse_id INTEGER REFERENCES warehouses(id);",
+        "CREATE INDEX IF NOT EXISTS ix_bin_locations_company_id ON bin_locations(company_id);",
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='ix_bin_locations_code' AND indexdef ILIKE 'CREATE UNIQUE%') THEN DROP INDEX ix_bin_locations_code; CREATE INDEX ix_bin_locations_code ON bin_locations(code); END IF; END $$;",
+        # Backfill: eski global qatorni uni ishlatayotgan har bir korxonaga alohida nusxalash
+        "INSERT INTO bin_locations (code, label, is_active, created_at, company_id) SELECT DISTINCT bl.code, bl.label, bl.is_active, bl.created_at, p.company_id FROM bin_locations bl JOIN products p ON p.bin_location = bl.code AND p.company_id IS NOT NULL WHERE bl.company_id IS NULL AND NOT EXISTS (SELECT 1 FROM bin_locations x WHERE x.company_id = p.company_id AND x.code = bl.code AND x.warehouse_id IS NULL);",
+        "DELETE FROM bin_locations bl WHERE bl.company_id IS NULL AND EXISTS (SELECT 1 FROM products p WHERE p.bin_location = bl.code AND p.company_id IS NOT NULL);",
+        "UPDATE bin_locations SET company_id = (SELECT id FROM companies LIMIT 1) WHERE company_id IS NULL AND (SELECT count(*) FROM companies) = 1;",
+        "UPDATE bin_locations SET is_active = FALSE WHERE company_id IS NULL AND is_active IS NOT FALSE;",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_bin_locations_company_wh_code ON bin_locations (company_id, COALESCE(warehouse_id, 0), code);",
+        # ── T0.23: BOM sarf me'yori faqat musbat (NOT VALID: eski noto'g'ri qatorlarga tegmaydi) ──
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ck_bom_items_qty_positive') THEN ALTER TABLE bom_items ADD CONSTRAINT ck_bom_items_qty_positive CHECK (quantity_per_unit > 0) NOT VALID; END IF; END $$;",
+        # ── T0.22: API kalitlarini korxonaga bog'lash (egasiz eski kalitlar nofaol qilinadi, o'chirilmaydi) ──
+        "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE;",
+        "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL;",
+        "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_prefix VARCHAR(12);",
+        "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP;",
+        "CREATE INDEX IF NOT EXISTS ix_api_keys_company_id ON api_keys(company_id);",
+        "UPDATE api_keys SET is_active = FALSE WHERE company_id IS NULL AND is_active IS DISTINCT FROM FALSE;",
     ]
     _sa_text = __import__('sqlalchemy').text
     for sql in migrations:
@@ -343,6 +370,45 @@ def _create_missing_tables(engine):
             print(f"[AUTO-MIGRATION] skip {table.name}: {e}")
 
 
+# T2.6: mijoz qarzi jurnali (customer_debt_log) — mavjud qarzlar uchun bir martalik `opening` qatorlari.
+# Idempotent: jurnalida qatori bor mijozga tegmaydi. Alembic `t2_6_customer_debt_log` bilan bir xil SQL.
+CUSTOMER_DEBT_LOG_BACKFILL_SQL = [
+    # debt_balances JSON dagi har bir musbat chelak uchun
+    """INSERT INTO customer_debt_log (company_id, customer_id, branch_id, kind, currency, delta, delta_uzs, rate, reason, created_at)
+       SELECT c.company_id, c.id, c.branch_id, 'opening', upper(left(e.key, 3)), e.value::numeric,
+              e.value::numeric * COALESCE((SELECT cu.rate FROM currencies cu
+                   WHERE upper(cu.code) = upper(e.key) AND (cu.company_id = c.company_id OR cu.company_id IS NULL)
+                   ORDER BY (cu.company_id IS NULL), cu.id LIMIT 1), 1),
+              COALESCE((SELECT cu.rate FROM currencies cu
+                   WHERE upper(cu.code) = upper(e.key) AND (cu.company_id = c.company_id OR cu.company_id IS NULL)
+                   ORDER BY (cu.company_id IS NULL), cu.id LIMIT 1), 1),
+              'Boshlang''ich qarz (jurnal ochilganda ko''chirildi)', NOW()
+       FROM customers c, json_each_text(CASE WHEN json_typeof(c.debt_balances::json) = 'object' THEN c.debt_balances::json ELSE '{}'::json END) e
+       WHERE c.company_id IS NOT NULL AND c.debt_balances IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM customer_debt_log l WHERE l.customer_id = c.id)
+         AND (CASE WHEN e.value ~ '^[0-9]+([.][0-9]+)?([eE][-+]?[0-9]+)?$' THEN e.value::numeric ELSE 0 END) > 0.005""",
+    # debt_balances bo'sh, lekin eski debt_balance musbat bo'lsa (UZS)
+    """INSERT INTO customer_debt_log (company_id, customer_id, branch_id, kind, currency, delta, delta_uzs, rate, reason, created_at)
+       SELECT c.company_id, c.id, c.branch_id, 'opening', 'UZS', c.debt_balance, c.debt_balance, 1,
+              'Boshlang''ich qarz (jurnal ochilganda ko''chirildi)', NOW()
+       FROM customers c
+       WHERE c.company_id IS NOT NULL AND c.debt_balance > 0.005
+         AND NOT EXISTS (SELECT 1 FROM customer_debt_log l WHERE l.customer_id = c.id)""",
+]
+
+
+def _backfill_customer_debt_log(engine):
+    """Jadval `_create_missing_tables` bilan yaratilgach, mavjud qarzlarni jurnalga ko'chiradi (bir marta)."""
+    _sa_text = __import__('sqlalchemy').text
+    for sql in CUSTOMER_DEBT_LOG_BACKFILL_SQL:
+        try:
+            with engine.connect() as conn:
+                conn.execute(_sa_text(sql))
+                conn.commit()
+        except Exception as e:
+            print(f"[AUTO-MIGRATION] customer_debt_log backfill skip: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.admin_tg_bot.bot_manager import main as run_admin_bot_polling
@@ -359,11 +425,19 @@ async def lifespan(app: FastAPI):
     _run_auto_migrations(engine)
     # 3. Modelda bor, bazada yo'q jadvallar
     _create_missing_tables(engine)
-    scheduler_task = asyncio.create_task(start_scheduler())
-    admin_bot_task = asyncio.create_task(run_admin_bot_polling())
+    _backfill_customer_debt_log(engine)
+    # T3.15: scheduler va admin bot polling ko'p worker'da faqat bitta "rahbar" jarayonda ishlaydi
+    # (background_leases ijarasi). RUN_BACKGROUND_JOBS=0 — web jarayon ularni ishga tushirmaydi
+    # (alohida `python -m app.worker` jarayoni bajaradi).
+    scheduler_task = admin_bot_task = None
+    if background_jobs_enabled():
+        scheduler_task = asyncio.create_task(run_as_leader("scheduler", start_scheduler))
+        admin_bot_task = asyncio.create_task(run_as_leader("admin_bot", run_admin_bot_polling))
     yield
     # Clean shutdown
     for task in [scheduler_task, admin_bot_task]:
+        if task is None:
+            continue
         task.cancel()
         try:
             await task
@@ -396,6 +470,51 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
+
+# T0.9: mavjud bo'lmagan/begona yozuvga havola (FK) va boshqa yaxlitlik xatolari umumiy 500 o'rniga 409.
+# Sessiya `get_db` da yopiladi, shuning uchun bu yerda rollback qilinmaydi; xato to'liq logga yoziladi.
+from sqlalchemy.exc import IntegrityError as _IntegrityError  # type: ignore
+from fastapi.responses import JSONResponse as _JSONResponse  # type: ignore
+
+
+@app.exception_handler(_IntegrityError)
+async def _integrity_error_handler(request, exc):
+    __import__("logging").getLogger(__name__).error(
+        "IntegrityError %s %s: %s", request.method, request.url.path, exc, exc_info=exc
+    )
+    return _JSONResponse(
+        status_code=409,
+        content={"detail": "Ma'lumot bog'lanishi buzildi (mavjud bo'lmagan yoki begona yozuvga havola)"},
+    )
+
+# T3.5: tarif limiti — 403 + {code: "TARIFF_LIMIT", limit, current}. `detail` satr bo'lib qoladi
+# (eski mijozlar toast.error(detail) bilan ishlashda davom etadi).
+from app.utils.tariff_check import TariffLimitError as _TariffLimitError  # noqa: E402
+
+
+@app.exception_handler(_TariffLimitError)
+async def _tariff_limit_handler(request, exc):
+    return _JSONResponse(
+        status_code=403,
+        content={"detail": exc.detail, "code": exc.code, "limit": exc.limit, "current": exc.current},
+        headers=getattr(exc, "headers", None),
+    )
+
+# T1.13: ustun uzunligidan oshgan qiymat (masalan uzun telefon) 500 o'rniga 422.
+# Sessiya `get_db` da yopiladi, shuning uchun bu yerda rollback qilinmaydi.
+from sqlalchemy.exc import DataError as _DataError  # type: ignore
+
+
+@app.exception_handler(_DataError)
+async def _data_error_handler(request, exc):
+    __import__("logging").getLogger(__name__).warning(
+        "DataError %s %s: %s", request.method, request.url.path, exc
+    )
+    return _JSONResponse(
+        status_code=422,
+        content={"detail": "Kiritilgan qiymat maydon uzunligidan oshib ketdi"},
+    )
+
 from starlette.middleware.base import BaseHTTPMiddleware # type: ignore
 class ForceHTTPSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -413,6 +532,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count"],  # C4.1: /fiscal/unfiscalized va ro'yxat endpointlari uchun
 )
 
 API_PREFIX = "/api"
@@ -433,12 +553,15 @@ app.include_router(sales.router, prefix=API_PREFIX)
 app.include_router(reports.router, prefix=API_PREFIX)
 app.include_router(sales_report.router, prefix=API_PREFIX)
 app.include_router(finance_report.router, prefix=API_PREFIX)
+app.include_router(branch_reports.router, prefix=API_PREFIX)
 app.include_router(suppliers.router, prefix=API_PREFIX)
 app.include_router(purchase_orders.router, prefix=API_PREFIX)
 app.include_router(transfers.router, prefix=API_PREFIX)
+app.include_router(audit_logs_router.router, prefix=API_PREFIX)
 app.include_router(inventory_counts.router, prefix=API_PREFIX)
 app.include_router(finance.router, prefix=API_PREFIX)
 app.include_router(customers.router, prefix=API_PREFIX)
+app.include_router(loyalty_router.router, prefix=API_PREFIX)
 app.include_router(customer_profile.router, prefix=API_PREFIX)
 app.include_router(shifts.router, prefix=API_PREFIX)
 app.include_router(dashboard_mobile.router, prefix=API_PREFIX)
@@ -449,6 +572,7 @@ app.include_router(branches.router, prefix=API_PREFIX)
 app.include_router(companies.router, prefix=API_PREFIX)
 app.include_router(super_admin.router, prefix=API_PREFIX)
 app.include_router(bin_locations.router, prefix=API_PREFIX)
+app.include_router(label_templates_router.router, prefix=API_PREFIX)  # T3.7
 app.include_router(uploads.router, prefix=API_PREFIX)
 app.include_router(agents.router, prefix=API_PREFIX)
 app.include_router(telegram.router, prefix=API_PREFIX)
@@ -459,12 +583,23 @@ app.include_router(payme_router.router, prefix=API_PREFIX)
 app.include_router(kassa.router, prefix=API_PREFIX)
 app.include_router(mxik_router.router, prefix=API_PREFIX)
 app.include_router(sms_router.router, prefix=API_PREFIX)
+# T3.18: /hippo/* HIPPO_SERVER_ENABLED=false bo'lsa so'rov paytida 404 beradi (router ichidagi dependency);
+# yoqilganda rol (POS rollari) va fiscal_devices bo'yicha korxona/filial tekshiruvi ishlaydi.
 app.include_router(hippo_router.router, prefix=API_PREFIX)
+from app.routers import fiscal_devices as _fiscal_devices_router  # noqa: E402  # T3.18
+from app.routers import payment_terminals as _payment_terminals_router  # noqa: E402  # T3.18
+from app.routers import payment_reconciliation as _payment_reconciliation_router  # noqa: E402  # T3.18
+app.include_router(_fiscal_devices_router.router, prefix=API_PREFIX)
+from app.routers import fiscal as _fiscal_router  # noqa: E402  # T4.2: fiskal qamrov hisoboti
+app.include_router(_fiscal_router.router, prefix=API_PREFIX)
+app.include_router(_payment_terminals_router.router, prefix=API_PREFIX)
+app.include_router(_payment_reconciliation_router.router, prefix=API_PREFIX)
 app.include_router(admin_router, prefix=API_PREFIX)
 app.include_router(ai_analytics.router, prefix=API_PREFIX)
 app.include_router(ai_products.router, prefix=API_PREFIX)
 app.include_router(ai_reports.router, prefix=API_PREFIX)
 app.include_router(promotions.router, prefix=API_PREFIX)
+app.include_router(branch_prices_router.router, prefix=API_PREFIX)  # T4.3
 app.include_router(orders.router, prefix=API_PREFIX)
 app.include_router(couriers.router, prefix=API_PREFIX)
 app.include_router(production.router, prefix=API_PREFIX)
@@ -477,6 +612,11 @@ from app.routers import marketplace_admin as _marketplace_admin  # noqa: E402
 app.include_router(_marketplace_admin.router, prefix=API_PREFIX)
 app.include_router(courier_bot.router, prefix=API_PREFIX)
 app.include_router(shop.router, prefix=API_PREFIX)
+from app.routers import branch_plans as _branch_plans_router, staff_reports as _staff_reports_router  # noqa: E402  # T4.7
+app.include_router(_branch_plans_router.router, prefix=API_PREFIX)  # T4.7: filial savdo rejasi
+app.include_router(_staff_reports_router.router, prefix=API_PREFIX)  # T4.7: ish soati va komissiya hisobotlari
+from app.routers import approvals as _approvals_router  # noqa: E402  # T4.6
+app.include_router(_approvals_router.router, prefix=API_PREFIX)  # T4.6: tasdiqlash qoidalari va so'rovlari
 
 # Serve uploaded static files
 import os

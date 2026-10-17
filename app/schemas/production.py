@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.production_order import ProductionOrderStatus
 
@@ -12,7 +12,7 @@ from app.models.production_order import ProductionOrderStatus
 class BOMItemIn(BaseModel):
     component_product_id: int
     component_variant_id: Optional[int] = None
-    quantity_per_unit: Decimal
+    quantity_per_unit: Decimal = Field(gt=0, le=Decimal("1000000"))
 
 
 class BOMItemOut(BaseModel):
@@ -86,13 +86,13 @@ class ShortageItem(BaseModel):
 
 class ProductionOrderCostIn(BaseModel):
     cost_type: str  # labor, utility, overhead, other
-    amount: Decimal
+    amount: Decimal = Field(ge=0)
     note: Optional[str] = None
 
 
 class CompleteProductionOrderRequest(BaseModel):
-    produced_quantity: Decimal
-    defect_quantity: Decimal = Decimal("0")
+    produced_quantity: Decimal = Field(gt=0)
+    defect_quantity: Decimal = Field(default=Decimal("0"), ge=0)
     costs: List[ProductionOrderCostIn] = []
 
 
@@ -145,6 +145,8 @@ class ProductionOrderListOut(BaseModel):
     status: ProductionOrderStatus
     warehouse_name: str
     target_warehouse_name: str
+    branch_id: Optional[int] = None
+    branch_name: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

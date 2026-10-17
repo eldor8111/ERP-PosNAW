@@ -1,0 +1,17 @@
+{
+  "uz": {
+    "reports.pnlBranchNotFound": "Tanlangan filial topilmadi",
+    "reports.pnlNoAccess": "Bu hisobotni ko'rishga ruxsatingiz yo'q",
+    "alert.loadMore": "Yana yuklash"
+  },
+  "ru": {
+    "reports.pnlBranchNotFound": "Выбранный филиал не найден",
+    "reports.pnlNoAccess": "У вас нет доступа к этому отчёту",
+    "alert.loadMore": "Загрузить ещё"
+  },
+  "en": {
+    "reports.pnlBranchNotFound": "The selected branch was not found",
+    "reports.pnlNoAccess": "You do not have access to this report",
+    "alert.loadMore": "Load more"
+  }
+}

@@ -4,10 +4,17 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { matchesSearch } from '../../utils/translit';
 
+// Kalit i18n fayllarida hali bo'lmasa — o'zbekcha zaxira matn
+const tOr = (t, key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+
 /* ─────────── helpers ─────────── */
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 const fmtDt   = (d) => d ? new Date(d).toLocaleString('uz-UZ') : '—';
 const fmtQ    = (v) => (v !== null && v !== undefined) ? Number(v).toLocaleString('uz-UZ', { maximumFractionDigits: 3 }) : '—';
+// XSS himoyasi: chop etish oynasiga qo'yiladigan barcha matn escape qilinadi
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[ch]));
 
 const STATUS = {
   draft:       { lKey: 'inventoryCount.statusDraft',      c: 'bg-slate-100 text-slate-600',     dot: 'bg-slate-400' },
@@ -53,15 +60,15 @@ function printCountSheet(count, t) {
   const rows = count.items.map((item, i) => `
     <tr>
       <td style="text-align:center;width:30px">${i + 1}</td>
-      <td style="width:80px">${item.product_sku || ''}</td>
-      <td>${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ''}</td>
-      <td style="width:50px;text-align:center">${item.product_unit || t('inventoryCount.unitDefault')}</td>
+      <td style="width:80px">${esc(item.product_sku || '')}</td>
+      <td>${esc(item.product_name)}${item.variant_name ? ` (${esc(item.variant_name)})` : ''}</td>
+      <td style="width:50px;text-align:center">${esc(item.product_unit || t('inventoryCount.unitDefault'))}</td>
       <td style="text-align:right;width:80px">${fmtQ(item.system_qty)}</td>
       <td style="border:1px solid #bbb;width:90px">&nbsp;</td>
       <td style="border:1px solid #bbb;min-width:120px">&nbsp;</td>
     </tr>`).join('');
 
-  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('inventoryCount.countSheet')} - ${count.number}</title>
+  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('inventoryCount.countSheet')} - ${esc(count.number)}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:Arial,sans-serif;font-size:11px;padding:15px}
@@ -76,8 +83,8 @@ function printCountSheet(count, t) {
 </style></head><body onload="window.print()">
   <h2>${t('inventoryCount.countSheetTitle')}</h2>
   <div class="meta">
-    \u2116 ${count.number} &nbsp;|&nbsp; ${t('warehouse.title')}: ${count.warehouse_name} &nbsp;|&nbsp;
-    ${t('inventoryCount.dateLabel')}: ${fmtDate(count.created_at)}${count.note ? ` &nbsp;|&nbsp; ${count.note}` : ''}
+    \u2116 ${esc(count.number)} &nbsp;|&nbsp; ${t('warehouse.title')}: ${esc(count.warehouse_name)} &nbsp;|&nbsp;
+    ${t('inventoryCount.dateLabel')}: ${fmtDate(count.created_at)}${count.note ? ` &nbsp;|&nbsp; ${esc(count.note)}` : ''}
   </div>
   <table>
     <thead><tr>
@@ -101,16 +108,16 @@ function printVarianceReport(count, t) {
     const vStyle = v > 0 ? 'color:#16a34a;font-weight:bold' : 'color:#dc2626;font-weight:bold';
     return `<tr>
       <td style="text-align:center;width:30px">${i + 1}</td>
-      <td style="width:80px">${item.product_sku || ''}</td>
-      <td>${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ''}</td>
+      <td style="width:80px">${esc(item.product_sku || '')}</td>
+      <td>${esc(item.product_name)}${item.variant_name ? ` (${esc(item.variant_name)})` : ''}</td>
       <td style="text-align:right;width:80px">${fmtQ(item.system_qty)}</td>
       <td style="text-align:right;width:80px">${fmtQ(item.counted_qty)}</td>
       <td style="text-align:right;width:90px;${vStyle}">${v > 0 ? '+' : ''}${fmtQ(v)}</td>
-      <td>${item.variance_reason || ''}</td>
+      <td>${esc(item.variance_reason || '')}</td>
     </tr>`;
   }).join('');
 
-  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('inventoryCount.variances')} - ${count.number}</title>
+  doPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('inventoryCount.variances')} - ${esc(count.number)}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:Arial,sans-serif;font-size:11px;padding:15px}
@@ -125,7 +132,7 @@ function printVarianceReport(count, t) {
 </style></head><body onload="window.print()">
   <h2>${t('inventoryCount.varianceListTitle')}</h2>
   <div class="meta">
-    \u2116 ${count.number} &nbsp;|&nbsp; ${t('warehouse.title')}: ${count.warehouse_name} &nbsp;|&nbsp;
+    \u2116 ${esc(count.number)} &nbsp;|&nbsp; ${t('warehouse.title')}: ${esc(count.warehouse_name)} &nbsp;|&nbsp;
     ${t('inventoryCount.dateLabel')}: ${fmtDt(count.finished_at || count.created_at)}
   </div>
   <div class="summary">
@@ -309,7 +316,7 @@ function ProdSearch({ products, onSelect, inputRef, placeholder }) {
           }
         }
         setResults(merged.slice(0, 15));
-      } catch (err) {} finally { setLoading(false); }
+      } catch (err) { toast.error(err?.response?.data?.detail || t('common.loadError')); } finally { setLoading(false); }
     }, 250);
     return () => clearTimeout(timerRef.current);
   }, [q, products]);
@@ -363,7 +370,7 @@ function ProdSearch({ products, onSelect, inputRef, placeholder }) {
 function ReviziyaCreateView({ onBack, onSaved }) {
   const { t } = useLang();
   const [warehouses, setWarehouses] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [products] = useState([]);   // oldindan yuklanmaydi — qidiruv serverdan (ProdSearch)
   const [form, setForm] = useState({ warehouse_id: '', note: '' });
   const [cart, setCart] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -377,7 +384,8 @@ function ReviziyaCreateView({ onBack, onSaved }) {
 
   useEffect(() => {
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch(console.error);
-    api.get('/products/', { params: { limit: 1000, status: 'active' } }).then(r => setProducts(Array.isArray(r.data) ? r.data : (r.data.items||[]))).catch(console.error);
+    // T3.3: mahsulotlar oldindan yuklanmaydi (limit 1000 olib tashlandi) — ProdSearch serverdan `search` + `limit` bilan qidiradi.
+    // `warehouse_id` filtri ishlatilmaydi: qoldig'i yo'q mahsulot ham sanalishi mumkin.
   }, []);
 
   const [selVariantId, setSelVariantId] = useState('');
@@ -393,6 +401,8 @@ function ReviziyaCreateView({ onBack, onSaved }) {
   };
 
   const selVariant = sel?.variants?.find(v => String(v.id) === String(selVariantId)) || null;
+  // Tizim qoldig'i faqat tanlangan ombor bo'yicha (barcha filiallar yig'indisi emas)
+  const whQty = (p) => Number(p.warehouse_stocks?.find(w => w.warehouse_id === Number(form.warehouse_id))?.quantity ?? 0);
   const canAdd = sel && countedQty !== '' && (!sel.variants?.length || selVariantId);
 
   const addItem = () => {
@@ -412,13 +422,16 @@ function ReviziyaCreateView({ onBack, onSaved }) {
     if (!form.warehouse_id) { setErr(t('inventoryCount.selectWarehouseError')); return; }
     if (!cart.length) { setErr(t('inventoryCount.addAtLeastOneProduct')); return; }
     setSaving(true); setErr('');
+    let createdId = null;
     try {
       // 1. Create count
       const { data: count } = await api.post('/inventory-counts', {
         warehouse_id: Number(form.warehouse_id),
         note: form.note || null,
-        category_ids: null // Full count style prepopulation
+        category_ids: null,
+        prepopulate: false // T3.8: tezkor revizya — faqat sanalgan qatorlar (items POST) yoziladi, butun katalog emas
       });
+      createdId = count.id;
       // 2. Start count
       await api.post(`/inventory-counts/${count.id}/start`);
       // 3. Update items
@@ -434,6 +447,9 @@ function ReviziyaCreateView({ onBack, onSaved }) {
       toast.success(t('inventoryCount.countFinished'));
       onSaved();
     } catch (e) {
+      // Yaratilgan, lekin yakunlanmagan revizyani tozalaymiz — aks holda ombor ochiq revizya bilan bloklanib qoladi
+      // (faqat server xato javob bergan bo'lsa — tarmoq uzilganda yakunlangan bo'lishi mumkin)
+      if (createdId && e.response) { try { await api.delete(`/inventory-counts/${createdId}`); } catch (_) { /* e'tibor berilmaydi */ } }
       setErr(e.response?.data?.detail || t('inventoryCount.saveError'));
     } finally {
       setSaving(false);
@@ -477,20 +493,20 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800 text-base truncate">{sel.name}</div>
                   {!sel.variants?.length && (
-                    <div className="text-sm text-slate-600 mt-1">{t('inventoryCount.systemStock')}: <strong>{sel.stock_quantity}</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
+                    <div className="text-sm text-slate-600 mt-1">{t('inventoryCount.systemStock')}: <strong>{form.warehouse_id ? whQty(sel) : '—'}</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
                   )}
                 </div>
               </div>
               {sel.variants?.length > 0 && (
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{t('ombor.selectVariant') || 'Variant'} *</label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">{tOr(t, 'ombor.selectVariant', 'Variant')} *</label>
                   <select value={selVariantId} onChange={e => { setSelVariantId(e.target.value); setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10); }}
                     className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                     <option value="">{t('admin.dict.select') || 'Tanlang...'}</option>
                     {sel.variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
                   {selVariant && (
-                    <div className="text-sm text-slate-600 mt-1.5">{t('inventoryCount.systemStock')}: <strong>{selVariant.stock_quantity ?? 0}</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
+                    <div className="text-sm text-slate-600 mt-1.5">{t('inventoryCount.systemStock')}: <strong>—</strong> {sel.unit||t('inventoryCount.unitDefault')}</div>
                   )}
                 </div>
               )}
@@ -543,10 +559,11 @@ function ReviziyaCreateView({ onBack, onSaved }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {cart.map((c, i) => {
-                  const sys = Number(c.variant ? (c.variant.stock_quantity || 0) : (c.product.stock_quantity || 0));
+                  // Variantda ombor bo'yicha qoldiq yo'q — "—" ko'rsatiladi, farq saqlangandan keyin serverdan olinadi
+                  const sys = c.variant ? null : whQty(c.product);
                   const fact = Number(c.counted_qty);
-                  const variance = fact - sys;
-                  const vColor = variance > 0 ? 'text-emerald-600' : variance < 0 ? 'text-red-600' : 'text-slate-400';
+                  const variance = sys === null ? null : fact - sys;
+                  const vColor = variance === null ? 'text-slate-400' : variance > 0 ? 'text-emerald-600' : variance < 0 ? 'text-red-600' : 'text-slate-400';
                   return (
                     <tr key={`${c.product.id}-${c.variant?.id ?? ''}`} className="hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-400">{i+1}</td>
@@ -554,9 +571,9 @@ function ReviziyaCreateView({ onBack, onSaved }) {
                         {c.product.name}
                         {c.variant && <span className="ml-1.5 text-xs font-normal text-slate-400">({c.variant.name})</span>}
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-500">{sys}</td>
+                      <td className="px-4 py-3 text-right text-slate-500">{sys ?? '—'}</td>
                       <td className="px-4 py-3 text-right font-bold text-blue-600">{fact}</td>
-                      <td className={`px-4 py-3 text-right font-bold ${vColor}`}>{variance>0?'+':''}{variance}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${vColor}`}>{variance === null ? '—' : <>{variance>0?'+':''}{variance}</>}</td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{c.variance_reason}</td>
                       <td className="pr-3 text-right"><button onClick={()=>setCart(p=>p.filter((_,idx)=>idx!==i))} className="text-slate-300 hover:text-red-500 font-bold p-1">✕</button></td>
                     </tr>

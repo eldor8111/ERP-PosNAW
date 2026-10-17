@@ -10,6 +10,7 @@ Ishlatilish tartibi:
 """
 
 import logging
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -33,9 +34,35 @@ _VAT_PERCENT_MAP: dict[Optional[VatRateType], int] = {
 }
 
 
-def _vat_percent(product: Product) -> int:
-    """Mahsulot VAT turini Hippo uchun foizga (int) aylantiradi."""
+def _vat_percent(product: Product, default_vat: Optional[int] = None) -> int:
+    """Mahsulot VAT turini Hippo uchun foizga (int) aylantiradi.
+
+    C4.1 (T4.2): turi belgilanmagan (NULL) mahsulot uchun `default_vat` (Company.fiscal_default_vat) ishlatiladi;
+    u ham NULL bo'lsa standart 12%."""
+    if product.vat_rate_type is None:
+        fallback = default_vat if default_vat is not None else 12
+        # T4.2: QQS turi belgilanmagan mahsulot korxona standarti (yoki 12%) bilan fiskallanadi (soliq natijasiga
+        # ta'sir qiladi) — mahsulotni to'g'rilash uchun ogohlantirish yoziladi.
+        logger.warning(
+            "[Hippo] Product id=%s (%s): vat_rate_type belgilanmagan — standart %s%% QQS bilan fiskallanadi",
+            getattr(product, "id", None), getattr(product, "name", ""), fallback,
+        )
+        return int(fallback)
     return _VAT_PERCENT_MAP.get(product.vat_rate_type, 12)
+
+
+def _company_default_vat(sale: Sale) -> Optional[int]:
+    """Sotuv korxonasining `fiscal_default_vat` qiymati (yo'q/NULL bo'lsa None)."""
+    try:
+        from sqlalchemy.orm import object_session
+        from app.models.company import Company
+        db = object_session(sale)
+        if db is None or not getattr(sale, "company_id", None):
+            return None
+        return db.query(Company.fiscal_default_vat).filter(Company.id == sale.company_id).scalar()
+    except Exception as exc:  # noqa: BLE001 — standart QQS topilmasa 12% ga qaytiladi
+        logger.warning("[Hippo] Korxona standart QQS ni o'qib bo'lmadi: %s", exc)
+        return None
 
 
 # ── Receipt builder ──────────────────────────────────────────────────────────
@@ -68,6 +95,7 @@ def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
         received_card = int(sale.paid_card or 0)
 
     # Chek qatorlarini qurish
+    default_vat = _company_default_vat(sale)  # C4.1 (T4.2): NULL turdagi mahsulotlar uchun
     items = []
     for item in sale.items:
         product: Optional[Product] = item.product
@@ -97,7 +125,7 @@ def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
             "quantity":     quantity,
             "price":        unit_price,
             "discount":     discount,
-            "vat_percent":  _vat_percent(product),
+            "vat_percent":  _vat_percent(product, default_vat),
         })
 
     if not items:
@@ -117,6 +145,56 @@ def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
             "items": items,
         },
     }
+
+
+# ── Natijani Sale ga yozish (T3.18) ──────────────────────────────────────────
+
+def _first(result: dict, *keys):
+    """Kommunikator javobidan birinchi mavjud (bo'sh bo'lmagan) kalit qiymati."""
+    for k in keys:
+        v = result.get(k)
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def _to_int(v) -> Optional[int]:
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        return None
+    return n if 0 <= n <= 2147483647 else None
+
+
+def save_fiscal_result(db: Session, sale: Sale, result: Optional[dict], factory_id: str) -> bool:
+    """Muvaffaqiyatli fiskal natijani (`fiscal_sign`, QR, ketma-ketlik, tranzaksiya, vaqt, qurilma) `Sale` ga yozadi.
+
+    `fiscal_sign` bo'lmasa (chek lokal saqlangan, lekin fiskallanmagan) hech narsa yozilmaydi.
+    Xato bo'lsa log yoziladi va False qaytadi — sotuv va fiskal chek bekor qilinmaydi."""
+    if not result or not isinstance(result, dict):
+        return False
+    sign = _first(result, "fiscal_sign", "FiscalSign")
+    if not sign:
+        return False
+    try:
+        sale.fiscal_sign = str(sign)[:64]
+        qr = _first(result, "qr_code_url", "QRCodeURL")
+        if qr:
+            sale.fiscal_qr_url = str(qr)
+        seq = _to_int(_first(result, "receipt_seq", "receipt_number", "ReceiptSeq"))
+        if seq is not None:
+            sale.fiscal_receipt_seq = seq
+        tx = _first(result, "transaction_id", "TransactionID")
+        if tx is not None:
+            sale.fiscal_transaction_id = str(tx)[:64]
+        sale.fiscal_at = datetime.utcnow()
+        sale.fiscal_factory_id = str(factory_id)[:64]
+        db.commit()
+        return True
+    except Exception as exc:  # noqa: BLE001 — fiskal natijani yozish xatosi sotuvni buzmasligi kerak
+        db.rollback()
+        logger.error("[Hippo] Sale id=%s fiskal natijani saqlashda xato: %s", sale.id, exc)
+        return False
 
 
 # ── Asosiy funksiya ──────────────────────────────────────────────────────────
@@ -169,6 +247,8 @@ def fiscalize_sale(
             result.get("fiscal_sign"),
             result.get("qr_code_url"),
         )
+        # T3.18: natija Sale ga yoziladi (avval faqat qaytarilardi, saqlanmasdi)
+        save_fiscal_result(db, sale, result, factory_id)
         return result
 
     except HippoFiscalizationError as exc:

@@ -8,6 +8,9 @@ Agent mavjud distribyutor korxonasiga biriktiriladi (yangi korxona ochilmaydi):
 
 Har so'rovda korxonada marketplace_agents_enabled tekshiriladi.
 """
+import hmac
+import logging
+import secrets
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
@@ -16,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFil
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.audit import log_action
 from app.core.limiter import limiter
 from app.core.security import decode_token, hash_password, verify_password
@@ -27,14 +31,25 @@ from app.models.marketplace import (
     MarketplaceProductStatus, MarketplaceTransactionType,
 )
 from app.models.mobile_device import MobileDevice
+from app.models.branch import Branch
+from app.models.warehouse import Warehouse
 from app.models.user import User, UserRole, UserStatus
 from app.routers.mobile.base import _issue_tokens
 from app.schemas.marketplace import (
-    AgentCategoriesIn, AgentLoginIn, AgentRefreshIn, AgentRegisterIn, AgentSendCodeIn, ProductIn, ProductUpdateIn,
+    AgentCategoriesIn, AgentLoginIn, AgentRefreshIn, AgentRegisterIn, AgentSendCodeIn, MirmazaWebhookIn,
+    ProductIn, ProductUpdateIn,
 )
 from app.services import marketplace_service as mp
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/mobile/marketplace", tags=["mobile-marketplace"])
+
+# T0.18: bir telefon raqamiga bir soatda ko'pi bilan shuncha SMS kodi
+_SMS_CODE_PER_PHONE_PER_HOUR = 5
+# T0.18: webhook'dagi item.total ning mahsulot narxi*miqdor dan ruxsat etilgan og'ishi
+_WEBHOOK_TOTAL_TOLERANCE_RATIO = Decimal("0.05")   # 5 %
+_WEBHOOK_TOTAL_TOLERANCE_ABS = Decimal("1000")      # yoki 1000 so'm (qaysi katta bo'lsa)
 
 # Moderatsiyani qayta talab qiladigan maydonlar (narx, qoldiq, nom, rasm, kategoriya)
 _MODERATED_FIELDS = ("name", "price", "qty", "images", "description", "category_id")
@@ -117,6 +132,10 @@ def _product_out(p: MarketplaceProduct, names: dict) -> dict:
         "category_id": p.category_id, "category_name": cat_name,
         "barcode": p.barcode, "sku": p.sku, "images": p.images or [],
         "status": status_str, "reject_reason": p.reject_reason,
+        # T3.17: tasdiqlanganda kirim qilingan ombor (agent ilovasi ko'rsatadi)
+        "warehouse_id": p.warehouse_id, "purchase_order_id": p.purchase_order_id,
+        "warehouse_name": p.warehouse.name if p.warehouse_id and p.warehouse else None,
+        "preferred_warehouse_id": p.preferred_warehouse_id,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "updated_at": p.updated_at.isoformat() if p.updated_at else None,
     }
@@ -130,6 +149,18 @@ def _agent_category_ids(db: Session, user: User) -> set:
 def _check_category(db: Session, user: User, category_id: int) -> None:
     if category_id not in _agent_category_ids(db, user):
         raise HTTPException(status_code=400, detail="Bu kategoriyada sotish uchun ruxsatingiz yo'q. Avval kategoriyani tanlang.")
+
+
+def check_warehouse(db: Session, company_id: Optional[int], warehouse_id: Optional[int]) -> None:
+    """T3.17: agent ko'rsatgan topshirish ombori shu korxonaning faol ombori bo'lishi shart."""
+    if warehouse_id is None:
+        return
+    ok = db.query(Warehouse.id).filter(
+        Warehouse.id == warehouse_id, Warehouse.company_id == company_id,
+        Warehouse.is_active == True,  # noqa: E712
+    ).first()
+    if not ok:
+        raise HTTPException(status_code=404, detail="Ombor topilmadi")
 
 
 # ── Ro'yxatdan o'tish va kirish ────────────────────────────────────────────
@@ -149,24 +180,37 @@ async def send_register_code(request: Request, data: AgentSendCodeIn, db: Sessio
     if db.query(User).filter(User.phone.in_([phone, f"+{phone}"])).first():
         raise HTTPException(status_code=409, detail="Bu telefon raqami allaqachon ro'yxatdan o'tgan")
     
-    import random
-    code = str(random.randint(10000, 99999))
     from app.models.user import SmsVerification
     from datetime import timedelta
-    
+
+    # T0.18: bir telefon uchun soatlik urinishlar limiti (SmsVerification jadvalidan)
+    hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+    recent = db.query(SmsVerification).filter(
+        SmsVerification.phone == phone,
+        SmsVerification.created_at >= hour_ago,
+    ).count()
+    if recent >= _SMS_CODE_PER_PHONE_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Bu raqamga juda ko'p kod so'raldi. Bir soatdan keyin urinib ko'ring")
+
+    # T0.18: kriptografik tasodifiy 5 xonali kod
+    code = str(secrets.randbelow(90000) + 10000)
+
     # Eskiz SMS orqali yuborish
     sms_sent = False
-    sms_error = None
     try:
         from app.services.eskiz_service import eskiz_service
         msg = f"E-Code.uz saytida ro'yxatdan o'tish uchun tasdiqlash kodi: {code}. Kodni hech kimga bermang."
         res = await eskiz_service.send_sms(phone, msg)
-        sms_sent = res.get("success", False)
+        sms_sent = bool(res.get("success", False))
         if not sms_sent:
-            sms_error = res.get("error")
+            logger.warning("Agent ro'yxati: SMS yuborilmadi (phone=%s): %s", phone, res.get("error"))
     except Exception as e:
-        sms_error = str(e)
-        
+        logger.warning("Agent ro'yxati: SMS xatosi (phone=%s): %s", phone, e)
+
+    # T0.18: SMS ketmagan bo'lsa kod saqlanmaydi va javobda ham qaytarilmaydi
+    if not sms_sent:
+        raise HTTPException(status_code=503, detail="SMS yuborilmadi, keyinroq urinib ko'ring")
+
     sms = SmsVerification(
         phone=phone,
         code=code,
@@ -174,13 +218,11 @@ async def send_register_code(request: Request, data: AgentSendCodeIn, db: Sessio
     )
     db.add(sms)
     db.commit()
-    
+
     return {
-        "ok": True, 
-        "detail": "Tasdiqlash kodi yuborildi", 
-        "sms_sent": sms_sent,
-        "debug_code": code if not sms_sent else None,
-        "sms_error": sms_error if not sms_sent else None,
+        "ok": True,
+        "detail": "Tasdiqlash kodi yuborildi",
+        "sms_sent": True,
     }
 
 
@@ -231,13 +273,16 @@ def register_agent(request: Request, data: AgentRegisterIn, db: Session = Depend
 @limiter.limit("10/minute")
 def agent_login(request: Request, data: AgentLoginIn, db: Session = Depends(get_db)):
     phone = mp.normalize_phone(data.phone)
-    user = db.query(User).filter(
-        User.phone.in_([phone, f"+{phone}"]), 
-        User.role.in_([UserRole.marketplace_agent, UserRole.agent])
-    ).first()
-    if user and user.role == UserRole.agent:
-        user.role = UserRole.marketplace_agent
-        db.flush()
+    phones = [phone, f"+{phone}"]
+    user = db.query(User).filter(User.phone.in_(phones), User.role == UserRole.marketplace_agent).first()
+    if not user:
+        # T3.17: dala agenti (role=agent) rolini jimgina o'zgartirmaymiz — aniq 403
+        field = db.query(User.id, User.hashed_password).filter(
+            User.phone.in_(phones), User.role == UserRole.agent).first()
+        if field and verify_password(data.password, field.hashed_password):
+            raise HTTPException(
+                status_code=403,
+                detail="Bu ilova marketplace agentlari uchun. Dala agenti ilovasidan foydalaning")
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Telefon yoki parol noto'g'ri")
     if user.status in (UserStatus.blocked, UserStatus.inactive):
@@ -403,11 +448,27 @@ def my_products(
     return {"total": total, "page": page, "items": [_product_out(p, names) for p in rows]}
 
 
+@router.get("/warehouses")
+def list_warehouses(db: Session = Depends(get_db), user: User = Depends(get_active_agent)):
+    """T3.17: topshirish ombori tanlovi — faqat korxonada 2 va undan ko'p faol filial bo'lsa to'ldiriladi."""
+    branches = db.query(func.count(Branch.id)).filter(
+        Branch.company_id == user.company_id, Branch.is_active == True,  # noqa: E712
+    ).scalar() or 0
+    if branches < 2:
+        return []
+    rows = db.query(Warehouse, Branch.name).outerjoin(Branch, Branch.id == Warehouse.branch_id).filter(
+        Warehouse.company_id == user.company_id, Warehouse.is_active == True,  # noqa: E712
+    ).order_by(Warehouse.name, Warehouse.id).all()
+    return [{"id": w.id, "name": w.name, "branch_name": bn} for w, bn in rows]
+
+
 @router.post("/products", status_code=201)
 def create_product(data: ProductIn, db: Session = Depends(get_db), user: User = Depends(get_active_agent)):
     _check_category(db, user, data.category_id)
+    check_warehouse(db, user.company_id, data.preferred_warehouse_id)
     p = MarketplaceProduct(
         company_id=user.company_id, agent_id=user.id, name=data.name.strip(),
+        preferred_warehouse_id=data.preferred_warehouse_id,
         description=data.description, price=data.price, qty=data.qty, category_id=data.category_id,
         barcode=data.barcode, sku=data.sku, images=mp.clamp_images(data.images),
         status=MarketplaceProductStatus.review if data.submit else MarketplaceProductStatus.draft,
@@ -437,6 +498,8 @@ def update_product(product_id: int, data: ProductUpdateIn, db: Session = Depends
         _check_category(db, user, changes["category_id"])
     if "images" in changes:
         changes["images"] = mp.clamp_images(changes["images"])
+    if "preferred_warehouse_id" in changes:
+        check_warehouse(db, user.company_id, changes["preferred_warehouse_id"])
     old = {k: (float(getattr(p, k)) if isinstance(getattr(p, k), Decimal) else getattr(p, k)) for k in changes}
     needs_moderation = any(
         k in _MODERATED_FIELDS and changes[k] != getattr(p, k) for k in changes)
@@ -579,49 +642,90 @@ def mark_all_notifications_read(
 
 # ── Mir-maza Webhook: Buyurtma / Sotuv bildirishnomasi ─────────────────────
 
+def _verify_webhook_key(request: Request) -> None:
+    """T0.18: X-Integration-Key sarlavhasini MARKETPLACE_API_TOKEN bilan doimiy vaqtda solishtirish.
+    Token sozlanmagan bo'lsa 503, mos kelmasa (yoki yo'q bo'lsa) 401."""
+    expected = (settings.MARKETPLACE_API_TOKEN or "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="Marketplace integratsiyasi sozlanmagan")
+    got = (request.headers.get("X-Integration-Key") or "").strip()
+    if not got or not hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8")):
+        raise HTTPException(status_code=401, detail="Integratsiya kaliti noto'g'ri")
+
+
 @router.post("/webhook/order")
 def mirmaza_order_webhook(
-    data: dict, db: Session = Depends(get_db),
+    request: Request, data: MirmazaWebhookIn, db: Session = Depends(get_db),
 ):
-    """Mir-maza da buyurtma yaratilganda yoki sotilganda to'g'ridan-to'g'ri chaqiriladigan webhook."""
-    market_order_id = data.get("marketOrderId") or data.get("orderId")
-    items = data.get("items", [])
-    
-    from app.models.marketplace import (
-        MarketplaceProduct, MarketplaceAgentTransaction, MarketplaceTransactionType,
-    )
-    
-    for item in items:
-        ext_id = item.get("externalId", "")
-        if ext_id.startswith("ECODE-PROD-"):
-            try:
+    """Mir-maza da buyurtma yaratilganda yoki sotilganda to'g'ridan-to'g'ri chaqiriladigan webhook.
+
+    T0.18: X-Integration-Key majburiy; har item alohida savepoint'da; (order_id + mahsulot)
+    bo'yicha income allaqachon yozilgan bo'lsa o'tkazib yuboriladi (idempotent); item.total
+    mahsulot narxi*miqdor dan ruxsat etilgan og'ishdan ko'p farq qilsa rad etiladi.
+    """
+    _verify_webhook_key(request)
+    market_order_id = data.marketOrderId
+
+    processed = skipped = rejected = 0
+    for item in data.items:
+        ext_id = item.externalId or ""
+        if not ext_id.startswith("ECODE-PROD-"):
+            continue
+        try:
+            with db.begin_nested():
                 mp_id = int(ext_id.split("-")[2])
                 mp_item = db.query(MarketplaceProduct).filter(MarketplaceProduct.id == mp_id).first()
-                if mp_item:
-                    qty_ordered = float(item.get("quantity", 1))
-                    mp_item.qty = max(0.0, float(mp_item.qty or 0) - qty_ordered)
-                    item_total = float(item.get("total", 0))
-                    
-                    tx = MarketplaceAgentTransaction(
-                        agent_id=mp_item.agent_id,
-                        company_id=mp_item.company_id,
-                        order_id=market_order_id,
-                        transaction_type=MarketplaceTransactionType.income,
-                        amount=item_total,
-                        note=f"Mir-maza buyurtmasi #{market_order_id} ({mp_item.name})",
-                    )
-                    db.add(tx)
-                    
-                    mp.notify_agent(
-                        db=db,
-                        agent_id=mp_item.agent_id,
-                        company_id=mp_item.company_id,
-                        title="Mahsulotingiz sotildi! 🎉",
-                        body=f"Mir-maza da '{mp_item.name}' mahsulotingizdan {qty_ordered:.0f} dona sotildi. Summa: {item_total:,.0f} so'm.",
-                        notif_type="order_sold",
-                        data={"product_id": mp_item.id, "order_id": market_order_id, "amount": item_total},
-                    )
-            except Exception as e:
-                logger.warning("Webhookda xatolik: %s", e)
+                if not mp_item:
+                    rejected += 1
+                    logger.warning("Webhook: mahsulot topilmadi (%s, order=%s)", ext_id, market_order_id)
+                    continue
+
+                existing = db.query(MarketplaceAgentTransaction).filter(
+                    MarketplaceAgentTransaction.order_id == market_order_id,
+                    MarketplaceAgentTransaction.marketplace_product_id == mp_item.id,
+                    MarketplaceAgentTransaction.transaction_type == MarketplaceTransactionType.income,
+                ).first()
+                if existing:
+                    skipped += 1
+                    continue
+
+                qty_ordered = Decimal(str(item.quantity))
+                item_total = Decimal(str(item.total))
+                expected_total = Decimal(str(mp_item.price or 0)) * qty_ordered
+                allowed = max(expected_total * _WEBHOOK_TOTAL_TOLERANCE_RATIO, _WEBHOOK_TOTAL_TOLERANCE_ABS)
+                if abs(item_total - expected_total) > allowed:
+                    rejected += 1
+                    logger.warning("Webhook: summa mos emas (%s, order=%s, total=%s, kutilgan=%s)",
+                                   ext_id, market_order_id, item_total, expected_total)
+                    continue
+
+                mp_item.qty = max(Decimal("0"), Decimal(str(mp_item.qty or 0)) - qty_ordered)
+
+                tx = MarketplaceAgentTransaction(
+                    agent_id=mp_item.agent_id,
+                    company_id=mp_item.company_id,
+                    order_id=market_order_id,
+                    marketplace_product_id=mp_item.id,
+                    transaction_type=MarketplaceTransactionType.income,
+                    amount=item_total,
+                    note=f"Mir-maza buyurtmasi #{market_order_id} ({mp_item.name})",
+                )
+                db.add(tx)
+                db.flush()
+
+                mp.notify_agent(
+                    db=db,
+                    agent_id=mp_item.agent_id,
+                    company_id=mp_item.company_id,
+                    title="Mahsulotingiz sotildi! 🎉",
+                    body=f"Mir-maza da '{mp_item.name}' mahsulotingizdan {qty_ordered:.0f} dona sotildi. Summa: {item_total:,.0f} so'm.",
+                    notif_type="order_sold",
+                    data={"product_id": mp_item.id, "order_id": market_order_id, "amount": float(item_total)},
+                )
+                processed += 1
+        except Exception as e:
+            # Savepoint faqat shu item'ni bekor qiladi, qolgan itemlar saqlanadi
+            rejected += 1
+            logger.warning("Webhookda xatolik (%s, order=%s): %s", ext_id, market_order_id, e)
     db.commit()
-    return {"status": "ok"}
+    return {"status": "ok", "processed": processed, "skipped": skipped, "rejected": rejected}

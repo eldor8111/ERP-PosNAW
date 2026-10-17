@@ -19,12 +19,15 @@ from sqlalchemy.orm import Session
 from app.core.audit import log_action
 from app.models.batch import Batch
 from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.purchase_order import POItem, POStatus, PurchaseOrder
 from app.models.supplier import Supplier
 from app.models.user import User, UserRole
 from app.models.warehouse import Warehouse
 from app.services import supplier_ledger as ledger
+from app.services.document_numbers import next_document_number
 from app.services.inventory_service import receive_stock
+from app.services.warehouse_access import assert_warehouse_branch_access
 
 ZERO = Decimal("0")
 TINY = Decimal("0.0005")
@@ -34,19 +37,10 @@ def _d(v) -> Decimal:
     return Decimal(str(v or 0))
 
 
-def generate_po_number(db: Session) -> str:
-    """PO{YYYYMMDD}{NNNN}. Eng katta mavjud raqamdan davom etadi — o'chirilgan xariddan keyin
-    ham takrorlanmaydi (avval "soni + 1" edi va unique xatosi berardi)."""
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    prefix = f"PO{today}"
-    last = db.query(func.max(PurchaseOrder.number)).filter(PurchaseOrder.number.like(f"{prefix}%")).scalar()
-    n = 0
-    if last:
-        try:
-            n = int(last[len(prefix):])
-        except ValueError:
-            n = db.query(PurchaseOrder).filter(PurchaseOrder.number.like(f"{prefix}%")).count()
-    return f"{prefix}{n + 1:04d}"
+def generate_po_number(db: Session, company_id: int, branch_id: Optional[int] = None) -> str:
+    """PO{YYYYMMDD}-{korxona}-{filial}-{NNNN} (T1.14): atomar hisoblagich bilan — o'chirilgan
+    xariddan keyin ham, parallel so'rovlarda ham takrorlanmaydi."""
+    return next_document_number(db, company_id=company_id, branch_id=branch_id, doc_type="PO")
 
 
 # ─── Tekshiruvlar ────────────────────────────────────────────────────────────
@@ -58,6 +52,8 @@ def _get_po(db: Session, po_id: int, user: User) -> PurchaseOrder:
     po = q.first()
     if not po:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # T1.3: filialga biriktirilgan non-bypass xodim boshqa filial omboridagi xaridni o'zgartira olmaydi (403)
+    assert_warehouse_branch_access(db, user, None, po.warehouse_id)
     return po
 
 
@@ -165,15 +161,40 @@ def _to_datetime(v):
     return datetime.combine(v, datetime.min.time())
 
 
-def _update_product_on_receipt(db: Session, product: Product, item: POItem, company_id: int) -> None:
-    """Oxirgi xarid narxi — mahsulot tannarxi (mahsulot tannarx valyutasida); yangi sotuv narxlari."""
+def _update_product_on_receipt(db: Session, product: Product, item: POItem, company_id: int,
+                               user: Optional[User] = None, branch_id: Optional[int] = None) -> None:
+    """Oxirgi xarid narxi — mahsulot tannarxi (mahsulot tannarx valyutasida); yangi sotuv narxlari.
+    Variantli qator (T1.16): narxlar ProductVariant ga yoziladi (tannarx valyutasi parent mahsulotdan),
+    parent Product narxlari o'zgarmaydi.
+    T4.3: narx haqiqatan o'zgargan bo'lsa audit jurnaliga `PRICE_CHANGE` (eski/yangi qiymat bilan) yoziladi."""
     unit_uzs = _d(item.unit_cost)
     cur = (product.cost_currency or "UZS").strip().upper() or "UZS"
-    product.cost_price = unit_uzs if cur == "UZS" else round(unit_uzs / ledger.currency_rate(db, company_id, cur), 4)
+    cost = unit_uzs if cur == "UZS" else round(unit_uzs / ledger.currency_rate(db, company_id, cur), 4)
+    target = product
+    if item.variant_id:
+        target = item.variant or db.get(ProductVariant, item.variant_id) or product
+    _fields = ("cost_price", "sale_price", "wholesale_price")
+    _old = {f: getattr(target, f, None) for f in _fields}
+    target.cost_price = cost
     if item.new_sale_price is not None:
-        product.sale_price = item.new_sale_price
+        target.sale_price = item.new_sale_price
     if item.new_wholesale_price is not None:
-        product.wholesale_price = item.new_wholesale_price
+        target.wholesale_price = item.new_wholesale_price
+    _new = {f: getattr(target, f, None) for f in _fields}
+
+    def _same(a, b):
+        return (a is None and b is None) or (a is not None and b is not None and _d(a) == _d(b))
+
+    _changed = [f for f in _fields if not _same(_old[f], _new[f])]
+    if _changed and user is not None:
+        log_action(
+            db, "PRICE_CHANGE", "product", product.id, user.id,
+            old_values={**{f: (str(_old[f]) if _old[f] is not None else None) for f in _changed},
+                        "variant_id": item.variant_id},
+            new_values={**{f: (str(_new[f]) if _new[f] is not None else None) for f in _changed},
+                        "variant_id": item.variant_id, "po_id": item.po_id if hasattr(item, "po_id") else None},
+            company_id=company_id, branch_id=branch_id,
+        )
 
 
 def _receive_item(db: Session, po: PurchaseOrder, item: POItem, qty: Decimal, user: User,
@@ -194,7 +215,7 @@ def _receive_item(db: Session, po: PurchaseOrder, item: POItem, qty: Decimal, us
         po_id=po.id, company_id=po.company_id,
     ))
     item.qty_received = _d(item.qty_received) + qty
-    _update_product_on_receipt(db, product, item, po.company_id)
+    _update_product_on_receipt(db, product, item, po.company_id, user, branch_id=getattr(po.warehouse, "branch_id", None))
 
 
 def _refresh_status(po: PurchaseOrder) -> None:
@@ -230,6 +251,7 @@ def _record_po_payment(db: Session, po: PurchaseOrder, user: User, paid_uzs: Dec
         wallet_id=wallet_id, reference_type="purchase_order", reference_id=po.id,
         description=f"Ta'minotchi to'lovi #{po.number}" + (f" ({amount} {code})" if code != "UZS" else ""),
         meta={"po_paid_uzs": str(paid_uzs)}, warehouse_id=po.warehouse_id, created_at=created_at,
+        prefer_warehouse=True,  # T1.16: xarajat tovar kirgan ombor filialiga yoziladi
     )
 
 
@@ -255,12 +277,32 @@ def remove_po_payment(db: Session, tx) -> None:
     _sync_supplier_debt(db, po)
 
 
+def _resolve_item_variant(db: Session, prod: Product, variant_id: Optional[int]) -> Optional[ProductVariant]:
+    """PO qatori varianti (T1.16): `parent` mahsulot uchun variant majburiy va aynan shu mahsulotniki
+    bo'lishi kerak; oddiy mahsulotga variant berilsa 400."""
+    is_parent = getattr(prod, "product_type", "stock") == "parent"
+    if not variant_id:
+        if is_parent:
+            raise HTTPException(status_code=400, detail=f"'{prod.name}': Variantli mahsulot uchun variant tanlang")
+        return None
+    if not is_parent:
+        raise HTTPException(status_code=400, detail=f"'{prod.name}' variantli mahsulot emas — variant ko'rsatilmasligi kerak")
+    variant = db.query(ProductVariant).filter(
+        ProductVariant.id == variant_id, ProductVariant.product_id == prod.id,
+    ).first()
+    if not variant:
+        raise HTTPException(status_code=404, detail=f"Variant topilmadi: {variant_id}")
+    return variant
+
+
 def _build_items(db: Session, po: PurchaseOrder, items_data, company_id: int) -> Decimal:
     total = ZERO
     for it in items_data:
         prod = _company_product(db, it.product_id, company_id)
+        variant = _resolve_item_variant(db, prod, getattr(it, "variant_id", None))
         item = POItem(
             product_id=prod.id,
+            variant_id=variant.id if variant else None,
             qty_ordered=it.qty_ordered,
             qty_received=ZERO,
             unit_cost=it.unit_cost,
@@ -271,6 +313,7 @@ def _build_items(db: Session, po: PurchaseOrder, items_data, company_id: int) ->
             new_wholesale_price=it.new_wholesale_price,
         )
         item.product = prod
+        item.variant = variant
         po.items.append(item)
         total += _d(it.qty_ordered) * _d(it.unit_cost)
     return total
@@ -287,12 +330,14 @@ def _check_discount(discount: Decimal, total: Decimal) -> Decimal:
 def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrder:
     cid = current_user.company_id
     supplier = _company_supplier(db, data.supplier_id, cid)
-    _company_warehouse(db, data.warehouse_id, cid)
+    po_wh = _company_warehouse(db, data.warehouse_id, cid)
+    # T1.3: non-bypass xodim faqat o'z filiali omboriga xarid yarata oladi
+    assert_warehouse_branch_access(db, current_user, None, po_wh.id)
     currency = (data.currency or "UZS").strip().upper() or "UZS"
     status = data.status or POStatus.draft
 
     po = PurchaseOrder(
-        number=generate_po_number(db), supplier_id=supplier.id, warehouse_id=data.warehouse_id,
+        number=generate_po_number(db, cid, po_wh.branch_id), supplier_id=supplier.id, warehouse_id=data.warehouse_id,
         note=data.note, expected_date=data.expected_date, created_by=current_user.id, company_id=cid,
         status=POStatus.draft, currency=currency, exchange_rate=ledger.currency_rate(db, cid, currency),
         total_amount=ZERO, paid_amount=ZERO, discount_amount=ZERO,
@@ -465,8 +510,14 @@ def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> 
 
     if data.supplier_id is not None:
         po.supplier_id = _company_supplier(db, data.supplier_id, cid).id
+    wh_changed_to = None
     if data.warehouse_id is not None:
-        po.warehouse_id = _company_warehouse(db, data.warehouse_id, cid).id
+        new_wh = _company_warehouse(db, data.warehouse_id, cid)
+        # T1.3: non-bypass xodim xaridni boshqa filial omboriga ko'chira olmaydi (403)
+        assert_warehouse_branch_access(db, current_user, None, new_wh.id)
+        if new_wh.id != po.warehouse_id:
+            wh_changed_to = new_wh
+        po.warehouse_id = new_wh.id
     if data.note is not None:
         po.note = data.note
     if data.expected_date is not None:
@@ -498,6 +549,10 @@ def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> 
             payment_currency=data.payment_currency, payment_amount=data.payment_amount,
             wallet_id=wallet_id, created_at=created_at,
         )
+    elif wh_changed_to is not None and wh_changed_to.branch_id:
+        # T1.16: to'lov qayta yozilmasa — mavjud xarid to'lovlari xarajati yangi ombor filialiga o'tadi
+        for tx in _po_payment_txs(db, po):
+            tx.branch_id = wh_changed_to.branch_id
 
     db.flush()
     _sync_supplier_debt(db, po)

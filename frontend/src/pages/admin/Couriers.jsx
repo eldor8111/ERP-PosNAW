@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
-import { Truck, Plus, X, Phone, Pencil, Power } from 'lucide-react';
+import { Truck, Plus, X, Phone, Pencil, Power, Unlink } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
 
 export default function Couriers() {
@@ -19,8 +19,11 @@ export default function Couriers() {
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
   const [modal, setModal] = useState(null); // null | {mode:'add'} | {mode:'edit', courier}
-  const [form, setForm] = useState({ name: '', phone: '', transport: '', vehicle_id: '' });
+  const [form, setForm] = useState({ name: '', phone: '', transport: '', vehicle_id: '', branch_id: '' });
   const [vehicles, setVehicles] = useState([]);
+  const [branches, setBranches] = useState([]);
+  // Yangi kalit eski tilda bo'lmasa zaxira matn ko'rsatiladi
+  const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
   const plateOf = (id) => vehicles.find(v => v.id === id)?.plate_number;
   const [saving, setSaving] = useState(false);
 
@@ -34,9 +37,13 @@ export default function Couriers() {
 
   useEffect(() => { load(); }, [showInactive]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { api.get('/logistics/vehicles', { _silent: true }).then(r => setVehicles(r.data || [])).catch(() => {}); }, []);
+  useEffect(() => {
+    api.get('/branches', { _suppressToast: true })
+      .then(r => setBranches((r.data || []).filter(b => b.is_active !== false))).catch(() => {});
+  }, []);
 
-  const openAdd = () => { setForm({ name: '', phone: '', transport: '', vehicle_id: '' }); setModal({ mode: 'add' }); };
-  const openEdit = (c) => { setForm({ name: c.name, phone: c.phone, transport: c.transport || '', vehicle_id: c.vehicle_id ? String(c.vehicle_id) : '' }); setModal({ mode: 'edit', courier: c }); };
+  const openAdd = () => { setForm({ name: '', phone: '', transport: '', vehicle_id: '', branch_id: '' }); setModal({ mode: 'add' }); };
+  const openEdit = (c) => { setForm({ name: c.name, phone: c.phone, transport: c.transport || '', vehicle_id: c.vehicle_id ? String(c.vehicle_id) : '', branch_id: c.branch_id ? String(c.branch_id) : '' }); setModal({ mode: 'edit', courier: c }); };
 
   const save = async (e) => {
     e.preventDefault();
@@ -44,10 +51,10 @@ export default function Couriers() {
     setSaving(true);
     try {
       if (modal.mode === 'add') {
-        await api.post('/couriers', { name: form.name, phone: form.phone, transport: form.transport || null, vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null });
+        await api.post('/couriers', { name: form.name, phone: form.phone, transport: form.transport || null, vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null, branch_id: form.branch_id ? Number(form.branch_id) : null });
         toast.success(t('courier.added'));
       } else {
-        await api.put(`/couriers/${modal.courier.id}`, { name: form.name, phone: form.phone, transport: form.transport || null, vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null });
+        await api.put(`/couriers/${modal.courier.id}`, { name: form.name, phone: form.phone, transport: form.transport || null, vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null, branch_id: form.branch_id ? Number(form.branch_id) : null });
         toast.success(t('courier.saved'));
       }
       setModal(null);
@@ -63,6 +70,17 @@ export default function Couriers() {
     try {
       await api.put(`/couriers/${c.id}`, { is_active: !c.is_active });
       toast.success(c.is_active ? t('courier.deactivated') : t('courier.activated'));
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('courier.saveError'));
+    }
+  };
+
+  // Kuryerning Telegram bog'lanishini uzish (botda qayta ulanishi mumkin)
+  const unlinkTelegram = async (c) => {
+    try {
+      await api.post(`/couriers/${c.id}/unlink-telegram`);
+      toast.success(t('courier.unlinked'));
       load();
     } catch (err) {
       toast.error(err.response?.data?.detail || t('courier.saveError'));
@@ -108,12 +126,19 @@ export default function Couriers() {
                   </a>
                   {c.transport && <p className="text-[11px] text-slate-400 mt-0.5">{transportLabel(c.transport)}</p>}
                   {c.vehicle_id && plateOf(c.vehicle_id) && <p className="text-[11px] text-slate-500 mt-0.5 font-mono">🚚 {plateOf(c.vehicle_id)}</p>}
+                  {c.branch_name && <p className="text-[11px] text-slate-500 mt-0.5">🏬 {c.branch_name}</p>}
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => openEdit(c)} title={t('courier.edit')}
                     className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
+                  {c.tg_connected && (
+                    <button onClick={() => unlinkTelegram(c)} title={t('courier.unlinkTelegram')}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600">
+                      <Unlink className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button onClick={() => toggleActive(c)} title={c.is_active ? t('courier.deactivate') : t('courier.activate')}
                     className={`w-8 h-8 flex items-center justify-center rounded-lg ${c.is_active ? 'bg-red-50 hover:bg-red-100 text-red-500' : 'bg-green-50 hover:bg-green-100 text-green-600'}`}>
                     <Power className="w-3.5 h-3.5" />
@@ -168,6 +193,16 @@ export default function Couriers() {
                 {TRANSPORTS.map(tr => <option key={tr.code} value={tr.code}>{tr.label}</option>)}
               </select>
             </div>
+            {branches.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">{tf('courier.branch', 'Filial')}</label>
+                <select value={form.branch_id} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}
+                  className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm bg-white focus:border-blue-500 outline-none">
+                  <option value="">{tf('courier.allBranches', 'Barcha filiallar')}</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+            )}
             {vehicles.length > 0 && (
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">{t('logistics.defaultVehicle')}</label>

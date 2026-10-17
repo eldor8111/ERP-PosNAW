@@ -3,12 +3,12 @@ Companies (Korxonalar) CRUD API
 super_admin va admin/director uchun
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from sqlalchemy import func  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.config import settings  # type: ignore
 from app.database import get_db  # type: ignore
@@ -71,19 +71,100 @@ class CompanyUpdate(BaseModel):
     expiration_alert: Optional[bool] = None
     debt_deadline_alert: Optional[bool] = None
     daily_report_enabled: Optional[bool] = None
-    daily_report_recipients: Optional[str] = None
+    daily_report_recipients: Optional[Literal["owners_and_admins", "owners", "all_managers"]] = None   # T3.16
     shop_allow_out_of_stock_orders: Optional[bool] = None
     pos_allow_negative_stock: Optional[bool] = None
     delivery_fee: Optional[float] = None
     courier_bot_token: Optional[str] = None
     orders_auto_create_sale: Optional[bool] = None
+    pos_require_shift: Optional[bool] = None   # T1.11: ochiq smenasiz sotuv backendda rad etiladi
+    promotions_auto_apply: Optional[bool] = None   # C4.1 (T4.3): null kelsa e'tiborsiz
+    fiscal_default_vat: Optional[int] = None   # C4.1 (T4.2): QQS turi belgilanmagan mahsulot uchun foiz (null = 12)
+    credit_limit_scope: Optional[Literal["distributor", "all"]] = None   # T2.12: kredit limit kimga qo'llanadi
     manufacturing_enabled: Optional[bool] = None
     distribution_enabled: Optional[bool] = None
     marketplace_agents_enabled: Optional[bool] = None
+    # T0.36: Mir-maza buyurtmalari uchun asosiy filial (shu korxonaning faol filiali bo'lishi shart)
+    marketplace_default_branch_id: Optional[int] = None
+    # T3.13: Telegram Mini App / bot buyurtmalari uchun standart filial (shu korxonaning faol filiali)
+    shop_default_branch_id: Optional[int] = None
+
+
+# Chek shabloni (XSS himoyasi): faqat ma'lum kalitlar va cheklangan qiymatlar
+RECEIPT_TEMPLATE_KEYS = ("r58", "r80", "nak")
+RECEIPT_TEXT_FIELDS = (
+    "company", "address", "phone", "inn", "header", "footer", "footer_note",
+    "director", "accountant", "storekeeper", "bank", "account", "mfo",
+    "logo_position", "copies",
+)
+RECEIPT_TEXT_MAX = 500
+RECEIPT_LOGO_MAX = 1_500_000  # data URL uchun (~1 MB rasm)
+RECEIPT_LOGO_PREFIXES = (
+    "data:image/png;base64,", "data:image/jpeg;base64,", "data:image/jpg;base64,",
+    "data:image/gif;base64,", "data:image/webp;base64,", "data:image/svg+xml;base64,",
+    "https://",
+)
+
+
+def _validate_receipt_cfg(name: str, cfg) -> dict:
+    if not isinstance(cfg, dict):
+        raise ValueError(f"'{name}' obyekt bo'lishi kerak")
+    out = {}
+    for key, val in cfg.items():
+        if key == "_company_id":
+            continue
+        if key.startswith("show_"):
+            if not isinstance(val, (bool, int)) and val is not None:
+                raise ValueError(f"'{name}.{key}' mantiqiy qiymat bo'lishi kerak")
+            out[key] = val
+        elif key in RECEIPT_TEXT_FIELDS:
+            if val is None:
+                val = ""
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                val = str(val)
+            if not isinstance(val, str):
+                raise ValueError(f"'{name}.{key}' matn bo'lishi kerak")
+            if len(val) > RECEIPT_TEXT_MAX:
+                raise ValueError(f"'{name}.{key}' juda uzun (ko'pi bilan {RECEIPT_TEXT_MAX} belgi)")
+            out[key] = val
+        elif key == "logo":
+            if val is None:
+                val = ""
+            if not isinstance(val, str):
+                raise ValueError(f"'{name}.logo' matn bo'lishi kerak")
+            if val:
+                if len(val) > RECEIPT_LOGO_MAX:
+                    raise ValueError(f"'{name}.logo' juda katta")
+                if not val.lower().startswith(RECEIPT_LOGO_PREFIXES):
+                    raise ValueError(f"'{name}.logo' faqat data:image/... yoki https:// bo'lishi mumkin")
+                if any(ch in val for ch in ('"', "'", "<", ">", " ", chr(10), chr(13))):
+                    raise ValueError(f"'{name}.logo' noto'g'ri belgilarni o'z ichiga oladi")
+            out[key] = val
+        elif key == "logo_size":
+            try:
+                num = float(val) if val not in (None, "") else 0
+            except (TypeError, ValueError):
+                raise ValueError(f"'{name}.logo_size' son bo'lishi kerak")
+            if isinstance(val, bool) or not (0 <= num <= 1000):
+                raise ValueError(f"'{name}.logo_size' 0..1000 oralig'ida bo'lishi kerak")
+            out[key] = val
+        else:
+            raise ValueError(f"'{name}.{key}' noma'lum kalit")
+    return out
 
 
 class ReceiptTemplatesUpdate(BaseModel):
     receipt_templates: dict
+
+    @field_validator("receipt_templates")
+    @classmethod
+    def _check_templates(cls, v: dict) -> dict:
+        out = {}
+        for name, cfg in v.items():
+            if name not in RECEIPT_TEMPLATE_KEYS:
+                raise ValueError(f"'{name}' noma'lum shablon (faqat r58, r80, nak)")
+            out[name] = _validate_receipt_cfg(name, cfg)
+        return out
 
 class CompanyOut(BaseModel):
     id: int
@@ -108,9 +189,15 @@ class CompanyOut(BaseModel):
     delivery_fee: float = 0
     courier_bot_username: Optional[str] = None
     orders_auto_create_sale: bool = False
+    pos_require_shift: bool = False
+    promotions_auto_apply: bool = False
+    fiscal_default_vat: Optional[int] = None
+    credit_limit_scope: str = "distributor"
     manufacturing_enabled: bool = False
     distribution_enabled: bool = False
     marketplace_agents_enabled: bool = False
+    marketplace_default_branch_id: Optional[int] = None
+    shop_default_branch_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -132,7 +219,7 @@ def list_companies(
 
     result = []
     for c in companies:
-        bc = db.query(func.count(Branch.id)).filter(Branch.company_id == c.id).scalar() or 0
+        bc = db.query(func.count(Branch.id)).filter(Branch.company_id == c.id, Branch.is_active == True).scalar() or 0  # noqa: E712
         result.append(CompanyOut(
             id=c.id, name=c.name, address=c.address, phone=c.phone,
             email=c.email, is_active=c.is_active, created_at=c.created_at,
@@ -148,9 +235,15 @@ def list_companies(
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
+        pos_require_shift=bool(getattr(c, 'pos_require_shift', False) or False),
+        promotions_auto_apply=bool(getattr(c, 'promotions_auto_apply', False) or False),
+        fiscal_default_vat=getattr(c, 'fiscal_default_vat', None),
+        credit_limit_scope=getattr(c, 'credit_limit_scope', None) or "distributor",
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
         marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
+        marketplace_default_branch_id=getattr(c, 'marketplace_default_branch_id', None),
+        shop_default_branch_id=getattr(c, 'shop_default_branch_id', None),
         ))  # type: ignore[call-arg]
     return result
 
@@ -165,6 +258,8 @@ def get_my_company_features(
         "manufacturing": bool(c and c.manufacturing_enabled),
         "distribution": bool(c and c.distribution_enabled),
         "marketplace_agents": bool(c and c.marketplace_agents_enabled),
+        "require_shift": bool(c and c.pos_require_shift),
+        "credit_limit_scope": (getattr(c, "credit_limit_scope", None) or "distributor") if c else "distributor",
     }
 
 
@@ -187,7 +282,7 @@ def get_my_receipt_templates(
 def update_my_receipt_templates(
     data: ReceiptTemplatesUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
 ):
     if not current_user.company_id:
         raise HTTPException(status_code=400, detail="Kompaniyangiz topilmadi")
@@ -206,12 +301,20 @@ def create_company(
 ):
     c = Company(**data.model_dump())
     db.add(c)
+    db.flush()
+    # T0.7: filialsiz korxona bo'lmasin — asosiy filial avtomatik (auth.py register kabi)
+    branch = Branch(name=f"{c.name} (Asosiy)", company_id=c.id, is_active=True, is_main=True)  # T1.4: asosiy filial
+    db.add(branch)
+    db.flush()
+    # T1.4: asosiy filial uchun asosiy ombor (is_default) va kassa (yopiq) — auth.py register kabi
+    from app.services.branch_provisioning import provision_branch
+    provision_branch(db, branch, create_warehouse=True, create_wallet=True)
     db.commit()
     db.refresh(c)
     return CompanyOut(
         id=c.id, name=c.name, address=c.address, phone=c.phone, 
         email=c.email, is_active=c.is_active, created_at=c.created_at, 
-        branches_count=0, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, 
+        branches_count=1, tg_bot_token=c.tg_bot_token, tg_bot_username=c.tg_bot_username, 
         receipt_templates=c.receipt_templates, daily_report_time=c.daily_report_time or "17:30",
         low_stock_alert=c.low_stock_alert if c.low_stock_alert is not None else True,
         expiration_alert=c.expiration_alert if c.expiration_alert is not None else True,
@@ -223,8 +326,14 @@ def create_company(
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
+        pos_require_shift=bool(getattr(c, 'pos_require_shift', False) or False),
+        promotions_auto_apply=bool(getattr(c, 'promotions_auto_apply', False) or False),
+        fiscal_default_vat=getattr(c, 'fiscal_default_vat', None),
+        credit_limit_scope=getattr(c, 'credit_limit_scope', None) or "distributor",
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
+        marketplace_default_branch_id=getattr(c, 'marketplace_default_branch_id', None),
+        shop_default_branch_id=getattr(c, 'shop_default_branch_id', None),
     )  # type: ignore[call-arg]
 
 
@@ -245,6 +354,24 @@ def update_company(
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
 
     update_data = data.model_dump(exclude_unset=True)
+    if update_data.get("pos_require_shift") is None:
+        update_data.pop("pos_require_shift", None)   # NOT NULL ustun: null yuborilsa e'tiborsiz
+    if update_data.get("promotions_auto_apply") is None:
+        update_data.pop("promotions_auto_apply", None)   # NOT NULL ustun (C4.1, T4.3)
+    if update_data.get("fiscal_default_vat") is not None and not (0 <= update_data["fiscal_default_vat"] <= 100):
+        raise HTTPException(status_code=400, detail="QQS foizi 0 dan 100 gacha bo'lishi kerak")
+    if update_data.get("credit_limit_scope") is None:
+        update_data.pop("credit_limit_scope", None)  # NOT NULL ustun (T2.12)
+
+    # T3.9: tarifda yo'q modulni (distribyutsiya / ishlab chiqarish) oddiy admin yoqa olmaydi (o'chirish doim mumkin)
+    if current_user.role != UserRole.super_admin:
+        from app.services.tariff_guard import TariffLimitError, get_active_tariff
+        for flag, has_attr in (("distribution_enabled", "has_distribution"), ("manufacturing_enabled", "has_manufacturing")):
+            if update_data.get(flag) is True and not getattr(c, flag, False):
+                tariff = get_active_tariff(db, c.id)
+                if tariff is not None and not getattr(tariff, has_attr, False):
+                    # TariffLimitError: 403 + code=TARIFF_LIMIT — frontend toast'da aniq matnni ko'rsatadi
+                    raise TariffLimitError("Bu modul tarifingizda mavjud emas", limit=0, current=0)
 
     # Marketplace agentlari modulini faqat super_admin yoqib/o'chira oladi (tarix audit logga yoziladi)
     if "marketplace_agents_enabled" in update_data:
@@ -256,6 +383,26 @@ def update_company(
             log_action(db=db, action="MARKETPLACE_AGENTS_TOGGLE", entity_type="company", entity_id=c.id,
                        user_id=current_user.id, old_values={"enabled": bool(c.marketplace_agents_enabled)},
                        new_values={"enabled": new_flag}, ip_address=request.client.host if request.client else None)
+
+    # T0.36: marketplace asosiy filiali — faqat shu korxonaning faol filiali (None = tozalash)
+    if "marketplace_default_branch_id" in update_data:
+        v = update_data["marketplace_default_branch_id"]
+        if v is not None:
+            ok = db.query(Branch.id).filter(
+                Branch.id == v, Branch.company_id == c.id, Branch.is_active == True,  # noqa: E712
+            ).first()
+            if not ok:
+                raise HTTPException(status_code=400, detail="Filial topilmadi yoki faol emas")
+
+    # T3.13: Mini App standart filiali — faqat shu korxonaning faol filiali (None = tozalash)
+    if "shop_default_branch_id" in update_data:
+        v = update_data["shop_default_branch_id"]
+        if v is not None:
+            ok = db.query(Branch.id).filter(
+                Branch.id == v, Branch.company_id == c.id, Branch.is_active == True,  # noqa: E712
+            ).first()
+            if not ok:
+                raise HTTPException(status_code=400, detail="Filial topilmadi yoki faol emas")
 
     if "tg_bot_token" in update_data:
         new_token = update_data["tg_bot_token"]
@@ -285,7 +432,7 @@ def update_company(
         setattr(c, k, v)
     db.commit()
     db.refresh(c)
-    bc = db.query(func.count(Branch.id)).filter(Branch.company_id == c.id).scalar() or 0
+    bc = db.query(func.count(Branch.id)).filter(Branch.company_id == c.id, Branch.is_active == True).scalar() or 0  # noqa: E712
     return CompanyOut(
         id=c.id, name=c.name, address=c.address, phone=c.phone,
         email=c.email, is_active=c.is_active, created_at=c.created_at,
@@ -301,20 +448,15 @@ def update_company(
         delivery_fee=float(c.delivery_fee or 0) if hasattr(c, 'delivery_fee') else 0,
         courier_bot_username=getattr(c, 'courier_bot_username', None),
         orders_auto_create_sale=bool(getattr(c, 'orders_auto_create_sale', False) or False),
+        pos_require_shift=bool(getattr(c, 'pos_require_shift', False) or False),
+        promotions_auto_apply=bool(getattr(c, 'promotions_auto_apply', False) or False),
+        fiscal_default_vat=getattr(c, 'fiscal_default_vat', None),
+        credit_limit_scope=getattr(c, 'credit_limit_scope', None) or "distributor",
         manufacturing_enabled=bool(getattr(c, 'manufacturing_enabled', False)),
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
         marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
+        marketplace_default_branch_id=getattr(c, 'marketplace_default_branch_id', None),
+        shop_default_branch_id=getattr(c, 'shop_default_branch_id', None),
     )  # type: ignore[call-arg]
 
 
-@router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_company(
-    company_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.super_admin)),
-):
-    c = db.query(Company).filter(Company.id == company_id).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    db.delete(c)
-    db.commit()
