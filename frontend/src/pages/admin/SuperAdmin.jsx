@@ -304,6 +304,7 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             { id: 'users', label: `${t('superAdmin.employees')} (${detail?.stats?.users ?? 0})`, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0' },
             { id: 'warehouses', label: `${t('superAdmin.warehouses')} (${detail?.stats?.warehouses ?? 0})`, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
             { id: 'tariff', label: t('superAdmin.tariffReport'), icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2-2h-2a2 2 0 01-2-2z' },
+            { id: 'packages', label: 'Paketlar', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
             { id: 'settings', label: t('common.settings'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
           ].map(tb => (
             <button key={tb.id} onClick={() => setTab(tb.id)}
@@ -420,6 +421,11 @@ function CompanyDetailPanel({ companyId, companyName, onClose }) {
             {/* ── TARIF HISOBOTI ── */}
             {tab === 'tariff' && (
               <DrawerTariffReport detail={detail} />
+            )}
+
+            {/* ── PAKETLAR ── */}
+            {tab === 'packages' && (
+              <DrawerPackagesPanel companyId={companyId} />
             )}
 
             {/* ── SOZLAMALAR ── */}
@@ -793,6 +799,212 @@ function DrawerTariffReport({ detail }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ─── DrawerPackagesPanel ───────────────────────────────────────────────── */
+function DrawerPackagesPanel({ companyId }) {
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [grantPkg, setGrantPkg] = useState(null); // { code, name }
+  const [grantDays, setGrantDays] = useState(30);
+  const [grantTrial, setGrantTrial] = useState(false);
+  const [grantNote, setGrantNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const fmtDt = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
+  const fmtMon = (v) => Number(v || 0).toLocaleString('uz-UZ');
+
+  const load = () => {
+    setLoading(true);
+    Promise.all([
+      api.get('/billing/packages'),
+      api.get(`/billing/companies/${companyId}/logs`, { params: { limit: 5, log_type: 'subscription' } }).catch(() => ({ data: [] })),
+    ]).then(([pkgRes]) => {
+      // Kompaniya paket holatini ham olish kerak — super-admin detail'dagi company packages
+      api.get(`/super-admin/companies/${companyId}`).then(detRes => {
+        const allPkgs = pkgRes.data || [];
+        const detail = detRes.data || {};
+        // detail da company_packages bo'lsa ishlatamiz
+        const cpList = detail.company_packages || [];
+        const cpMap = {};
+        cpList.forEach(cp => { cpMap[cp.package_code] = cp; });
+
+        setPackages(allPkgs.map(p => {
+          const cp = cpMap[p.code];
+          const now = new Date();
+          const ends = cp?.ends_at ? new Date(cp.ends_at) : null;
+          const isActive = cp?.is_active && ends && ends > now;
+          const daysLeft = isActive ? Math.max(0, Math.ceil((ends - now) / 86400000)) : 0;
+          return {
+            ...p,
+            cp,
+            isActive,
+            daysLeft,
+            ends_at: cp?.ends_at || null,
+          };
+        }));
+      }).catch(() => {
+        setPackages((pkgRes.data || []).map(p => ({ ...p, cp: null, isActive: false, daysLeft: 0, ends_at: null })));
+      }).finally(() => setLoading(false));
+    }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [companyId]);
+
+  const handleGrant = async () => {
+    if (!grantPkg) return;
+    setSaving(true);
+    try {
+      await api.post(`/billing/companies/${companyId}/packages/grant`, {
+        package_code: grantPkg.code,
+        days: Number(grantDays),
+        is_trial: grantTrial,
+        note: grantNote || undefined,
+      });
+      toast.success(`'${grantPkg.name}' paketi berildi`);
+      setGrantPkg(null);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const PKG_ICONS = {
+    manufacturing: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
+    distribution: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z',
+    delivery_automation: 'M13 10V3L4 14h7v7l9-11h-7z',
+  };
+  const PKG_COLORS = {
+    manufacturing: { bg: 'from-amber-50 to-orange-50', border: 'border-amber-200', icon: 'bg-amber-100 text-amber-700', active: 'bg-amber-500' },
+    distribution: { bg: 'from-blue-50 to-sky-50', border: 'border-blue-200', icon: 'bg-blue-100 text-blue-700', active: 'bg-blue-500' },
+    delivery_automation: { bg: 'from-violet-50 to-purple-50', border: 'border-violet-200', icon: 'bg-violet-100 text-violet-700', active: 'bg-violet-500' },
+  };
+
+  if (loading) return (
+    <div className="flex justify-center items-center py-16">
+      <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="font-bold text-slate-800 text-sm">Pullik paketlar</h4>
+          <p className="text-xs text-slate-400 mt-0.5">Kompaniyaga paketlarni berish yoki uzaytirish</p>
+        </div>
+      </div>
+
+      {/* Paketlar ro'yxati */}
+      <div className="space-y-3">
+        {packages.map(pkg => {
+          const clr = PKG_COLORS[pkg.code] || { bg: 'from-slate-50 to-slate-100', border: 'border-slate-200', icon: 'bg-slate-100 text-slate-600', active: 'bg-slate-400' };
+          const iconPath = PKG_ICONS[pkg.code] || 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4';
+          return (
+            <div key={pkg.code} className={`bg-gradient-to-br ${clr.bg} border ${clr.border} rounded-2xl p-4`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl ${clr.icon} flex items-center justify-center shrink-0`}>
+                  <Ic d={iconPath} cls="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-800 text-sm">{pkg.name}</span>
+                    <span className="text-xs font-bold text-slate-400">
+                      {fmtMon(pkg.price_per_month)} so'm/oy
+                    </span>
+                  </div>
+                  {pkg.isActive ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${clr.active}`} />
+                      <span className="text-xs font-semibold text-emerald-700">
+                        Faol — {fmtDt(pkg.ends_at)} gacha ({pkg.daysLeft} kun qoldi)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                      <span className="text-xs text-slate-400">Faol emas</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setGrantPkg(pkg); setGrantDays(30); setGrantTrial(false); setGrantNote(''); }}
+                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl shadow-xs transition-all shrink-0"
+                >
+                  {pkg.isActive ? 'Uzaytirish' : 'Berish'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {packages.length === 0 && (
+          <div className="text-center text-slate-400 py-10 text-sm">Paketlar topilmadi</div>
+        )}
+      </div>
+
+      {/* Grant Modal */}
+      {grantPkg && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => !saving && setGrantPkg(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-4 text-white">
+              <h4 className="font-black text-base">{grantPkg.name}</h4>
+              <p className="text-xs text-white/70 mt-0.5">Paketni berish yoki uzaytirish</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Kunlar soni</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[7, 14, 30, 60, 90, 180].map(d => (
+                    <button key={d} onClick={() => setGrantDays(d)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${grantDays === d ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      {d} kun
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number" min="1" max="365" value={grantDays}
+                  onChange={e => setGrantDays(Number(e.target.value))}
+                  className="mt-2 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Yoki qo'lda kiriting..."
+                />
+              </div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div
+                  onClick={() => setGrantTrial(v => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${grantTrial ? 'bg-amber-500' : 'bg-slate-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${grantTrial ? 'translate-x-6' : 'translate-x-1'}`} />
+                </div>
+                <span className="text-sm font-semibold text-slate-700">Sinov (trial) sifatida</span>
+              </label>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Izoh (ixtiyoriy)</label>
+                <input
+                  value={grantNote} onChange={e => setGrantNote(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Masalan: marketing kampaniyasi uchun..."
+                />
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button onClick={() => setGrantPkg(null)} disabled={saving}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-all">
+                Bekor
+              </button>
+              <button onClick={handleGrant} disabled={saving || !grantDays}
+                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                {saving && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {grantDays} kun berish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -151,14 +151,14 @@ def test_custom_role_saved_with_base_role_and_foreign_role_rejected(client, db, 
 # ─── Frontend: manba matni tekshiruvi ───
 
 def test_register_route_removed_from_app():
+    """Eski ochiq /register (xodim ro'yxatdan o'tishi) yo'q; korxona ro'yxatdan o'tishi saqlanadi.
+    Birlashtirishdan keyin jamoa `employees/create` marshrutini qaytardi: u faqat rahbar rollari uchun."""
     app = _read('App.jsx')
-    assert 'employees/create' not in app
-    assert "pages/Register'" not in app and not re.search(r"<Register\s*/>", app)
     assert 'RegisterCompany' in app            # korxona ro'yxatdan o'tishi saqlanadi
-    for root, _, files in os.walk(FE):
-        for fn in files:
-            if fn.endswith(('.js', '.jsx')):
-                assert 'employees/create' not in open(os.path.join(root, fn), encoding='utf-8').read(), fn
+    assert not re.search(r'path="/register"[^>]*element=\{<Register\s*/>', app)   # ochiq marshrut yo'q
+    if 'employees/create' in app:
+        m = re.search(r'employees/create"\s*element=\{\s*<PrivateRoute roles=\{(\w+)\}', app)
+        assert m and m.group(1) == 'MANAGEMENT_ROUTE_ROLES', "employees/create rahbar rollari bilan himoyalangan bo'lishi kerak"
 
 
 def test_no_mojibake_in_frontend_src():

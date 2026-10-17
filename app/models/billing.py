@@ -53,3 +53,44 @@ class BalanceLog(Base):
     created_by = relationship("User", foreign_keys=[created_by_id])
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+
+
+class FeaturePackage(Base):
+    """
+    Qo'shimcha pullik paketlar katalogi (Ishlab chiqarish, Distribyutorlar va logistika, Yetkazib berish avtomatikasi).
+    BHM foizi orqali narx avtomatik hisoblanadi.
+    """
+    __tablename__ = "feature_packages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, nullable=False, index=True)  # manufacturing, distribution, delivery_automation
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    bhm_percent = Column(Float, nullable=True)  # Masalan 25.0
+    price_per_month = Column(Numeric(12, 2), default=0)  # Agar bhm_percent bo'lmasa qat'iy narx
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class CompanyPackage(Base):
+    """
+    Kompaniyaning sotib olingan / berilgan pullik paketlari (modullari).
+    Muddat tugasa modul yopiladi, lekin ma'lumotlar saqlanadi.
+    """
+    __tablename__ = "company_packages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    package_code = Column(String(50), nullable=False, index=True)
+    starts_at = Column(DateTime, nullable=True)
+    ends_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_trial = Column(Boolean, default=False)
+    purchased_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    company = relationship("Company", foreign_keys=[company_id])
+

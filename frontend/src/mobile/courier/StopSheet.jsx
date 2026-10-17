@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { X, Camera, Check, Ban, Phone, Navigation, Truck } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
 import api, { errText } from '../lib/api';
-import { getPosition, navigateUrl } from '../lib/geo';
+import { getPosition, navigateUrl, distanceM, fmtDistance } from '../lib/geo';
 import { takePhoto } from '../lib/photo';
 import { Btn } from '../ui';
 import { fmtMoney } from '../format';
@@ -31,6 +31,23 @@ export default function StopSheet({ stop, onClose, onAction }) {
   const run = async (action, extra = {}) => {
     setBusy(true);
     const pos = await getPosition({ timeout: 6000 });
+    if (action === 'delivered' && s.lat != null && s.lng != null) {
+      if (!pos) {
+        toast.error(t('m.gpsRequiredForDelivery') || "Topshirishni tasdiqlash uchun GPS yoqilgan bo'lishi shart");
+        setBusy(false);
+        return;
+      }
+      const dist = distanceM(pos, s);
+      const radius = s.delivery_radius_m || 250;
+      if (dist != null && dist > radius) {
+        toast.error(
+          t('m.deliveryRadiusBlocked', { distance: fmtDistance(dist), radius }) ||
+          `Siz do'kondan ${fmtDistance(dist)} uzoqdasiz (ruxsat: ${radius} m). Do'kon yaqiniga boring.`
+        );
+        setBusy(false);
+        return;
+      }
+    }
     await onAction(stop, action, { ...extra, ...(pos ? { lat: pos.lat, lng: pos.lng } : {}) });
     setBusy(false);
   };
@@ -133,9 +150,15 @@ export default function StopSheet({ stop, onClose, onAction }) {
         {!done && (
           <div className="px-5 pt-3 pb-4 grid grid-cols-2 gap-2">
             {mode === null && <>
-              {stop.status === 'assigned'
-                ? <Btn variant="ghost" onClick={() => run('on_way')} loading={busy}><Truck className="size-4" />{t('m.action.on_way')}</Btn>
-                : <Btn variant="ghost" onClick={() => setMode('fail')} className="!text-danger"><Ban className="size-4" />{t('m.action.failed')}</Btn>}
+              {stop.status === 'assigned' ? (
+                <div className="col-span-1 flex items-center justify-center bg-surface-sunken text-ink-500 rounded-xl px-2 text-xs font-semibold">
+                  📦 {t('m.waitingLoad') || 'Yuklanishi kutilmoqda'}
+                </div>
+              ) : stop.status === 'loaded' ? (
+                <Btn variant="primary" onClick={() => run('on_way')} loading={busy}><Truck className="size-4" />{t('m.action.on_way')}</Btn>
+              ) : (
+                <Btn variant="ghost" onClick={() => setMode('fail')} className="!text-danger"><Ban className="size-4" />{t('m.action.failed')}</Btn>
+              )}
               <Btn variant="success" onClick={() => setMode('confirm')}><Check className="size-5" />{t('m.action.delivered')}</Btn>
             </>}
             {mode === 'confirm' && <>

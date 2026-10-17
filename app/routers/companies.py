@@ -88,6 +88,9 @@ class CompanyUpdate(BaseModel):
     marketplace_default_branch_id: Optional[int] = None
     # T3.13: Telegram Mini App / bot buyurtmalari uchun standart filial (shu korxonaning faol filiali)
     shop_default_branch_id: Optional[int] = None
+    stock_deduct_stage: Optional[str] = None
+    agent_order_geo_radius_check: Optional[bool] = None
+    default_delivery_radius_m: Optional[int] = None
 
 
 # Chek shabloni (XSS himoyasi): faqat ma'lum kalitlar va cheklangan qiymatlar
@@ -198,6 +201,9 @@ class CompanyOut(BaseModel):
     marketplace_agents_enabled: bool = False
     marketplace_default_branch_id: Optional[int] = None
     shop_default_branch_id: Optional[int] = None
+    stock_deduct_stage: str = "order_confirmed"
+    agent_order_geo_radius_check: bool = True
+    default_delivery_radius_m: int = 250
 
     class Config:
         from_attributes = True
@@ -244,6 +250,9 @@ def list_companies(
         marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
         marketplace_default_branch_id=getattr(c, 'marketplace_default_branch_id', None),
         shop_default_branch_id=getattr(c, 'shop_default_branch_id', None),
+        stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
+        agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
+        default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         ))  # type: ignore[call-arg]
     return result
 
@@ -253,11 +262,18 @@ def get_my_company_features(
     current_user: User = Depends(get_current_user),
 ):
     """Kompaniyada yoqilgan ixtiyoriy modullar (sidebar va sahifalar uchun)."""
-    c = db.query(Company).filter(Company.id == current_user.company_id).first() if current_user.company_id else None
+    from app.core.features import company_has_feature
+    cid = current_user.company_id
+    if not cid:
+        return {
+            "manufacturing": False, "distribution": False, "marketplace_agents": False,
+            "require_shift": False, "credit_limit_scope": "distributor",
+        }
+    c = db.query(Company).filter(Company.id == cid).first()
     return {
-        "manufacturing": bool(c and c.manufacturing_enabled),
-        "distribution": bool(c and c.distribution_enabled),
-        "marketplace_agents": bool(c and c.marketplace_agents_enabled),
+        "manufacturing": company_has_feature(db, cid, "manufacturing"),
+        "distribution": company_has_feature(db, cid, "distribution"),
+        "marketplace_agents": company_has_feature(db, cid, "marketplace_agents"),
         "require_shift": bool(c and c.pos_require_shift),
         "credit_limit_scope": (getattr(c, "credit_limit_scope", None) or "distributor") if c else "distributor",
     }
@@ -334,6 +350,9 @@ def create_company(
         distribution_enabled=bool(getattr(c, 'distribution_enabled', False)),
         marketplace_default_branch_id=getattr(c, 'marketplace_default_branch_id', None),
         shop_default_branch_id=getattr(c, 'shop_default_branch_id', None),
+        stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
+        agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
+        default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
     )  # type: ignore[call-arg]
 
 
@@ -362,16 +381,6 @@ def update_company(
         raise HTTPException(status_code=400, detail="QQS foizi 0 dan 100 gacha bo'lishi kerak")
     if update_data.get("credit_limit_scope") is None:
         update_data.pop("credit_limit_scope", None)  # NOT NULL ustun (T2.12)
-
-    # T3.9: tarifda yo'q modulni (distribyutsiya / ishlab chiqarish) oddiy admin yoqa olmaydi (o'chirish doim mumkin)
-    if current_user.role != UserRole.super_admin:
-        from app.services.tariff_guard import TariffLimitError, get_active_tariff
-        for flag, has_attr in (("distribution_enabled", "has_distribution"), ("manufacturing_enabled", "has_manufacturing")):
-            if update_data.get(flag) is True and not getattr(c, flag, False):
-                tariff = get_active_tariff(db, c.id)
-                if tariff is not None and not getattr(tariff, has_attr, False):
-                    # TariffLimitError: 403 + code=TARIFF_LIMIT — frontend toast'da aniq matnni ko'rsatadi
-                    raise TariffLimitError("Bu modul tarifingizda mavjud emas", limit=0, current=0)
 
     # Marketplace agentlari modulini faqat super_admin yoqib/o'chira oladi (tarix audit logga yoziladi)
     if "marketplace_agents_enabled" in update_data:
@@ -403,6 +412,40 @@ def update_company(
             ).first()
             if not ok:
                 raise HTTPException(status_code=400, detail="Filial topilmadi yoki faol emas")
+
+    # Ishlab chiqarish va distribyutsiya modullarini yoqish huquqini tekshirish
+    if current_user.role != UserRole.super_admin:
+        from app.models.billing import CompanyPackage
+        from datetime import datetime, timezone
+        now_dt = datetime.now(timezone.utc)
+
+        for feat_key, feat_name, col_name in [
+            ("manufacturing", "Ishlab chiqarish", "manufacturing_enabled"),
+            ("distribution", "Distribyutsiya", "distribution_enabled"),
+            ("delivery_automation", "Yetkazib berish avtomatikasi", "orders_auto_create_sale"),
+        ]:
+            # T3.9: tarif yoki paket faqat modul YANGI yoqilayotganda talab qilinadi (o'chirish va
+            # allaqachon yoqilgan bayroqni qayta saqlash — forma qayta saqlanishi — to'sqinlik qilmaydi)
+            if col_name in update_data and update_data[col_name] and not getattr(c, col_name, False):
+                has_in_tariff = bool(c.tariff and getattr(c.tariff, f"has_{feat_key}", False))
+                has_active_pkg = False
+                pkgs = db.query(CompanyPackage).filter(
+                    CompanyPackage.company_id == c.id,
+                    CompanyPackage.package_code == feat_key,
+                ).all()
+                for p in pkgs:
+                    ends = p.ends_at
+                    if ends and ends.tzinfo is None:
+                        ends = ends.replace(tzinfo=timezone.utc)
+                    if p.is_active and ends and ends > now_dt:
+                        has_active_pkg = True
+                        break
+
+                if not has_in_tariff and not has_active_pkg:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"'{feat_name}' modulini faollashtirish uchun Tariflar sahifasidan mos tarif yoki paketni xarid qiling",
+                    )
 
     if "tg_bot_token" in update_data:
         new_token = update_data["tg_bot_token"]
@@ -457,6 +500,9 @@ def update_company(
         marketplace_agents_enabled=bool(getattr(c, 'marketplace_agents_enabled', False)),
         marketplace_default_branch_id=getattr(c, 'marketplace_default_branch_id', None),
         shop_default_branch_id=getattr(c, 'shop_default_branch_id', None),
+        stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
+        agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
+        default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
     )  # type: ignore[call-arg]
 
 

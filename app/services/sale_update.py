@@ -666,17 +666,36 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 reverse_sale_loyalty(_unc_customer, sale, include_redeemed=False)
                 clear_sale_loyalty(sale)
 
+        # Qoldiq yechish bosqichi (kompaniya `stock_deduct_stage`): yetkazmali sotuvda 'loaded' yoki
+        # 'delivered' bosqichida qoldiq tasdiqlashda emas, ombordan yuklanganda / mijozga topshirilganda
+        # chiqadi (sale_delivery_service.handle_delivery_stage_stock)
+        _delivery = getattr(sale, "delivery", None)
+        _has_delivery = _delivery is not None
         if confirming:
-            # Har qator o'z ombori va varianti bo'yicha; partiya (FIFO) va SaleItemBatch ham yoziladi
-            for item in db.query(SaleItem).filter(SaleItem.sale_id == sale.id).all():
-                deduct_sale_item(
-                    db, sale, item, current_user, allow_negative_stock,
-                    reason=f"Sotuv tasdiqlandi (sale #{sale.id})",
-                )
+            from app.models.company import Company
+            _comp = db.query(Company).filter(Company.id == sale.company_id).first()
+            _stage = getattr(_comp, "stock_deduct_stage", "order_confirmed") or "order_confirmed"
+            _deduct_now = not (_has_delivery and _stage in ("loaded", "delivered"))
+            if _deduct_now:
+                # Har qator o'z ombori va varianti bo'yicha; partiya (FIFO) va SaleItemBatch ham yoziladi
+                for item in db.query(SaleItem).filter(SaleItem.sale_id == sale.id).all():
+                    deduct_sale_item(
+                        db, sale, item, current_user, allow_negative_stock,
+                        reason=f"Sotuv tasdiqlandi (sale #{sale.id})",
+                    )
+                if _has_delivery:
+                    _delivery.stock_deducted = True
         elif unconfirming:
+            # Tasdiqlashda qoldiq chiqqan bo'lsa (sotuv harakatlari bor) yetkazma belgisi ham tiklanadi
+            from app.models.inventory import StockMovement as _SM
+            _had_sale_stock = db.query(_SM.id).filter(
+                _SM.reference_type == "sale", _SM.reference_id == sale.id,
+            ).first() is not None
             # Nisbiy qaytarish (absolyut qty_before emas — oradagi boshqa sotuvlar saqlanadi)
             restore_sale_stock(db, sale)
             restore_sale_batches(db, sale)
+            if _has_delivery and _had_sale_stock:
+                _delivery.stock_deducted = False
         elif cancelling_completed:
             # To'liq teskari: qoldiq, partiya, mijoz qarzi/loyalligi, Transaction va kassa
             cancel_sale_effects(db, sale, current_user, _cancel_customer)

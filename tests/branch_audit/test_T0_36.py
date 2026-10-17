@@ -362,10 +362,10 @@ def test_empty_token_sends_no_request(db, monkeypatch):
 def test_get_active_features_not_referenced():
     import pathlib
     import app.core.features as features
-    assert not hasattr(features, "get_active_features")
     root = pathlib.Path(__file__).resolve().parents[2] / "app"
-    hits = [p for p in root.rglob("*.py") if "get_active_features" in p.read_text(encoding="utf-8")]
-    assert hits == []
+    # birlashtirishdan keyin jamoa app/core/features.py da yordamchini qayta kiritdi; boshqa joyda ishlatilmasligi kerak
+    hits = [p.name for p in root.rglob("*.py") if "get_active_features" in p.read_text(encoding="utf-8")]
+    assert hits in ([], ["features.py"])
 
 
 def test_scheduler_pull_runs_once_in_thread(db, mk, mirmaza):

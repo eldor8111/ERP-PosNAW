@@ -338,7 +338,7 @@ def test_update_company_module_toggle_requires_tariff(client, db, mk):
     _tariff(db, c, has_distribution=False, has_manufacturing=True)
     cl = client.login(admin)
     r = cl.put(f'/api/companies/{c.id}', json={'distribution_enabled': True})
-    assert r.status_code == 403 and 'tarifingizda mavjud emas' in r.json()['detail']
+    assert r.status_code == 403 and 'tarif yoki paket' in r.json()['detail']
     assert db.get(Company, c.id).distribution_enabled is False
     # tarifda bor modul yoqiladi, o'chirish doim mumkin
     assert cl.put(f'/api/companies/{c.id}', json={'manufacturing_enabled': True}).status_code == 200
@@ -395,6 +395,7 @@ def test_create_user_blocked_by_user_company_member(client, db, mk):
 def test_create_agent_and_courier_limits(client, db, mk):
     c, b, _, admin = mk.tenant()
     _tariff(db, c, max_users=50, has_distribution=True, max_agents=1, max_couriers=1)
+    c.distribution_enabled = True   # modul kompaniyada yoqilgan (birlashtirilgan paket qoidasi)
     mk.user(c, role=UserRole.agent, branch=b)                      # agent kvotasi to'lgan
     db.add(Courier(company_id=c.id, name='K1', phone='901', is_active=True))   # kuryer kvotasi to'lgan
     db.flush()
@@ -411,6 +412,7 @@ def test_create_agent_courier_unlimited_when_null(client, db, mk):
     """Migratsiyadan keyin: has_distribution=true va max_agents/max_couriers NULL -> cheksiz, 403 yo'q."""
     c, b, _, admin = mk.tenant()
     _tariff(db, c, max_users=50, has_distribution=True, max_agents=None, max_couriers=None)
+    c.distribution_enabled = True   # modul kompaniyada yoqilgan (birlashtirilgan paket qoidasi)
     cl = client.login(admin)
     assert cl.post('/api/users/', json=_user_body('998900000021', role='agent', branch_id=b.id)).status_code == 201
     assert cl.post('/api/users/', json=_user_body('998900000022', role='courier', branch_id=b.id)).status_code == 201
@@ -427,6 +429,7 @@ def test_create_agent_without_distribution_module_403(client, db, mk):
 def test_update_user_role_to_agent_checks_limit(client, db, mk):
     c, b, _, admin = mk.tenant()
     _tariff(db, c, max_users=50, has_distribution=True, max_agents=1)
+    c.distribution_enabled = True   # modul kompaniyada yoqilgan (birlashtirilgan paket qoidasi)
     mk.user(c, role=UserRole.agent, branch=b)
     cashier = mk.user(c, role=UserRole.cashier, branch=b)
     r = client.login(admin).put(f'/api/users/{cashier.id}', json={'role': 'agent'})
@@ -442,6 +445,7 @@ def test_agent_courier_isolation_between_companies(client, db, mk):
     b, bb, _, admin_b = mk.tenant()
     _tariff(db, a, max_users=50, has_distribution=True, max_agents=1)
     _tariff(db, b, max_users=50, has_distribution=True, max_agents=1)
+    a.distribution_enabled = b.distribution_enabled = True
     mk.user(a, role=UserRole.agent, branch=ba)                    # faqat A to'lgan
     assert client.login(admin_a).post('/api/users/', json=_user_body('998900000041', role='agent', branch_id=ba.id)).status_code == 400
     assert client.login(admin_b).post('/api/users/', json=_user_body('998900000042', role='agent', branch_id=bb.id)).status_code == 201
@@ -450,6 +454,7 @@ def test_agent_courier_isolation_between_companies(client, db, mk):
 def test_courier_reactivation_respects_limit(client, db, mk):
     c, b, _, admin = mk.tenant()
     _tariff(db, c, has_distribution=True, max_couriers=1)
+    c.distribution_enabled = True   # modul kompaniyada yoqilgan (birlashtirilgan paket qoidasi)
     active = Courier(company_id=c.id, name='A', phone='901', is_active=True)
     off = Courier(company_id=c.id, name='B', phone='902', is_active=False)
     db.add_all([active, off])
@@ -658,7 +663,7 @@ def test_migration_unblocks_courier_creation(client, db, mk):
     c, b, _, admin = mk.tenant()
     c.distribution_enabled = True
     _tariff(db, c, has_distribution=False, max_couriers=0)
-    assert client.login(admin).post('/api/couriers', json={'name': 'K', 'phone': '901234567'}).status_code == 403
+    # modul kompaniyada yoqilgan va paket yo'q: tarifda modul bo'lmasa kuryer soni cheklanmaydi (birlashtirilgan qoida)
     with Operations.context(MigrationContext.configure(db.connection())):
         mig.upgrade()
     db.expire_all()

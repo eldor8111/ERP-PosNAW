@@ -240,6 +240,7 @@ def list_products(
 
     all_needed_ids = set(product_ids) | source_ids
 
+    from sqlalchemy import or_ as _or_
     all_stock_rows = (
         db.query(StockLevel)
         .outerjoin(Warehouse, Warehouse.id == StockLevel.warehouse_id)
@@ -323,6 +324,16 @@ def list_products(
     return result
 
 
+@router.get("/barcode-limit")
+def get_barcode_limit_stats(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Kompaniya shtrix-kod limiti va ishlatilganlik ko'rsatkichi (used / limit)."""
+    from app.services.tariff_guard import get_company_barcode_stats
+    return get_company_barcode_stats(db, current_user.company_id)
+
+
 @router.get("/barcode/{barcode}", response_model=ProductOut)
 def get_by_barcode(
         barcode: str,
@@ -341,13 +352,24 @@ def get_by_barcode(
     # T3.12: tarozi PLU kodi (<=5 raqam) — indeksli qidiruv (korxona ichida unikal plu_code)
     if not product and barcode.isdigit() and len(barcode) <= 5 and int(barcode) > 0:
         product = db.query(Product).filter(*base_filter, Product.plu_code == int(barcode)).first()
-    # Topilmasa extra_barcodes JSON ichida qidirish (LIKE tekshiruvi)
+    # Topilmasa extra_barcodes JSON ichida qidirish (%"{barcode}"%)
     if not product:
         product = (
             db.query(Product)
-            .filter(*base_filter, Product.extra_barcodes.ilike(f'"%{barcode}"'))
+            .filter(*base_filter, Product.extra_barcodes.ilike(f'%"{barcode}"%'))
             .first()
         )
+    # Topilmasa mahsulot variantlari shtrix-kodi bo'yicha qidirish
+    if not product:
+        from app.models.product_variant import ProductVariant
+        variant = (
+            db.query(ProductVariant)
+            .join(Product, Product.id == ProductVariant.product_id)
+            .filter(*base_filter, ProductVariant.barcode == barcode)
+            .first()
+        )
+        if variant:
+            product = variant.product
     # Topilmasa SKU bo'yicha qidirish
     if not product:
         product = db.query(Product).filter(*base_filter, Product.sku == barcode).first()
@@ -455,8 +477,11 @@ def create_product(
         current_user: User = Depends(require_roles(*WRITE_ROLES)),
         ctx: BranchContext = Depends(get_branch_context),  # T1.5: X-Branch-Id -> boshlang'ich qoldiq filiali (db.info)
 ):
+    extra_count = len([b.strip() for b in (data.extra_barcodes or []) if b.strip()])
+    variant_count = len([v for v in (data.variants or []) if getattr(v, 'barcode', None) and v.barcode.strip()])
+    total_new_barcodes = 1 + extra_count + variant_count
     from app.services.tariff_guard import check_product_limit
-    check_product_limit(db, current_user.company_id, count_to_add=1)
+    check_product_limit(db, current_user.company_id, count_to_add=total_new_barcodes)
 
     # Extract non-model fields before dump
     initial_stock = data.initial_stock or Decimal("0")
@@ -718,10 +743,23 @@ def update_product(
         if imgs and not update_data.get("image_url"):
             update_data["image_url"] = imgs[0]
 
-    # Serialize extra_barcodes list → JSON string
+    # Serialize extra_barcodes list → JSON string and check limit delta
     if "extra_barcodes" in update_data:
         ebc = update_data["extra_barcodes"]
-        update_data["extra_barcodes"] = json.dumps([b.strip() for b in ebc if b.strip()]) if ebc else None
+        new_ebc_list = [b.strip() for b in ebc if b.strip()] if ebc else []
+        old_ebc_list = []
+        if product.extra_barcodes:
+            try:
+                old_ebc_list = json.loads(product.extra_barcodes) if isinstance(product.extra_barcodes, str) else product.extra_barcodes
+                if not isinstance(old_ebc_list, list):
+                    old_ebc_list = []
+            except Exception:
+                old_ebc_list = []
+        delta_bc = len(new_ebc_list) - len(old_ebc_list)
+        if delta_bc > 0:
+            from app.services.tariff_guard import check_product_limit
+            check_product_limit(db, current_user.company_id, count_to_add=delta_bc)
+        update_data["extra_barcodes"] = json.dumps(new_ebc_list) if new_ebc_list else None
 
     # Serialize extra_product_codes list → JSON string
     if "extra_product_codes" in update_data:

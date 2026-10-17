@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey, Text, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey, Text, Boolean, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -10,7 +10,8 @@ from app.database import Base
 class SaleDeliveryStatus(str, enum.Enum):
     pending = "pending"      # Yetkazish kutilmoqda (marshrutga qo'shilmagan)
     assigned = "assigned"    # Kuryerga biriktirildi
-    on_way = "on_way"
+    loaded = "loaded"        # Omborchi tovarni yukladi (mashina/kuryer)
+    on_way = "on_way"        # Kuryer yo'lga chiqdi
     delivered = "delivered"
     cancelled = "cancelled"
 
@@ -38,9 +39,15 @@ class SaleDelivery(Base):
     assigned_at = Column(DateTime, nullable=True)
     on_way_at = Column(DateTime, nullable=True)
     delivered_at = Column(DateTime, nullable=True)
+    loaded_at = Column(DateTime, nullable=True)       # Omborchi "Yukladi" bosganda
+    loaded_by = Column(Integer, nullable=True)         # Omborchi user_id
     cancel_reason = Column(String(300), nullable=True)
     # Yetkazish haqi moliyaga bir marta yozilishi uchun (idempotentlik)
     fee_recorded = Column(Integer, nullable=False, default=0, server_default="0")
+    # Geo-tasdiq radiusi (metr). None = kompaniya standart (200 m)
+    delivery_radius_m = Column(Integer, nullable=True)
+    # Mahsulot qoldig'i ombordan chiqarilganmi? (idempotentlik)
+    stock_deducted = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     sale = relationship("Sale")

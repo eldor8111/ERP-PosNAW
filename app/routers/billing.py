@@ -6,13 +6,13 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
-from pydantic import BaseModel  # type: ignore
+from pydantic import BaseModel, field_validator  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 
 from app.core.audit import log_action  # type: ignore
 from app.core.dependencies import get_current_user, get_current_user_allow_expired  # type: ignore
 from app.database import get_db  # type: ignore
-from app.models.billing import Tariff, BalanceLog  # type: ignore
+from app.models.billing import Tariff, BalanceLog, FeaturePackage, CompanyPackage  # type: ignore
 from app.models.company import Company  # type: ignore
 from app.models.platform_settings import PlatformSettings  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
@@ -26,6 +26,7 @@ DEFAULT_SETTINGS = {
     "tg_username": "username",
     "phone": "+998 00 000 00 00",
     "phone_raw": "+998000000000",
+    "bhm_amount": "440000",
 }
 
 
@@ -38,6 +39,17 @@ def _get_settings_dict(db: Session) -> dict:
     except Exception:
         db.rollback()
     return result
+
+
+def get_bhm_amount(db: Session) -> float:
+    """Joriy BHM qiymatini qaytaradi (standart 440 000 so'm)."""
+    try:
+        row = db.query(PlatformSettings).filter(PlatformSettings.key == "bhm_amount").first()
+        if row and row.value:
+            return float(row.value)
+    except Exception:
+        db.rollback()
+    return 440000.0
 
 
 # ─── Yordamchi ────────────────────────────────────────────────────────────────
@@ -80,12 +92,16 @@ def require_billing_owner_allow_expired(user: User = Depends(get_current_user_al
     return user
 
 
-def _tariff_out(t: Tariff) -> dict:
+def _tariff_out(t: Tariff, bhm: Optional[float] = None) -> dict:
+    price = float(t.price_per_month or 0)
+    if t.bhm_percent and t.bhm_percent > 0:
+        bhm_val = bhm if bhm is not None else 440000.0
+        price = round(bhm_val * (float(t.bhm_percent) / 100.0))
     return {
         "id": t.id,
         "name": t.name,
         "description": t.description,
-        "price_per_month": float(t.price_per_month or 0),
+        "price_per_month": price,
         "duration_days": t.duration_days,
         "max_users": t.max_users,
         "max_branches": t.max_branches,
@@ -167,7 +183,7 @@ def get_payment_settings(
         db: Session = Depends(get_db),
         _: User = Depends(get_current_user_allow_expired),
 ):
-    """Karta raqami, Telegram, Telefon — barcha login qilganlar uchun"""
+    """Karta raqami, Telegram, Telefon, BHM — barcha login qilganlar uchun"""
     return _get_settings_dict(db)
 
 
@@ -178,12 +194,13 @@ def list_tariffs(
         all: bool = False,
         db: Session = Depends(get_db),
 ):
-    """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi)"""
+    """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi, BHM asosida narxlar)"""
+    bhm = get_bhm_amount(db)
     query = db.query(Tariff)
     if not all:
         query = query.filter(Tariff.is_active == True, Tariff.price_per_month > 0)
     tariffs = query.order_by(Tariff.sort_order).all()
-    return [_tariff_out(t) for t in tariffs]
+    return [_tariff_out(t, bhm) for t in tariffs]
 
 
 @router.get("/tariffs/{tariff_id}/quote")
@@ -198,8 +215,9 @@ def get_tariff_quote(
     t = db.query(Tariff).filter(Tariff.id == tariff_id, Tariff.is_active == True).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
+    bhm = get_bhm_amount(db)
     from app.services.tariff_guard import calculate_subscription_price
-    quote = calculate_subscription_price(t, months)
+    quote = calculate_subscription_price(t, months, bhm=bhm)
     quote["usage_warnings"] = _over_limit_items(db, user.company_id, t)
     return quote
 
@@ -539,8 +557,9 @@ def activate_subscription(
     if not tariff:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
 
+    bhm = get_bhm_amount(db)
     from app.services.tariff_guard import calculate_subscription_price
-    quote = calculate_subscription_price(tariff, data.months)
+    quote = calculate_subscription_price(tariff, data.months, bhm=bhm)
     total_price = quote["total_price"]
     current_balance = float(c.balance or 0)
 
@@ -612,8 +631,9 @@ def subscribe_my_company(
     if not tariff:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
 
+    bhm = get_bhm_amount(db)
     from app.services.tariff_guard import calculate_subscription_price
-    quote = calculate_subscription_price(tariff, data.months)
+    quote = calculate_subscription_price(tariff, data.months, bhm=bhm)
     total_price = quote["total_price"]
     current_balance = float(c.balance or 0)
 
@@ -771,3 +791,246 @@ def get_balance_logs(
         }
         for lg in logs
     ]
+
+
+# ─── Pullik Paketlar (Feature Packages) ───────────────────────────────────────
+
+def _package_out(pkg: FeaturePackage, bhm: float) -> dict:
+    price = float(pkg.price_per_month or 0)
+    if pkg.bhm_percent and pkg.bhm_percent > 0:
+        price = round(bhm * (float(pkg.bhm_percent) / 100.0))
+    return {
+        "id": pkg.id,
+        "code": pkg.code,
+        "name": pkg.name,
+        "description": pkg.description,
+        "bhm_percent": float(pkg.bhm_percent) if pkg.bhm_percent is not None else None,
+        "price_per_month": price,
+        "is_active": pkg.is_active,
+        "sort_order": pkg.sort_order,
+    }
+
+
+@router.get("/packages")
+def list_feature_packages(
+        db: Session = Depends(get_db),
+):
+    """Barcha pullik paketlar katalogi (BHM narxlari bilan)"""
+    bhm = get_bhm_amount(db)
+    pkgs = db.query(FeaturePackage).filter(FeaturePackage.is_active == True).order_by(FeaturePackage.sort_order).all()
+    return [_package_out(p, bhm) for p in pkgs]
+
+
+@router.get("/my-company/packages")
+def get_my_company_packages(
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user_allow_expired),
+):
+    """Kompaniyaning sotib olingan yoki berilgan paketlari holati"""
+    if not user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+
+    bhm = get_bhm_amount(db)
+    all_pkgs = db.query(FeaturePackage).filter(FeaturePackage.is_active == True).order_by(FeaturePackage.sort_order).all()
+    comp_pkgs = db.query(CompanyPackage).filter(CompanyPackage.company_id == user.company_id).all()
+    cp_map = {cp.package_code: cp for cp in comp_pkgs}
+
+    comp = db.query(Company).filter(Company.id == user.company_id).first()
+    t = comp.tariff if comp else None
+
+    now = datetime.now(timezone.utc)
+    result = []
+    for p in all_pkgs:
+        cp = cp_map.get(p.code)
+        ends_at = cp.ends_at if cp else None
+        if ends_at and ends_at.tzinfo is None:
+            ends_at = ends_at.replace(tzinfo=timezone.utc)
+        is_active = bool(cp and cp.is_active and ends_at and ends_at > now)
+        days_left = max(0, (ends_at - now).days) if is_active else 0
+        in_tariff = bool(t and getattr(t, f"has_{p.code}", False))
+
+        p_info = _package_out(p, bhm)
+        p_info.update({
+            "has_package": cp is not None,
+            "is_active_package": is_active,
+            "included_in_tariff": in_tariff,
+            "can_use": in_tariff or is_active,
+            "days_left": days_left,
+            "starts_at": cp.starts_at.isoformat() if cp and cp.starts_at else None,
+            "ends_at": ends_at.isoformat() if ends_at else None,
+            "is_trial": bool(cp.is_trial) if cp else False,
+        })
+        result.append(p_info)
+    return result
+
+
+class PackageSubscribeIn(BaseModel):
+    package_code: str
+    months: int = 1
+
+
+@router.post("/my-company/packages/subscribe")
+def subscribe_my_company_package(
+        data: PackageSubscribeIn,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user_allow_expired),
+):
+    """Kompaniya balansidan paket sotib oladi (oylar soni bo'yicha)"""
+    if not user.company_id:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    if data.months < 1:
+        raise HTTPException(status_code=400, detail="Kamida 1 oy tanlanishi kerak")
+
+    c = db.query(Company).filter(Company.id == user.company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+
+    pkg = db.query(FeaturePackage).filter(FeaturePackage.code == data.package_code, FeaturePackage.is_active == True).first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Bunday paket topilmadi")
+
+    bhm = get_bhm_amount(db)
+    monthly_price = float(pkg.price_per_month or 0)
+    if pkg.bhm_percent and pkg.bhm_percent > 0:
+        monthly_price = round(bhm * (float(pkg.bhm_percent) / 100.0))
+
+    total_price = monthly_price * data.months
+    current_balance = float(c.balance or 0)
+
+    if current_balance < total_price:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Balans yetarli emas. Kerak: {total_price:,.0f} so'm, Balans: {current_balance:,.0f} so'm"
+        )
+
+    now = datetime.now(timezone.utc)
+    cp = db.query(CompanyPackage).filter(
+        CompanyPackage.company_id == c.id,
+        CompanyPackage.package_code == data.package_code,
+    ).first()
+
+    current_ends = cp.ends_at if cp else None
+    if current_ends and current_ends.tzinfo is None:
+        current_ends = current_ends.replace(tzinfo=timezone.utc)
+
+    base = current_ends if (current_ends and current_ends > now) else now
+    extra_days = 30 * data.months
+    new_ends = base + timedelta(days=extra_days)
+
+    if not cp:
+        cp = CompanyPackage(
+            company_id=c.id,
+            package_code=data.package_code,
+            starts_at=base,
+            ends_at=new_ends,
+            is_active=True,
+            is_trial=False,
+            purchased_at=now,
+        )
+        db.add(cp)
+    else:
+        cp.starts_at = cp.starts_at or base
+        cp.ends_at = new_ends
+        cp.is_active = True
+        cp.is_trial = False
+        cp.purchased_at = now
+
+    # Kompaniya maydonini avtomatik faollashtirish
+    if data.package_code == "manufacturing":
+        c.manufacturing_enabled = True
+    elif data.package_code == "distribution":
+        c.distribution_enabled = True
+    elif data.package_code == "delivery_automation":
+        c.orders_auto_create_sale = True
+
+    # Balansdan yechish
+    c.balance = current_balance - total_price
+
+    log = BalanceLog(
+        company_id=c.id,
+        amount=-total_price,
+        log_type="subscription",
+        note=f"Paket: {pkg.name} × {data.months} oy",
+        created_by_id=user.id,
+        created_at=now,
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(c)
+
+    return {
+        "ok": True,
+        "message": f"'{pkg.name}' paketi {new_ends.strftime('%d.%m.%Y')} gacha faollashtirildi",
+        "charged": total_price,
+        "balance": float(c.balance),
+        "ends_at": new_ends.isoformat(),
+    }
+
+
+class PackageGrantIn(BaseModel):
+    package_code: str
+    days: int = 7
+    is_trial: bool = False
+    note: Optional[str] = None
+
+
+@router.post("/companies/{company_id}/packages/grant")
+def grant_company_package(
+        company_id: int,
+        data: PackageGrantIn,
+        db: Session = Depends(get_db),
+        admin: User = Depends(require_super_admin),
+):
+    """Super Admin kompaniyaga bepul yoki sinov paketini faollashtiradi"""
+    c = db.query(Company).filter(Company.id == company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+
+    pkg = db.query(FeaturePackage).filter(FeaturePackage.code == data.package_code).first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Paket topilmadi")
+
+    now = datetime.now(timezone.utc)
+    cp = db.query(CompanyPackage).filter(
+        CompanyPackage.company_id == c.id,
+        CompanyPackage.package_code == data.package_code,
+    ).first()
+
+    current_ends = cp.ends_at if cp else None
+    if current_ends and current_ends.tzinfo is None:
+        current_ends = current_ends.replace(tzinfo=timezone.utc)
+
+    base = current_ends if (current_ends and current_ends > now) else now
+    new_ends = base + timedelta(days=data.days)
+
+    if not cp:
+        cp = CompanyPackage(
+            company_id=c.id,
+            package_code=data.package_code,
+            starts_at=base,
+            ends_at=new_ends,
+            is_active=True,
+            is_trial=data.is_trial,
+            purchased_at=now,
+        )
+        db.add(cp)
+    else:
+        cp.starts_at = cp.starts_at or base
+        cp.ends_at = new_ends
+        cp.is_active = True
+        cp.is_trial = data.is_trial
+
+    if data.package_code == "manufacturing":
+        c.manufacturing_enabled = True
+    elif data.package_code == "distribution":
+        c.distribution_enabled = True
+    elif data.package_code == "delivery_automation":
+        c.orders_auto_create_sale = True
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "message": f"'{pkg.name}' paketi {new_ends.strftime('%d.%m.%Y')} gacha faollashtirildi",
+        "ends_at": new_ends.isoformat(),
+    }

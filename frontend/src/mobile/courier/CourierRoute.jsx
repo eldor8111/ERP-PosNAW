@@ -13,7 +13,7 @@ import { fmtMoney } from '../format';
 import StopSheet from './StopSheet';
 
 const STATUS_CLS = {
-  assigned: 'bg-brand/10 text-brand', on_way: 'bg-warning/10 text-warning',
+  assigned: 'bg-brand/10 text-brand', loaded: 'bg-indigo-500/10 text-indigo-600', on_way: 'bg-warning/10 text-warning',
   delivered: 'bg-success/10 text-success', cancelled: 'bg-danger/10 text-danger',
 };
 const CACHE = 'courier_today';

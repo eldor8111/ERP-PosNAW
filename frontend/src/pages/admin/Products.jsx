@@ -187,6 +187,13 @@ export default function Products() {
   /* currencies + bin locations */
   const [currencies, setCurrencies] = useState([]);
   const [binLocations, setBinLocations] = useState([]);
+  const [barcodeLimit, setBarcodeLimit] = useState(null);
+
+  const loadBarcodeLimit = useCallback(() => {
+    api.get('/products/barcode-limit')
+      .then(r => setBarcodeLimit(r.data))
+      .catch(() => {});
+  }, []);
 
   /* product modal */
   const [modal, setModal] = useState(null);
@@ -475,10 +482,11 @@ export default function Products() {
         setWholesaleValues(r.data.wholesale_values || {});
         setCostValues(r.data.cost_values || {});
         setSelectedIds([]);
+        loadBarcodeLimit();
       })
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false));
-  }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, page]);
+  }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, page, loadBarcodeLimit]);
 
   // Filter yoki saralash o'zgarganda 1-sahifaga qaytish
   useEffect(() => { setPage(1); }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit]);
@@ -486,6 +494,7 @@ export default function Products() {
   useEffect(() => {
     loadCategories();
     loadBinLocations();
+    loadBarcodeLimit();
 
     api.get('/currencies/').then(r => setCurrencies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") });
@@ -1672,6 +1681,31 @@ export default function Products() {
                 >
                   <Binary className='w-5 h-5' /> {t('product.scaleFileTitle')}
                 </button>
+
+                {/* Shtrix-kodlar limiti ko'rsatkichi */}
+                {barcodeLimit && barcodeLimit.limit && (
+                  <div
+                    title={`Shtrix-kodlar limiti: ${barcodeLimit.used} / ${barcodeLimit.limit}`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 xl:px-3 py-1 xl:py-2 rounded-md xl:rounded-lg border text-[11px] xl:text-[13px] font-semibold transition-colors ${
+                      barcodeLimit.is_exceeded
+                        ? 'bg-red-50 border-red-300 text-red-700'
+                        : barcodeLimit.is_warning
+                        ? 'bg-amber-50 border-amber-300 text-amber-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <Binary className={`w-3.5 h-3.5 xl:w-4 xl:h-4 ${
+                      barcodeLimit.is_exceeded ? 'text-red-600' : barcodeLimit.is_warning ? 'text-amber-600' : 'text-slate-500'
+                    }`} />
+                    <span>
+                      {barcodeLimit.is_exceeded ? '🚫 Limit:' : barcodeLimit.is_warning ? '⚠️ Shtrix-kod:' : 'Shtrix-kod:'}{' '}
+                      <span className="font-bold">{barcodeLimit.used}</span> / {barcodeLimit.limit}
+                      {barcodeLimit.percent != null && (
+                        <span className="text-[10px] xl:text-[11px] text-slate-400 font-normal ml-0.5">({barcodeLimit.percent}%)</span>
+                      )}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-1.5 px-2 xl:px-3 py-1 xl:py-2 bg-slate-50 border border-slate-200 rounded-md xl:rounded-lg">
                   {Object.entries(MXIK_STATUS_META).map(([key, meta]) => (

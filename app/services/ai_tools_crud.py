@@ -54,7 +54,7 @@ class CreateProductTool(AITool):
     name = "create_product"
     description = "Yangi mahsulot yaratish (nomi va narxi bilan). Shtrix kod berilmasa avtomatik generatsiya qilinadi."
     required_permission = "products.create"
-    risk_level = "MEDIUM"
+    risk_level = "HIGH"
     parameters = {
         "type": "object",
         "properties": {
@@ -79,6 +79,13 @@ class CreateProductTool(AITool):
         cost_price = _sf(kwargs.get("cost_price", 0))
         unit = (kwargs.get("unit") or "dona").strip() or "dona"
         barcode = (kwargs.get("barcode") or "").strip()
+
+        from fastapi import HTTPException
+        from app.services.tariff_guard import check_product_limit
+        try:
+            check_product_limit(db, company_id, count_to_add=1)
+        except HTTPException as e:
+            return {"reply": f"❌ {e.detail}"}
 
         if barcode:
             existing = db.query(Product).filter(
@@ -170,7 +177,7 @@ class CreateCustomerTool(AITool):
     name = "create_customer"
     description = "Yangi mijoz qo'shish (ism va, ixtiyoriy, telefon raqami bilan)."
     required_permission = "customers.create"
-    risk_level = "MEDIUM"
+    risk_level = "HIGH"
     parameters = {
         "type": "object",
         "properties": {
@@ -203,7 +210,7 @@ class UpdateCustomerTool(AITool):
     name = "update_customer"
     description = "Mavjud mijozning ismi yoki telefon raqamini o'zgartirish (qarzga tegishli emas)."
     required_permission = "customers.edit"
-    risk_level = "MEDIUM"
+    risk_level = "HIGH"
     parameters = {
         "type": "object",
         "properties": {

@@ -56,7 +56,8 @@ class PredictStockDepletionTool(AITool):
             StockLevel.product_id,
             func.sum(StockLevel.quantity).label("current_stock")
         ).join(Product, Product.id == StockLevel.product_id)\
-         .filter(Product.company_id == company_id)
+         .filter(Product.company_id == company_id)\
+         .filter(__import__("sqlalchemy").or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
         if scope is not None:
             stock_q = stock_q.filter(StockLevel.warehouse_id.in_(list(scope.warehouse_ids)))
         stock_subquery = stock_q.group_by(StockLevel.product_id).subquery()

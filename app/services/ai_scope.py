@@ -247,6 +247,8 @@ def low_stock_query(db: Session, company_id: int, scope: Optional[AIScope], thre
     )
     if scope is not None:
         q = q.filter(StockLevel.warehouse_id.in_(list(scope.warehouse_ids)))
+    # Nofaol omborlar qoldiqdan chiqariladi (jamoa qoidasi: "Nofaol omborlarni qoldiq hisobidan chiqarish")
+    q = q.filter(or_(StockLevel.warehouse_id.is_(None), StockLevel.warehouse.has(is_active=True)))
     limit = threshold if threshold is not None else func.coalesce(func.nullif(Product.min_stock, 0), DEFAULT_LOW_STOCK)
     return q.group_by(Product.id, Product.name, Product.min_stock).having(qty < limit)
 

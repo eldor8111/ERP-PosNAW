@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import timedelta
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from typing import Optional
 
 from app.database import get_db
-from app.core.dependencies import require_roles
+from app.core.dependencies import require_roles, get_current_user
 from app.models.user import User, UserRole
 from app.models.sale import Sale
 from app.services.ai_service import (
@@ -43,7 +44,7 @@ def _inject_branch(tool_name, tool_arguments: dict, scope) -> dict:
     return args
 
 @router.get("/status")
-def get_ai_status():
+def get_ai_status(current_user: User = Depends(get_current_user)):
     return {
         "status": "ok",
         "mode": "openrouter",
@@ -57,23 +58,17 @@ def get_ai_status():
         ]
     }
 
-_FORBIDDEN_WORDS = ["boshqa korxona", "admin", "barcha korxona", "unut", "ignore"]
-
 
 def _run_copilot_chat(request: "ChatRequest", db: Session, current_user: User) -> dict:
     """
     /chat va /copilot/chat endpointlari uchun umumiy mantiq.
-    Ikki endpoint ilgari bir xil kodni deyarli aynan takrorlagan; biri esa
-    hech qachon import qilinmagan `execute_copilot_action()` ni chaqirib,
-    ishga tushsa 500 bilan yiqiladigan o'lik kodga ega edi. Shu sabab yagona
-    joyga birlashtirildi.
+    Xavfsizlik so'z filtrlariga emas, PostgreSQL RLS va tenant kontekstiga tayanadi.
     """
-    msg_lower = request.message.lower()
-    if any(word in msg_lower for word in _FORBIDDEN_WORDS):
-        return {"reply": "Kechirasiz, faqat o'z korxonangizga tegishli ma'lumotlarga javob bera olaman."}
+    from app.services.ai_db_context import ai_tenant_context
 
     scope = resolve_ai_scope(db, current_user, request.branch_id)
-    context = build_daily_context(db, current_user.company_id, scope)
+    with ai_tenant_context(db, current_user.company_id, read_only=False):
+        context = build_daily_context(db, current_user.company_id, scope)
     api_key = os.getenv("OPENROUTER_API_KEY", "")
 
     from app.models.ai_chat_history import AiChatHistory
@@ -487,7 +482,8 @@ async def process_voice_command(
         raise HTTPException(status_code=500, detail=f"Ovozli xabarni qayta ishlashda xatolik: {str(e)}")
 
 class ConfirmRequest(BaseModel):
-    confirmation_id: str
+    confirmation_id: Optional[str] = None
+    pending_action_id: Optional[str] = None
 
 @router.post("/confirm")
 def confirm_ai_action(
@@ -495,61 +491,154 @@ def confirm_ai_action(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
 ):
+    from datetime import datetime, timezone
+    from app.models.pending_action import PendingAction
     from app.models.ai_audit import AIAuditLog
     import time
-    
-    log = db.query(AIAuditLog).filter(
-        AIAuditLog.confirmation_id == request.confirmation_id,
-        AIAuditLog.company_id == current_user.company_id,
-        AIAuditLog.status == "PENDING_CONFIRMATION"
-    ).first()
 
-    if not log:
-        return {"reply": "❌ Tasdiqlash topilmadi yoki allaqachon bajarilgan."}
+    action_id = (request.pending_action_id or request.confirmation_id or "").strip()
+    if not action_id:
+        return {"reply": "❌ confirmation_id yoki pending_action_id ko'rsatilishi shart."}
 
-    # Faqat amalni boshlagan foydalanuvchining o'zi tasdiqlashi mumkin —
-    # aks holda bir kompaniyadagi boshqa foydalanuvchi (masalan manager)
-    # o'ziga ruxsat berilmagan HIGH-risk amalni confirmation_id orqali
-    # bajarib yuborishi mumkin edi.
-    if log.user_id != current_user.id:
+    # 1. Atomik qulf (Row-level lock): with_for_update() parallel ikki marta tasdiqlashni bloklaydi
+    pending = db.query(PendingAction).filter(
+        PendingAction.id == action_id
+    ).with_for_update().first()
+
+    if not pending:
+        # Fallback: agar eski AIAuditLog bo'lsa
+        legacy_log = db.query(AIAuditLog).filter(
+            AIAuditLog.confirmation_id == action_id,
+            AIAuditLog.company_id == current_user.company_id,
+            AIAuditLog.status == "PENDING_CONFIRMATION"
+        ).with_for_update().first()
+        if not legacy_log:
+            return {"reply": "❌ Tasdiqlash topilmadi yoki allaqachon bajarilgan."}
+
+        if legacy_log.user_id != current_user.id:
+            return {"reply": "❌ Bu tasdiqlashni faqat uni boshlagan foydalanuvchi bajarishi mumkin."}
+
+        tool_class = AIToolRegistry.get_tool(legacy_log.tool_name)
+        if not tool_class:
+            return {"reply": "❌ Tool topilmadi."}
+
+        HIGH_RISK_ROLES = [UserRole.admin, UserRole.director, UserRole.super_admin]
+        if tool_class.risk_level == "HIGH" and current_user.role not in HIGH_RISK_ROLES:
+            return {"reply": "❌ Kechirasiz, sizda bu amalni tasdiqlash uchun ruxsat yo'q."}
+
+        start_time = time.time()
+        try:
+            tool_instance = tool_class()
+            result = tool_instance.execute(db, current_user.company_id, current_user, **legacy_log.tool_arguments)
+            legacy_log.result_summary = summarize_reply(result)
+            # T2.6: "❌ ..." javobi jurnalda SUCCESS emas, ERROR
+            if (legacy_log.result_summary or "").lstrip().startswith("❌"):
+                legacy_log.status = "ERROR"
+                legacy_log.error = legacy_log.result_summary
+            else:
+                legacy_log.status = "SUCCESS"
+            legacy_log.execution_time_ms = (time.time() - start_time) * 1000
+            # Commit try ichida: IntegrityError (FK/NOT NULL) 500 emas, ERROR logi bo'lib qaytadi
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            err_text = e.detail if isinstance(e, HTTPException) else str(e)
+            legacy_log.status = "ERROR"
+            legacy_log.error = str(err_text)
+            legacy_log.execution_time_ms = (time.time() - start_time) * 1000
+            result = {"reply": f"❌ Xatolik yuz berdi: {err_text}"}
+            db.commit()
+        return result
+
+    # 2. Idempotentlik tekshiruvi: allaqachon bajarilgan bo'lsa darhol rad etiladi
+    if pending.status == "executed":
+        return {"reply": "❌ Bu amal allaqachon tasdiqlangan va bajarilgan."}
+    if pending.status != "pending":
+        return {"reply": f"❌ Bu amal tasdiqlash uchun yaroqsiz (holati: {pending.status})."}
+
+    # 3. Tenant (korxona) izolyatsiyasi: boshqa korxona amalini ko'rish yoki tasdiqlash mumkin emas
+    if pending.company_id != current_user.company_id:
+        return {"reply": "❌ Boshqa korxona amalini tasdiqlash taqiqlangan."}
+
+    # 4. Foydalanuvchi bog'liqligi: faqat amalni yaratgan shaxs tasdiqlay oladi
+    if pending.user_id != current_user.id:
         return {"reply": "❌ Bu tasdiqlashni faqat uni boshlagan foydalanuvchi bajarishi mumkin."}
 
-    tool_class = AIToolRegistry.get_tool(log.tool_name)
+    # 5. Muddat (TTL) tekshiruvi:
+    now = datetime.now(timezone.utc)
+    exp = pending.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < now:
+        pending.status = "expired"
+        db.commit()
+        return {"reply": "❌ Tasdiqlash muddati o'tib ketgan."}
+
+    # 6. Tool mavjudligi va RBAC qayta tekshiruvi:
+    tool_class = AIToolRegistry.get_tool(pending.tool_name)
     if not tool_class:
         return {"reply": "❌ Tool topilmadi."}
 
-    # Tool'ning risk_level'iga qarab rolni qayta tekshiramiz — endpoint
-    # decoratoridagi keng rol ro'yxati (manager ham kiradi) HIGH-risk tool
-    # uchun yetarli emas.
-    from app.models.user import UserRole
     HIGH_RISK_ROLES = [UserRole.admin, UserRole.director, UserRole.super_admin]
     if tool_class.risk_level == "HIGH" and current_user.role not in HIGH_RISK_ROLES:
         return {"reply": "❌ Kechirasiz, sizda bu amalni tasdiqlash uchun ruxsat yo'q."}
 
+    # 6.5. Argumentlardagi barcha ID'lar shu korxonaga tegishli ekanini qayta tekshirish
+    from app.services.ai_tools_registry import validate_arguments_company_ownership
+    try:
+        validate_arguments_company_ownership(db, pending.company_id, pending.tool_arguments)
+    except PermissionError as pe:
+        pending.status = "rejected"
+        pending.result_summary = str(pe)
+        db.commit()
+        return {"reply": f"❌ Xavfsizlik xatosi: {str(pe)}"}
+
+    # 7. Ijro: FAQAT serverda saqlangan pending.tool_arguments va pending.company_id ishlatiladi
     start_time = time.time()
     try:
         tool_instance = tool_class()
-        result = tool_instance.execute(db, current_user.company_id, current_user, **log.tool_arguments)
-        log.result_summary = summarize_reply(result)
+        from app.services.ai_db_context import ai_tenant_context
+        with ai_tenant_context(db, pending.company_id, read_only=False):
+            result = tool_instance.execute(db, pending.company_id, current_user, **pending.tool_arguments)
+        pending.result_summary = summarize_reply(result)
         # T2.6: vosita xatoni istisno emas, "❌ ..." javobi sifatida qaytarsa — jurnalda SUCCESS emas, ERROR
-        if (log.result_summary or "").lstrip().startswith("❌"):
-            log.status = "ERROR"
-            log.error = log.result_summary
+        is_tool_error = (pending.result_summary or "").lstrip().startswith("❌")
+        if is_tool_error:
+            pending.status = "failed"
         else:
-            log.status = "SUCCESS"
-        log.execution_time_ms = (time.time() - start_time) * 1000
+            pending.status = "executed"
+            pending.executed_at = datetime.now(timezone.utc)
+
+        # Audit jurnali bilan sinxronlashtirish
+        audit_log = db.query(AIAuditLog).filter(AIAuditLog.confirmation_id == action_id).first()
+        if audit_log:
+            if is_tool_error:
+                audit_log.status = "ERROR"
+                audit_log.error = pending.result_summary
+            else:
+                audit_log.status = "SUCCESS"
+            audit_log.result_summary = pending.result_summary
+            audit_log.execution_time_ms = (time.time() - start_time) * 1000
+
         # Commit try ichida: IntegrityError (FK/NOT NULL) 500 emas, ERROR logi bo'lib qaytadi
         db.commit()
+        return result
     except Exception as e:
         db.rollback()
         err_text = e.detail if isinstance(e, HTTPException) else str(e)
-        log.status = "ERROR"
-        log.error = str(err_text)
-        result = {"reply": f"❌ Xatolik yuz berdi: {err_text}"}
-        log.execution_time_ms = (time.time() - start_time) * 1000
-        # Log yozuvi alohida commit qilinadi
-        db.commit()
-    return result
+        try:
+            pending.status = "failed"
+            pending.result_summary = str(err_text)
+            audit_log = db.query(AIAuditLog).filter(AIAuditLog.confirmation_id == action_id).first()
+            if audit_log:
+                audit_log.status = "ERROR"
+                audit_log.error = str(err_text)
+                audit_log.execution_time_ms = (time.time() - start_time) * 1000
+            db.commit()
+        except Exception:
+            db.rollback()
+        return {"reply": f"❌ Xatolik yuz berdi: {err_text}"}
+
 
 
 # ─── AI qoralamalarini haqiqiy yozuvga aylantirish ───────────────────────────
@@ -669,14 +758,32 @@ async def confirm_ai_sms_campaign(
         raise HTTPException(status_code=400, detail="Xabar matni bo'sh bo'lishi mumkin emas")
 
     from app.models.sms_log import SMSLog
+    from app.models.customer import Customer
     from app.services import eskiz_service
 
+    # Telefon raqami klientdan olinmaydi: faqat shu kompaniya mijozlarining bazadagi raqamiga
+    # yuboriladi. Aks holda kompaniya Eskiz hisobidan istalgan raqamga SMS yuborish mumkin edi.
+    if any(not r.id for r in request.recipients):
+        raise HTTPException(status_code=400, detail="Qabul qiluvchilar mijoz ID si bilan berilishi kerak")
+    customer_ids = list(dict.fromkeys(r.id for r in request.recipients))
+    customers = db.query(Customer).filter(
+        Customer.company_id == current_user.company_id,
+        Customer.id.in_(customer_ids),
+    ).all()
+    customers_by_id = {c.id: c for c in customers}
+    if len(customers_by_id) != len(customer_ids):
+        raise HTTPException(status_code=400, detail="Qabul qiluvchilar ichida sizning korxonangiz mijozi bo'lmaganlari bor")
+
     sent, failed = 0, 0
-    for r in request.recipients:
-        result = await eskiz_service.send_sms(r.phone, request.message)
+    for cid in customer_ids:
+        phone = (customers_by_id[cid].phone or "").strip()
+        if not phone:
+            failed += 1
+            continue
+        result = await eskiz_service.send_sms(phone, request.message)
         db.add(SMSLog(
             company_id=current_user.company_id,
-            phone=r.phone,
+            phone=phone,
             message=request.message,
             status="sent" if result["success"] else "failed",
             eskiz_id=result.get("eskiz_id"),

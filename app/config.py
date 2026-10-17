@@ -27,10 +27,12 @@ class Settings(BaseSettings):
     DEFAULT_TERMINAL_ID: str = ""
     TASNIF_BASE_URL: str = "https://tasnif.soliq.uz/api/cl-api"
     # Eskiz.uz
-    ESKIZ_EMAIL: str = "supergeroy2580@gmail.com"
-    ESKIZ_PASSWORD: str = "ajjg1m0DagelnulNNXk635Ek4tYOYTC5xvp39eGR"
+    ESKIZ_EMAIL: str = ""
+    ESKIZ_PASSWORD: str = ""
     ESKIZ_FROM: str = "4546"
     ESKIZ_BASE_URL: str = "https://notify.eskiz.uz/api"
+    # AI Pending actions TTL (daqiqalarda)
+    AI_PENDING_ACTION_TTL_MIN: int = 10
     # --- Hippo Communicator (fiskalizatsiya) ---
     HIPPO_COMMUNICATOR_URL: str = "http://127.0.0.1:8081"
     HIPPO_API_PREFIX: str = "/api"
@@ -42,6 +44,19 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_MODEL: str = "cohere/north-mini-code:free"
+    # Zaxira modellar, vergul bilan (masalan: "modelA,modelB"). Bo'sh bo'lsa faqat OPENROUTER_MODEL ishlatiladi.
+    OPENROUTER_FALLBACK_MODELS: str = ""
+    # --- LLM Provider Abstraction (Bosqich 1) ---
+    LLM_PROVIDER: str = "openrouter"  # openrouter, anthropic, openai, mock
+    LLM_MODEL_MAIN: str = "cohere/north-mini-code:free"
+    LLM_MODEL_FAST: str = "cohere/north-mini-code:free"
+    LLM_FALLBACK_CHAIN: str = "openrouter"  # masalan: "anthropic,openrouter,mock"
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_BASE_URL: str = "https://api.anthropic.com/v1"
+    ANTHROPIC_PROMPT_CACHING: bool = False
+    LLM_TIMEOUT_SEC: int = 30
+    LLM_MAX_RETRIES: int = 2
+    LLM_RETRY_BACKOFF_FACTOR: float = 1.5
     # Marketplace (mir-maza.uz) — kategoriyalar manbai. API manzili .env da beriladi.
     MARKETPLACE_CATEGORIES_URL: str = "https://mir-maza.uz/api/v1/categories"
     # Mir-maza bilan umumiy maxfiy kalit (X-Integration-Key): chiquvchi so'rovlar VA kiruvchi
@@ -58,6 +73,12 @@ class Settings(BaseSettings):
     # Ombor limiti rejimi (T3.9): "off" — tekshirilmaydi; "warn" — limit oshsa faqat log + usage'da over=true;
     # "enforce" — 403. Birinchi deployda "warn"; super admin tariflarni tekshirgach "enforce" qilinadi.
     TARIFF_WAREHOUSE_LIMIT_MODE: str = "warn"
+
+    # AI SQL Readonly pool and limits (Bosqich 4)
+    AI_DB_URL_READONLY: str = ""
+    AI_SQL_MAX_ROWS: int = 200
+    AI_SQL_TIMEOUT_SEC: int = 10
+    STRICT_RLS_CHECK: bool = False
 
     class Config:
         env_file = ".env"

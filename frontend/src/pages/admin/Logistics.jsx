@@ -13,7 +13,7 @@ const errMsg = (e, t) => e.response?.data?.detail || t('common.error');
 
 const inputCls = 'w-full px-3 py-2.5 border border-line rounded-xl text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/40';
 const ROUTE_COLOR = { planned: 'neutral', in_progress: 'warning', completed: 'success', cancelled: 'danger' };
-const STOP_COLOR = { pending: 'neutral', confirmed: 'neutral', preparing: 'neutral', assigned: 'brand', on_way: 'warning', delivered: 'success', cancelled: 'danger' };
+const STOP_COLOR = { pending: 'neutral', confirmed: 'neutral', preparing: 'neutral', assigned: 'brand', loaded: 'indigo', on_way: 'warning', delivered: 'success', cancelled: 'danger' };
 const FUEL_TYPES = ['petrol', 'diesel', 'gas', 'electric'];
 // Yangi kalit eski tilda bo'lmasa zaxira matn ko'rsatiladi
 const tfWith = (t) => (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
@@ -296,6 +296,10 @@ function RouteDetailModal({ route: initial, onClose, onChanged }) {
           {route.status === 'planned' && <>
             <button onClick={() => act(() => api.post(`${base}/cancel`), t('logistics.confirmCancel'))} disabled={busy}
               className="px-4 py-2.5 text-danger text-sm font-medium rounded-xl hover:bg-danger/10">{t('logistics.cancelRoute')}</button>
+            <button onClick={() => act(() => api.post(`${base}/load-confirm`), t('logistics.confirmLoadAll') || "Barcha buyurtmalar mashinaga yuklanganini tasdiqlaysizmi?")} disabled={busy}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl inline-flex items-center gap-1.5">
+              📦 {t('logistics.loadConfirm') || 'Yuklash tasdiqlandi'}
+            </button>
             {reordered && <button onClick={() => act(() => api.put(`${base}/stops`, { group_keys: order }))} disabled={busy}
               className="px-4 py-2.5 border border-line text-ink-900 text-sm font-semibold rounded-xl hover:bg-surface-sunken">{t('logistics.saveOrder')}</button>}
             <button onClick={() => act(() => api.post(`${base}/start`))} disabled={busy || reordered}

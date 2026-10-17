@@ -32,6 +32,7 @@ router = APIRouter(prefix="/mobile/courier", tags=["mobile-courier"],
 
 courier_user = require_roles(UserRole.courier)
 PROOF_DIR = os.path.join("uploads_private", "delivery_proofs")
+DELIVERY_RADIUS_M = 250   # Standart: do'kondan 250 metr ichida "Topshirdim" bosilishi kerak
 
 
 def _me(db: Session, user: User):
@@ -134,6 +135,32 @@ def set_status(key: str, data: StopActionIn, background_tasks: BackgroundTasks,
     if st.is_final:
         raise HTTPException(status_code=400, detail="Buyurtma allaqachon yakunlangan")
 
+    # ── 1. Yuklash tekshiruvi: "on_way" faqat omborchi yuklasa ──
+    if data.action == "on_way" and st.is_sale:
+        if st.delivery.status not in (SaleDeliveryStatus.loaded, SaleDeliveryStatus.on_way):
+            raise HTTPException(
+                status_code=400,
+                detail="Tovarlarni omborchi hali yuklamagan. Omborchi 'Yuklanди' tasdiqlashi kerak."
+            )
+
+    # ── 2. Geo-radius tekshiruvi: "delivered" faqat do'kon yonida ──
+    if data.action == "delivered" and data.lat is not None:
+        s = st.summary(L._customers_map(db, {key: st}))
+        dest_lat = s.get("lat")
+        dest_lng = s.get("lng")
+        if dest_lat is not None and dest_lng is not None:
+            # Do'konga maxsus radius yoki standart
+            radius = DELIVERY_RADIUS_M
+            if st.is_sale and st.delivery.delivery_radius_m:
+                radius = st.delivery.delivery_radius_m
+            dist = distance_m(data.lat, data.lng, dest_lat, dest_lng)
+            if dist is not None and dist > radius:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Siz manzildan {dist} metr uzoqdasiz (ruxsat: {radius} m). "
+                           f"Do'kon yaqiniga boring va qayta urining."
+                )
+
     if data.action == "on_way":
         st.start()
     else:
@@ -145,8 +172,11 @@ def set_status(key: str, data: StopActionIn, background_tasks: BackgroundTasks,
             else:
                 for o in st.orders:
                     o.cancel_reason = data.reason
-        if st.is_sale and delivered:
-            sd_service.record_fee_once(db, st.delivery, current_user)
+        if st.is_sale:
+            target_status = SaleDeliveryStatus.delivered if delivered else SaleDeliveryStatus.cancelled
+            sd_service.handle_delivery_stage_stock(db, st.delivery, target_status, current_user.id)
+            if delivered:
+                sd_service.record_fee_once(db, st.delivery, current_user)
     if data.lat is not None and data.action != "on_way":
         # Status qayerda bosilgani — manzildan uzoqligi rahbarga ko'rinadi
         s = st.summary({})

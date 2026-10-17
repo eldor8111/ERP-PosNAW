@@ -81,3 +81,12 @@ static/uploads/customers/
 
 *.apk
 
+
+# Zaxira va build
+*.bak*
+.next/
+node_modules/
+FETCH_HEAD
+static/uploads/
+scratch/
+

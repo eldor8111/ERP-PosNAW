@@ -39,6 +39,7 @@ from .branch_price import BranchProductPrice  # type: ignore  # T4.3: filial nar
 from .supplier_product import SupplierProduct
 from .attribute import Attribute, AttributeValue, VariantAttributeValue
 from .ai_audit import AIAuditLog
+from .pending_action import PendingAction
 from .announcement import Announcement, SurveyQuestion, SurveyAnswer  # type: ignore
 from .bom import BOM, BOMItem  # type: ignore
 from .production_order import ProductionOrder, ProductionOrderStatus, ProductionOrderCost  # type: ignore

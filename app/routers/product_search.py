@@ -440,6 +440,7 @@ def list_products_paginated(
 
     all_needed_ids = set(product_ids) | source_ids
 
+    from sqlalchemy import or_ as _or_
     all_stock_rows = (
         db.query(StockLevel)
         .outerjoin(Warehouse, Warehouse.id == StockLevel.warehouse_id)

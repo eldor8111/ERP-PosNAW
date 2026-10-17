@@ -4,7 +4,8 @@ import { useLang } from '../../context/LangContext';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { saveReceiptSettings } from '../../utils/receiptBuilder';
-import { Search, Zap } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, Zap, Lock, ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import { getFiscalModules } from '../../api/hippoLocal';
 import RolesTab from './Settings/Roles';
@@ -2713,11 +2714,19 @@ function PaymentTerminalsSection() {
   );
 }
 
-// ── Ixtiyoriy modullar (oddiy do'konga ko'rinmasligi uchun o'chirib qo'yiladi) ──
+// ── Ixtiyoriy modullar va Pullik paketlar boshqaruvi ─────────────────────────
 function ModulesCard({ companyId }) {
   const { t } = useLang();
+  const navigate = useNavigate();
   const features = useCompanyFeatures();
+  const [packages, setPackages] = useState([]);
   const [saving, setSaving] = useState(null);
+
+  useEffect(() => {
+    api.get('/billing/my-company/packages')
+      .then(r => setPackages(r.data || []))
+      .catch(() => setPackages([]));
+  }, []);
 
   const toggle = async (key, column, value) => {
     if (!companyId) return;
@@ -2725,40 +2734,123 @@ function ModulesCard({ companyId }) {
     try {
       await api.put(`/companies/${companyId}`, { [column]: value });
       await refreshCompanyFeatures();
-      toast.success(t('settings.general.settingSaved'));
+      toast.success(t('settings.general.settingSaved') || 'Sozlama saqlandi');
     } catch (e) {
-      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+      toast.error(e.response?.data?.detail || t('auth.errGeneral') || 'Xatolik yuz berdi');
     } finally {
       setSaving(null);
     }
   };
 
   const MODULES = [
-    { key: 'manufacturing', column: 'manufacturing_enabled' },
-    { key: 'distribution', column: 'distribution_enabled' },
+    {
+      key: 'manufacturing',
+      column: 'manufacturing_enabled',
+      name: t('features.manufacturing.title') || 'Ishlab chiqarish',
+      desc: t('features.manufacturing.desc') || 'Retseptlar, xom-ashyo sarfi va ishlab chiqarish buyurtmalari',
+      icon: '🏭',
+    },
+    {
+      key: 'distribution',
+      column: 'distribution_enabled',
+      name: t('features.distribution.title') || 'Distribyutsiya va logistika',
+      desc: t('features.distribution.desc') || "Savdo agentlari, kuryerlar, marshrutlar va do'konlar monitoringi",
+      icon: '🚚',
+    },
+    {
+      key: 'delivery_automation',
+      column: 'orders_auto_create_sale',
+      name: 'Yetkazib berish avtomatikasi',
+      desc: 'Kuryer mijozga topshirganda avtomatik kassa cheki va sotuv shakllantirish',
+      icon: '⚡',
+    },
   ];
 
   return (
-    <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
-      <h3 className="text-sm font-bold text-slate-800">{t('features.cardTitle')}</h3>
-      <p className="text-[11px] text-slate-400 mt-0.5 mb-4">{t('features.cardDesc')}</p>
-      <div className="space-y-4">
-        {MODULES.map(({ key, column }) => {
+    <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-bold text-slate-800">{t('features.cardTitle') || "Qo'shimcha modullar va paketlar"}</h3>
+        <button
+          onClick={() => navigate('/admin/tariflar?tab=paketlar')}
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+        >
+          Paketlar do'koni <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <p className="text-[11px] text-slate-400 mb-4">{t('features.cardDesc') || "Biznesingiz ehtiyojiga qarab ixtiyoriy funksiyalarni yoqing yoki o'chiring."}</p>
+
+      <div className="space-y-3.5 divide-y divide-slate-100">
+        {MODULES.map(({ key, column, name, desc, icon }) => {
+          const pkg = packages.find(p => p.code === key);
+          const canUse = pkg ? (pkg.included_in_tariff || pkg.is_active_package) : !!features?.[key];
           const on = !!features?.[key];
+
           return (
-            <div key={key} className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-700">{t(`features.${key}.title`)}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{t(`features.${key}.desc`)}</p>
+            <div key={key} className="pt-3.5 first:pt-0 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm">{icon}</span>
+                  <p className="text-xs font-bold text-slate-800">{name}</p>
+
+                  {/* Status Badge */}
+                  {pkg?.included_in_tariff ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Tarifda mavjud
+                    </span>
+                  ) : pkg?.is_active_package ? (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                      pkg.days_left <= 3
+                        ? 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
+                        : 'bg-blue-50 text-blue-700 border-blue-200'
+                    }`}>
+                      {pkg.days_left <= 3 ? <AlertTriangle className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+                      {pkg.days_left <= 3 ? `${pkg.days_left} kun qoldi!` : `Faol (${pkg.days_left} kun)`}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> Alohida paket
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-snug">{desc}</p>
+
+                {!canUse && pkg && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-[11px] font-bold text-slate-700">
+                      {Number(pkg.price_per_month || 0).toLocaleString('uz-UZ')} so'm <span className="font-normal text-slate-400">/ oy</span>
+                    </span>
+                    <button
+                      onClick={() => navigate('/admin/tariflar?tab=paketlar')}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                    >
+                      Ulash <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                disabled={features === null || saving === key}
-                onClick={() => toggle(key, column, !on)}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
+
+              {/* Toggle Switch */}
+              <div className="shrink-0 pt-0.5">
+                {canUse ? (
+                  <button
+                    type="button"
+                    disabled={features === null || saving === key}
+                    onClick={() => toggle(key, column, !on)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/tariflar?tab=paketlar')}
+                    title="Paketni xarid qilish"
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
+                  >
+                    <Lock className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -2995,6 +3087,12 @@ function GeneralTab({ companyId }) {
   const [savingMpBranch, setSavingMpBranch] = useState(false);
   // i18n kaliti hali qo'shilmagan bo'lsa (t() kalitni qaytaradi) — o'zbekcha zaxira matn
   const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
+  const [stockDeductStage, setStockDeductStage] = useState('order_confirmed');
+  const [savingStage, setSavingStage] = useState(false);
+  const [agentGeoCheck, setAgentGeoCheck] = useState(true);
+  const [savingGeoCheck, setSavingGeoCheck] = useState(false);
+  const [deliveryRadius, setDeliveryRadius] = useState('250');
+  const [savingRadius, setSavingRadius] = useState(false);
 
   useEffect(() => {
     api.get('/companies').then(r => {
@@ -3003,6 +3101,9 @@ function GeneralTab({ companyId }) {
         setDeliveryFee(String(r.data[0].delivery_fee ?? 0));
         setAutoSale(r.data[0].orders_auto_create_sale === true);
         setMpBranchId(r.data[0].marketplace_default_branch_id ? String(r.data[0].marketplace_default_branch_id) : '');
+        setStockDeductStage(r.data[0].stock_deduct_stage || 'order_confirmed');
+        setAgentGeoCheck(r.data[0].agent_order_geo_radius_check !== false);
+        setDeliveryRadius(String(r.data[0].default_delivery_radius_m ?? 250));
       }
     }).catch(e => toast.error(e.response?.data?.detail || e.message));
   }, []);
@@ -3020,6 +3121,48 @@ function GeneralTab({ companyId }) {
       toast.error(e.response?.data?.detail || t('auth.errGeneral'));
     } finally {
       setSavingMpBranch(false);
+    }
+  };
+
+  const changeStockDeductStage = async (newStage) => {
+    if (!companyId) return;
+    setStockDeductStage(newStage);
+    setSavingStage(true);
+    try {
+      await api.put(`/companies/${companyId}`, { stock_deduct_stage: newStage });
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingStage(false);
+    }
+  };
+
+  const toggleAgentGeoCheck = async (checked) => {
+    if (!companyId) return;
+    setAgentGeoCheck(checked);
+    setSavingGeoCheck(true);
+    try {
+      await api.put(`/companies/${companyId}`, { agent_order_geo_radius_check: checked });
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      setAgentGeoCheck(!checked);
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingGeoCheck(false);
+    }
+  };
+
+  const saveDeliveryRadius = async () => {
+    if (!companyId) return;
+    setSavingRadius(true);
+    try {
+      await api.put(`/companies/${companyId}`, { default_delivery_radius_m: Number(deliveryRadius) || 250 });
+      toast.success(t('settings.general.settingSaved'));
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingRadius(false);
     }
   };
 
@@ -3070,6 +3213,106 @@ function GeneralTab({ companyId }) {
     <div className="p-6 space-y-4">
       <ModulesCard companyId={companyId} />
       <LoyaltyCard companyId={companyId} />
+
+      {/* Hippo ERP — Mahsulot qoldig'iga ta'sir qilish bosqichi */}
+      <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">📦</span>
+          <h3 className="text-sm font-bold text-slate-800">{t('settings.distribution.stockDeductTitle') || "Mahsulot qoldig‘iga ta’sir qilish bosqichi"}</h3>
+        </div>
+        <p className="text-[11px] text-slate-400 mb-4 leading-snug">
+          {t('settings.distribution.stockDeductDesc') || "Sotuv va buyurtmalarda ombordagi mahsulot qoldig‘i aynan qaysi bosqichda kamayishini belgilang."}
+        </p>
+        <div className="space-y-2.5">
+          {[
+            {
+              id: 'order_confirmed',
+              title: t('settings.distribution.stageOrderConfirmed') || "1️⃣ Operatsiya tasdiqlanganida (Darhol)",
+              desc: t('settings.distribution.stageOrderConfirmedDesc') || "Operatsiya yaratilishi yoki tasdiqlanishi bilanoq ombordan qoldiq kamayadi."
+            },
+            {
+              id: 'loaded',
+              title: t('settings.distribution.stageLoaded') || "2️⃣ Tovarlar yuklanganda / yo‘lga chiqqanda",
+              desc: t('settings.distribution.stageLoadedDesc') || "Omborchi tovarni kuryer mashinasiga yuklaganda ombordan chiqadi."
+            },
+            {
+              id: 'delivered',
+              title: t('settings.distribution.stageDelivered') || "3️⃣ Yetkazib berilganida (Mijozga topshirilganda)",
+              desc: t('settings.distribution.stageDeliveredDesc') || "Mahsulot mijozga yetib borgach, kuryer topshirgandagina ombordan chiqadi."
+            }
+          ].map(opt => (
+            <label
+              key={opt.id}
+              onClick={() => changeStockDeductStage(opt.id)}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                stockDeductStage === opt.id
+                  ? 'border-blue-600 bg-blue-50/40 text-blue-900 shadow-sm'
+                  : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 text-slate-700'
+              }`}
+            >
+              <input
+                type="radio"
+                name="stockDeductStage"
+                checked={stockDeductStage === opt.id}
+                onChange={() => changeStockDeductStage(opt.id)}
+                disabled={savingStage}
+                className="mt-0.5 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="min-w-0">
+                <div className="text-xs font-bold">{opt.title}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Agent va Kuryer Geo-nazorati */}
+      <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">📍</span>
+          <h3 className="text-sm font-bold text-slate-800">{t('settings.distribution.geoControlTitle') || "Agent va Kuryer Geo-joylashuv nazorati"}</h3>
+        </div>
+        <div className="flex items-start justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-700">{t('settings.distribution.agentGeoCheck') || "Agent radius cheklovi (Do'kondan tashqarida zakaz olmaslik)"}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+              {t('settings.distribution.agentGeoCheckDesc') || "Agent do'kon koordinatasidan uzoqda bo'lsa buyurtma berish bloklanadi."}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={savingGeoCheck}
+            onClick={() => toggleAgentGeoCheck(!agentGeoCheck)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${agentGeoCheck ? 'bg-blue-600' : 'bg-slate-200'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${agentGeoCheck ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <div className="flex items-end gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700 mb-1">{t('settings.distribution.courierRadius') || "Kuryer 'Topshirdim' radiusi (metr)"}</p>
+            <p className="text-[11px] text-slate-400 mb-2 leading-snug">
+              {t('settings.distribution.courierRadiusDesc') || "Kuryer do'kondan ko'pi bilan shu masofada bo'lganda topshirishni tasdiqlay oladi."}
+            </p>
+            <input
+              type="number" min="50" max="2000"
+              value={deliveryRadius}
+              onChange={e => setDeliveryRadius(e.target.value)}
+              className="w-full h-10 px-3 border border-slate-200 rounded-xl text-sm focus:border-blue-500 outline-none"
+              placeholder="250"
+            />
+          </div>
+          <button
+            onClick={saveDeliveryRadius}
+            disabled={savingRadius}
+            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-xl transition-colors"
+          >
+            {savingRadius ? t('common.saving') : t('common.save')}
+          </button>
+        </div>
+      </div>
+
       <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
         <h3 className="text-sm font-bold text-slate-800 mb-4">{t('settings.general.posSettings')}</h3>
         <div className="flex items-start justify-between gap-3">
@@ -3155,7 +3398,6 @@ function GeneralTab({ companyId }) {
   );
 }
 
-import { useSearchParams, useNavigate } from 'react-router-dom';
 import Filiallar from './Filiallar';
 import { getSettingsMenus } from '../../constants/settingsMenus';
 
