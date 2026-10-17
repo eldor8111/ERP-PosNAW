@@ -86,14 +86,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'org_code': _orgCodeCtrl.text.trim(),
         'phone': '998$unmaskedPhone',
       });
-      final debugCode = sendRes.data['debug_code']?.toString();
+      // T0.18: server kodni javobda qaytarmaydi (debug_code yo'q); SMS ketmasa 503 keladi
+      if (sendRes.statusCode != 200) {
+        throw Exception("SMS yuborilmadi, keyinroq urinib ko'ring");
+      }
 
       if (!mounted) return;
       // 2. Show OTP dialog
       final code = await showDialog<String>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => _OtpDialog(phone: '+998 $unmaskedPhone', debugCode: debugCode),
+        builder: (context) => _OtpDialog(phone: '+998 $unmaskedPhone'),
       );
 
       if (code != null && code.isNotEmpty) {
@@ -128,14 +131,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } on DioException catch (e) {
       setState(() {
-        final detail = e.response?.data != null ? e.response?.data['detail'] : null;
-        _error = detail is List 
-            ? (detail.isNotEmpty ? detail.first['msg'].toString() : 'Validation xatosi') 
-            : (detail?.toString() ?? 'Xatolik yuz berdi (${e.message})');
+        final status = e.response?.statusCode;
+        final data = e.response?.data;
+        final detail = data is Map ? data['detail'] : null;
+        if (status == 503) {
+          // T0.18: SMS provayderi xatosi — kod yuborilmadi
+          _error = detail is String ? detail : "SMS yuborilmadi, keyinroq urinib ko'ring";
+        } else if (status == 429) {
+          _error = detail is String ? detail : "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring";
+        } else {
+          _error = detail is List
+              ? (detail.isNotEmpty ? detail.first['msg'].toString() : 'Validation xatosi')
+              : (detail?.toString() ?? 'Xatolik yuz berdi (${e.message})');
+        }
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
       if (mounted) {
@@ -675,8 +687,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 class _OtpDialog extends StatefulWidget {
   final String phone;
-  final String? debugCode;
-  const _OtpDialog({required this.phone, this.debugCode});
+  const _OtpDialog({required this.phone});
 
   @override
   State<_OtpDialog> createState() => _OtpDialogState();
@@ -688,7 +699,7 @@ class _OtpDialogState extends State<_OtpDialog> {
   @override
   void initState() {
     super.initState();
-    _codeCtrl = TextEditingController(text: widget.debugCode ?? '');
+    _codeCtrl = TextEditingController();
   }
 
   @override
@@ -733,22 +744,6 @@ class _OtpDialogState extends State<_OtpDialog> {
               style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
             ),
-            if (widget.debugCode != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: Text(
-                  '🛠 Test kodi: ${widget.debugCode}',
-                  style: const TextStyle(color: brandBlue, fontWeight: FontWeight.w700, fontSize: 13),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
             const SizedBox(height: 20),
             TextField(
               controller: _codeCtrl,
