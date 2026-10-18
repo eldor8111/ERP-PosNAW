@@ -401,6 +401,7 @@ def _run_auto_migrations(engine):
         "CREATE INDEX IF NOT EXISTS ix_company_packages_code ON company_packages(package_code);",
         "ALTER TABLE customers ADD COLUMN IF NOT EXISTS receipt_format VARCHAR(20) DEFAULT NULL;",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS receipt_format VARCHAR(20) DEFAULT 'text';",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS tg_protect_content BOOLEAN DEFAULT FALSE;",
         "UPDATE customers SET receipt_format = NULL WHERE receipt_format = 'text';",
     ]
     _sa_text = __import__('sqlalchemy').text

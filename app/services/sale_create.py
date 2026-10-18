@@ -850,25 +850,27 @@ def create_sale(
                                     f"💰 Jami: som {FMT(_sale.total_amount)}"
                                 )
 
+                                protect = bool(getattr(company, "tg_protect_content", False))
+
                                 if cust_format in ("image", "rasm", "photo"):
                                     from app.utils.receipt_image import build_sale_image
                                     img_path = build_sale_image(
                                         _sale, company, _customer_obj,
                                         seller=seller, prev_debt=prev_debt, new_debt=new_debt,
                                     )
-                                    _sent = send_tg_photo(token, chat_id, img_path, caption=caption)
+                                    _sent = send_tg_photo(token, chat_id, img_path, caption=caption, protect_content=protect)
                                 elif cust_format == "pdf":
                                     from app.utils.pdf_generator import build_sale_pdf
                                     pdf_path = build_sale_pdf(
                                         _sale, company, _customer_obj,
                                         seller=seller, prev_debt=prev_debt, new_debt=new_debt,
                                     )
-                                    _sent = send_tg_document(token, chat_id, pdf_path, caption=caption)
+                                    _sent = send_tg_document(token, chat_id, pdf_path, caption=caption, protect_content=protect)
                             except Exception as fmt_err:
                                 print(f"[TG] Chekni {cust_format} formatida tayyorlashda xatolik, matn yuboriladi: {fmt_err}")
 
                             if not _sent:
-                                send_tg_sync(token, chat_id, receipt)
+                                send_tg_sync(token, chat_id, receipt, protect_content=protect)
                         finally:
                             _db.close()
                     except Exception as e:

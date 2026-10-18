@@ -3105,6 +3105,8 @@ export default {
   'settings.telegramBot.fmtImageSub': 'Invoice receipt',
   'settings.telegramBot.fmtPdf': 'PDF file',
   'settings.telegramBot.fmtPdfSub': 'A4 document',
+  'settings.telegramBot.protectContentTitle': 'Restrict forwarding and saving receipts',
+  'settings.telegramBot.protectContentDesc': 'When enabled, customers cannot forward, copy, or download receipts and messages sent by the bot.',
   'settings.telegramBot.notConnected': 'Bot not connected',
   'settings.telegramBot.adminBotTitle': 'Admin Bot',
   'settings.telegramBot.adminBotDesc': 'Reports and alerts for managers',

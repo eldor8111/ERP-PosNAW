@@ -46,10 +46,12 @@ def _h(value) -> str:
 
 # ── Telegram API helpers ──────────────────────────────────────────────────────
 
-async def send_telegram_message(token: str, chat_id: str, text: str, reply_markup: dict = None):
+async def send_telegram_message(token: str, chat_id: str, text: str, reply_markup: dict = None, protect_content: bool = False):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
         payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if protect_content:
+            payload["protect_content"] = True
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
         async with httpx.AsyncClient(timeout=10) as client:

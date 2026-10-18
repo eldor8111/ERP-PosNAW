@@ -3279,6 +3279,8 @@ export default {
   'settings.telegramBot.fmtImageSub': 'Nakladnoy chek',
   'settings.telegramBot.fmtPdf': 'PDF fayl',
   'settings.telegramBot.fmtPdfSub': 'A4 hujjat',
+  'settings.telegramBot.protectContentTitle': 'Xabar va cheklarni forward qilishni cheklash',
+  'settings.telegramBot.protectContentDesc': 'Yoqilgan bo\'lsa, mijozlar bot yuborgan cheklar, rasmlar va hisobotlarni boshqalarga uzatishi (forward) yoki yuklab olishi taqiqlanadi.',
   'settings.telegramBot.notConnected': 'Bot ulanmagan',
   'settings.telegramBot.adminBotTitle': 'Admin boti',
   'settings.telegramBot.adminBotDesc': 'Rahbarlar uchun hisobot va ogohlantirishlar',

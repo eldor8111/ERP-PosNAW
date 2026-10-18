@@ -52,6 +52,8 @@ class Company(Base):
     orders_auto_create_sale = Column(Boolean, default=False)
     # Xarid chekini Telegram botda yuborish formati: 'text', 'image', 'pdf'
     receipt_format = Column(String(20), default="text", server_default="text")
+    # Telegram botda xabarlar, cheklar va fayllarni forward qilish/saqlashni cheklash
+    tg_protect_content = Column(Boolean, default=False, server_default="false")
 
     # ── Ixtiyoriy modullar (oddiy do'konlarga ko'rinmasligi uchun) ──
     # manufacturing — Ishlab chiqarish (retseptura, buyurtma, tannarx)

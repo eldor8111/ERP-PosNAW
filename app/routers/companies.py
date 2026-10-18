@@ -90,6 +90,7 @@ class CompanyUpdate(BaseModel):
     shop_default_branch_id: Optional[int] = None
     # Xarid chekini Telegram botda yuborish formati: 'text', 'image', 'pdf'
     receipt_format: Optional[Literal["text", "pdf", "image"]] = None
+    tg_protect_content: Optional[bool] = None
     stock_deduct_stage: Optional[str] = None
     agent_order_geo_radius_check: Optional[bool] = None
     default_delivery_radius_m: Optional[int] = None
@@ -207,6 +208,7 @@ class CompanyOut(BaseModel):
     agent_order_geo_radius_check: bool = True
     default_delivery_radius_m: int = 250
     receipt_format: str = "text"
+    tg_protect_content: bool = False
 
     class Config:
         from_attributes = True
@@ -257,6 +259,7 @@ def list_companies(
         agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
+        tg_protect_content=bool(getattr(c, 'tg_protect_content', False)),
         ))  # type: ignore[call-arg]
     return result
 
@@ -358,6 +361,7 @@ def create_company(
         agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
+        tg_protect_content=bool(getattr(c, 'tg_protect_content', False)),
     )  # type: ignore[call-arg]
 
 
@@ -509,6 +513,7 @@ def update_company(
         agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
+        tg_protect_content=bool(getattr(c, 'tg_protect_content', False)),
     )  # type: ignore[call-arg]
 
 

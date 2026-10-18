@@ -969,6 +969,7 @@ function TelegramBotTab({ companyId }) {
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [shopAllowOutOfStock, setShopAllowOutOfStock] = useState(true);
   const [shopReceiptFormat, setShopReceiptFormat] = useState('text');
+  const [tgProtectContent, setTgProtectContent] = useState(false);
   const [savingShopSetting, setSavingShopSetting] = useState(false);
   // T3.13: Mini App / bot buyurtmalari uchun standart filial
   const [shopDefaultBranch, setShopDefaultBranch] = useState('');
@@ -987,6 +988,7 @@ function TelegramBotTab({ companyId }) {
         }
         setShopAllowOutOfStock(co.shop_allow_out_of_stock_orders !== false);
         setShopReceiptFormat(co.receipt_format || 'text');
+        setTgProtectContent(Boolean(co.tg_protect_content));
         setShopDefaultBranch(co.shop_default_branch_id ? String(co.shop_default_branch_id) : '');
         setCourierBot(co.courier_bot_username ? { bot_username: co.courier_bot_username } : null);
       }
@@ -1126,6 +1128,22 @@ function TelegramBotTab({ companyId }) {
     }
   };
 
+  const handleTgProtectContent = async (checked) => {
+    if (!companyId) return;
+    const prev = tgProtectContent;
+    setTgProtectContent(checked);
+    setSavingShopSetting(true);
+    try {
+      await api.put(`/companies/${companyId}`, { tg_protect_content: checked });
+      toast.success(t('settings.saved'));
+    } catch (e) {
+      setTgProtectContent(prev);
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingShopSetting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {!companyId && (
@@ -1255,6 +1273,29 @@ function TelegramBotTab({ companyId }) {
                       );
                     })}
                   </div>
+                </div>
+
+                {/* Xabarlarni forward qilish / saqlashni cheklash (Protect Content) */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">🔒</span>
+                      <p className="text-xs font-semibold text-slate-700">
+                        {tf('settings.telegramBot.protectContentTitle', "Xabar va cheklarni forward qilishni cheklash")}
+                      </p>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                      {tf('settings.telegramBot.protectContentDesc', "Yoqilgan bo'lsa, mijozlar botdan cheklar, rasmlar va hisobotlarni boshqalarga uzatishi (forward) yoki yuklab olishi taqiqlanadi.")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={savingShopSetting}
+                    onClick={() => handleTgProtectContent(!tgProtectContent)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 cursor-pointer ${tgProtectContent ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${tgProtectContent ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
                 </div>
               </div>
             </div>

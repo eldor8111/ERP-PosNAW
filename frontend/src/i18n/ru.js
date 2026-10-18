@@ -3215,6 +3215,8 @@ export default {
   'settings.telegramBot.fmtImageSub': 'Накладная чек',
   'settings.telegramBot.fmtPdf': 'PDF документ',
   'settings.telegramBot.fmtPdfSub': 'Документ A4',
+  'settings.telegramBot.protectContentTitle': 'Запретить пересылку сообщений и чеков',
+  'settings.telegramBot.protectContentDesc': 'Если включено, клиенты не смогут пересылать (forward) чеки, фото и сообщения из бота, а также сохранять их.',
   'settings.telegramBot.notConnected': 'Бот не подключен',
   'settings.telegramBot.adminBotTitle': 'Бот администратора',
   'settings.telegramBot.adminBotDesc': 'Отчеты и оповещения для руководителей',

@@ -25,27 +25,33 @@ def generate_return_number(db: Session, company_id: int, branch_id=None) -> str:
     return next_document_number(db, company_id=company_id, branch_id=branch_id, doc_type="R")
 
 
-def send_tg_sync(token, chat_id, text, filepath=None):
+def send_tg_sync(token, chat_id, text, filepath=None, protect_content=False):
     try:
         if filepath and os.path.exists(filepath):
             with open(filepath, "rb") as doc:
+                data = {"chat_id": chat_id, "caption": text, "parse_mode": "HTML"}
+                if protect_content:
+                    data["protect_content"] = True
                 requests.post(
                     f"https://api.telegram.org/bot{token}/sendDocument",
-                    data={"chat_id": chat_id, "caption": text, "parse_mode": "HTML"},
+                    data=data,
                     files={"document": doc},
                     timeout=15
                 )
         else:
+            payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+            if protect_content:
+                payload["protect_content"] = True
             requests.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+                json=payload,
                 timeout=10
             )
     except Exception as e:
         _logger.error("[TG] Telegram xabarnomasi yuborishda xato: %s", e)
 
 
-def send_tg_photo(token, chat_id, photo_path, caption=None):
+def send_tg_photo(token, chat_id, photo_path, caption=None, protect_content=False):
     """Telegram bot orqali rasm yuboradi."""
     try:
         if photo_path and os.path.exists(photo_path):
@@ -54,6 +60,8 @@ def send_tg_photo(token, chat_id, photo_path, caption=None):
                 if caption:
                     data["caption"] = caption
                     data["parse_mode"] = "HTML"
+                if protect_content:
+                    data["protect_content"] = True
                 res = requests.post(
                     f"https://api.telegram.org/bot{token}/sendPhoto",
                     data=data,
@@ -66,7 +74,7 @@ def send_tg_photo(token, chat_id, photo_path, caption=None):
     return False
 
 
-def send_tg_document(token, chat_id, doc_path, caption=None):
+def send_tg_document(token, chat_id, doc_path, caption=None, protect_content=False):
     """Telegram bot orqali hujjat (PDF) yuboradi."""
     try:
         if doc_path and os.path.exists(doc_path):
@@ -75,6 +83,8 @@ def send_tg_document(token, chat_id, doc_path, caption=None):
                 if caption:
                     data["caption"] = caption
                     data["parse_mode"] = "HTML"
+                if protect_content:
+                    data["protect_content"] = True
                 res = requests.post(
                     f"https://api.telegram.org/bot{token}/sendDocument",
                     data=data,
