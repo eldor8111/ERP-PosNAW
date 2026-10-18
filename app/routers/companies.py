@@ -88,6 +88,8 @@ class CompanyUpdate(BaseModel):
     marketplace_default_branch_id: Optional[int] = None
     # T3.13: Telegram Mini App / bot buyurtmalari uchun standart filial (shu korxonaning faol filiali)
     shop_default_branch_id: Optional[int] = None
+    # Xarid chekini Telegram botda yuborish formati: 'text', 'image', 'pdf'
+    receipt_format: Optional[Literal["text", "pdf", "image"]] = None
     stock_deduct_stage: Optional[str] = None
     agent_order_geo_radius_check: Optional[bool] = None
     default_delivery_radius_m: Optional[int] = None
@@ -204,6 +206,7 @@ class CompanyOut(BaseModel):
     stock_deduct_stage: str = "order_confirmed"
     agent_order_geo_radius_check: bool = True
     default_delivery_radius_m: int = 250
+    receipt_format: str = "text"
 
     class Config:
         from_attributes = True
@@ -253,6 +256,7 @@ def list_companies(
         stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
         agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
+        receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
         ))  # type: ignore[call-arg]
     return result
 
@@ -353,6 +357,7 @@ def create_company(
         stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
         agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
+        receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
     )  # type: ignore[call-arg]
 
 
@@ -503,6 +508,7 @@ def update_company(
         stock_deduct_stage=getattr(c, 'stock_deduct_stage', 'order_confirmed') or 'order_confirmed',
         agent_order_geo_radius_check=c.agent_order_geo_radius_check if c.agent_order_geo_radius_check is not None else True,
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
+        receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
     )  # type: ignore[call-arg]
 
 

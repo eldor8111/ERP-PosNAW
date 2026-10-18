@@ -833,7 +833,11 @@ def create_sale(
                             try:
                                 from app.models.customer import Customer as _Cust
                                 _customer_obj = _db.query(_Cust).filter(_Cust.id == _sale.customer_id).first()
-                                cust_format = str(getattr(_customer_obj, "receipt_format", "text") or "text").lower().strip()
+                                # 1-navbatda mijozning shaxsiy sozlamasi, bo'lmasa kompaniyaning Mijoz boti chek formati sozlamasi
+                                cust_format = getattr(_customer_obj, "receipt_format", None)
+                                if not cust_format:
+                                    cust_format = getattr(company, "receipt_format", "text")
+                                cust_format = str(cust_format or "text").lower().strip()
 
                                 caption = (
                                     f"🧾 <b>Sotuv cheki №{_sale.number}</b>\n"

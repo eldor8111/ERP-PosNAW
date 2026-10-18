@@ -968,6 +968,7 @@ function TelegramBotTab({ companyId }) {
   const [err, setErr] = useState('');
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [shopAllowOutOfStock, setShopAllowOutOfStock] = useState(true);
+  const [shopReceiptFormat, setShopReceiptFormat] = useState('text');
   const [savingShopSetting, setSavingShopSetting] = useState(false);
   // T3.13: Mini App / bot buyurtmalari uchun standart filial
   const [shopDefaultBranch, setShopDefaultBranch] = useState('');
@@ -985,6 +986,7 @@ function TelegramBotTab({ companyId }) {
            setUserBot(null);
         }
         setShopAllowOutOfStock(co.shop_allow_out_of_stock_orders !== false);
+        setShopReceiptFormat(co.receipt_format || 'text');
         setShopDefaultBranch(co.shop_default_branch_id ? String(co.shop_default_branch_id) : '');
         setCourierBot(co.courier_bot_username ? { bot_username: co.courier_bot_username } : null);
       }
@@ -1108,6 +1110,22 @@ function TelegramBotTab({ companyId }) {
     }
   };
 
+  const handleShopReceiptFormat = async (val) => {
+    if (!companyId) return;
+    const prev = shopReceiptFormat;
+    setShopReceiptFormat(val);
+    setSavingShopSetting(true);
+    try {
+      await api.put(`/companies/${companyId}`, { receipt_format: val });
+      toast.success(t('settings.saved'));
+    } catch (e) {
+      setShopReceiptFormat(prev);
+      toast.error(e.response?.data?.detail || t('auth.errGeneral'));
+    } finally {
+      setSavingShopSetting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {!companyId && (
@@ -1200,6 +1218,44 @@ function TelegramBotTab({ companyId }) {
                     </select>
                   </div>
                 )}
+
+                {/* Chek yuborish formati (Matn, Rasm, PDF) */}
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-slate-700">
+                      {tf('settings.telegramBot.receiptFormatTitle', "Mijozga chek yuborish formati")}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                      {tf('settings.telegramBot.receiptFormatDesc', "Sotuv amalga oshirilganda mijoz botiga chek qaysi ko'rinishda yuborilishini tanlang")}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {[
+                      { id: 'text', icon: '📝', label: tf('settings.telegramBot.fmtText', 'Matn'), sub: tf('settings.telegramBot.fmtTextSub', 'Tezkor xabar') },
+                      { id: 'image', icon: '🖼', label: tf('settings.telegramBot.fmtImage', 'Rasm (JPG)'), sub: tf('settings.telegramBot.fmtImageSub', 'Nakladnoy chek') },
+                      { id: 'pdf', icon: '📄', label: tf('settings.telegramBot.fmtPdf', 'PDF fayl'), sub: tf('settings.telegramBot.fmtPdfSub', 'A4 hujjat') },
+                    ].map(fmt => {
+                      const active = (shopReceiptFormat || 'text') === fmt.id;
+                      return (
+                        <button
+                          key={fmt.id}
+                          type="button"
+                          disabled={savingShopSetting}
+                          onClick={() => handleShopReceiptFormat(fmt.id)}
+                          className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
+                            active
+                              ? 'bg-blue-50/80 border-blue-500 text-blue-700 shadow-sm ring-2 ring-blue-500/20 font-bold'
+                              : 'bg-slate-50/70 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 font-medium'
+                          } disabled:opacity-60 cursor-pointer`}
+                        >
+                          <span className="text-lg leading-none mb-1">{fmt.icon}</span>
+                          <span className="text-xs leading-tight">{fmt.label}</span>
+                          <span className={`text-[10px] mt-0.5 ${active ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>{fmt.sub}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           ) : (

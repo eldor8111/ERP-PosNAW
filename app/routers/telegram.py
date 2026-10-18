@@ -329,7 +329,7 @@ async def _handle_settings(db: Session, token: str, chat_id: str, company, custo
             _build_main_keyboard(company, chat_id))
         return
 
-    cur_fmt = getattr(customer, "receipt_format", "text") or "text"
+    cur_fmt = getattr(customer, "receipt_format", None) or getattr(company, "receipt_format", "text") or "text"
     fmt_labels = {
         "image": "🖼 Rasm (A4 Nakladnoy)",
         "pdf": "📄 PDF hujjat (A4 Nakladnoy)",

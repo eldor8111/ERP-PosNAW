@@ -25,6 +25,13 @@ def upgrade() -> None:
             ) THEN
                 ALTER TABLE customers ADD COLUMN receipt_format VARCHAR(20) DEFAULT 'text';
             END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'companies' AND column_name = 'receipt_format'
+            ) THEN
+                ALTER TABLE companies ADD COLUMN receipt_format VARCHAR(20) DEFAULT 'text';
+            END IF;
         END $$;
     """))
 
@@ -33,4 +40,5 @@ def downgrade() -> None:
     conn = op.get_bind()
     conn.execute(sa.text("""
         ALTER TABLE customers DROP COLUMN IF EXISTS receipt_format;
+        ALTER TABLE companies DROP COLUMN IF EXISTS receipt_format;
     """))
