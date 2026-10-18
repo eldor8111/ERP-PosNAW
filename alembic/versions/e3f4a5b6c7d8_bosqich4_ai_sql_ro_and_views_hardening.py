@@ -151,17 +151,38 @@ def upgrade() -> None:
             ON stock_movements (product_id);
     """))
 
-    # 7. ai_v_* ko'rinishlariga huquqlarni berish
+    # 7. ai_v_* ko'rinishlariga huquqlarni berish (agar rollar mavjud bo'lsa)
     conn.execute(sa.text("""
-        GRANT SELECT ON ai_v_sales TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_sale_items TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_stock_balance TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_stock_movements TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_debts TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_customers TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_products TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_purchases TO ai_sql_ro, ai_readonly;
-        GRANT SELECT ON ai_v_returns TO ai_sql_ro, ai_readonly;
+        DO $$
+        BEGIN
+            BEGIN
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_sql_ro') THEN
+                    GRANT SELECT ON ai_v_sales TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_sale_items TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_stock_balance TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_stock_movements TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_debts TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_customers TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_products TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_purchases TO ai_sql_ro;
+                    GRANT SELECT ON ai_v_returns TO ai_sql_ro;
+                END IF;
+
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') THEN
+                    GRANT SELECT ON ai_v_sales TO ai_readonly;
+                    GRANT SELECT ON ai_v_sale_items TO ai_readonly;
+                    GRANT SELECT ON ai_v_stock_balance TO ai_readonly;
+                    GRANT SELECT ON ai_v_stock_movements TO ai_readonly;
+                    GRANT SELECT ON ai_v_debts TO ai_readonly;
+                    GRANT SELECT ON ai_v_customers TO ai_readonly;
+                    GRANT SELECT ON ai_v_products TO ai_readonly;
+                    GRANT SELECT ON ai_v_purchases TO ai_readonly;
+                    GRANT SELECT ON ai_v_returns TO ai_readonly;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN
+                RAISE NOTICE 'Skipping view grants to AI roles: %', SQLERRM;
+            END;
+        END $$;
     """))
 
 

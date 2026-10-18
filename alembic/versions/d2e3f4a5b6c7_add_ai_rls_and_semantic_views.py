@@ -87,41 +87,48 @@ def upgrade() -> None:
         ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
         ALTER TABLE stock_movements FORCE ROW LEVEL SECURITY;
 
-        DROP POLICY IF EXISTS rls_ai_sales ON sales;
-        CREATE POLICY rls_ai_sales ON sales FOR SELECT TO ai_readonly, ai_view_owner
-            USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_readonly') AND EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_view_owner') THEN
+                DROP POLICY IF EXISTS rls_ai_sales ON sales;
+                CREATE POLICY rls_ai_sales ON sales FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
 
-        DROP POLICY IF EXISTS rls_ai_products ON products;
-        CREATE POLICY rls_ai_products ON products FOR SELECT TO ai_readonly, ai_view_owner
-            USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
+                DROP POLICY IF EXISTS rls_ai_products ON products;
+                CREATE POLICY rls_ai_products ON products FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
 
-        DROP POLICY IF EXISTS rls_ai_customers ON customers;
-        CREATE POLICY rls_ai_customers ON customers FOR SELECT TO ai_readonly, ai_view_owner
-            USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
+                DROP POLICY IF EXISTS rls_ai_customers ON customers;
+                CREATE POLICY rls_ai_customers ON customers FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
 
-        DROP POLICY IF EXISTS rls_ai_po ON purchase_orders;
-        CREATE POLICY rls_ai_po ON purchase_orders FOR SELECT TO ai_readonly, ai_view_owner
-            USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
+                DROP POLICY IF EXISTS rls_ai_po ON purchase_orders;
+                CREATE POLICY rls_ai_po ON purchase_orders FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
 
-        DROP POLICY IF EXISTS rls_ai_warehouses ON warehouses;
-        CREATE POLICY rls_ai_warehouses ON warehouses FOR SELECT TO ai_readonly, ai_view_owner
-            USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
+                DROP POLICY IF EXISTS rls_ai_warehouses ON warehouses;
+                CREATE POLICY rls_ai_warehouses ON warehouses FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
 
-        DROP POLICY IF EXISTS rls_ai_suppliers ON suppliers;
-        CREATE POLICY rls_ai_suppliers ON suppliers FOR SELECT TO ai_readonly, ai_view_owner
-            USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
+                DROP POLICY IF EXISTS rls_ai_suppliers ON suppliers;
+                CREATE POLICY rls_ai_suppliers ON suppliers FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (NULLIF(current_setting('app.company_id', true), '')::integer = company_id);
 
-        DROP POLICY IF EXISTS rls_ai_sale_items ON sale_items;
-        CREATE POLICY rls_ai_sale_items ON sale_items FOR SELECT TO ai_readonly, ai_view_owner
-            USING (EXISTS (SELECT 1 FROM sales WHERE sales.id = sale_items.sale_id AND sales.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+                DROP POLICY IF EXISTS rls_ai_sale_items ON sale_items;
+                CREATE POLICY rls_ai_sale_items ON sale_items FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (EXISTS (SELECT 1 FROM sales WHERE sales.id = sale_items.sale_id AND sales.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
 
-        DROP POLICY IF EXISTS rls_ai_stock_levels ON stock_levels;
-        CREATE POLICY rls_ai_stock_levels ON stock_levels FOR SELECT TO ai_readonly, ai_view_owner
-            USING (EXISTS (SELECT 1 FROM products WHERE products.id = stock_levels.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+                DROP POLICY IF EXISTS rls_ai_stock_levels ON stock_levels;
+                CREATE POLICY rls_ai_stock_levels ON stock_levels FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (EXISTS (SELECT 1 FROM products WHERE products.id = stock_levels.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
 
-        DROP POLICY IF EXISTS rls_ai_stock_movements ON stock_movements;
-        CREATE POLICY rls_ai_stock_movements ON stock_movements FOR SELECT TO ai_readonly, ai_view_owner
-            USING (EXISTS (SELECT 1 FROM products WHERE products.id = stock_movements.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+                DROP POLICY IF EXISTS rls_ai_stock_movements ON stock_movements;
+                CREATE POLICY rls_ai_stock_movements ON stock_movements FOR SELECT TO ai_readonly, ai_view_owner
+                    USING (EXISTS (SELECT 1 FROM products WHERE products.id = stock_movements.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+            END IF;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Skipping AI RLS policies: %', SQLERRM;
+        END $$;
     """))
 
     # 4. Semantik View'lar (ai_v_*)
