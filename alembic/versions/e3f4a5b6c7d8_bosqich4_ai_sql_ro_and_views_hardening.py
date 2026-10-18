@@ -65,30 +65,37 @@ def upgrade() -> None:
 
     # 3. ecode_app roli uchun qolgan 5 ta jadvalda RLS transit siyosatlari
     conn.execute(sa.text("""
-        DROP POLICY IF EXISTS rls_app_warehouses ON warehouses;
-        CREATE POLICY rls_app_warehouses ON warehouses TO ecode_app
-            USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer)
-            WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer);
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ecode_app') THEN
+                DROP POLICY IF EXISTS rls_app_warehouses ON warehouses;
+                CREATE POLICY rls_app_warehouses ON warehouses TO ecode_app
+                    USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer)
+                    WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer);
 
-        DROP POLICY IF EXISTS rls_app_suppliers ON suppliers;
-        CREATE POLICY rls_app_suppliers ON suppliers TO ecode_app
-            USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer)
-            WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer);
+                DROP POLICY IF EXISTS rls_app_suppliers ON suppliers;
+                CREATE POLICY rls_app_suppliers ON suppliers TO ecode_app
+                    USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer)
+                    WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR company_id = NULLIF(current_setting('app.company_id', true), '')::integer);
 
-        DROP POLICY IF EXISTS rls_app_sale_items ON sale_items;
-        CREATE POLICY rls_app_sale_items ON sale_items TO ecode_app
-            USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM sales WHERE sales.id = sale_items.sale_id AND sales.company_id = NULLIF(current_setting('app.company_id', true), '')::integer))
-            WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM sales WHERE sales.id = sale_items.sale_id AND sales.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+                DROP POLICY IF EXISTS rls_app_sale_items ON sale_items;
+                CREATE POLICY rls_app_sale_items ON sale_items TO ecode_app
+                    USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM sales WHERE sales.id = sale_items.sale_id AND sales.company_id = NULLIF(current_setting('app.company_id', true), '')::integer))
+                    WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM sales WHERE sales.id = sale_items.sale_id AND sales.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
 
-        DROP POLICY IF EXISTS rls_app_stock_levels ON stock_levels;
-        CREATE POLICY rls_app_stock_levels ON stock_levels TO ecode_app
-            USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_levels.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer))
-            WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_levels.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+                DROP POLICY IF EXISTS rls_app_stock_levels ON stock_levels;
+                CREATE POLICY rls_app_stock_levels ON stock_levels TO ecode_app
+                    USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_levels.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer))
+                    WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_levels.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
 
-        DROP POLICY IF EXISTS rls_app_stock_movements ON stock_movements;
-        CREATE POLICY rls_app_stock_movements ON stock_movements TO ecode_app
-            USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_movements.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer))
-            WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_movements.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+                DROP POLICY IF EXISTS rls_app_stock_movements ON stock_movements;
+                CREATE POLICY rls_app_stock_movements ON stock_movements TO ecode_app
+                    USING (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_movements.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer))
+                    WITH CHECK (NULLIF(current_setting('app.company_id', true), '') IS NULL OR EXISTS (SELECT 1 FROM products WHERE products.id = stock_movements.product_id AND products.company_id = NULLIF(current_setting('app.company_id', true), '')::integer));
+            END IF;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Skipping ecode_app RLS policies: %', SQLERRM;
+        END $$;
     """))
 
     # 4. ai_v_debts ko'rinishini ko'p valyutali qilib yangilash
@@ -114,7 +121,14 @@ def upgrade() -> None:
         WHERE (c.company_id = NULLIF(current_setting('app.company_id', true), '')::integer)
           AND (j.value::numeric > 0.009);
 
-        ALTER VIEW ai_v_debts OWNER TO ai_view_owner;
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_view_owner') THEN
+                ALTER VIEW ai_v_debts OWNER TO ai_view_owner;
+            END IF;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Skipping view owner: %', SQLERRM;
+        END $$;
     """))
 
     # 5. ai_v_returns ko'rinishini aniq qoidalar bilan yangilash
@@ -140,7 +154,14 @@ def upgrade() -> None:
         WHERE (s.number LIKE 'R%' AND s.status = 'refunded' AND s.status != 'cancelled')
           AND (s.company_id = NULLIF(current_setting('app.company_id', true), '')::integer);
 
-        ALTER VIEW ai_v_returns OWNER TO ai_view_owner;
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_view_owner') THEN
+                ALTER VIEW ai_v_returns OWNER TO ai_view_owner;
+            END IF;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Skipping view owner: %', SQLERRM;
+        END $$;
     """))
 
     # 6. Unumdorlik indekslari (stock_movements)
