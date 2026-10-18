@@ -23,7 +23,9 @@ def upgrade() -> None:
                 SELECT 1 FROM information_schema.columns 
                 WHERE table_name = 'customers' AND column_name = 'receipt_format'
             ) THEN
-                ALTER TABLE customers ADD COLUMN receipt_format VARCHAR(20) DEFAULT 'text';
+                ALTER TABLE customers ADD COLUMN receipt_format VARCHAR(20) DEFAULT NULL;
+            ELSE
+                ALTER TABLE customers ALTER COLUMN receipt_format DROP DEFAULT;
             END IF;
 
             IF NOT EXISTS (
@@ -32,6 +34,9 @@ def upgrade() -> None:
             ) THEN
                 ALTER TABLE companies ADD COLUMN receipt_format VARCHAR(20) DEFAULT 'text';
             END IF;
+
+            -- Mijozlar uchun eski default 'text' qiymatini tozalash (kompaniya sozlamasi ustuvor bo'lishi uchun)
+            UPDATE customers SET receipt_format = NULL WHERE receipt_format = 'text';
         END $$;
     """))
 

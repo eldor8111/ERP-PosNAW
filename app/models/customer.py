@@ -34,7 +34,7 @@ class Customer(Base):
     cashback_percent = Column(Numeric(5, 2), default=0)
     bonus_balance = Column(Numeric(14, 2), default=0)
     total_spent = Column(Numeric(14, 2), default=0)
-    receipt_format = Column(String(20), nullable=True, default="text", server_default="text")
+    receipt_format = Column(String(20), nullable=True, default=None)
 
     debt_edited = Column(JSON, nullable=False, server_default='[]', default=list)
 

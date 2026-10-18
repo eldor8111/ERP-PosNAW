@@ -2,7 +2,7 @@ import os
 from fpdf import FPDF
 from datetime import datetime
 
-def build_sale_pdf(sale, company, customer, store_address="Manzil ko'rsatilmagan", footer_text="Xaridingiz uchun rahmat!"):
+def build_sale_pdf(sale, company, customer, seller=None, prev_debt=None, new_debt=None, store_address="Manzil ko'rsatilmagan", footer_text="Xaridingiz uchun rahmat!", **kwargs):
     # Font setup
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()

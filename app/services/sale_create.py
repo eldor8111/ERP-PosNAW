@@ -833,11 +833,16 @@ def create_sale(
                             try:
                                 from app.models.customer import Customer as _Cust
                                 _customer_obj = _db.query(_Cust).filter(_Cust.id == _sale.customer_id).first()
-                                # 1-navbatda mijozning shaxsiy sozlamasi, bo'lmasa kompaniyaning Mijoz boti chek formati sozlamasi
-                                cust_format = getattr(_customer_obj, "receipt_format", None)
-                                if not cust_format:
-                                    cust_format = getattr(company, "receipt_format", "text")
-                                cust_format = str(cust_format or "text").lower().strip()
+                                # Kompaniyaning "Mijoz boti" chek sozlamasi
+                                comp_format = str(getattr(company, "receipt_format", "text") or "text").lower().strip()
+                                cust_fmt = getattr(_customer_obj, "receipt_format", None)
+                                # Agar mijozda format belgilanmagan bo'lsa yoki bazadagi default 'text' bo'lib,
+                                # kompaniya sozlamasida boshqa format (masalan 'image') tanlangan bo'lsa,
+                                # kompaniyaning "Mijoz boti" sozlamasi ustuvor bo'ladi:
+                                if not cust_fmt or (cust_fmt == "text" and comp_format != "text"):
+                                    cust_format = comp_format
+                                else:
+                                    cust_format = str(cust_fmt).lower().strip()
 
                                 caption = (
                                     f"🧾 <b>Sotuv cheki №{_sale.number}</b>\n"
@@ -847,11 +852,17 @@ def create_sale(
 
                                 if cust_format in ("image", "rasm", "photo"):
                                     from app.utils.receipt_image import build_sale_image
-                                    img_path = build_sale_image(_sale, company, _customer_obj)
+                                    img_path = build_sale_image(
+                                        _sale, company, _customer_obj,
+                                        seller=seller, prev_debt=prev_debt, new_debt=new_debt,
+                                    )
                                     _sent = send_tg_photo(token, chat_id, img_path, caption=caption)
                                 elif cust_format == "pdf":
                                     from app.utils.pdf_generator import build_sale_pdf
-                                    pdf_path = build_sale_pdf(_sale, company, _customer_obj)
+                                    pdf_path = build_sale_pdf(
+                                        _sale, company, _customer_obj,
+                                        seller=seller, prev_debt=prev_debt, new_debt=new_debt,
+                                    )
                                     _sent = send_tg_document(token, chat_id, pdf_path, caption=caption)
                             except Exception as fmt_err:
                                 print(f"[TG] Chekni {cust_format} formatida tayyorlashda xatolik, matn yuboriladi: {fmt_err}")
