@@ -24,7 +24,7 @@ from app.services.credit_service import check_credit_limit
 from app.services.loyalty_service import get_loyalty_rules, apply_sale_loyalty
 from app.services.sale_cash import build_sale_payment_entries, post_sale_payments
 from app.services.sale_helpers import (
-    generate_sale_number, send_tg_sync, resolve_item_pricing, resolve_branch_id, resolve_txn_branch, assert_sale_items_one_branch,
+    generate_sale_number, send_tg_sync, send_tg_photo, send_tg_document, resolve_item_pricing, resolve_branch_id, resolve_txn_branch, assert_sale_items_one_branch,
     price_is_override,
 )
 from app.services import approval_service  # T4.6: chegirma / qo'lda narx limitlari va tasdiqlash
@@ -826,7 +826,34 @@ def create_sale(
                                 f"Jami miqdor: {tqty_str}\n"
                                 f"🏷 Jami chegirma: som {FMT(_sale.discount_amount)}"
                             )
-                            send_tg_sync(token, chat_id, receipt)
+
+                            # Tizim mijozining chek formati (rasm, pdf, matn) sozlamasiga asosan yuborish
+                            _sent = False
+                            cust_format = "text"
+                            try:
+                                from app.models.customer import Customer as _Cust
+                                _customer_obj = _db.query(_Cust).filter(_Cust.id == _sale.customer_id).first()
+                                cust_format = str(getattr(_customer_obj, "receipt_format", "text") or "text").lower().strip()
+
+                                caption = (
+                                    f"🧾 <b>Sotuv cheki №{_sale.number}</b>\n"
+                                    f"🏢 {_esc(comp_name)}\n"
+                                    f"💰 Jami: som {FMT(_sale.total_amount)}"
+                                )
+
+                                if cust_format in ("image", "rasm", "photo"):
+                                    from app.utils.receipt_image import build_sale_image
+                                    img_path = build_sale_image(_sale, company, _customer_obj)
+                                    _sent = send_tg_photo(token, chat_id, img_path, caption=caption)
+                                elif cust_format == "pdf":
+                                    from app.utils.pdf_generator import build_sale_pdf
+                                    pdf_path = build_sale_pdf(_sale, company, _customer_obj)
+                                    _sent = send_tg_document(token, chat_id, pdf_path, caption=caption)
+                            except Exception as fmt_err:
+                                print(f"[TG] Chekni {cust_format} formatida tayyorlashda xatolik, matn yuboriladi: {fmt_err}")
+
+                            if not _sent:
+                                send_tg_sync(token, chat_id, receipt)
                         finally:
                             _db.close()
                     except Exception as e:

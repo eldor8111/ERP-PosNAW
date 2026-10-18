@@ -74,6 +74,10 @@ async def add_admin_bot(
     bot = Bot(token=payload.bot_token)
     try:
         me = await bot.get_me()
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+        except Exception:
+            pass
     except Exception:
         raise HTTPException(400, "Bot tokeni noto'g'ri")
     finally:
@@ -120,6 +124,10 @@ async def update_admin_bot(
     bot = Bot(token=payload.bot_token)
     try:
         me = await bot.get_me()
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+        except Exception:
+            pass
     except Exception:
         raise HTTPException(400, "Bot tokeni noto'g'ri")
     finally:

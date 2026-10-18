@@ -33,16 +33,58 @@ def send_tg_sync(token, chat_id, text, filepath=None):
                     f"https://api.telegram.org/bot{token}/sendDocument",
                     data={"chat_id": chat_id, "caption": text, "parse_mode": "HTML"},
                     files={"document": doc},
-                    timeout=10
+                    timeout=15
                 )
         else:
             requests.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
                 json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
-                timeout=5
+                timeout=10
             )
     except Exception as e:
         _logger.error("[TG] Telegram xabarnomasi yuborishda xato: %s", e)
+
+
+def send_tg_photo(token, chat_id, photo_path, caption=None):
+    """Telegram bot orqali rasm yuboradi."""
+    try:
+        if photo_path and os.path.exists(photo_path):
+            with open(photo_path, "rb") as photo:
+                data = {"chat_id": chat_id}
+                if caption:
+                    data["caption"] = caption
+                    data["parse_mode"] = "HTML"
+                res = requests.post(
+                    f"https://api.telegram.org/bot{token}/sendPhoto",
+                    data=data,
+                    files={"photo": photo},
+                    timeout=20
+                )
+                return res.status_code == 200
+    except Exception as e:
+        _logger.error("[TG] sendPhoto xato: %s", e)
+    return False
+
+
+def send_tg_document(token, chat_id, doc_path, caption=None):
+    """Telegram bot orqali hujjat (PDF) yuboradi."""
+    try:
+        if doc_path and os.path.exists(doc_path):
+            with open(doc_path, "rb") as doc:
+                data = {"chat_id": chat_id}
+                if caption:
+                    data["caption"] = caption
+                    data["parse_mode"] = "HTML"
+                res = requests.post(
+                    f"https://api.telegram.org/bot{token}/sendDocument",
+                    data=data,
+                    files={"document": doc},
+                    timeout=20
+                )
+                return res.status_code == 200
+    except Exception as e:
+        _logger.error("[TG] sendDocument xato: %s", e)
+    return False
 
 
 def _branch_override(branch_price, price_type):

@@ -58,6 +58,31 @@ async def send_telegram_message(token: str, chat_id: str, text: str, reply_marku
         print("Telegram xato:", e)
 
 
+async def answer_callback_query(token: str, callback_query_id: str, text: str = None, show_alert: bool = False):
+    url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
+    try:
+        payload = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = text
+            payload["show_alert"] = show_alert
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(url, json=payload)
+    except Exception as e:
+        print("Telegram answerCallbackQuery xato:", e)
+
+
+async def edit_telegram_message(token: str, chat_id: str, message_id: int, text: str, reply_markup: dict = None):
+    url = f"https://api.telegram.org/bot{token}/editMessageText"
+    try:
+        payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "HTML"}
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(url, json=payload)
+    except Exception as e:
+        print("Telegram editMessageText xato:", e)
+
+
 async def send_loyalty_card(token: str, chat_id: str, customer_name: str, card_number: str, cashback_percent: float = 0, company=None):
     """Barcode ko'rinishida loyallik kartasini yuboradi."""
     caption = (
@@ -173,6 +198,7 @@ def _build_main_keyboard(company=None, chat_id=None):
     return {
         "keyboard": [
             [dokon_button],
+            [{"text": "🎫 Mening kartam"}, {"text": "⚙️ Chek sozlamalari"}],
         ],
         "resize_keyboard": True,
     }
@@ -296,6 +322,36 @@ async def _handle_yordam(db, token, chat_id, company, customer, bg):
     bg.add_task(send_telegram_message, token, chat_id, msg, _build_main_keyboard(company, chat_id))
 
 
+async def _handle_settings(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
+    if not customer:
+        bg.add_task(send_telegram_message, token, chat_id,
+            "⚙️ Profilingiz topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
+            _build_main_keyboard(company, chat_id))
+        return
+
+    cur_fmt = getattr(customer, "receipt_format", "text") or "text"
+    fmt_labels = {
+        "image": "🖼 Rasm (A4 Nakladnoy)",
+        "pdf": "📄 PDF hujjat (A4 Nakladnoy)",
+        "text": "📝 Matn ko'rinishida",
+    }
+    cur_label = fmt_labels.get(cur_fmt, "📝 Matn ko'rinishida")
+
+    msg = (
+        f"⚙️ <b>Chek yuborish sozlamalari</b>\n\n"
+        f"Do'kondan xarid qilganingizda chek sizga qaysi ko'rinishda yuborilishini tanlang:\n\n"
+        f"📌 Hozirgi tanlov: <b>{cur_label}</b>"
+    )
+    kb = {
+        "inline_keyboard": [
+            [{"text": f"{'✅ ' if cur_fmt == 'image' else ''}🖼 Rasm (A4 Nakladnoy)", "callback_data": "set_fmt:image"}],
+            [{"text": f"{'✅ ' if cur_fmt == 'pdf' else ''}📄 PDF hujjat (A4)", "callback_data": "set_fmt:pdf"}],
+            [{"text": f"{'✅ ' if cur_fmt == 'text' else ''}📝 Matn ko'rinishida", "callback_data": "set_fmt:text"}],
+        ]
+    }
+    bg.add_task(send_telegram_message, token, chat_id, msg, kb)
+
+
 def _find_customer_by_phone_tail(db: Session, company_id: int, p_clean: str):
     """Oxirgi 9 raqam bo'yicha mijozni topadi (T3.8: bitta SQL so'rov, mijozlar Python'da aylanilmaydi).
     Faqat faol mijozlar (T0.26: arxivlangan mijoz qayta bog'lanmaydi)."""
@@ -368,13 +424,110 @@ COMMAND_MAP = {
     "📦 oxirgi xaridlar": _handle_sotuvlar,
     "/sotuvlar": _handle_sotuvlar,
     "🎫 mening kartam": _handle_karta,
+    "🎫 kartam": _handle_karta,
     "/karta": _handle_karta,
     "🏪 dokon": _handle_dokon,
     "/dokon": _handle_dokon,
+    "⚙️ sozlamalar": _handle_settings,
+    "⚙️ chek sozlamalari": _handle_settings,
+    "/sozlamalar": _handle_settings,
+    "/settings": _handle_settings,
+    "/format": _handle_settings,
     "❓ yordam": _handle_yordam,
     "/yordam": _handle_yordam,
     "/help": _handle_yordam,
 }
+
+
+async def _process_phone_auth(db: Session, token: str, chat_id: str, phone: str, company, background_tasks: BackgroundTasks):
+    """Telefon raqam (kontakt yoki matn) orqali mijozni aniqlaydi va kartasini beradi."""
+    p_clean = "".join(filter(str.isdigit, str(phone)))
+    if len(p_clean) < 9:
+        background_tasks.add_task(
+            send_telegram_message, token, chat_id,
+            "⚠️ Telefon raqam noto'g'ri kiritildi. Iltimos, qaytadan yuboring:",
+            _build_phone_keyboard(),
+        )
+        return
+
+    found_customer = _find_customer_by_phone_tail(db, company.id, p_clean)
+    if not found_customer:
+        found_customer = db.query(Customer).filter(
+            Customer.company_id == company.id,
+            Customer.tg_chat_id == chat_id,
+            Customer.is_active.is_(True),
+        ).first()
+
+    session = _get_session(db, chat_id, token)
+
+    if found_customer:
+        # Bazada bor bo'lgan mijoz — yangilab, kartasini yuboramiz
+        found_customer.tg_chat_id = chat_id
+        if not found_customer.card_number:
+            found_customer.card_number = _generate_card_number(db, company.id)
+        try:
+            db.commit()
+        except Exception as ex:
+            db.rollback()
+            print("Commit xato (found_customer):", ex)
+        _delete_session(db, chat_id, token)
+
+        cashback = float(found_customer.cashback_percent or 0)
+        welcome = (
+            f"✅ <b>Assalomu alaykum, {_h(found_customer.name)}!</b>\n\n"
+            f"Profilingiz <b>{_h(company.name)}</b> loyallik tizimiga ulandi. 🎉\n\n"
+            "Loyallik kartangiz:"
+        )
+        background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
+        background_tasks.add_task(send_loyalty_card, token, chat_id,
+            str(found_customer.name), str(found_customer.card_number or ""), cashback, company)
+    elif session and session.temp_name and not session.temp_name.startswith("phone:"):
+        # Yangi mijoz — avval ism kiritgan bo'lsa
+        temp_name = _clean_name(session.temp_name)
+        card_number = _generate_card_number(db, company.id)
+        try:
+            new_customer = Customer(
+                name=temp_name,
+                phone=phone,
+                company_id=company.id,
+                tg_chat_id=chat_id,
+                card_number=card_number,
+                branch_id=default_branch_for_new_customer(db, company),
+            )
+            db.add(new_customer)
+            db.commit()
+            db.refresh(new_customer)
+            _delete_session(db, chat_id, token)
+            cashback = float(new_customer.cashback_percent or 0)
+            welcome = (
+                f"✅ <b>Siz <u>{_h(company.name)}</u> do'konidan muvaffaqiyatli ro'yxatdan o'tdingiz!</b> 🎉\n\n"
+                f"👤 Ism: <b>{_h(temp_name)}</b>\n"
+                f"📞 Telefon: <b>{phone}</b>\n\n"
+                f"🎫 Loyallik kartangiz tayyor! Har bir xaridingizda keshbek to'planadi."
+            )
+            background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
+            background_tasks.add_task(send_loyalty_card, token, chat_id,
+                temp_name, card_number, cashback, company)
+        except Exception as ex:
+            db.rollback()
+            print("Yangi mijoz yaratish xato:", ex)
+            _delete_session(db, chat_id, token)
+            background_tasks.add_task(
+                send_telegram_message, token, chat_id,
+                f"✅ <b>Siz <u>{_h(company.name)}</u> do'konidan ro'yxatdan o'tdingiz!</b> 🎉\n\n"
+                f"👤 Ism: <b>{_h(temp_name)}</b>\n"
+                f"📞 Telefon: <b>{phone}</b>",
+                _build_main_keyboard(company, chat_id),
+            )
+    else:
+        # Yangi mijoz, lekin hali ismi kiritilmagan — ismini so'raymiz
+        _upsert_session(db, chat_id, token, step="awaiting_name", temp_name=f"phone:{phone}")
+        background_tasks.add_task(
+            send_telegram_message, token, chat_id,
+            f"👋 <b>{_h(company.name)}</b> loyallik tizimiga xush kelibsiz!\n\n"
+            f"Siz tizimimizda yangisiz. Ro'yxatdan o'tish va kartangizni olish uchun <b>ismingizni</b> kiriting:",
+            {"remove_keyboard": True},
+        )
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
@@ -388,6 +541,54 @@ async def telegram_webhook(
 ):
     try:
         data = await request.json()
+
+        # ── Callback query (inline tugmalar: masalan chek formati tanlovi) ──
+        if "callback_query" in data:
+            cb = data["callback_query"]
+            cb_id = str(cb.get("id"))
+            cb_data = str(cb.get("data", ""))
+            cb_msg = cb.get("message", {})
+            chat_id = str(cb_msg.get("chat", {}).get("id") or cb.get("from", {}).get("id"))
+            msg_id = cb_msg.get("message_id")
+
+            if cb_data.startswith("set_fmt:"):
+                new_fmt = cb_data.split(":", 1)[1].strip().lower()
+                if new_fmt in ("image", "pdf", "text"):
+                    company, customer = _find_customer_by_chat(db, token, chat_id)
+                    if customer:
+                        customer.receipt_format = new_fmt
+                        db.commit()
+
+                        fmt_labels = {
+                            "image": "🖼 Rasm (A4 Nakladnoy)",
+                            "pdf": "📄 PDF hujjat (A4 Nakladnoy)",
+                            "text": "📝 Matn ko'rinishida",
+                        }
+                        cur_label = fmt_labels.get(new_fmt, new_fmt)
+
+                        background_tasks.add_task(
+                            answer_callback_query, token, cb_id,
+                            f"✅ Saqlandi: {cur_label}", False
+                        )
+
+                        updated_text = (
+                            f"⚙️ <b>Chek yuborish sozlamalari</b>\n\n"
+                            f"Do'kondan xarid qilganingizda chek sizga qaysi ko'rinishda yuborilishini tanlang:\n\n"
+                            f"📌 Hozirgi tanlov: <b>{cur_label}</b>"
+                        )
+                        updated_kb = {
+                            "inline_keyboard": [
+                                [{"text": f"{'✅ ' if new_fmt == 'image' else ''}🖼 Rasm (A4 Nakladnoy)", "callback_data": "set_fmt:image"}],
+                                [{"text": f"{'✅ ' if new_fmt == 'pdf' else ''}📄 PDF hujjat (A4)", "callback_data": "set_fmt:pdf"}],
+                                [{"text": f"{'✅ ' if new_fmt == 'text' else ''}📝 Matn ko'rinishida", "callback_data": "set_fmt:text"}],
+                            ]
+                        }
+                        if msg_id:
+                            background_tasks.add_task(edit_telegram_message, token, chat_id, msg_id, updated_text, updated_kb)
+                    else:
+                        background_tasks.add_task(answer_callback_query, token, cb_id, "Mijoz topilmadi", True)
+                return {"ok": True}
+
         if "message" not in data:
             return {"ok": True}
 
@@ -404,23 +605,31 @@ async def telegram_webhook(
                 return {"ok": True}
 
             if customer:
-                # Allaqachon ro'yxatdan o'tgan — xush kelibsiz
+                # Allaqachon ro'yxatdan o'tgan — salom berib, kartasini tashab beramiz!
                 _delete_session(db, chat_id, token)
+                if not customer.card_number:
+                    customer.card_number = _generate_card_number(db, company.id)
+                    try:
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                cashback = float(customer.cashback_percent or 0)
                 reply = (
-                    f"👋 <b>Assalomu alaykum, {customer.name}!</b>\n\n"
-                    f"Siz <b>{company.name}</b> tizimiga ulangansiz.\n"
-                    "Quyidagi tugmalardan foydalaning 👇"
+                    f"👋 <b>Assalomu alaykum, {_h(customer.name)}!</b>\n\n"
+                    f"Siz <b>{_h(company.name)}</b> loyallik tizimiga ulangansiz.\n"
+                    "Loyallik kartangiz quyida keltirilgan 👇"
                 )
                 background_tasks.add_task(send_telegram_message, token, chat_id, reply, _build_main_keyboard(company, chat_id))
+                background_tasks.add_task(send_loyalty_card, token, chat_id, str(customer.name), str(customer.card_number or ""), cashback, company)
             else:
-                # Yangi foydalanuvchi — ismini so'raymiz
-                _upsert_session(db, chat_id, token, step="awaiting_name")
+                # Yangi yoki hali chat bog'lanmagan foydalanuvchi — telefon so'raymiz
+                _upsert_session(db, chat_id, token, step="awaiting_phone")
                 background_tasks.add_task(
                     send_telegram_message, token, chat_id,
                     f"👋 <b>Assalomu alaykum!</b>\n\n"
-                    f"<b>{company.name}</b> do'konining loyallik tizimiga xush kelibsiz!\n\n"
-                    f"Ro'yxatdan o'tish uchun <b>ismingizni</b> kiriting:",
-                    {"remove_keyboard": True},
+                    f"<b>{_h(company.name)}</b> do'konining loyallik tizimiga xush kelibsiz!\n\n"
+                    f"Profilingizni aniqlash va loyallik kartangizni olish uchun pastdagi <b>📞 Telefon raqamni yuborish</b> tugmasini bosing yoki telefon raqamingizni yozib yuboring (masalan: +998901234567):",
+                    _build_phone_keyboard(),
                 )
             return {"ok": True}
 
@@ -457,62 +666,47 @@ async def telegram_webhook(
         if "contact" in message:
             contact = message["contact"]
             phone = contact.get("phone_number", "")
-            p_clean = "".join(filter(str.isdigit, str(phone)))
-
             company = db.query(Company).filter(Company.tg_bot_token == token).first()
             if not company:
                 background_tasks.add_task(send_telegram_message, token, chat_id,
                     "❌ Kompaniya topilmadi.", {"remove_keyboard": True})
                 return {"ok": True}
+            await _process_phone_auth(db, token, chat_id, phone, company, background_tasks)
+            return {"ok": True}
 
-            # Qidirish FAQAT shu kompaniya uchun bo'lishi kerak!
-            found_customer = None
-            if len(p_clean) >= 9:
-                found_customer = _find_customer_by_phone_tail(db, company.id, p_clean)
+        # ── Matnda telefon raqam yozilgan bo'lsa (kamida 9 ta raqam) ──
+        clean_text_digits = "".join(filter(str.isdigit, text))
+        if len(clean_text_digits) >= 9 and not text.startswith("/"):
+            company = db.query(Company).filter(Company.tg_bot_token == token).first()
+            if company:
+                await _process_phone_auth(db, token, chat_id, text, company, background_tasks)
+                return {"ok": True}
 
-            # tg_chat_id bo'yicha ham shu kompaniyadan qidiramiz
-            if not found_customer:
-                found_customer = db.query(Customer).filter(
-                    Customer.company_id == company.id,
-                    Customer.tg_chat_id == chat_id,
-                    Customer.is_active.is_(True),
-                ).first()
-
-            session = _get_session(db, chat_id, token)
-
-            if found_customer:
-                # Mavjud mijoz — yangilab, kartasini yuboramiz
-                found_customer.tg_chat_id = chat_id
-                if not found_customer.card_number:
-                    found_customer.card_number = _generate_card_number(db, company.id)
-                try:
-                    db.commit()
-                except Exception as ex:
-                    db.rollback()
-                    print("Commit xato (found_customer):", ex)
-                _delete_session(db, chat_id, token)
-
-                cashback = float(found_customer.cashback_percent or 0)
-                welcome = (
-                    f"✅ <b>Assalomu alaykum, {_h(found_customer.name)}!</b>\n\n"
-                    f"Profilingiz <b>{_h(company.name)}</b> tizimiga ulandi. 🎉\n\n"
-                    "Loyallik kartangiz:"
+        # ── Matn xabar — yangi mijoz ismini kiritishi holati ─────
+        session = _get_session(db, chat_id, token)
+        if session and session.step == "awaiting_name" and text and not text.startswith("/"):
+            clean_name = _clean_name(text)
+            if not clean_name:
+                background_tasks.add_task(
+                    send_telegram_message, token, chat_id,
+                    "⚠️ Iltimos, ismingizni oddiy matn bilan kiriting.",
                 )
-                background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
-                background_tasks.add_task(send_loyalty_card, token, chat_id,
-                    str(found_customer.name), str(found_customer.card_number or ""), cashback, company)
-            elif session and session.temp_name:
-                # Yangi mijoz — ro'yxatdan o'tkazamiz
-                temp_name = _clean_name(session.temp_name)
+                return {"ok": True}
+
+            company = db.query(Company).filter(Company.tg_bot_token == token).first()
+            if not company:
+                return {"ok": True}
+
+            if session.temp_name and session.temp_name.startswith("phone:"):
+                saved_phone = session.temp_name.replace("phone:", "").strip()
                 card_number = _generate_card_number(db, company.id)
                 try:
                     new_customer = Customer(
-                        name=temp_name,
-                        phone=phone,
+                        name=clean_name,
+                        phone=saved_phone,
                         company_id=company.id,
                         tg_chat_id=chat_id,
                         card_number=card_number,
-                        # T3.13: yangi bot mijozi filialsiz qolmasin (standart yoki yagona filial)
                         branch_id=default_branch_for_new_customer(db, company),
                     )
                     db.add(new_customer)
@@ -521,46 +715,17 @@ async def telegram_webhook(
                     _delete_session(db, chat_id, token)
                     cashback = float(new_customer.cashback_percent or 0)
                     welcome = (
-                        f"✅ <b>Siz <u>{_h(company.name)}</u> do'konidan muvaffaqiyatli ro'yxatdan o'tdingiz!</b> 🎉\n\n"
-                        f"👤 Ism: <b>{_h(temp_name)}</b>\n"
-                        f"📞 Telefon: <b>{phone}</b>\n\n"
+                        f"✅ <b>Assalomu alaykum, {_h(clean_name)}!</b> 🎉\n\n"
+                        f"Siz <u>{_h(company.name)}</u> tizimidan muvaffaqiyatli ro'yxatdan o'tdingiz!\n\n"
                         f"🎫 Loyallik kartangiz tayyor! Har bir xaridingizda keshbek to'planadi."
                     )
                     background_tasks.add_task(send_telegram_message, token, chat_id, welcome, _build_main_keyboard(company, chat_id))
-                    background_tasks.add_task(send_loyalty_card, token, chat_id,
-                        temp_name, card_number, cashback, company)
+                    background_tasks.add_task(send_loyalty_card, token, chat_id, clean_name, card_number, cashback, company)
+                    return {"ok": True}
                 except Exception as ex:
                     db.rollback()
                     print("Yangi mijoz yaratish xato:", ex)
-                    _delete_session(db, chat_id, token)
-                    background_tasks.add_task(
-                        send_telegram_message, token, chat_id,
-                        f"✅ <b>Siz <u>{_h(company.name)}</u> do'konidan ro'yxatdan o'tdingiz!</b> 🎉\n\n"
-                        f"👤 Ism: <b>{_h(temp_name)}</b>\n"
-                        f"📞 Telefon: <b>{phone}</b>",
-                        _build_main_keyboard(company, chat_id),
-                    )
-            else:
-                # Sessiya topilmadi — qayta boshlashni so'raymiz
-                _upsert_session(db, chat_id, token, step="awaiting_name")
-                background_tasks.add_task(
-                    send_telegram_message, token, chat_id,
-                    f"⚠️ Iltimos, avval <b>ismingizni</b> kiriting:",
-                    {"remove_keyboard": True},
-                )
-            return {"ok": True}
 
-        # ── Matn xabar — ro'yxatdan o'tish holati tekshiruvi ─────
-        session = _get_session(db, chat_id, token)
-        if session and session.step == "awaiting_name" and text and not text.startswith("/"):
-            # Ismni saqlaymiz, telefon so'raymiz
-            clean_name = _clean_name(text)
-            if not clean_name:
-                background_tasks.add_task(
-                    send_telegram_message, token, chat_id,
-                    "⚠️ Iltimos, ismingizni oddiy matn bilan kiriting.",
-                )
-                return {"ok": True}
             _upsert_session(db, chat_id, token, step="awaiting_phone", temp_name=clean_name)
             background_tasks.add_task(
                 send_telegram_message, token, chat_id,
@@ -580,6 +745,8 @@ async def telegram_webhook(
                 handler = _handle_sotuvlar
             elif any(k in txt for k in ("karta", "card", "bonus")):
                 handler = _handle_karta
+            elif any(k in txt for k in ("sozlama", "format", "settings", "chek sozlama")):
+                handler = _handle_settings
             elif any(k in txt for k in ("yordam", "help")):
                 handler = _handle_yordam
 
@@ -604,6 +771,7 @@ async def telegram_webhook(
                 "📋 <b>Mavjud buyruqlar:</b>\n\n"
                 "/balans — 💰 Qarz va balans\n"
                 "/karta — 🎫 Loyallik kartam\n"
+                "/sozlamalar — ⚙️ Chek sozlamalari (Rasm / PDF / Matn)\n"
                 "/sotuvlar — 📦 Oxirgi xaridlar\n"
                 "/yordam — ❓ Yordam\n"
                 "/start — 🔄 Qayta ro'yxatdan o'tish"

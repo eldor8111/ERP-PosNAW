@@ -563,9 +563,53 @@ async def process_contact(message: Message, state: FSMContext, company_id: int) 
                        role=member[1] if member else None)
 
 
+async def process_phone_text(message: Message, state: FSMContext, company_id: int) -> None:
+    text = (message.text or "").strip()
+    digits = re.sub(r"\D", "", text)
+    if len(digits) >= 9:
+        tg_id = str(message.from_user.id)
+        admin, status = await asyncio.to_thread(
+            link_admin_by_phone, text, tg_id, message.from_user.full_name, company_id
+        )
+
+        if status == "not_allowed":
+            await message.answer(
+                "❌ Kechirasiz, ushbu botdan faqat kompaniya admini, direktori yoki filial menejeri foydalana oladi.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            await state.clear()
+            return
+
+        if status == "not_found":
+            await message.answer(
+                "❌ Bu raqam shu korxona rahbarlari ro'yxatida yo'q.\n"
+                "Administrator sizni veb-paneldan (Xodimlar) qo'shishi kerak.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            await state.clear()
+            return
+
+        if status == "already_linked":
+            await message.answer(
+                "⚠️ Bu raqam allaqachon boshqa Telegram akkauntga bog'langan.\n"
+                "Administratorga murojaat qiling.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            await state.clear()
+            return
+
+        await state.clear()
+        member = await asyncio.to_thread(fetch_member_by_tg_id, tg_id, company_id)
+        await send_welcome(message, admin, greeting="✅ Ro'yxatdan muvaffaqiyatli o'tdingiz!\n\n", company_id=company_id,
+                           role=member[1] if member else None)
+        return
+
+    await waiting_for_phone_fallback(message)
+
+
 async def waiting_for_phone_fallback(message: Message) -> None:
     await message.answer(
-        "Iltimos, pastdagi tugma orqali telefon raqamingizni yuboring 👇",
+        "Iltimos, pastdagi tugma orqali telefon raqamingizni yuboring yoki raqamingizni yozib yuboring 👇",
         reply_markup=contact_keyboard(),
     )
 
@@ -584,8 +628,8 @@ def create_dispatcher() -> Dispatcher:
 def register_handlers(dp: Dispatcher, company_id: int):
     """Dispatcher ga handlerlarni ro'yxatdan o'tkazadi."""
     dp.message(CommandStart())(cmd_start)
-    dp.message(F.text == "📊 Kunlik hisobot")(handle_daily_report)
-    dp.message(F.text == "📈 Oylik hisobot")(handle_monthly_report)
+    dp.message(F.text.in_(["📊 Kunlik hisobot", "Kunlik hisobot", "/kunlik", "/daily", "kunlik"]))(handle_daily_report)
+    dp.message(F.text.in_(["📈 Oylik hisobot", "Oylik hisobot", "/oylik", "/monthly", "oylik"]))(handle_monthly_report)
 
     async def _report_callback(callback: CallbackQuery) -> None:
         # callback_query uchun middleware yo'q — company_id yopilma (closure) orqali uzatiladi
@@ -599,6 +643,7 @@ def register_handlers(dp: Dispatcher, company_id: int):
 
     dp.callback_query(F.data.startswith("appr:"))(_approval_callback)
     dp.message(RegisterStates.waiting_for_phone, F.contact)(process_contact)
+    dp.message(RegisterStates.waiting_for_phone, F.text)(process_phone_text)
     dp.message(RegisterStates.waiting_for_phone)(waiting_for_phone_fallback)
 
 
@@ -615,8 +660,16 @@ async def start_bot(bot_token: str, company_id: int):
     )
     print(f"[Admin Bot] Bot started with token: {bot_token[:20]}... for company {company_id}")
     try:
+        try:
+            await bot.delete_webhook(drop_pending_updates=False)
+            print(f"[Admin Bot] company {company_id}: webhook o'chirildi (polling boshlanmoqda)")
+        except Exception as we:
+            print(f"[Admin Bot] company {company_id} delete_webhook ogohlantirish: {we}")
         # handle_signals=False: SIGINT/SIGTERM ni gunicorn/uvicorn boshqaradi (task cancel qilinadi)
         await dp.start_polling(bot, handle_signals=False)
+    except Exception as e:
+        print(f"[Admin Bot] company {company_id} polling xatosi: {e}")
+        raise
     finally:
         await bot.session.close()
 

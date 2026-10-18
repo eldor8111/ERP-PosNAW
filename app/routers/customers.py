@@ -132,6 +132,7 @@ class CustomerIn(BaseModel):
     visit_radius_m: Optional[int] = None
     # T1.15: mijozning "uy filiali" (Telegram buyurtmalari shu filialga yo'naltiriladi)
     branch_id: Optional[int] = None
+    receipt_format: Optional[str] = "text"
 
     @field_validator("region", "district", "address")
     @classmethod
@@ -301,6 +302,7 @@ class CustomerOut(BaseModel):
     photo_url: Optional[str] = None
     tg_connected: bool = False
     branch_id: Optional[int] = None
+    receipt_format: Optional[str] = "text"
 
     class Config:
         from_attributes = True

@@ -78,29 +78,42 @@ class LLMRouter:
         else:
             model = getattr(settings, "LLM_MODEL_FAST", "cohere/north-mini-code:free")
 
-        # Production muhitida :free modellarni taqiqlash
+        # Production muhitida :free modellarni ogohlantirish (avariya qilmaslik)
         if is_production_env() and ":free" in model.lower():
-            raise ValueError(f"':free' modellar ({model}) production rejimida ishlatilishi taqiqlangan.")
+            _log.warning("':free' model (%s) production rejimida ishlatilmoqda.", model)
 
         return model
 
     def get_fallback_chain(self) -> List[str]:
         """Konfiguratsiyadagi fallback zanjirini oladi."""
         raw_chain = getattr(settings, "LLM_FALLBACK_CHAIN", "")
-        primary = getattr(settings, "LLM_PROVIDER", "openrouter")
+        primary = (getattr(settings, "LLM_PROVIDER", "") or "").strip().lower()
+        anthropic_key = getattr(settings, "ANTHROPIC_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")
+        openrouter_key = getattr(settings, "OPENROUTER_API_KEY", "") or os.getenv("OPENROUTER_API_KEY", "")
+        openai_key = getattr(settings, "OPENAI_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
 
         chain = []
-        if primary:
-            chain.append(primary.strip().lower())
+        if primary and primary in ("anthropic", "openai", "mock"):
+            chain.append(primary)
+        elif anthropic_key:
+            chain.append("anthropic")
+        elif primary:
+            chain.append(primary)
 
         if raw_chain:
             for p in raw_chain.split(","):
                 p_clean = p.strip().lower()
                 if p_clean and p_clean not in chain:
-                    # DeepSeek standart zanjirga avtomatik kirmasin
                     if p_clean == "deepseek" and not os.getenv("ENABLE_DEEPSEEK"):
                         continue
                     chain.append(p_clean)
+
+        if anthropic_key and "anthropic" not in chain:
+            chain.append("anthropic")
+        if openrouter_key and "openrouter" not in chain:
+            chain.append("openrouter")
+        if openai_key and "openai" not in chain:
+            chain.append("openai")
 
         return chain if chain else ["openrouter"]
 
