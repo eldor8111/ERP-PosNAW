@@ -109,10 +109,13 @@ async def send_loyalty_card(token: str, chat_id: str, customer_name: str, card_n
         buf.seek(0)
 
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
+        data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+        if company and getattr(company, "tg_protect_content", False):
+            data["protect_content"] = "true"
         async with httpx.AsyncClient(timeout=20) as client:
             await client.post(
                 url,
-                data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"},
+                data=data,
                 files={"photo": ("card.png", buf.read(), "image/png")},
             )
     except Exception as e:
@@ -200,7 +203,7 @@ def _build_main_keyboard(company=None, chat_id=None):
     return {
         "keyboard": [
             [dokon_button],
-            [{"text": "🎫 Mening kartam"}, {"text": "⚙️ Chek sozlamalari"}],
+            [{"text": "🎫 Mening kartam"}, {"text": "⚙️ Sozlamalar"}],
         ],
         "resize_keyboard": True,
     }
@@ -325,10 +328,28 @@ async def _handle_yordam(db, token, chat_id, company, customer, bg):
 
 
 async def _handle_settings(db: Session, token: str, chat_id: str, company, customer, bg: BackgroundTasks):
+    protect = bool(getattr(company, "tg_protect_content", False))
     if not customer:
-        bg.add_task(send_telegram_message, token, chat_id,
-            "⚙️ Profilingiz topilmadi. /start buyrug'i bilan ro'yxatdan o'ting.",
-            _build_main_keyboard(company, chat_id))
+        cur_fmt = getattr(company, "receipt_format", "text") or "text"
+        fmt_labels = {
+            "image": "🖼 Rasm (A4 Nakladnoy)",
+            "pdf": "📄 PDF hujjat (A4 Nakladnoy)",
+            "text": "📝 Matn ko'rinishida",
+        }
+        cur_label = fmt_labels.get(cur_fmt, "📝 Matn ko'rinishida")
+        msg = (
+            f"⚙️ <b>Chek yuborish sozlamalari</b>\n\n"
+            f"Do'kondan xarid qilganingizda chek sizga qaysi ko'rinishda yuborilishini tanlang:\n\n"
+            f"📌 Hozirgi tanlov: <b>{cur_label}</b>"
+        )
+        kb = {
+            "inline_keyboard": [
+                [{"text": f"{'✅ ' if cur_fmt == 'image' else ''}🖼 Rasm (A4 Nakladnoy)", "callback_data": "set_fmt:image"}],
+                [{"text": f"{'✅ ' if cur_fmt == 'pdf' else ''}📄 PDF hujjat (A4)", "callback_data": "set_fmt:pdf"}],
+                [{"text": f"{'✅ ' if cur_fmt == 'text' else ''}📝 Matn ko'rinishida", "callback_data": "set_fmt:text"}],
+            ]
+        }
+        bg.add_task(send_telegram_message, token, chat_id, msg, kb, protect_content=protect)
         return
 
     cur_fmt = getattr(customer, "receipt_format", None) or getattr(company, "receipt_format", "text") or "text"
@@ -351,7 +372,7 @@ async def _handle_settings(db: Session, token: str, chat_id: str, company, custo
             [{"text": f"{'✅ ' if cur_fmt == 'text' else ''}📝 Matn ko'rinishida", "callback_data": "set_fmt:text"}],
         ]
     }
-    bg.add_task(send_telegram_message, token, chat_id, msg, kb)
+    bg.add_task(send_telegram_message, token, chat_id, msg, kb, protect_content=protect)
 
 
 def _find_customer_by_phone_tail(db: Session, company_id: int, p_clean: str):
@@ -431,9 +452,15 @@ COMMAND_MAP = {
     "🏪 dokon": _handle_dokon,
     "/dokon": _handle_dokon,
     "⚙️ sozlamalar": _handle_settings,
+    "sozlamalar": _handle_settings,
     "⚙️ chek sozlamalari": _handle_settings,
+    "chek sozlamalari": _handle_settings,
+    "⚙️ nastroyka": _handle_settings,
+    "nastroyka": _handle_settings,
+    "nastroykalar": _handle_settings,
     "/sozlamalar": _handle_settings,
     "/settings": _handle_settings,
+    "/nastroyka": _handle_settings,
     "/format": _handle_settings,
     "❓ yordam": _handle_yordam,
     "/yordam": _handle_yordam,
@@ -553,42 +580,48 @@ async def telegram_webhook(
             chat_id = str(cb_msg.get("chat", {}).get("id") or cb.get("from", {}).get("id"))
             msg_id = cb_msg.get("message_id")
 
+            if cb_data in ("open_settings", "settings", "sozlamalar"):
+                company, customer = _find_customer_by_chat(db, token, chat_id)
+                await _handle_settings(db, token, chat_id, company, customer, background_tasks)
+                background_tasks.add_task(answer_callback_query, token, cb_id)
+                return {"ok": True}
+
             if cb_data.startswith("set_fmt:"):
                 new_fmt = cb_data.split(":", 1)[1].strip().lower()
                 if new_fmt in ("image", "pdf", "text"):
                     company, customer = _find_customer_by_chat(db, token, chat_id)
+                    fmt_labels = {
+                        "image": "🖼 Rasm (A4 Nakladnoy)",
+                        "pdf": "📄 PDF hujjat (A4 Nakladnoy)",
+                        "text": "📝 Matn ko'rinishida",
+                    }
+                    cur_label = fmt_labels.get(new_fmt, new_fmt)
                     if customer:
                         customer.receipt_format = new_fmt
                         db.commit()
+                    elif company:
+                        company.receipt_format = new_fmt
+                        db.commit()
 
-                        fmt_labels = {
-                            "image": "🖼 Rasm (A4 Nakladnoy)",
-                            "pdf": "📄 PDF hujjat (A4 Nakladnoy)",
-                            "text": "📝 Matn ko'rinishida",
-                        }
-                        cur_label = fmt_labels.get(new_fmt, new_fmt)
+                    background_tasks.add_task(
+                        answer_callback_query, token, cb_id,
+                        f"✅ Saqlandi: {cur_label}", False
+                    )
 
-                        background_tasks.add_task(
-                            answer_callback_query, token, cb_id,
-                            f"✅ Saqlandi: {cur_label}", False
-                        )
-
-                        updated_text = (
-                            f"⚙️ <b>Chek yuborish sozlamalari</b>\n\n"
-                            f"Do'kondan xarid qilganingizda chek sizga qaysi ko'rinishda yuborilishini tanlang:\n\n"
-                            f"📌 Hozirgi tanlov: <b>{cur_label}</b>"
-                        )
-                        updated_kb = {
-                            "inline_keyboard": [
-                                [{"text": f"{'✅ ' if new_fmt == 'image' else ''}🖼 Rasm (A4 Nakladnoy)", "callback_data": "set_fmt:image"}],
-                                [{"text": f"{'✅ ' if new_fmt == 'pdf' else ''}📄 PDF hujjat (A4)", "callback_data": "set_fmt:pdf"}],
-                                [{"text": f"{'✅ ' if new_fmt == 'text' else ''}📝 Matn ko'rinishida", "callback_data": "set_fmt:text"}],
-                            ]
-                        }
-                        if msg_id:
-                            background_tasks.add_task(edit_telegram_message, token, chat_id, msg_id, updated_text, updated_kb)
-                    else:
-                        background_tasks.add_task(answer_callback_query, token, cb_id, "Mijoz topilmadi", True)
+                    updated_text = (
+                        f"⚙️ <b>Chek yuborish sozlamalari</b>\n\n"
+                        f"Do'kondan xarid qilganingizda chek sizga qaysi ko'rinishda yuborilishini tanlang:\n\n"
+                        f"📌 Hozirgi tanlov: <b>{cur_label}</b>"
+                    )
+                    updated_kb = {
+                        "inline_keyboard": [
+                            [{"text": f"{'✅ ' if new_fmt == 'image' else ''}🖼 Rasm (A4 Nakladnoy)", "callback_data": "set_fmt:image"}],
+                            [{"text": f"{'✅ ' if new_fmt == 'pdf' else ''}📄 PDF hujjat (A4)", "callback_data": "set_fmt:pdf"}],
+                            [{"text": f"{'✅ ' if new_fmt == 'text' else ''}📝 Matn ko'rinishida", "callback_data": "set_fmt:text"}],
+                        ]
+                    }
+                    if msg_id:
+                        background_tasks.add_task(edit_telegram_message, token, chat_id, msg_id, updated_text, updated_kb)
                 return {"ok": True}
 
         if "message" not in data:
@@ -747,7 +780,7 @@ async def telegram_webhook(
                 handler = _handle_sotuvlar
             elif any(k in txt for k in ("karta", "card", "bonus")):
                 handler = _handle_karta
-            elif any(k in txt for k in ("sozlama", "format", "settings", "chek sozlama")):
+            elif any(k in txt for k in ("sozlama", "format", "settings", "chek sozlama", "nastroyk")):
                 handler = _handle_settings
             elif any(k in txt for k in ("yordam", "help")):
                 handler = _handle_yordam

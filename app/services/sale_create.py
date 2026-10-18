@@ -832,17 +832,17 @@ def create_sale(
                             cust_format = "text"
                             try:
                                 from app.models.customer import Customer as _Cust
+                                from app.models.company import Company as _Comp
                                 _customer_obj = _db.query(_Cust).filter(_Cust.id == _sale.customer_id).first()
+                                _comp = _db.query(_Comp).filter(_Comp.id == _sale.company_id).first() or company
+
                                 # Kompaniyaning "Mijoz boti" chek sozlamasi
-                                comp_format = str(getattr(company, "receipt_format", "text") or "text").lower().strip()
+                                comp_format = str(getattr(_comp, "receipt_format", "text") or "text").lower().strip()
                                 cust_fmt = getattr(_customer_obj, "receipt_format", None)
-                                # Agar mijozda format belgilanmagan bo'lsa yoki bazadagi default 'text' bo'lib,
-                                # kompaniya sozlamasida boshqa format (masalan 'image') tanlangan bo'lsa,
-                                # kompaniyaning "Mijoz boti" sozlamasi ustuvor bo'ladi:
-                                if not cust_fmt or (cust_fmt == "text" and comp_format != "text"):
-                                    cust_format = comp_format
-                                else:
+                                if cust_fmt:
                                     cust_format = str(cust_fmt).lower().strip()
+                                else:
+                                    cust_format = comp_format
 
                                 caption = (
                                     f"🧾 <b>Sotuv cheki №{_sale.number}</b>\n"
@@ -850,27 +850,37 @@ def create_sale(
                                     f"💰 Jami: som {FMT(_sale.total_amount)}"
                                 )
 
-                                protect = bool(getattr(company, "tg_protect_content", False))
+                                protect = bool(getattr(_comp, "tg_protect_content", False))
+                                settings_kb = {
+                                    "inline_keyboard": [
+                                        [{"text": "⚙️ Chek sozlamalari", "callback_data": "open_settings"}]
+                                    ]
+                                }
 
                                 if cust_format in ("image", "rasm", "photo"):
                                     from app.utils.receipt_image import build_sale_image
                                     img_path = build_sale_image(
-                                        _sale, company, _customer_obj,
+                                        _sale, _comp, _customer_obj,
                                         seller=seller, prev_debt=prev_debt, new_debt=new_debt,
                                     )
-                                    _sent = send_tg_photo(token, chat_id, img_path, caption=caption, protect_content=protect)
+                                    _sent = send_tg_photo(token, chat_id, img_path, caption=caption, protect_content=protect, reply_markup=settings_kb)
                                 elif cust_format == "pdf":
                                     from app.utils.pdf_generator import build_sale_pdf
                                     pdf_path = build_sale_pdf(
-                                        _sale, company, _customer_obj,
+                                        _sale, _comp, _customer_obj,
                                         seller=seller, prev_debt=prev_debt, new_debt=new_debt,
                                     )
-                                    _sent = send_tg_document(token, chat_id, pdf_path, caption=caption, protect_content=protect)
+                                    _sent = send_tg_document(token, chat_id, pdf_path, caption=caption, protect_content=protect, reply_markup=settings_kb)
                             except Exception as fmt_err:
                                 print(f"[TG] Chekni {cust_format} formatida tayyorlashda xatolik, matn yuboriladi: {fmt_err}")
 
                             if not _sent:
-                                send_tg_sync(token, chat_id, receipt, protect_content=protect)
+                                settings_kb = {
+                                    "inline_keyboard": [
+                                        [{"text": "⚙️ Chek sozlamalari", "callback_data": "open_settings"}]
+                                    ]
+                                }
+                                send_tg_sync(token, chat_id, receipt, protect_content=protect, reply_markup=settings_kb)
                         finally:
                             _db.close()
                     except Exception as e:

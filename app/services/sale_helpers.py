@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.sale import Sale
 from app.services.document_numbers import next_document_number
+import json
 import logging
 import os
 import requests
@@ -25,13 +26,15 @@ def generate_return_number(db: Session, company_id: int, branch_id=None) -> str:
     return next_document_number(db, company_id=company_id, branch_id=branch_id, doc_type="R")
 
 
-def send_tg_sync(token, chat_id, text, filepath=None, protect_content=False):
+def send_tg_sync(token, chat_id, text, filepath=None, protect_content=False, reply_markup=None):
     try:
         if filepath and os.path.exists(filepath):
             with open(filepath, "rb") as doc:
-                data = {"chat_id": chat_id, "caption": text, "parse_mode": "HTML"}
+                data = {"chat_id": str(chat_id), "caption": text, "parse_mode": "HTML"}
                 if protect_content:
-                    data["protect_content"] = True
+                    data["protect_content"] = "true"
+                if reply_markup:
+                    data["reply_markup"] = json.dumps(reply_markup) if isinstance(reply_markup, dict) else reply_markup
                 requests.post(
                     f"https://api.telegram.org/bot{token}/sendDocument",
                     data=data,
@@ -39,9 +42,11 @@ def send_tg_sync(token, chat_id, text, filepath=None, protect_content=False):
                     timeout=15
                 )
         else:
-            payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+            payload = {"chat_id": str(chat_id), "text": text, "parse_mode": "HTML"}
             if protect_content:
                 payload["protect_content"] = True
+            if reply_markup:
+                payload["reply_markup"] = reply_markup
             requests.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
                 json=payload,
@@ -51,17 +56,19 @@ def send_tg_sync(token, chat_id, text, filepath=None, protect_content=False):
         _logger.error("[TG] Telegram xabarnomasi yuborishda xato: %s", e)
 
 
-def send_tg_photo(token, chat_id, photo_path, caption=None, protect_content=False):
+def send_tg_photo(token, chat_id, photo_path, caption=None, protect_content=False, reply_markup=None):
     """Telegram bot orqali rasm yuboradi."""
     try:
         if photo_path and os.path.exists(photo_path):
             with open(photo_path, "rb") as photo:
-                data = {"chat_id": chat_id}
+                data = {"chat_id": str(chat_id)}
                 if caption:
                     data["caption"] = caption
                     data["parse_mode"] = "HTML"
                 if protect_content:
-                    data["protect_content"] = True
+                    data["protect_content"] = "true"
+                if reply_markup:
+                    data["reply_markup"] = json.dumps(reply_markup) if isinstance(reply_markup, dict) else reply_markup
                 res = requests.post(
                     f"https://api.telegram.org/bot{token}/sendPhoto",
                     data=data,
@@ -74,17 +81,19 @@ def send_tg_photo(token, chat_id, photo_path, caption=None, protect_content=Fals
     return False
 
 
-def send_tg_document(token, chat_id, doc_path, caption=None, protect_content=False):
+def send_tg_document(token, chat_id, doc_path, caption=None, protect_content=False, reply_markup=None):
     """Telegram bot orqali hujjat (PDF) yuboradi."""
     try:
         if doc_path and os.path.exists(doc_path):
             with open(doc_path, "rb") as doc:
-                data = {"chat_id": chat_id}
+                data = {"chat_id": str(chat_id)}
                 if caption:
                     data["caption"] = caption
                     data["parse_mode"] = "HTML"
                 if protect_content:
-                    data["protect_content"] = True
+                    data["protect_content"] = "true"
+                if reply_markup:
+                    data["reply_markup"] = json.dumps(reply_markup) if isinstance(reply_markup, dict) else reply_markup
                 res = requests.post(
                     f"https://api.telegram.org/bot{token}/sendDocument",
                     data=data,
