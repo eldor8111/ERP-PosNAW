@@ -19,6 +19,7 @@ import SaleDeliveryBlock from '../../components/sale/SaleDeliveryBlock';
 import CustomerPicker from '../../components/CustomerPicker';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import { EMPTY_DELIVERY, deliveryFromSale, deliveryPayload } from '../../components/sale/saleDelivery';
+import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -1042,6 +1043,258 @@ export default function UlgurjiSotuv() {
     } catch (err) { console.error('Print error:', err); toast.error(t('wholesale.printError')); }
   };
 
+  // ── Sotuvlar ro'yxatini Excel (.xlsx) formatida eksport qilish ──────────
+  const exportToExcel = async () => {
+    if (!sales || sales.length === 0) {
+      toast.error(t('common.noData') || "Eksport qilish uchun sotuvlar mavjud emas");
+      return;
+    }
+    try {
+      const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
+      const rows = sales.map((s, idx) => {
+        const total = Number(s.total_amount || 0);
+        const paid = Number(s.paid_amount || 0);
+        const debt = Math.max(0, total - paid);
+        const pType = (PAY_META_KEYS[s.payment_type] && t(PAY_META_KEYS[s.payment_type])) || s.payment_type || '—';
+        const st = (STATUS_META[s.status]?.lKey && t(STATUS_META[s.status].lKey)) || s.status || '—';
+        const dStr = s.created_at
+          ? new Date(s.created_at).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : '—';
+        return {
+          "№": idx + 1,
+          "Hujjat raqami": s.number || `#${s.id}`,
+          "Mijoz": s.customer_name || '—',
+          "Jami summa (so'm)": total,
+          "To'langan (so'm)": paid,
+          "Qarz (so'm)": debt,
+          "To'lov turi": pType,
+          "Holati": st,
+          "Kassir": s.cashier_name || '—',
+          "Sana": dStr,
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 6 },
+        { wch: 18 },
+        { wch: 24 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 20 },
+        { wch: 18 },
+        { wch: 20 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sotuvlar');
+      const filename = `sotuvlar_${filters.date_from || today()}_${filters.date_to || today()}.xlsx`;
+      saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), filename);
+      toast.success(t('wholesale.excelExportSuccess') || "Excel fayl muvaffaqiyatli yuklab olindi");
+    } catch (err) {
+      console.error('Excel export error:', err);
+      toast.error(t('wholesale.exportError') || "Excel yuklab olishda xatolik yuz berdi");
+    }
+  };
+
+  // ── Sotuvlar ro'yxatini PDF formatida chop etish/saqlash ──────────────
+  const exportToPdf = () => {
+    if (!sales || sales.length === 0) {
+      toast.error(t('common.noData') || "Chop etish uchun sotuvlar mavjud emas");
+      return;
+    }
+    const rSettings = getReceiptSettings();
+    const compName = rSettings?.nak?.company || rSettings?.r80?.company || rSettings?.company || "E-Code ERP";
+    const dateFrom = filters.date_from || today();
+    const dateTo = filters.date_to || today();
+    
+    let sumTotal = 0;
+    let sumPaid = 0;
+    let sumDebt = 0;
+
+    const rowsHtml = sales.map((s, idx) => {
+      const total = Number(s.total_amount || 0);
+      const paid = Number(s.paid_amount || 0);
+      const debt = Math.max(0, total - paid);
+      sumTotal += total;
+      sumPaid += paid;
+      sumDebt += debt;
+
+      const pType = (PAY_META_KEYS[s.payment_type] && t(PAY_META_KEYS[s.payment_type])) || s.payment_type || '—';
+      const st = (STATUS_META[s.status]?.lKey && t(STATUS_META[s.status].lKey)) || s.status || '—';
+      const dStr = s.created_at
+        ? new Date(s.created_at).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '—';
+
+      return `<tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="font-weight:600;">${s.number || `#${s.id}`}</td>
+        <td>${s.customer_name || '—'}</td>
+        <td style="text-align:right;font-weight:600;">${fmt(total)} s</td>
+        <td style="text-align:right;color:#059669;">${fmt(paid)} s</td>
+        <td style="text-align:right;color:#dc2626;font-weight:600;">${debt > 0 ? fmt(debt) + ' s' : '—'}</td>
+        <td style="text-align:center;">${pType}</td>
+        <td style="text-align:center;">${st}</td>
+        <td>${s.cashier_name || '—'}</td>
+        <td style="text-align:center;font-size:10px;">${dStr}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sotuvlar hisoboti (${dateFrom} - ${dateTo})</title>
+  <style>
+    @media print {
+      @page { size: landscape; margin: 8mm; }
+      body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 11px; color: #1e293b; padding: 12px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
+    .title { font-size: 18px; font-weight: 800; color: #0f172a; }
+    .subtitle { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; }
+    .summary-card .label { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; }
+    .summary-card .val { font-size: 14px; font-weight: 800; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: 700; text-align: left; }
+    td { border: 1px solid #e2e8f0; padding: 5px 8px; }
+    tr:nth-child(even) { background: #fafafa; }
+    .footer-total { background: #f8fafc; font-weight: 800; border-top: 2px solid #0f172a; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="title">${compName} — Sotuvlar hisoboti</div>
+      <div class="subtitle">Sana oralig'i: <b>${dateFrom}</b> dan <b>${dateTo}</b> gacha &bull; Jami sotuvlar soni: <b>${sales.length} ta</b></div>
+    </div>
+    <div style="text-align:right;font-size:10px;color:#64748b;">
+      Chop etilgan vaqt: ${new Date().toLocaleString('uz-UZ')}<br>
+      E-Code ERP tizimi
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="label">Jami sotuvlar</div>
+      <div class="val" style="color:#0f172a;">${sales.length} ta</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Umumiy summa</div>
+      <div class="val" style="color:#2563eb;">${fmt(sumTotal)} so'm</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Jami to'langan</div>
+      <div class="val" style="color:#059669;">${fmt(sumPaid)} so'm</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Jami qarz</div>
+      <div class="val" style="color:#dc2626;">${fmt(sumDebt)} so'm</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30px;text-align:center;">#</th>
+        <th style="width:110px;">Raqam</th>
+        <th>Mijoz</th>
+        <th style="text-align:right;width:110px;">Jami</th>
+        <th style="text-align:right;width:100px;">To'langan</th>
+        <th style="text-align:right;width:100px;">Qarz</th>
+        <th style="text-align:center;width:90px;">To'lov turi</th>
+        <th style="text-align:center;width:100px;">Holati</th>
+        <th style="width:100px;">Kassir</th>
+        <th style="text-align:center;width:110px;">Sana</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+    </tbody>
+    <tfoot>
+      <tr class="footer-total">
+        <td colspan="3" style="text-align:right;padding:8px;">JAMI:</td>
+        <td style="text-align:right;color:#2563eb;padding:8px;">${fmt(sumTotal)} s</td>
+        <td style="text-align:right;color:#059669;padding:8px;">${fmt(sumPaid)} s</td>
+        <td style="text-align:right;color:#dc2626;padding:8px;">${fmt(sumDebt)} s</td>
+        <td colspan="4"></td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+
+    printReceiptHtml(html);
+  };
+
+  // ── Bitta sotuv tovarlarini Excel (.xlsx) ga eksport qilish ─────────────
+  const exportSingleSaleToExcel = async (s) => {
+    try {
+      let data = s;
+      if (!s.items) {
+        const r = await api.get(`/sales/${s.id}`);
+        data = r.data;
+      }
+      const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
+      const items = data.items || [];
+      const rows = items.map((it, idx) => ({
+        "№": idx + 1,
+        "Mahsulot": it.product_name || '—',
+        "Miqdor": Number(it.quantity || 0),
+        "Birlik": it.unit || 'dona',
+        "Narx (so'm)": Number(it.unit_price || 0),
+        "Chegirma (so'm)": Number(it.discount || 0),
+        "Jami summa (so'm)": Number(it.subtotal || 0),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 6 },
+        { wch: 30 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 18 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Tovarlar');
+      saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `nakladnoy_${data.number || data.id}.xlsx`);
+      toast.success(t('wholesale.excelExportSuccess') || "Excel fayl muvaffaqiyatli yuklab olindi");
+    } catch (e) {
+      console.error(e);
+      toast.error("Excel yuklab olishda xatolik");
+    }
+  };
+
+  // ── Savatchadagi tovarlarni Excel ga eksport qilish ────────────────────
+  const exportCartToExcel = async () => {
+    if (!cart.length) return;
+    try {
+      const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
+      const rows = cart.map((it, idx) => ({
+        "№": idx + 1,
+        "Mahsulot": it.name || '—',
+        "Miqdor": Number(it.qty || 0),
+        "Birlik": it.unit || 'dona',
+        "Narx (so'm)": Number(it.price || 0),
+        "Chegirma (so'm)": it.discount_type === 'pct' ? Number(it.price * it.qty * (parseN(it.discount_val) / 100)) : Number(parseN(it.discount_val)),
+        "Jami (so'm)": Number(itemNet(it) || 0),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Savatcha');
+      saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), `sotuv_savatcha_${today()}.xlsx`);
+      toast.success(t('wholesale.excelExportSuccess') || "Excel fayl yuklab olindi");
+    } catch (e) {
+      console.error(e);
+      toast.error("Excel yuklab olishda xatolik");
+    }
+  };
+
   // Valyuta kursi olish yordamchisi
   const getRate = useCallback((code) => {
     if (!code || String(code).toUpperCase() === 'UZS') return 1;
@@ -1529,6 +1782,7 @@ export default function UlgurjiSotuv() {
 
       const payload = {
         items, payment_type: overridePayType, paid_amount: pPaid, paid_cash: pCash, paid_card: pCard,
+        status: 'completed',
         discount_amount: saleDisc, note: note || payNote || undefined,
         customer_id: custId ? Number(custId) : undefined,
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
@@ -1544,7 +1798,9 @@ export default function UlgurjiSotuv() {
       if (editingSale) {
         // Faqat aniq tahrirlangan sotuvni yangilaymiz (sessionStorage dan EMAS)
         res = await api.put(`/sales/${editingSale.id}`, { ...payload, warehouse_id: editingSale.warehouse_id || (warehouseId ? Number(warehouseId) : undefined) });
-        toast.success(t('wholesale.saleUpdated', { number: editingSale.number })); setEditingSale(null);
+        toast.success(t('wholesale.saleUpdated', { number: editingSale.number }));
+        setEditingSale(null);
+        setTab('list');
         sessionStorage.removeItem('ulgurji_session_sale_id'); // ← sessiyani tozalash
       } else {
         // Yangi sotuv — hech qachon sessionStorage dagi pending ID ishlatilmaydi!
@@ -1762,6 +2018,7 @@ export default function UlgurjiSotuv() {
       });
       const payload = {
         items,
+        status: 'pending',
         payment_type: 'cash',
         // Tahrirlashda paid_amount yuborilmaydi — backend eski to'lovni saqlaydi
         ...(editingSale ? {} : { paid_amount: 0 }),
@@ -1780,7 +2037,10 @@ export default function UlgurjiSotuv() {
         const wid = editingSale?.warehouse_id || payload.warehouse_id;
         await api.put(`/sales/${activeSaleId}`, { ...payload, warehouse_id: wid });
         sessionStorage.removeItem('ulgurji_session_sale_id');
-        if (editingSale) setEditingSale(null);
+        if (editingSale) {
+          setEditingSale(null);
+          setTab('list');
+        }
         if (!silently) toast.success(t('wholesale.saleUpdatedShort'));
       } else {
         const res = await api.post('/sales/pending', payload);
@@ -2001,8 +2261,15 @@ export default function UlgurjiSotuv() {
           ))}
 
           {tab === 'new' && (
-            <button onClick={() => toast.info(t('wholesale.excelUploadComingSoon'))}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors text-sm font-bold border border-emerald-100">
+            <button onClick={() => {
+              if (cart.length > 0) {
+                exportCartToExcel();
+              } else {
+                toast.info(t('wholesale.excelUploadComingSoon') || "Excel yuklash tez kunda");
+              }
+            }}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors text-sm font-bold border border-emerald-100"
+              title={cart.length > 0 ? "Savatchadagi mahsulotlarni Excel formatida yuklab olish" : "Excel"}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Excel
             </button>
@@ -2637,6 +2904,21 @@ export default function UlgurjiSotuv() {
             <button onClick={loadSales} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
               <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-3.5 h-3.5" />{t('common.search')}
             </button>
+            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <button onClick={exportToExcel} disabled={!sales || sales.length === 0}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                title="Sotuvlar ro'yxatini Excel (.xlsx) formatida yuklab olish">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                <span>Excel</span>
+              </button>
+              <button onClick={exportToPdf} disabled={!sales || sales.length === 0}
+                className="px-3 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-40 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                title="Sotuvlar ro'yxatini PDF formatida chop etish yoki saqlash">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                <span>PDF</span>
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto">
@@ -2708,6 +2990,16 @@ export default function UlgurjiSotuv() {
                           </button>
                           {openMenuId === s.id && (
                             <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 min-w-[170px]" onMouseLeave={() => setOpenMenuId(null)}>
+                              {s.status === 'pending' && !isReturnLinked(s) && (
+                                <button onClick={async () => {
+                                  setOpenMenuId(null);
+                                  await loadEditSale(s);
+                                  setTimeout(() => openPayModal(), 150);
+                                }} className="w-full text-left px-4 py-2.5 text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold flex items-center gap-2.5 border-b border-emerald-100">
+                                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                  To'lovni tasdiqlash
+                                </button>
+                              )}
                               {!isReturnLinked(s) && (
                                 <button onClick={() => loadEditSale(s)} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 flex items-center gap-2.5">
                                   <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -2728,6 +3020,11 @@ export default function UlgurjiSotuv() {
                                   {opt.label}
                                 </button>
                               ))}
+                              <button onClick={() => { exportSingleSaleToExcel(s); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2.5">
+                                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                Excel (Tovarlar)
+                              </button>
                               <div className="border-t border-slate-100 my-1" />
                               <button onClick={() => { setReturnSale(s); setOpenMenuId(null); }}
                                 className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2.5">

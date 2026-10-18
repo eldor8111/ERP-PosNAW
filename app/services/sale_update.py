@@ -236,7 +236,14 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         disc_amount = data.discount_amount if data.discount_amount is not None else Decimal("0")
         payment_type = data.payment_type if data.payment_type is not None else old_payment_type
         new_customer_id = data.customer_id if data.customer_id is not None else sale.customer_id
-        final_status = data.status if data.status is not None else sale.status
+
+        if data.status is not None:
+            final_status = data.status
+        elif sale.status == SaleStatus.pending:
+            has_payment = bool(data.payments) or (data.paid_amount is not None and data.paid_amount > 0) or (payment_type == PaymentType.debt)
+            final_status = SaleStatus.completed if has_payment else SaleStatus.pending
+        else:
+            final_status = sale.status
 
         # T4.3: filial narxlari va aksiyalar (aksiya sotuv yaratilgan vaqt bo'yicha tekshiriladi)
         _upd_now = None
@@ -494,6 +501,20 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 wallet_id=_reversed_wallet_ids[0] if _reversed_wallet_ids else None,
                 tx_branch_id=tx_branch_id, created_at=sale.created_at,
                 desc_prefix="Sotuv tahrirlash",
+            )
+
+        if _old_status == SaleStatus.pending and final_status == SaleStatus.completed:
+            _cur_shift = db.query(Shift).filter(
+                Shift.cashier_id == current_user.id,
+                Shift.status == "open",
+                Shift.company_id == current_user.company_id,
+            ).first()
+            if _cur_shift:
+                sale.shift_id = _cur_shift.id
+            log_action(
+                db=db, action="SALE_CONFIRMED", entity_type="sale", entity_id=sale.id,
+                user_id=current_user.id,
+                new_values={"number": sale.number, "status": "completed", "total": str(total_amount), "paid": str(paid_amount)},
             )
 
         sale.status = final_status
