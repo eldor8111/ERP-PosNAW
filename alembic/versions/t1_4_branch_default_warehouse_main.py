@@ -64,7 +64,21 @@ def upgrade() -> None:
           AND NOT EXISTS (SELECT 1 FROM branches x WHERE x.company_id = b.company_id AND x.is_main)
     """)
 
-    # 4. Qisman unique indekslar
+    # 4. Qisman unique indekslar (avval dublikatlar tozalanadi)
+    op.execute("""
+        WITH ranked AS (
+            SELECT id, ROW_NUMBER() OVER (PARTITION BY branch_id ORDER BY id ASC) as rn
+            FROM warehouses WHERE is_default AND branch_id IS NOT NULL
+        )
+        UPDATE warehouses SET is_default = false WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+
+        WITH ranked AS (
+            SELECT id, ROW_NUMBER() OVER (PARTITION BY company_id ORDER BY id ASC) as rn
+            FROM branches WHERE is_main
+        )
+        UPDATE branches SET is_main = false WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+    """)
+
     op.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_warehouses_branch_default "
         "ON warehouses (branch_id) WHERE is_default AND branch_id IS NOT NULL"

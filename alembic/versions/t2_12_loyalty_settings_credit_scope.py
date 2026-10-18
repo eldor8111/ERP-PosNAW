@@ -84,7 +84,7 @@ def upgrade() -> None:
     op.execute("ALTER TABLE companies DROP CONSTRAINT IF EXISTS ck_companies_credit_limit_scope")
     op.execute(
         "ALTER TABLE companies ADD CONSTRAINT ck_companies_credit_limit_scope "
-        "CHECK (credit_limit_scope IN ('distributor','all'))"
+        "CHECK (credit_limit_scope IN ('distributor','all')) NOT VALID"
     )
 
     # 5. customers.cashback_percent: himoya qirqish (CHECK t0_26 da bor)

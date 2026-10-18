@@ -14,25 +14,23 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'label_templates',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('branch_id', sa.Integer(), sa.ForeignKey('branches.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('kind', sa.String(20), nullable=False, server_default='product'),
-        sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('config', sa.JSON(), nullable=False),
-        sa.Column('created_by', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(), nullable=True),
-    )
-    op.execute("CREATE INDEX ix_label_templates_id ON label_templates (id)")
-    op.execute("CREATE INDEX ix_label_templates_company_kind ON label_templates (company_id, kind)")
-    # Oddiy UniqueConstraint NULL branch_id ni takrorlashga yo'l qo'yadi — shu sabab COALESCE
-    op.execute(
-        "CREATE UNIQUE INDEX uq_label_templates_scope "
-        "ON label_templates (company_id, kind, name, COALESCE(branch_id, 0))"
-    )
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS label_templates (
+            id SERIAL PRIMARY KEY,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+            kind VARCHAR(20) NOT NULL DEFAULT 'product',
+            name VARCHAR(100) NOT NULL,
+            config JSON NOT NULL,
+            created_by INTEGER REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS ix_label_templates_id ON label_templates (id);
+        CREATE INDEX IF NOT EXISTS ix_label_templates_company_kind ON label_templates (company_id, kind);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_label_templates_scope 
+            ON label_templates (company_id, kind, name, COALESCE(branch_id, 0));
+    """)
 
 
 def downgrade() -> None:

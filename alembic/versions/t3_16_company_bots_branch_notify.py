@@ -17,10 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('company_bots', sa.Column('notify_branch_managers', sa.Boolean(), nullable=False,
-                                            server_default=sa.true()))
-    op.add_column('company_bots', sa.Column('report_by_branch', sa.Boolean(), nullable=False,
-                                            server_default=sa.true()))
+    op.execute("ALTER TABLE company_bots ADD COLUMN IF NOT EXISTS notify_branch_managers BOOLEAN NOT NULL DEFAULT true")
+    op.execute("ALTER TABLE company_bots ADD COLUMN IF NOT EXISTS report_by_branch BOOLEAN NOT NULL DEFAULT true")
 
 
 def downgrade() -> None:

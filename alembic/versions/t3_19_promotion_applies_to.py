@@ -25,7 +25,7 @@ def upgrade() -> None:
     op.execute("ALTER TABLE promotions DROP CONSTRAINT IF EXISTS ck_promotions_applies_to")
     op.execute(
         "ALTER TABLE promotions ADD CONSTRAINT ck_promotions_applies_to "
-        "CHECK (applies_to IN ('all','products'))"
+        "CHECK (applies_to IN ('all','products')) NOT VALID"
     )
     op.execute(
         "UPDATE customers SET price_type = 'sale' "

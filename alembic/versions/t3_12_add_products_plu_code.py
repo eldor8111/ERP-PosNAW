@@ -70,7 +70,7 @@ def upgrade() -> None:
 
     op.execute("ALTER TABLE products DROP CONSTRAINT IF EXISTS ck_products_plu_range")
     op.execute("ALTER TABLE products ADD CONSTRAINT ck_products_plu_range "
-               "CHECK (plu_code IS NULL OR plu_code BETWEEN 1 AND 99999)")
+               "CHECK (plu_code IS NULL OR plu_code BETWEEN 1 AND 99999) NOT VALID")
     op.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_products_plu_active ON products (company_id, plu_code) "
                "WHERE is_deleted = false AND plu_code IS NOT NULL")
 

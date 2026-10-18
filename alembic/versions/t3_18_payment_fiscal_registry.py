@@ -14,49 +14,60 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'fiscal_devices',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('branch_id', sa.Integer(), sa.ForeignKey('branches.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('wallet_id', sa.Integer(), sa.ForeignKey('wallets.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('factory_id', sa.String(64), nullable=False),
-        sa.Column('label', sa.String(100), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
-        sa.UniqueConstraint('company_id', 'factory_id', name='uq_fiscal_devices_company_factory'),
-    )
-    op.create_index('ix_fiscal_devices_id', 'fiscal_devices', ['id'])
-    op.create_index('ix_fiscal_devices_company_branch', 'fiscal_devices', ['company_id', 'branch_id'])
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS fiscal_devices (
+            id SERIAL PRIMARY KEY,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+            wallet_id INTEGER REFERENCES wallets(id) ON DELETE SET NULL,
+            factory_id VARCHAR(64) NOT NULL,
+            label VARCHAR(100),
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
 
-    op.create_table(
-        'payment_terminals',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('branch_id', sa.Integer(), sa.ForeignKey('branches.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('wallet_id', sa.Integer(), sa.ForeignKey('wallets.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('provider', sa.String(20), nullable=False),
-        sa.Column('label', sa.String(100), nullable=True),
-        sa.Column('merchant_id', sa.String(64), nullable=True),
-        sa.Column('terminal_id', sa.String(64), nullable=True),
-        sa.Column('require_reference', sa.Boolean(), nullable=False, server_default=sa.text('true')),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
-        sa.CheckConstraint("provider IN ('payme','click','uzum','uzcard','humo')", name='ck_payment_terminals_provider'),
-    )
-    op.create_index('ix_payment_terminals_id', 'payment_terminals', ['id'])
-    op.create_index(
-        'ix_payment_terminals_company_branch_provider', 'payment_terminals', ['company_id', 'branch_id', 'provider'],
-    )
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_fiscal_devices_company_factory') THEN
+                ALTER TABLE fiscal_devices ADD CONSTRAINT uq_fiscal_devices_company_factory UNIQUE (company_id, factory_id);
+            END IF;
+        END $$;
 
-    op.add_column('sale_payments', sa.Column('reference', sa.String(64), nullable=True))
-    op.add_column(
-        'sale_payments',
-        sa.Column('terminal_id', sa.Integer(), sa.ForeignKey('payment_terminals.id', ondelete='SET NULL'), nullable=True),
-    )
-    op.create_index('ix_sale_payments_reference', 'sale_payments', ['reference'])
+        CREATE INDEX IF NOT EXISTS ix_fiscal_devices_id ON fiscal_devices (id);
+        CREATE INDEX IF NOT EXISTS ix_fiscal_devices_company_branch ON fiscal_devices (company_id, branch_id);
 
-    op.add_column('sales', sa.Column('fiscal_factory_id', sa.String(64), nullable=True))
+        CREATE TABLE IF NOT EXISTS payment_terminals (
+            id SERIAL PRIMARY KEY,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+            wallet_id INTEGER REFERENCES wallets(id) ON DELETE SET NULL,
+            provider VARCHAR(20) NOT NULL,
+            label VARCHAR(100),
+            merchant_id VARCHAR(64),
+            terminal_id VARCHAR(64),
+            require_reference BOOLEAN NOT NULL DEFAULT true,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_payment_terminals_provider') THEN
+                ALTER TABLE payment_terminals ADD CONSTRAINT ck_payment_terminals_provider 
+                    CHECK (provider IN ('payme','click','uzum','uzcard','humo')) NOT VALID;
+            END IF;
+        END $$;
+
+        CREATE INDEX IF NOT EXISTS ix_payment_terminals_id ON payment_terminals (id);
+        CREATE INDEX IF NOT EXISTS ix_payment_terminals_company_branch_provider 
+            ON payment_terminals (company_id, branch_id, provider);
+
+        ALTER TABLE sale_payments ADD COLUMN IF NOT EXISTS reference VARCHAR(64);
+        ALTER TABLE sale_payments ADD COLUMN IF NOT EXISTS terminal_id INTEGER REFERENCES payment_terminals(id) ON DELETE SET NULL;
+        CREATE INDEX IF NOT EXISTS ix_sale_payments_reference ON sale_payments (reference);
+
+        ALTER TABLE sales ADD COLUMN IF NOT EXISTS fiscal_factory_id VARCHAR(64);
+    """)
 
 
 def downgrade() -> None:

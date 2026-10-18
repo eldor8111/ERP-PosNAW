@@ -17,12 +17,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('branches', sa.Column('code', sa.String(20), nullable=True))
-    op.add_column('branches', sa.Column('legal_name', sa.String(200), nullable=True))
-    op.add_column('branches', sa.Column('stir', sa.String(14), nullable=True))
-    op.add_column('branches', sa.Column('tax_regime', sa.String(20), nullable=True))
-    op.add_column('branches', sa.Column('working_hours', sa.JSON(), nullable=True))
-    op.add_column('branches', sa.Column('receipt_templates', sa.JSON(), nullable=True))
+    op.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS code VARCHAR(20) NULL")
+    op.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS legal_name VARCHAR(200) NULL")
+    op.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS stir VARCHAR(14) NULL")
+    op.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS tax_regime VARCHAR(20) NULL")
+    op.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS working_hours JSON NULL")
+    op.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS receipt_templates JSON NULL")
     # Kod korxona ichida noyob (katta-kichik harfsiz); kodsiz filiallar cheklanmaydi
     op.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_branches_company_code "

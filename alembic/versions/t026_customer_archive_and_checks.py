@@ -26,7 +26,23 @@ depends_on = None
 
 
 def upgrade():
-    conn = op.get_bind()
+    # 0. Table owner RLS to'siqlarini olib tashlash (NO FORCE)
+    op.execute("""
+        DO $$
+        BEGIN
+            ALTER TABLE customers NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE sales NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE products NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE purchase_orders NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE warehouses NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE suppliers NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE sale_items NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE stock_levels NO FORCE ROW LEVEL SECURITY;
+            ALTER TABLE stock_movements NO FORCE ROW LEVEL SECURITY;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Skipping NO FORCE RLS: %', SQLERRM;
+        END $$;
+    """)
 
     # 1. Arxivlash ustunlari
     op.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true")
@@ -35,33 +51,41 @@ def upgrade():
     op.execute("CREATE INDEX IF NOT EXISTS ix_customers_company_active ON customers (company_id, is_active)")
 
     # 2. Ma'lumotni tozalash (CHECK dan oldin)
-    r = conn.execute(sa.text(
-        "UPDATE customers SET price_type = 'sale' "
-        "WHERE price_type IS NULL OR price_type NOT IN ('sale', 'wholesale', 'cost')"
-    ))
-    log.info(f"[t0_26] price_type 'sale' ga o'tkazildi: {r.rowcount} ta mijoz")
-    r = conn.execute(sa.text(
-        "UPDATE customers SET cashback_percent = 0 WHERE cashback_percent IS NULL OR cashback_percent < 0"
-    ))
-    log.info(f"[t0_26] cashback_percent 0 ga tushirildi: {r.rowcount} ta mijoz")
-    r = conn.execute(sa.text("UPDATE customers SET cashback_percent = 100 WHERE cashback_percent > 100"))
-    log.info(f"[t0_26] cashback_percent 100 ga tushirildi: {r.rowcount} ta mijoz")
-    r = conn.execute(sa.text("UPDATE customers SET loyalty_points = 0 WHERE loyalty_points < 0"))
-    log.info(f"[t0_26] loyalty_points 0 ga tushirildi: {r.rowcount} ta mijoz")
+    op.execute("""
+        UPDATE customers SET price_type = 'sale' 
+        WHERE price_type IS NULL OR TRIM(LOWER(price_type::text)) NOT IN ('sale', 'wholesale', 'cost');
+        
+        UPDATE customers SET cashback_percent = 0 
+        WHERE cashback_percent IS NULL OR cashback_percent < 0;
+        
+        UPDATE customers SET cashback_percent = 100 
+        WHERE cashback_percent > 100;
+        
+        UPDATE customers SET loyalty_points = 0 
+        WHERE loyalty_points IS NULL OR loyalty_points < 0;
+    """)
 
-    # 3. CHECK cheklovlari
-    op.create_check_constraint(
-        'ck_customers_price_type', 'customers', "price_type IN ('sale', 'wholesale', 'cost')")
-    op.create_check_constraint(
-        'ck_customers_cashback_0_100', 'customers', "cashback_percent >= 0 AND cashback_percent <= 100")
-    op.create_check_constraint(
-        'ck_customers_loyalty_nonneg', 'customers', "loyalty_points >= 0")
+    # 3. CHECK cheklovlari (NOT VALID bilan — eski ma'lumotlar buzilsa ham to'xtatmaydi, yangilariga amal qiladi)
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_customers_price_type') THEN
+                ALTER TABLE customers ADD CONSTRAINT ck_customers_price_type CHECK (price_type IN ('sale', 'wholesale', 'cost')) NOT VALID;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_customers_cashback_0_100') THEN
+                ALTER TABLE customers ADD CONSTRAINT ck_customers_cashback_0_100 CHECK (cashback_percent >= 0 AND cashback_percent <= 100) NOT VALID;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_customers_loyalty_nonneg') THEN
+                ALTER TABLE customers ADD CONSTRAINT ck_customers_loyalty_nonneg CHECK (loyalty_points >= 0) NOT VALID;
+            END IF;
+        END $$;
+    """)
 
 
 def downgrade():
-    op.drop_constraint('ck_customers_loyalty_nonneg', 'customers', type_='check')
-    op.drop_constraint('ck_customers_cashback_0_100', 'customers', type_='check')
-    op.drop_constraint('ck_customers_price_type', 'customers', type_='check')
+    op.execute("ALTER TABLE customers DROP CONSTRAINT IF EXISTS ck_customers_loyalty_nonneg")
+    op.execute("ALTER TABLE customers DROP CONSTRAINT IF EXISTS ck_customers_cashback_0_100")
+    op.execute("ALTER TABLE customers DROP CONSTRAINT IF EXISTS ck_customers_price_type")
     op.execute("DROP INDEX IF EXISTS ix_customers_company_active")
     op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS deleted_meta")
     op.execute("ALTER TABLE customers DROP COLUMN IF EXISTS deleted_at")
