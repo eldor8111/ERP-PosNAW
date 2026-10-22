@@ -623,13 +623,7 @@ export default function AdminLayout() {
                 onMouseLeave={handleFlyoutLeave}
                 className="relative"
               >
-                <Link
-                  to={group.primaryPath}
-                  onClick={() => {
-                    setActiveFlyout(null);
-                    setMobileMenuOpen(false);
-                  }}
-                  title={collapsed ? group.label : undefined}
+                <div
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 group cursor-pointer ${
                     isGroupActive
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 font-bold'
@@ -637,6 +631,17 @@ export default function AdminLayout() {
                       ? 'bg-slate-100 text-slate-900 font-semibold'
                       : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 font-medium'
                   }`}
+                  title={collapsed ? group.label : undefined}
+                  onClick={(e) => {
+                    // Touch qurilmalarda: flyout yopiq bo'lsa — ochadi, ochiq bo'lsa sahifaga o'tadi
+                    if (!isFlyoutOpen) {
+                      e.preventDefault();
+                      setActiveFlyout(group.key);
+                    } else {
+                      setActiveFlyout(null);
+                      setMobileMenuOpen(false);
+                    }
+                  }}
                 >
                   <span className={`shrink-0 transition-transform ${collapsed ? 'scale-110' : ''} ${isGroupActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-600'}`}>
                     {group.icon}
@@ -651,11 +656,11 @@ export default function AdminLayout() {
                   {!collapsed && (
                     <ChevronRight
                       className={`size-3.5 transition-transform duration-200 shrink-0 ${
-                        isGroupActive ? 'text-white/80' : isFlyoutOpen ? 'text-blue-600 translate-x-0.5' : 'text-slate-400 group-hover:text-slate-600'
+                        isGroupActive ? 'text-white/80' : isFlyoutOpen ? 'text-blue-600 translate-x-0.5 rotate-90' : 'text-slate-400 group-hover:text-slate-600'
                       }`}
                     />
                   )}
-                </Link>
+                </div>
               </div>
             );
           })}
