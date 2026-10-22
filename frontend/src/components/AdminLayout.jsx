@@ -558,6 +558,11 @@ export default function AdminLayout() {
     [navGroups, activeFlyout]
   );
 
+  const isFullBleed = useMemo(() => {
+    const p = location.pathname;
+    return p.startsWith('/admin/sotuv') || p.startsWith('/admin/pos') || p.startsWith('/admin/settings');
+  }, [location.pathname]);
+
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden relative">
       {/* Mobile Backdrop */}
@@ -901,7 +906,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 relative">
+        <main className={`flex-1 overflow-y-auto bg-slate-50 relative ${isFullBleed ? '' : 'p-4 md:p-6 pb-24'}`}>
           {subExpiredMsg && (
             <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm flex items-center justify-between">
               <span>{subExpiredMsg}</span>

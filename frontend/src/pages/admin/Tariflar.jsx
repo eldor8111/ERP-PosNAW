@@ -1134,7 +1134,7 @@ export default function Tariflar() {
   const hasBhm = tariffs.some(tr => tr.bhm_percent != null && tr.price_per_month > 0);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto">
       {/* ── Tabs Bar ── */}
       <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 mb-6 w-full sm:w-auto shadow-inner">
         <button

@@ -562,7 +562,7 @@ export default function Filiallar({ embedded = false }) {
   const whTypeColor = (type) => WAREHOUSE_TYPE_BY_VALUE[type]?.color || 'bg-slate-100 text-slate-500';
 
   return (
-    <div className="space-y-4">
+    <div className={embedded ? "space-y-4" : "space-y-4 max-w-7xl mx-auto"}>
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
