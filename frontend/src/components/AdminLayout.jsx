@@ -412,6 +412,12 @@ export default function AdminLayout() {
     localStorage.removeItem('subscription_expired');
   });
 
+  const [orgData, setOrgData] = useState({
+    name: user?.company_name || 'E-Code',
+    code: '...',
+    balance: 0,
+  });
+
   const [isSubExpired, setIsSubExpired] = useState(false);
   const subExpiredMsg = isSubExpired ? t('subscription.expiredMsg') : '';
 
@@ -423,7 +429,12 @@ export default function AdminLayout() {
         const d = res.data;
         const expired = d.subscription_ends_at !== null && d.subscription_active === false;
         setIsSubExpired(expired);
-        setOrgData((prev) => ({ ...prev, code: d.org_code || prev.code }));
+        setOrgData((prev) => ({
+          ...prev,
+          name: d.name || prev.name,
+          code: d.org_code || prev.code,
+          balance: d.balance !== undefined ? d.balance : prev.balance,
+        }));
         if (expired && !location.pathname.includes('/admin/tariflar')) {
           navigate('/admin/tariflar', { replace: true });
         }
@@ -431,7 +442,6 @@ export default function AdminLayout() {
       .catch(() => {});
   }, [user?.company_id, navigate, location.pathname]);
 
-  const [orgData, setOrgData] = useState({ name: user?.company_name || 'Tizim', code: '...', balance: 0 });
   const [lowStockCount, setLowStockCount] = useState(0);
   const [expiredCount, setExpiredCount] = useState(0);
   const [approvalsCount, setApprovalsCount] = useState(0);
@@ -451,9 +461,10 @@ export default function AdminLayout() {
       .get('/billing/my-company')
       .then((r) => {
         setOrgData((prev) => ({
-          name: r.data.name || prev.name || 'Tizim',
-          code: r.data.org_code || prev.code || '-',
-          balance: r.data.balance || 0,
+          ...prev,
+          name: r.data?.name || prev.name,
+          code: r.data?.org_code || prev.code,
+          balance: r.data?.balance !== undefined ? r.data.balance : prev.balance,
         }));
       })
       .catch(() => {});
@@ -826,18 +837,65 @@ export default function AdminLayout() {
             </h1>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             <BranchSwitcher />
 
-            {/* Org Code / Balance badge */}
-            {user?.role !== ROLES.SUPER_ADMIN && orgData.code !== '...' && (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full text-xs font-semibold text-slate-700">
-                <span className="text-slate-400">ID:</span>
-                <span className="font-mono">{orgData.code}</span>
+            <LangSwitcher t={t} lang={lang} setLang={setLang} LANGUAGES={LANGUAGES} />
+
+            {/* Org kodi */}
+            {user?.role !== ROLES.SUPER_ADMIN && orgData.code && orgData.code !== '...' && (
+              <div className="hidden md:flex flex-col items-center bg-slate-50 border border-slate-200 rounded-lg xl:rounded-xl px-2 sm:px-3 py-1 min-w-[70px]">
+                <span className="text-slate-400 text-[8px] xl:text-[9px] font-semibold leading-none mb-0.5 uppercase tracking-wide">
+                  {t('header.code') || 'ID'}
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-700 text-[11px] xl:text-[13px] font-black leading-none font-mono">
+                    {orgData.code}
+                  </span>
+                  <Copy
+                    className="size-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    onClick={() => {
+                      navigator.clipboard.writeText(orgData.code);
+                      toast.success(t('common.copied') || 'Nusxalandi');
+                    }}
+                  />
+                </div>
               </div>
             )}
 
-            <LangSwitcher t={t} lang={lang} setLang={setLang} LANGUAGES={LANGUAGES} />
+            {/* Balans */}
+            {user?.role !== ROLES.SUPER_ADMIN && (
+              <div
+                onClick={() => navigate('/admin/tariflar')}
+                title={t('nav.tariffs') || 'Tariflar va Balans'}
+                className="flex flex-col items-center bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg xl:rounded-xl px-2.5 sm:px-3.5 py-1 cursor-pointer transition-colors shadow-xs"
+              >
+                <span className="text-emerald-500 text-[8px] xl:text-[9px] font-semibold leading-none mb-0.5 uppercase tracking-wide">
+                  {t('header.balance') || 'Balans'}
+                </span>
+                <span className="text-emerald-700 text-[11px] xl:text-[13px] font-black leading-none tracking-wide">
+                  {fmt(orgData.balance)} <span className="text-[10px] font-semibold">{t('header.sum') || "so'm"}</span>
+                </span>
+              </div>
+            )}
+
+            {/* User & Korxona nomi */}
+            <Link
+              to={'/admin/profile'}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 transition-colors rounded-lg sm:rounded-xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-md shadow-blue-200 text-white"
+            >
+              <div className="w-6 h-6 rounded sm:rounded-lg bg-white/20 flex items-center justify-center text-white text-[11px] font-black shrink-0">
+                {initials}
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-white text-[12px] font-bold leading-none max-w-[130px] truncate">
+                  {orgData.name && orgData.name !== 'Tizim' ? orgData.name : (user?.company_name || user?.name || 'E-Code')}
+                </span>
+                <span className="text-blue-200 text-[10px] font-medium leading-none mt-0.5">
+                  {ROLE_LABELS[user?.role] || user?.role}
+                </span>
+              </div>
+            </Link>
           </div>
         </header>
 
