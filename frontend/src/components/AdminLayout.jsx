@@ -816,7 +816,7 @@ export default function AdminLayout() {
         <AnnouncementModal announcements={announcements} />
 
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.25 flex items-center justify-between shrink-0" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+        <header className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.25 flex items-center justify-between shrink-0 relative z-30" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -900,7 +900,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 relative">
+        <main className="flex-1 overflow-hidden bg-slate-50 relative">
           {subExpiredMsg && (
             <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm flex items-center justify-between">
               <span>{subExpiredMsg}</span>
