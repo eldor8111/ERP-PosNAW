@@ -901,7 +901,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-hidden bg-slate-50 relative">
+        <main className="flex-1 overflow-y-auto bg-slate-50 relative">
           {subExpiredMsg && (
             <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm flex items-center justify-between">
               <span>{subExpiredMsg}</span>
