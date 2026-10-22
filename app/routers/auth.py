@@ -101,16 +101,25 @@ def _verify_otp_session(session_id: Optional[str], phone: str, provided_otp: str
 
 def get_active_user_by_phone(db: Session, phone: str):
     normalized = phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    # 1. Exact match
-    user = db.query(User).filter(User.phone == normalized, User.status == UserStatus.active).first()
-    if user: return user, normalized
-    # 2. Match with +
-    user = db.query(User).filter(User.phone == f"+{normalized}", User.status == UserStatus.active).first()
-    if user: return user, normalized
-    # 3. Robust match ignoring spaces, dashes, pluses in DB
+    candidates = [normalized, f"+{normalized}"]
+    if len(normalized) == 9:
+        candidates.extend([f"998{normalized}", f"+998{normalized}"])
+    elif len(normalized) == 12 and normalized.startswith("998"):
+        candidates.extend([normalized[3:], f"+{normalized[3:]}"])
+
+    for cand in candidates:
+        user = db.query(User).filter(User.phone == cand, User.status == UserStatus.active).first()
+        if user:
+            return user, normalized
+
     db_phone_clean = func.replace(func.replace(func.replace(User.phone, '+', ''), ' ', ''), '-', '')
-    user = db.query(User).filter(db_phone_clean == normalized, User.status == UserStatus.active).first()
-    return user, normalized
+    for cand in candidates:
+        cand_clean = cand.replace("+", "")
+        user = db.query(User).filter(db_phone_clean == cand_clean, User.status == UserStatus.active).first()
+        if user:
+            return user, normalized
+
+    return None, normalized
 
 def _generate_org_code(db: Session) -> str:
     while True:

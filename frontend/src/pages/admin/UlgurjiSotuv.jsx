@@ -2013,13 +2013,18 @@ export default function UlgurjiSotuv() {
           variant_id: it.variant_id || undefined,
           warehouse_id: it.warehouse_id || undefined,
           currency: it.currency || 'UZS',
+          currency_code: it.currency || 'UZS',
           rate: it.rate || 1,
+          exchange_rate: it.rate || 1,
         };
       });
+      const uniqueCurrs = [...new Set(cart.map(it => it.currency || 'UZS'))];
+      const primaryCurr = uniqueCurrs.length === 1 ? uniqueCurrs[0] : 'UZS';
       const payload = {
         items,
         status: 'pending',
         payment_type: 'cash',
+        currency_code: primaryCurr,
         // Tahrirlashda paid_amount yuborilmaydi — backend eski to'lovni saqlaydi
         ...(editingSale ? {} : { paid_amount: 0 }),
         discount_amount: saleDisc,
@@ -2976,9 +2981,19 @@ export default function UlgurjiSotuv() {
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-3 font-black text-slate-800 text-right whitespace-nowrap">{fmt(s.total_amount)} s</td>
-                        <td className="px-4 py-3 font-bold text-emerald-700 text-right whitespace-nowrap">{fmt(s.paid_amount)} s</td>
-                        <td className="px-4 py-3 text-right whitespace-nowrap">{dbt > 0 ? <span className="font-bold text-red-600">{fmt(dbt)} s</span> : <span className="text-slate-300">—</span>}</td>
+                        <td className="px-4 py-3 font-black text-slate-800 text-right whitespace-nowrap">
+                          {s.currency_code === 'USD' ? `${fmt(s.total_amount)} $` : `${fmt(s.total_amount)} s`}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-emerald-700 text-right whitespace-nowrap">
+                          {s.currency_code === 'USD' ? `${fmt(s.paid_amount)} $` : `${fmt(s.paid_amount)} s`}
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          {dbt > 0 ? (
+                            <span className="font-bold text-red-600">
+                              {s.currency_code === 'USD' ? `${fmt(dbt)} $` : `${fmt(dbt)} s`}
+                            </span>
+                          ) : <span className="text-slate-300">—</span>}
+                        </td>
                         <td className="px-4 py-3"><span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{(PAY_META_KEYS[s.payment_type] && t(PAY_META_KEYS[s.payment_type])) || s.payment_type}</span></td>
                         <td className="px-4 py-3"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_META[s.status]?.c || 'bg-slate-100 text-slate-500'}`}>{(STATUS_META[s.status]?.lKey && t(STATUS_META[s.status].lKey)) || s.status}</span></td>
                         <td className="px-4 py-3 text-sm text-slate-500">{s.cashier_name}</td>

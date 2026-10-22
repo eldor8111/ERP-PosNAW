@@ -672,14 +672,52 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     } finally { setSaving(false); }
   };
 
-  const deleteCustomer = async (id) => {
-    if (!confirm(`${t('customer.deleteConfirm')}\n\n${t('customer.deleteArchived')}`)) return;
+  const handleZeroDebt = async () => {
+    if (!selected) return;
+    if (!window.confirm(`${selected.name} ning barcha qarzlarini 0 ga tenglashni (hisobdan chiqarishni) tasdiqlaysizmi?\n\n(Kassaga pul tushmaydi, qarz butunlay nollashtiriladi)`)) return;
+    setSaving(true); setError('');
     try {
-      await api.delete(`/customers/${id}`);
+      const { data } = await api.post(`/customers/${selected.id}/adjust-debt`, {
+        reason: "Qarz to'liq hisobdan chiqarildi (0 qilindi)",
+        zero_debt: true,
+        changes: [],
+      });
+      setSelected(data);
+      setForm(f => ({
+        ...f,
+        debts: [{ amount: '0', currency: 'UZS' }],
+      }));
+      setAdjustDebtOpen(false);
+      toast.success(t('customer.debtAdjusted') || "Qarz muvaffaqiyatli 0 qilindi");
       load(); reloadStats?.();
     } catch (err) {
-      // 400: ochiq qarz / faol buyurtma; 403: ruxsat yo'q
       const detail = err.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join(', ') : (detail || t('auth.errGeneral')));
+    } finally { setSaving(false); }
+  };
+
+  const deleteCustomer = async (id, custObj = null) => {
+    const custName = custObj?.name || 'Mijoz';
+    if (!confirm(`${custName}ni o'chirishni tasdiqlaysizmi?\n\n(Eslatma: Avvalgi barcha sotuv va operatsiyalarda mijoz ismi matn sifatida saqlanib qoladi)`)) return;
+    try {
+      await api.delete(`/customers/${id}`);
+      toast.success(t('customer.deleted') || "Mijoz o'chirildi");
+      load(); reloadStats?.();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      const isDebtBlocked = typeof detail === 'string' && detail.toLowerCase().includes('qarz');
+      if (isDebtBlocked) {
+        if (confirm(`${detail}\n\nUshbu mijozning qarzini hisobdan chiqarib (0 qilib), o'chirishni tasdiqlaysizmi?\n\n(Kassaga soxta pul kirmaydi, avvalgi sotuv va operatsiyalarda mijoz ismi saqlanadi)`)) {
+          try {
+            await api.delete(`/customers/${id}?force=true`);
+            toast.success("Mijoz o'chirildi (qarz 0 qilindi, operatsiyalarda ismi saqlandi)");
+            load(); reloadStats?.();
+          } catch (forceErr) {
+            toast.error(forceErr.response?.data?.detail || "O'chirishda xatolik");
+          }
+          return;
+        }
+      }
       toast.error((typeof detail === 'string' && detail) || t('customer.deleteBlockedDebt'));
     }
   };
@@ -1020,7 +1058,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                     <td className="px-6 py-4">
                       <RowMenu
                         onEdit={() => openEdit(c)}
-                        onDelete={() => deleteCustomer(c.id)}
+                        onDelete={() => deleteCustomer(c.id, c)}
                         onPay={() => openPay(c)}
                         onPoints={() => openPoints(c)}
                         onHistory={() => openHistory(c)}
@@ -1741,16 +1779,29 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
               </button>
             </div>
             <form onSubmit={handleAdjustDebt} className="p-6 space-y-4">
-              <div className="p-3 bg-slate-50 rounded-xl text-sm">
-                <div className="font-bold text-slate-800">{selected.name}</div>
-                <div className="text-slate-500 mt-0.5">
-                  {t('customer.importFieldCurrentDebt')}:{' '}
-                  <span className="font-semibold text-red-500">
-                    {getDebtEntries(selected).length
-                      ? getDebtEntries(selected).map(d => `${fmt(d.amount)} ${d.currency}`).join(' + ')
-                      : '0'}
-                  </span>
+              <div className="p-3 bg-slate-50 rounded-xl text-sm flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-bold text-slate-800">{selected.name}</div>
+                  <div className="text-slate-500 mt-0.5">
+                    {t('customer.importFieldCurrentDebt')}:{' '}
+                    <span className="font-semibold text-red-500">
+                      {getDebtEntries(selected).length
+                        ? getDebtEntries(selected).map(d => `${fmt(d.amount)} ${d.currency}`).join(' + ')
+                        : '0'}
+                    </span>
+                  </div>
                 </div>
+                {getDebtEntries(selected).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleZeroDebt}
+                    disabled={saving}
+                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all shadow-sm shrink-0"
+                    title="Kassaga pul kiritmasdan, qarzni 0 qilish (hisobdan chiqarish)"
+                  >
+                    Qarzni 0 qilish
+                  </button>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-600">{t('customer.adjustDebtDelta')}</label>

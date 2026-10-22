@@ -419,7 +419,7 @@ export default function Login() {
       try {
         const u = JSON.parse(localStorage.getItem('user') || '{}')
         if (u.role === 'super_admin') {
-          navigate('/admin/super-admin', { replace: true })
+          navigate('/admin/sotuv', { replace: true })
         } else {
           navigate('/admin/sotuv', { replace: true })
         }
@@ -444,7 +444,7 @@ export default function Login() {
       }
 
       if (userRes?.role === 'super_admin') {
-        navigate('/admin/super-admin')
+        navigate('/admin/sotuv')
       } else {
         navigate('/admin/sotuv')
       }

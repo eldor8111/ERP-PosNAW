@@ -43,6 +43,7 @@ const Production      = lazy(() => import('./pages/admin/Production'))
 const AuditLogs       = lazy(() => import('./pages/admin/AuditLogs'))
 const Logistics       = lazy(() => import('./pages/admin/Logistics'))
 const FieldStaff      = lazy(() => import('./pages/admin/FieldStaff'))
+const SFA             = lazy(() => import('./pages/admin/SFA'))
 const Filiallar       = lazy(() => import('./pages/admin/Filiallar'))
 const BranchPlans     = lazy(() => import('./pages/admin/BranchPlans'))  // T4.7
 const Approvals       = lazy(() => import('./pages/admin/Approvals'))  // T4.6
@@ -92,9 +93,6 @@ function AdminIndex() {
     // ignore error
   }
 
-  if (user?.role === 'super_admin') {
-    return <Navigate to="super-admin" replace />
-  }
   return <Navigate to="sotuv" replace />
 }
 
@@ -152,7 +150,8 @@ export default function App() {
             {/* T1.19: audit jurnali — faqat admin/director (+ super_admin) */}
             <Route path="audit-logs" element={<PrivateRoute roles={[...ROLE_GROUPS.MANAGEMENT, ROLES.SUPER_ADMIN]}><Suspense fallback={<PageLoader />}><AuditLogs /></Suspense></PrivateRoute>} />
             <Route path="logistics" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><Logistics /></Suspense></FeatureGate>} />
-            <Route path="field-staff" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><FieldStaff /></Suspense></FeatureGate>} />
+            <Route path="sfa" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><SFA /></Suspense></FeatureGate>} />
+            <Route path="field-staff" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><SFA /></Suspense></FeatureGate>} />
             <Route path="filiallar" element={<PrivateRoute roles={MANAGEMENT_ROUTE_ROLES}><Suspense fallback={<PageLoader />}><Filiallar /></Suspense></PrivateRoute>} />
             {/* T4.7: filial savdo rejasi va reyting — hisobot rollari (backend: REPORT_ROLES) */}
             {/* T4.6: tasdiqlash so'rovlari va qoidalari — admin/director/menejer (kassir faqat o'z so'rovlarini ko'radi) */}
@@ -173,7 +172,7 @@ export default function App() {
           </Route>
           
           <Route path="/" element={
-            window.location.hostname.startsWith('savdo.') || window.location.hostname.includes('biznes') 
+            window.location.hostname.startsWith('savdo.') || window.location.hostname.includes('biznes') || window.location.hostname.includes('localhost') 
             ? <Navigate to={localStorage.getItem('access_token') ? "/admin/sotuv" : "/login"} replace /> 
             : <Suspense fallback={<PageLoader />}><Landing /></Suspense>
           } />

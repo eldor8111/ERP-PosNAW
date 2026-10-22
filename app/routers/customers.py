@@ -531,6 +531,7 @@ class DebtChange(BaseModel):
 class DebtAdjust(BaseModel):
     reason: Optional[str] = None
     changes: List[DebtChange] = []
+    zero_debt: Optional[bool] = False
 
 
 @router.post("/recalc-debts")
@@ -763,6 +764,9 @@ def get_distributors_report(
             "phone": d.phone,
             "territory": d.territory,
             "region": d.region,
+            "address": d.address,
+            "lat": float(d.lat) if d.lat is not None else None,
+            "lng": float(d.lng) if d.lng is not None else None,
             "price_type": d.price_type,
             "sales": sales,
             "sale_count": cnt,
@@ -1334,16 +1338,30 @@ def adjust_customer_debt(
 
     reason = (data.reason or "").strip()
     if not reason:
+        reason = "Qarz to'liq nollashtirildi (0 qilindi)" if data.zero_debt else ""
+    if not reason:
         raise HTTPException(status_code=400, detail="Tuzatish sababini kiriting")
-    changes = [c for c in data.changes if c.delta]
-    if not changes:
-        raise HTTPException(status_code=400, detail="O'zgarish kiritilmagan")
 
     cust = lock_customer(db, customer_id, current_user.company_id)
 
     old_balances = _normalize_customer_balances(
         cust.debt_balances, cust.debt_balance or Decimal("0"), cust.debt_currency or "UZS",
     )
+
+    if data.zero_debt:
+        new_balances = {}
+        ledger.set_balances(db, cust, new_balances, user=current_user, reason=reason, kind="edit")
+        _append_debt_edit(cust, old_balances, new_balances, user=current_user, reason=reason)
+        log_action(db, "ADJUST_DEBT", "customer", cust.id, user_id=current_user.id,
+                   old_values={"debt_balances": old_balances},
+                   new_values={"debt_balances": new_balances, "reason": reason, "zero_debt": True})
+        db.commit()
+        db.refresh(cust)
+        return cust
+
+    changes = [c for c in data.changes if c.delta]
+    if not changes:
+        raise HTTPException(status_code=400, detail="O'zgarish kiritilmagan")
     new_dec = {k: Decimal(str(v)) for k, v in old_balances.items()}
     for c in changes:
         code = (c.currency or "UZS").strip().upper() or "UZS"
@@ -1918,11 +1936,16 @@ ACTIVE_ORDER_STATUSES = ("pending", "confirmed", "preparing", "assigned", "on_wa
 
 
 @router.delete("/{customer_id}", status_code=204)
-def delete_customer(customer_id: int, db: Session = Depends(get_db),
-                    current_user: User = Depends(require_roles(*CUSTOMER_DEBT_ROLES))):
-    """Mijozni o'chirish. Ochiq qarz yoki faol buyurtma/kutilayotgan sotuv bo'lsa — 400.
-    Sotuv/buyurtma tarixi bo'lmasa jismonan o'chadi, tarixi bor bo'lsa arxivlanadi
-    (Sale.customer_id hech qachon NULL qilinmaydi)."""
+def delete_customer(
+    customer_id: int,
+    force: bool = Query(False, description="Ochiq qarzni 0 qilib (hisobdan chiqarib), tasdiqlash bilan o'chirish"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*CUSTOMER_DEBT_ROLES)),
+):
+    """Mijozni o'chirish.
+    force=False bo'lsa: ochiq qarz bo'lsa 400 qaytaradi.
+    force=True bo'lsa: ochiq qarz hisobdan chiqariladi (0 qilinadi), kutilayotgan sotuvlar bekor qilinadi.
+    Mijoz ismi barcha avvalgi sotuvlar va operatsiyalarda saqlanib qolishi uchun mijoz doim arxivlanadi (soft-delete)."""
     from app.models.sale import Sale, SaleStatus
     from app.models.order import Order, OrderStatus
     from app.models.agent_visit import AgentVisit
@@ -1932,13 +1955,30 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db),
     if cust.is_active is False:
         raise HTTPException(status_code=404, detail="Mijoz topilmadi")
 
-    # 1) Ochiq qarz
+    # 1) Ochiq qarz tekshiruvi
     balances = _normalize_customer_balances(cust.debt_balances, cust.debt_balance or Decimal("0"), cust.debt_currency or "UZS")
     open_debts = {k: v for k, v in balances.items() if v > 0.01}
-    if open_debts or Decimal(str(cust.debt_balance or 0)) > Decimal("0.01"):
-        shown = ", ".join(f"{v:,.0f} {k}".replace(",", " ") for k, v in open_debts.items()) \
-            or f"{float(cust.debt_balance):,.0f}".replace(",", " ")
-        raise HTTPException(status_code=400, detail=f"Mijozning ochiq qarzi bor ({shown}) — avval qarzni yoping")
+    has_open_debt = bool(open_debts or Decimal(str(cust.debt_balance or 0)) > Decimal("0.01"))
+
+    if has_open_debt:
+        if not force:
+            shown = ", ".join(f"{v:,.0f} {k}".replace(",", " ") for k, v in open_debts.items()) \
+                or f"{float(cust.debt_balance):,.0f}".replace(",", " ")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Mijozning ochiq qarzi bor ({shown}) — avval qarzni yoping yoki tasdiqlash orqali qarzni 0 qilib o'chiring"
+            )
+        else:
+            # Qarzni hisobdan chiqarish (kassaga soxta pul kirmaydi, balans 0 qilinadi)
+            for cur_code, cur_amount in open_debts.items():
+                if cur_amount > 0:
+                    ledger.write_off(
+                        db, cust, user=current_user,
+                        amount=Decimal(str(cur_amount)),
+                        currency=cur_code,
+                        reason="Mijoz o'chirilishi sababli qarz hisobdan chiqarildi (0 qilindi)"
+                    )
+            ledger.set_balances(db, cust, {}, user=current_user, reason="Mijoz o'chirilishi sababli qarz 0 qilindi", kind="write_off")
 
     # 2) Faol buyurtma yoki kutilayotgan sotuv
     if db.query(Order.id).filter(
@@ -1946,26 +1986,33 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db),
         Order.status.in_([OrderStatus(s) for s in ACTIVE_ORDER_STATUSES]),
     ).first():
         raise HTTPException(status_code=400, detail="Mijozning faol buyurtmasi bor — avval buyurtmani yakunlang yoki bekor qiling")
-    if db.query(Sale.id).filter(Sale.customer_id == cust.id, Sale.status == SaleStatus.pending).first():
-        raise HTTPException(status_code=400, detail="Mijozning kutilayotgan sotuvi bor — avval uni yakunlang yoki bekor qiling")
+
+    pending_sales = db.query(Sale).filter(Sale.customer_id == cust.id, Sale.status == SaleStatus.pending).all()
+    if pending_sales:
+        if force:
+            for ps in pending_sales:
+                ps.status = SaleStatus.cancelled
+        else:
+            raise HTTPException(status_code=400, detail="Mijozning kutilayotgan sotuvi bor — avval uni yakunlang yoki bekor qiling")
 
     has_history = bool(
         db.query(Sale.id).filter(Sale.customer_id == cust.id).first()
         or db.query(Order.id).filter(Order.customer_id == cust.id).first()
-        # agent tashrif tarixi (agent_visits ondelete=CASCADE) jim yo'qolmasin
         or db.query(AgentVisit.id).filter(AgentVisit.customer_id == cust.id).first()
     )
+
     snapshot = {"name": cust.name, "phone": cust.phone, "card_number": cust.card_number,
                 "tg_chat_id": cust.tg_chat_id, "agent_id": cust.agent_id}
 
-    if not has_history:
-        # 3) Tarix yo'q — jismonan o'chirish (maxsus narxlar, hujjat fayllari bilan)
+    if not has_history and not force:
+        # Tarix yo'q va oddiy o'chirish — jismonan o'chirish
         db.query(CustomerPrice).filter(CustomerPrice.customer_id == cust.id).delete(synchronize_session=False)
         delete_customer_files(db, cust)
         db.delete(cust)
         mode = "deleted"
     else:
-        # 4) Tarix bor — arxivlash; unique maydonlar bo'shatiladi (xuddi shu telefon bilan yangi mijoz ochish uchun)
+        # Tarixi bor yoki force=True — arxivlash (sotuv, kassa, qarz jurnali operatsiyalarida mijoz ismi matn sifatida saqlanib qoladi)
+        db.query(CustomerPrice).filter(CustomerPrice.customer_id == cust.id).delete(synchronize_session=False)
         cust.deleted_meta = {k: snapshot[k] for k in ("phone", "card_number", "tg_chat_id", "agent_id")}
         cust.is_active = False
         cust.deleted_at = datetime.now(timezone.utc)
@@ -1974,8 +2021,9 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db),
         cust.tg_chat_id = None
         cust.agent_id = None
         mode = "archived"
+
     log_action(db, "DELETE_CUSTOMER", "customer", customer_id, user_id=current_user.id,
-               old_values=snapshot, new_values={"mode": mode})
+               old_values=snapshot, new_values={"mode": mode} if not force else {"mode": mode, "force": True})
     try:
         db.commit()
     except SQLAlchemyError as exc:

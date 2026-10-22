@@ -3558,7 +3558,7 @@ export default function Settings() {
   const { t } = useLang();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const tab = searchParams.get('tab') || 'users';
+  const tab = searchParams.get('tab') || 'general';
   const [companyId, setCompanyId] = useState(null);
 
   const load = () => {
@@ -3572,6 +3572,26 @@ export default function Settings() {
   useEffect(() => { load(); }, []);
 
   const MENUS = getSettingsMenus(t);
+
+  const TAB_LABELS = {
+    users: t('settings.menu.users') || 'Foydalanuvchilar',
+    roles: t('settings.menu.roles') || 'Rollar va Ruxsatlar',
+    payment_terminals: "To'lov terminallari",
+    branches: t('settings.menu.branches') || 'Filiallar',
+    warehouse: t('settings.menu.warehouse') || 'Omborlar',
+    promotions: t('settings.menu.promotions') || 'Aksiyalar',
+  };
+
+  // Noto'g'ri tab URL bo'lsa 'general' ga yo'naltir
+  const VALID_TABS = [
+    ...MENUS.map(m => m.id),
+    'users', 'roles', 'branches', 'warehouse', 'payment_terminals', 'promotions', 'shifts'
+  ];
+  useEffect(() => {
+    if (tab && !VALID_TABS.includes(tab)) {
+      setSearchParams({ tab: 'general' }, { replace: true });
+    }
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="absolute inset-0 flex bg-slate-50 z-10 overflow-hidden">
@@ -3594,7 +3614,7 @@ export default function Settings() {
             </select>
           </div>
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-slate-800">{MENUS.find(m => m.id === tab)?.label || t('settings.title')}</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{MENUS.find(m => m.id === tab)?.label || TAB_LABELS[tab] || t('settings.title')}</h1>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">

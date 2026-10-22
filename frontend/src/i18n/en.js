@@ -27,6 +27,13 @@ export default {
   'nav.inventory_counts': 'Inventory Count',
   'nav.pos_desktop': 'POS Desktop',
   'nav.kontragentlar': 'Counterparts',
+  'nav.marketplace_agents': 'Marketplace agents',
+  'nav.branches_group': 'Branches & Tariffs',
+  'nav.access_group': 'Staff & Permissions',
+  'nav.roles': 'Roles & Permissions',
+  'nav.promotions': 'Promotions & Discounts',
+  'nav.payment_terminals': 'Payment terminals',
+  'nav.payment_reconciliation': 'Payment reconciliation',
 
   // === HEADER ===
   'header.systemActive': 'System active',

@@ -1,5 +1,12 @@
 // РУССКИЕ переводы
 export default {
+  'nav.system_group': 'Система и Настройки',
+  'nav.analytics_group': 'Аналитика и KPI',
+  'nav.supply_group': 'Склад и Закупки',
+  'nav.pos_group': 'Продажи и Касса',
+  'nav.sfa': 'Центр SFA',
+  'nav.sfa_group': 'SFA и Торговые агенты',
+  'nav.exec_group': 'Управление и Аналитика',
   // === NAV ===
   'nav.main': 'Главная',
   'nav.sales_group': 'Продажи',
@@ -28,6 +35,13 @@ export default {
   'nav.pos_desktop': 'POS Desktop',
   'nav.kontragentlar': 'Контрагенты',
   'nav.alerts': 'Оповещения',
+  'nav.marketplace_agents': 'Агенты маркетплейса',
+  'nav.branches_group': 'Филиалы & Тарифы',
+  'nav.access_group': 'Сотрудники & Доступ',
+  'nav.roles': 'Роли и Права',
+  'nav.promotions': 'Акции & Скидки',
+  'nav.payment_terminals': 'Платёжные терминалы',
+  'nav.payment_reconciliation': 'Сверка платежей',
 
   // === HEADER ===
   'header.systemActive': 'Система активна',

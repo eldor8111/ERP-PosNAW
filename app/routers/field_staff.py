@@ -162,12 +162,32 @@ def track(user_id: int, day: Optional[date] = None, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
     d = day or local_today()
     t0, t1 = local_day_start(d), local_day_start(d + timedelta(days=1))
+    from app.services.mobile_service import distance_m
+    from app.models.sale import Sale
+
     pts = db.query(EmployeeLocation).filter(
         EmployeeLocation.user_id == u.id, EmployeeLocation.recorded_at >= t0, EmployeeLocation.recorded_at < t1,
     ).order_by(EmployeeLocation.recorded_at).limit(20000).all()
-    visits = db.query(AgentVisit, Customer.name).join(Customer, Customer.id == AgentVisit.customer_id).filter(
+
+    # Masofa hisoblash (metrda)
+    total_dist_m = 0
+    for i in range(1, len(pts)):
+        dm = distance_m(pts[i-1].lat, pts[i-1].lng, pts[i].lat, pts[i].lng)
+        if dm and dm < 40000:  # GPS sakrashlarini e'tiborsiz qoldirish
+            total_dist_m += dm
+
+    visits = db.query(AgentVisit, Customer.name, Customer.address, Customer.territory).join(
+        Customer, Customer.id == AgentVisit.customer_id
+    ).filter(
         AgentVisit.agent_id == u.id, AgentVisit.check_in_at >= t0, AgentVisit.check_in_at < t1,
     ).order_by(AgentVisit.check_in_at).all()
+
+    # Shu kunda agent qilgan sotuvlar (mijoz kesimida)
+    sales = db.query(Sale.customer_id, func.coalesce(func.sum(Sale.total_amount), 0)).filter(
+        Sale.agent_id == u.id, Sale.created_at >= t0, Sale.created_at < t1,
+    ).group_by(Sale.customer_id).all()
+    sales_by_cust = {cid_: float(amt_ or 0) for cid_, amt_ in sales}
+
     proofs = db.query(DeliveryProof).filter(
         DeliveryProof.user_id == u.id, DeliveryProof.created_at >= t0, DeliveryProof.created_at < t1,
     ).order_by(DeliveryProof.created_at).all()
@@ -180,12 +200,26 @@ def track(user_id: int, day: Optional[date] = None, db: Session = Depends(get_db
         "date": d.isoformat(),
         "shifts": [{"started_at": _iso(s.started_at), "ended_at": _iso(s.ended_at)} for s in shifts],
         "points": [[float(p.lat), float(p.lng), _iso(p.recorded_at)] for p in pts],
+        "total_distance_km": round(total_dist_m / 1000, 1),
         "visits": [
-            {"id": v.id, "customer": name, "at": _iso(v.check_in_at), "out": _iso(v.check_out_at),
-             "lat": float(v.lat) if v.lat is not None else None, "lng": float(v.lng) if v.lng is not None else None,
-             "distance_m": v.distance_m, "within_radius": v.within_radius, "result": v.result,
-             "has_photo": bool(v.photo_path)}
-            for v, name in visits
+            {
+                "id": v.id,
+                "customer": name,
+                "address": address,
+                "territory": territory,
+                "at": _iso(v.check_in_at),
+                "out": _iso(v.check_out_at),
+                "duration_min": int((v.check_out_at - v.check_in_at).total_seconds() // 60) if (v.check_in_at and v.check_out_at and v.check_out_at > v.check_in_at) else None,
+                "lat": float(v.lat) if v.lat is not None else None,
+                "lng": float(v.lng) if v.lng is not None else None,
+                "distance_m": v.distance_m,
+                "within_radius": v.within_radius,
+                "result": v.result or "visited",
+                "note": v.note,
+                "order_sum": sales_by_cust.get(v.customer_id),
+                "has_photo": bool(v.photo_path),
+            }
+            for v, name, address, territory in visits
         ],
         "deliveries": [
             {"id": p.id, "stop_key": p.stop_key, "at": _iso(p.created_at),

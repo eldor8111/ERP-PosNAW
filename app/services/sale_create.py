@@ -1004,6 +1004,10 @@ def create_pending_sale(
         # tekshiruv sotuv "completed" holatiga o'tganda (update_sale) qo'llanadi.
         marking_codes = [c for c in (getattr(item_data, "marking_codes", None) or []) if c and c.strip()]
 
+        # O'zining asl valyutasida saqlanadi
+        item_currency_code = getattr(item_data, "currency_code", None) or getattr(item_data, "currency", "UZS")
+        item_exchange_rate = getattr(item_data, "exchange_rate", None) or getattr(item_data, "rate", Decimal("1.0"))
+
         sale_items_data.append({
             "product": product,
             "quantity": item_data.quantity,
@@ -1011,13 +1015,32 @@ def create_pending_sale(
             "cost_price": cost_price,
             "discount": discount,
             "subtotal": subtotal,
+            "currency_code": item_currency_code,
+            "exchange_rate": item_exchange_rate,
+            "variant_id": getattr(item_data, "variant_id", None),
+            "warehouse_id": getattr(item_data, "warehouse_id", None),
             "marking_codes": marking_codes,
             "promotion_id": _promo_id,
             "promotion_discount": _promo_disc,
         })
-        total_amount += subtotal
+        total_amount += (subtotal * Decimal(str(item_exchange_rate or 1)))
 
     total_amount = max(Decimal("0"), total_amount - data.discount_amount)
+
+    item_currencies = {it["currency_code"] for it in sale_items_data if it.get("currency_code")}
+    sale_currency_id = data.currency_id
+    sale_exchange_rate = Decimal("1")
+    if not sale_currency_id and len(item_currencies) == 1:
+        first_cur = list(item_currencies)[0]
+        if first_cur != "UZS":
+            from app.models.currency import Currency
+            cur_obj = db.query(Currency).filter(
+                Currency.code == first_cur,
+                (Currency.company_id == current_user.company_id) | (Currency.company_id.is_(None))
+            ).first()
+            if cur_obj:
+                sale_currency_id = cur_obj.id
+                sale_exchange_rate = sale_items_data[0]["exchange_rate"]
 
     sale = Sale(
         number=generate_sale_number(db, current_user.company_id, pend_branch_id),
@@ -1034,8 +1057,8 @@ def create_pending_sale(
         payment_type=PaymentType.cash,
         status=SaleStatus.pending,
         note=data.note,
-        currency_id=data.currency_id,
-        exchange_rate=Decimal("1"),
+        currency_id=sale_currency_id,
+        exchange_rate=sale_exchange_rate,
         loyalty_points_earned=0,
         loyalty_points_used=0,
         debt_due_date=None,
@@ -1062,6 +1085,11 @@ def create_pending_sale(
             cost_price=item_d["cost_price"],
             discount=item_d["discount"],
             subtotal=item_d["subtotal"],
+            currency_code=item_d["currency_code"],
+            exchange_rate=item_d["exchange_rate"],
+            variant_id=item_d.get("variant_id"),
+            warehouse_id=item_d.get("warehouse_id"),
+            unit=item_d["product"].unit or "dona",
             marking_codes=item_d["marking_codes"] or None,
             promotion_id=item_d.get("promotion_id"),
             promotion_discount=item_d.get("promotion_discount"),

@@ -1,5 +1,12 @@
 // O'ZBEKCHA tarjimalar
 export default {
+  'nav.system_group': 'Tizim & Boshqaruv',
+  'nav.analytics_group': 'Tahlil & KPI',
+  'nav.supply_group': 'Ombor & Xarid',
+  'nav.pos_group': 'Savdo & Kassa',
+  'nav.sfa': 'SFA Markazi',
+  'nav.sfa_group': 'SFA & Dala Savdosi',
+  'nav.exec_group': 'Boshqaruv & Tahlil',
   // === NAV ===
   'nav.main': 'Asosiy',
   'nav.sales_group': 'Savdo',
@@ -30,6 +37,13 @@ export default {
   'nav.alerts': 'Ogohlantirishlar',
   'nav.production': 'Ishlab chiqarish',
   'nav.distributors': 'Distribyutorlar',
+  'nav.marketplace_agents': 'Marketplace agentlari',
+  'nav.branches_group': 'Filiallar & Tariflar',
+  'nav.access_group': 'Xodimlar & Ruxsatlar',
+  'nav.roles': 'Rollar va Ruxsatlar',
+  'nav.promotions': 'Aksiyalar & Chegirmalar',
+  'nav.payment_terminals': "To'lov terminallari",
+  'nav.payment_reconciliation': "To'lovlarni solishtirish",
 
   // === HEADER ===
   'header.systemActive': 'Tizim faol',
