@@ -47,6 +47,7 @@ export default {
   'header.systemActive': 'Система активна',
   'header.lowStock': 'Мало на складе',
   'header.code': 'Код',
+  'header.sum': 'сум',
   'header.balance': 'Баланс',
   'header.logout': 'Выйти',
   'header.lang': 'Язык',

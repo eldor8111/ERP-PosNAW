@@ -874,7 +874,7 @@ export default function AdminLayout() {
                   {t('header.balance') || 'Balans'}
                 </span>
                 <span className="text-emerald-700 text-[11px] xl:text-[13px] font-black leading-none tracking-wide">
-                  {fmt(orgData.balance)} <span className="text-[10px] font-semibold">{t('header.sum') || "so'm"}</span>
+                  {fmt(orgData.balance)} <span className="text-[10px] font-semibold">{t('header.sum') === 'header.sum' ? "so'm" : t('header.sum')}</span>
                 </span>
               </div>
             )}
@@ -900,7 +900,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50">
+        <main className="flex-1 overflow-y-auto bg-slate-50 relative">
           {subExpiredMsg && (
             <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm flex items-center justify-between">
               <span>{subExpiredMsg}</span>

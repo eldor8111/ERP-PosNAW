@@ -50,6 +50,7 @@ export default {
   'header.lowStock': 'Kam qoldiq',
   'header.code': 'Kod',
   'header.balance': 'Balans',
+  'header.sum': "so'm",
   'header.logout': 'Chiqish',
   'header.lang': 'Til',
 

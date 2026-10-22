@@ -39,6 +39,7 @@ export default {
   'header.systemActive': 'System active',
   'header.lowStock': 'Low stock',
   'header.code': 'Code',
+  'header.sum': 'UZS',
   'header.balance': 'Balance',
   'header.logout': 'Logout',
   'header.lang': 'Language',
