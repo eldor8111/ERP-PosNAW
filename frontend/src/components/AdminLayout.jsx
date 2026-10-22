@@ -843,7 +843,7 @@ export default function AdminLayout() {
             <LangSwitcher t={t} lang={lang} setLang={setLang} LANGUAGES={LANGUAGES} />
 
             {/* Org kodi */}
-            {user?.role !== ROLES.SUPER_ADMIN && orgData.code && orgData.code !== '...' && (
+            {orgData.code && orgData.code !== '...' && (
               <div className="hidden md:flex flex-col items-center bg-slate-50 border border-slate-200 rounded-lg xl:rounded-xl px-2 sm:px-3 py-1 min-w-[70px]">
                 <span className="text-slate-400 text-[8px] xl:text-[9px] font-semibold leading-none mb-0.5 uppercase tracking-wide">
                   {t('header.code') || 'ID'}
@@ -864,7 +864,7 @@ export default function AdminLayout() {
             )}
 
             {/* Balans */}
-            {user?.role !== ROLES.SUPER_ADMIN && (
+            {user?.company_id && (
               <div
                 onClick={() => navigate('/admin/tariflar')}
                 title={t('nav.tariffs') || 'Tariflar va Balans'}
