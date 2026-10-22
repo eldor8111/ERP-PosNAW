@@ -424,7 +424,7 @@ export default function AdminLayout() {
   useEffect(() => {
     if (!user?.company_id || user?.role === 'super_admin') return;
     api
-      .get('/billing/my-company')
+      .get('/billing/my-company', { _suppressToast: true })
       .then((res) => {
         const d = res.data;
         const expired = d.subscription_ends_at !== null && d.subscription_active === false;
@@ -450,7 +450,7 @@ export default function AdminLayout() {
   useEffect(() => {
     if (!user) return;
     api
-      .get('/super-admin/announcements/active')
+      .get('/super-admin/announcements/active', { _suppressToast: true })
       .then((res) => setAnnouncements(res.data || []))
       .catch(() => {});
   }, [user?.id]);
@@ -458,7 +458,7 @@ export default function AdminLayout() {
   const refreshBalance = useCallback(() => {
     if (!user?.company_id || user?.role === ROLES.SUPER_ADMIN) return;
     api
-      .get('/billing/my-company')
+      .get('/billing/my-company', { _suppressToast: true })
       .then((r) => {
         setOrgData((prev) => ({
           ...prev,
@@ -473,19 +473,15 @@ export default function AdminLayout() {
   const refreshLowStock = useCallback(() => {
     if (!ROLE_GROUPS.WAREHOUSE_ACCESS.includes(user?.role)) return;
     api
-      .get('/reports/low-stock')
+      .get('/reports/low-stock', { _suppressToast: true })
       .then((r) => setLowStockCount((r.data || []).length))
-      .catch(() => {});
-    api
-      .get('/reports/expired-batches')
-      .then((r) => setExpiredCount((r.data || []).length))
       .catch(() => {});
   }, [user?.role]);
 
   const refreshApprovals = useCallback(() => {
     if (!ROLE_GROUPS.POS_ACCESS.includes(user?.role) && user?.role !== ROLES.SUPER_ADMIN) return;
     api
-      .get('/approvals/requests', { params: { status: 'pending', limit: 100 } })
+      .get('/approvals/requests', { params: { status: 'pending', limit: 100 }, _suppressToast: true })
       .then((r) => setApprovalsCount((r.data || []).length))
       .catch(() => {});
   }, [user?.role]);
