@@ -456,7 +456,7 @@ function TemplateCard({ tpl, product, selected, onSelect, isSaved }) {
 const MAX_LABELS = 3000;   // bir martada chop etiladigan yorliqlar chegarasi (brauzer qotib qolmasin)
 
 /* product — bitta tovar; products — ommaviy amal (belgilangan tovarlar) */
-export default function BarcodePrintModal({ product, products, onClose }) {
+export default function BarcodePrintModal({ product, products, initialQtys, onClose }) {
   const { t: tr } = useLang();
   const tf = (key, fallback) => { const v = tr(key); return v === key ? fallback : v; };
   const [selectedTpl, setSelectedTpl] = useState(BUILT_IN_TEMPLATES[3]); // 50×30 default
@@ -466,7 +466,7 @@ export default function BarcodePrintModal({ product, products, onClose }) {
   const printable = useMemo(() => items.filter(p => String(p.barcode || '').trim()), [items]);
   const [previewIdx, setPreviewIdx] = useState(0);
   const current = items[Math.min(previewIdx, items.length - 1)];
-  const [qtys, setQtys] = useState({});   // tovar bo'yicha alohida soni; bo'lmasa — umumiy qty
+  const [qtys, setQtys] = useState(() => initialQtys || {});   // tovar bo'yicha alohida soni; bo'lmasa — umumiy qty
   const qtyOf = (p) => qtys[p.id] ?? qty;
   const toPrint = multi ? printable : items;
   const totalLabels = toPrint.reduce((sum, p) => sum + qtyOf(p), 0);
