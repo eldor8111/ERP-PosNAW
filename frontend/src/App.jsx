@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { BranchProvider } from './context/BranchContext'
@@ -97,6 +97,20 @@ function AdminIndex() {
   return <Navigate to="sotuv" replace />
 }
 
+function DocsRedirect() {
+  useEffect(() => {
+    window.location.replace('/api/docs')
+  }, [])
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white">
+      <div className="text-center">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-slate-300">API Hujjatlariga yo'naltirilmoqda...</p>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter
 
@@ -188,6 +202,10 @@ export default function App() {
           <Route path="/aloqa" element={<Suspense fallback={<PageLoader />}><Aloqa /></Suspense>} />
           <Route path="/maxfiylik-siyosati" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
           <Route path="/oferta" element={<Suspense fallback={<PageLoader />}><Oferta /></Suspense>} />
+          <Route path="/docs" element={<DocsRedirect />} />
+          <Route path="/api/docs" element={<DocsRedirect />} />
+          <Route path="/redoc" element={<DocsRedirect />} />
+          <Route path="/api/redoc" element={<DocsRedirect />} />
           <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
         </Routes>
         </BranchProvider>
