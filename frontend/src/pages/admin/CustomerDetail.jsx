@@ -1082,7 +1082,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
     // Qarzga sotuv: to'lanmagan qism qarz bo'ladi
     debtChange: (s.debt_amounts && Object.keys(s.debt_amounts).length > 0) ? Object.values(s.debt_amounts).reduce((a, v) => a + Number(v || 0), 0) : Math.max(0, Number(s.total_amount || 0) - Number(s.paid_amount || 0)),
     cashier: s.cashier_name || '',
-    currency: s.currency || 'UZS',
+    currency: (s.debt_amounts && Object.keys(s.debt_amounts).length === 1) ? Object.keys(s.debt_amounts)[0] : (s.currency || 'UZS'),
     rowType: 'sale',
     saleNumber: s.number || '',
   }))
@@ -1147,16 +1147,30 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
   // ── Running balance hisoblash ─────────────────────────────────────────────
   // Joriy qarz allaqachon barcha operatsiyalarni o'z ichiga oladi.
   // Boshlang'ich qarz = joriy qarz − barcha operatsiyalar yig'indisi.
-  const currentDebt = mappedBalances.reduce((sum, b) => sum + Number(b.amount || 0), 0)
-  const totalDebtChange = allEvents.reduce((sum, ev) => sum + ev.debtChange, 0)
-  const initialDebt = currentDebt - totalDebtChange
+  // Har valyuta uchun alohida: so'm va dollar qarzlari bir-biriga qo'shilmaydi.
+  const currentDebtByCur = {}
+  mappedBalances.forEach(b => {
+    const c = String(b.currency || 'UZS').toUpperCase()
+    currentDebtByCur[c] = (currentDebtByCur[c] || 0) + Number(b.amount || 0)
+  })
+  const currentDebt = Object.values(currentDebtByCur).reduce((sum, v) => sum + v, 0)
+  const evCur = (ev) => String(ev.currency || 'UZS').toUpperCase()
+  const changeByCur = {}
+  allEvents.forEach(ev => { changeByCur[evCur(ev)] = (changeByCur[evCur(ev)] || 0) + ev.debtChange })
+  const runningByCur = {}
+  Object.keys({ ...currentDebtByCur, ...changeByCur }).forEach(c => {
+    runningByCur[c] = (currentDebtByCur[c] || 0) - (changeByCur[c] || 0)
+  })
 
   const allEventsWithBalance = allEvents.reduce((acc, ev) => {
-    const prevDebt = acc.length > 0 ? acc[acc.length - 1].finalDebt : initialDebt
+    const c = evCur(ev)
+    const prevDebt = runningByCur[c]
     const finalDebt = prevDebt + ev.debtChange
+    runningByCur[c] = finalDebt
     acc.push({ ...ev, prevDebt, finalDebt })
     return acc
   }, [])
+
 
   // Filtrlar
   const filteredRows = allEventsWithBalance.filter(ev => {

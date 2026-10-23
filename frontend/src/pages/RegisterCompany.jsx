@@ -656,7 +656,7 @@ export default function RegisterCompany() {
                       className="mt-0.5 w-4 h-4 text-blue-600 rounded-lg border-slate-300 focus:ring-blue-500 cursor-pointer"
                     />
                     <label htmlFor="oferta" className="text-xs text-slate-600 leading-tight cursor-pointer">
-                      Men <a href="/oferta.pdf" target="_blank" className="text-blue-600 font-bold hover:underline">Ommaviy oferta</a> shartlari bilan tanishdim va rozi man
+                      Men <a href="/oferta" target="_blank" rel="noopener noreferrer" className="text-blue-600 font-bold hover:underline">Ommaviy oferta</a> shartlari bilan tanishdim va rozi man
                     </label>
                   </div>
                   {errors.oferta && <p className="text-[10px] text-rose-600 font-semibold">⚠ {errors.oferta}</p>}

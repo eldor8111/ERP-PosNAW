@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload, object_session
@@ -16,7 +16,7 @@ from app.models.warehouse import Warehouse
 from app.schemas.purchase_order import POCreate, POListOut, POOut, POItemOut, POReceiveRequest, POUpdate  # type: ignore
 from app.services.purchase_order_service import (  # type: ignore
     cancel_purchase_order, create_purchase_order, delete_purchase_order, display_amounts,
-    receive_purchase_order, suggested_sale_prices, update_purchase_order,
+    receive_purchase_order, suggested_sale_prices, update_purchase_order, is_mixed,
 )
 from app.services.pharmacy import pharmacy_enabled  # CD.1
 from app.services.warehouse_access import resolve_ctx
@@ -33,6 +33,9 @@ class POListBranchOut(POListOut):
     warehouse_id: Optional[int] = None
     branch_id: Optional[int] = None
     branch_name: Optional[str] = None
+    # Aralash valyutali xarid: asosiy valyutadan boshqa valyutalardagi qarz {valyuta: summa}
+    debt_extra: Optional[Dict[str, float]] = None
+    mixed: bool = False  # qatorlari turli valyutada (so'm + USD)
 
 
 def _build_po_out(po: PurchaseOrder, warnings: Optional[List[str]] = None,
@@ -187,6 +190,8 @@ def list_purchase_orders(
                 original_paid_amount=amounts["paid_cur"] if foreign else None,
                 # Shu xarid bo'yicha hozirgi qarz (xarid valyutasida; manfiy — ortiqcha to'lov)
                 debt_amount=amounts["debt_cur"],
+                debt_extra={c: float(v) for c, v in amounts["debt_extra"].items()} or None,
+                mixed=is_mixed(po),
             )
         )
     return res

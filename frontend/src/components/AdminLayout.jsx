@@ -44,35 +44,122 @@ function isNavLinkVisible(user, link, features) {
 function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
   return [
     {
-      key: 'pos_group',
-      label: t('nav.pos_group') || 'Savdo & Kassa',
+      key: 'sotuv',
+      label: t('nav.saleScreen') || 'Sotuv',
+      path: '/admin/sotuv',
       primaryPath: '/admin/sotuv',
       icon: <ShoppingBag className="w-[20px] h-[20px]" />,
       roles: ROLE_GROUPS.SALES,
+      isDirect: true,
       links: [
         {
-          name: t('nav.saleScreen') || 'Kassa (Sotuv oynasi)',
+          name: t('nav.saleScreen') || 'Sotuv',
           path: '/admin/sotuv',
           roles: ROLE_GROUPS.SALES,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
         },
+      ],
+    },
+    {
+      key: 'customers',
+      label: t('nav.customers') || 'Mijozlar CRM',
+      path: '/admin/customers',
+      primaryPath: '/admin/customers',
+      icon: <Users className="w-[20px] h-[20px]" />,
+      roles: ROLE_GROUPS.SALES,
+      isDirect: true,
+      links: [
         {
           name: t('nav.customers') || 'Mijozlar CRM',
           path: '/admin/customers',
           roles: ROLE_GROUPS.SALES,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+        },
+      ],
+    },
+    {
+      key: 'products',
+      label: t('nav.products') || 'Mahsulotlar',
+      path: '/admin/products',
+      primaryPath: '/admin/products',
+      icon: <Package className="w-[20px] h-[20px]" />,
+      roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+      isDirect: true,
+      links: [
+        {
+          name: t('nav.products') || 'Mahsulotlar',
+          path: '/admin/products',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+        },
+      ],
+    },
+    {
+      key: 'purchases',
+      label: t('nav.purchases') || "Xarid va Ta'minotchilar",
+      path: '/admin/purchases',
+      primaryPath: '/admin/purchases',
+      icon: (
+        <svg className="w-[20px] h-[20px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      roles: ROLE_GROUPS.REPORTS_ACCESS,
+      isDirect: true,
+      links: [
+        {
+          name: t('nav.purchases') || "Xarid va Ta'minotchilar",
+          path: '/admin/purchases',
+          roles: ROLE_GROUPS.REPORTS_ACCESS,
+        },
+      ],
+    },
+    {
+      key: 'tariffs',
+      label: t('nav.tariffs') || 'Tariflar',
+      path: '/admin/tariflar',
+      primaryPath: '/admin/tariflar',
+      icon: <Tag className="w-[20px] h-[20px]" />,
+      roles: ROLE_GROUPS.MANAGEMENT,
+      isDirect: true,
+      links: [
+        {
+          name: t('nav.tariffs') || 'Tariflar',
+          path: '/admin/tariflar',
+          roles: ROLE_GROUPS.MANAGEMENT,
+        },
+      ],
+    },
+    {
+      key: 'supply_group',
+      label: t('nav.warehouse') || 'Ombor',
+      primaryPath: '/admin/ombor',
+      icon: <Layers className="w-[20px] h-[20px]" />,
+      roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+      links: [
+        {
+          name: t('nav.warehouse') || 'Omborlar',
+          path: '/admin/ombor',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
         },
         {
-          name: t('nav.shifts') || 'Smenalar va Kassa',
-          path: '/admin/shifts',
-          roles: ROLE_GROUPS.SALES,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+          name: t('nav.operations') || 'Operatsiyalar tarixi',
+          path: '/admin/operations',
+          roles: ROLE_GROUPS.OPS_ACCESS,
+          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>,
         },
         {
-          name: t('nav.promotions') || 'Aksiyalar & Chegirmalar',
-          path: '/admin/promotions',
-          roles: ROLE_GROUPS.SALES,
-          icon: <Tag className="w-[18px] h-[18px]" />,
+          name: t('nav.production') || 'Ishlab chiqarish',
+          path: '/admin/production',
+          feature: 'manufacturing',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
+        },
+        // D4.6: Dorixona markazi — faqat dorixona moduli yoqilgan korxonada (feature: 'pharmacy')
+        {
+          name: t('nav.pharmacy') || 'Dorixona',
+          path: '/admin/pharmacy',
+          feature: 'pharmacy',
+          roles: ROLE_GROUPS.OPS_ACCESS,
+          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>,
         },
       ],
     },
@@ -108,56 +195,8 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
       ],
     },
     {
-      key: 'supply_group',
-      label: t('nav.supply_group') || 'Ombor & Mahsulotlar',
-      primaryPath: '/admin/ombor',
-      icon: <Package className="w-[20px] h-[20px]" />,
-      roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-      links: [
-        {
-          name: t('nav.warehouse') || 'Omborlar',
-          path: '/admin/ombor',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
-        },
-        {
-          name: t('nav.products') || 'Mahsulotlar katalogi',
-          path: '/admin/products',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
-        },
-        {
-          name: t('nav.purchases') || "Xarid va Ta'minotchilar",
-          path: '/admin/purchases',
-          roles: ROLE_GROUPS.REPORTS_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
-        },
-        {
-          name: t('nav.operations') || 'Operatsiyalar tarixi',
-          path: '/admin/operations',
-          roles: ROLE_GROUPS.OPS_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>,
-        },
-        {
-          name: t('nav.production') || 'Ishlab chiqarish',
-          path: '/admin/production',
-          feature: 'manufacturing',
-          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
-        },
-        // D4.6: Dorixona markazi — faqat dorixona moduli yoqilgan korxonada (feature: 'pharmacy')
-        {
-          name: t('nav.pharmacy') || 'Dorixona',
-          path: '/admin/pharmacy',
-          feature: 'pharmacy',
-          roles: ROLE_GROUPS.OPS_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>,
-        },
-      ],
-    },
-    {
       key: 'finance_group',
-      label: t('nav.finance_group') || "Moliya & To'lovlar",
+      label: t('nav.finance_group') || "Moliya va Tahlil",
       primaryPath: '/admin/finance',
       icon: <DollarSign className="w-[20px] h-[20px]" />,
       roles: ROLE_GROUPS.FINANCE_ACCESS,
@@ -201,23 +240,45 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
       ],
     },
     {
-      key: 'branches_group',
-      label: t('nav.branches_group') || 'Filiallar & Tariflar',
+      key: 'shifts_group',
+      label: t('nav.shifts') || 'Smenalar & POS',
+      primaryPath: '/admin/shifts',
+      icon: <svg className="w-[20px] h-[20px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+      roles: ROLE_GROUPS.SALES,
+      links: [
+        {
+          name: t('nav.shifts') || 'Smenalar va Kassa',
+          path: '/admin/shifts',
+          roles: ROLE_GROUPS.SALES,
+          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+        },
+        {
+          name: t('nav.pos') || 'POS (Chakana kassa)',
+          path: '/admin/pos-kassa',
+          roles: ROLE_GROUPS.SALES,
+          icon: <ShoppingBag className="w-[18px] h-[18px]" />,
+        },
+        {
+          name: t('nav.promotions') || 'Aksiyalar & Chegirmalar',
+          path: '/admin/promotions',
+          roles: ROLE_GROUPS.SALES,
+          icon: <Tag className="w-[18px] h-[18px]" />,
+        },
+      ],
+    },
+    {
+      key: 'branches',
+      label: t('nav.branches') || 'Filiallar',
+      path: '/admin/filiallar',
       primaryPath: '/admin/filiallar',
       icon: <Building2 className="w-[20px] h-[20px]" />,
       roles: ROLE_GROUPS.MANAGEMENT,
+      isDirect: true,
       links: [
         {
           name: t('nav.branches') || 'Filiallar',
           path: '/admin/filiallar',
           roles: ROLE_GROUPS.MANAGEMENT,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
-        },
-        {
-          name: t('nav.tariffs') || 'Tariflar',
-          path: '/admin/tariflar',
-          roles: ROLE_GROUPS.MANAGEMENT,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>,
         },
       ],
     },
@@ -563,7 +624,7 @@ export default function AdminLayout() {
   );
 
   const currentPage = useMemo(() => {
-    const allLinks = navGroups.flatMap((g) => g.links);
+    const allLinks = navGroups.flatMap((g) => g.links || []);
     const currentLink = allLinks.find((l) => {
       if (l.path.includes('?')) {
         const [pathPart, queryPart] = l.path.split('?');
@@ -580,7 +641,7 @@ export default function AdminLayout() {
   );
 
   const activeGroup = useMemo(
-    () => navGroups.find((g) => g.key === activeFlyout),
+    () => navGroups.find((g) => g.key === activeFlyout && !g.isDirect),
     [navGroups, activeFlyout]
   );
 
@@ -635,14 +696,63 @@ export default function AdminLayout() {
             if (!group.links.some((l) => isNavLinkVisible(user, l, features))) return null;
 
             // Check if any sub-link is active
-            const isGroupActive = group.links.some((l) => {
-              if (l.path.includes('?')) {
-                const [pathPart, queryPart] = l.path.split('?');
-                return location.pathname === pathPart && location.search.includes(queryPart);
-              }
-              return location.pathname.startsWith(l.path);
-            }) || (group.isSettings && location.pathname.startsWith('/admin/settings') && !location.search.includes('tab=users') && !location.search.includes('tab=roles') && !location.search.includes('tab=payment_terminals'));
+            const isGroupActive = group.isDirect
+              ? (group.path.includes('?')
+                  ? location.pathname === group.path.split('?')[0] && location.search.includes(group.path.split('?')[1])
+                  : location.pathname === group.path || location.pathname.startsWith(group.path + '/') || (group.path === '/admin/purchases' && location.pathname.startsWith('/admin/suppliers')))
+              : group.links?.some((l) => {
+                  if (l.path.includes('?')) {
+                    const [pathPart, queryPart] = l.path.split('?');
+                    return location.pathname === pathPart && location.search.includes(queryPart);
+                  }
+                  return location.pathname === l.path || location.pathname.startsWith(l.path + '/');
+                }) || (group.isSettings && location.pathname.startsWith('/admin/settings') && !location.search.includes('tab=users') && !location.search.includes('tab=roles') && !location.search.includes('tab=payment_terminals'));
+
             const isFlyoutOpen = activeFlyout === group.key;
+            const isBlocked = isSubExpired && !group.path?.includes('/admin/tariflar');
+
+            if (group.isDirect) {
+              return (
+                <div
+                  key={group.key}
+                  onMouseEnter={() => {
+                    if (flyoutTimeout.current) clearTimeout(flyoutTimeout.current);
+                    setActiveFlyout(null);
+                  }}
+                  className="relative"
+                >
+                  <Link
+                    to={isBlocked ? '/admin/tariflar' : group.path}
+                    onClick={() => {
+                      setActiveFlyout(null);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 group cursor-pointer ${
+                      isBlocked
+                        ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                        : isGroupActive
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 font-bold'
+                        : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 font-medium'
+                    }`}
+                    title={collapsed ? group.label : undefined}
+                  >
+                    <span
+                      className={`shrink-0 transition-transform ${
+                        collapsed ? 'scale-110' : ''
+                      } ${isGroupActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-600'}`}
+                    >
+                      {group.icon}
+                    </span>
+
+                    {!collapsed && (
+                      <span className="text-[13px] xl:text-[14px] truncate flex-1 leading-tight">
+                        {group.label}
+                      </span>
+                    )}
+                  </Link>
+                </div>
+              );
+            }
 
             return (
               <div

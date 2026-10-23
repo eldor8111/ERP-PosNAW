@@ -468,6 +468,7 @@ def get_supplier_history(
             "paid": float(a["paid_cur"]),
             "paid_uzs": float(p.paid_amount or 0),
             "debt": float(a["debt_cur"]),
+            "debt_extra": {c: float(v) for c, v in a["debt_extra"].items()},
             "currency": a["currency"],
             "payment_type": "",
             "cashier": p.creator.name if p.creator else "",

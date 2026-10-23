@@ -11,6 +11,8 @@ import { CircleArrowDown, PackageCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import { useBranches } from '../../hooks/useBranches';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import BarcodePrintModal from '../../components/BarcodeTemplates';
+const newUid = () => Math.random().toString(36).slice(2, 9);
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 // Server xatosi matni (axios interceptor toast ko'rsatadi, bu — formadagi yozuv uchun)
@@ -232,10 +234,10 @@ function ProdSearch({ products, onSelect, inputRef, placeholder }) {
       e.preventDefault();
       if (navIdx >= 0 && navIdx < displayList.length) {
         onSelect(displayList[navIdx]);
-        setQ(''); setOpen(false); setNavIdx(-1);
+        setOpen(false); setNavIdx(-1);
       } else if (displayList.length > 0) {
         onSelect(displayList[0]);
-        setQ(''); setOpen(false); setNavIdx(-1);
+        setOpen(false); setNavIdx(-1);
       }
     }
   };
@@ -259,11 +261,12 @@ function ProdSearch({ products, onSelect, inputRef, placeholder }) {
           placeholder={placeholder}
           className="w-full text-sm outline-none bg-transparent" />
         {loading && <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />}
+        {q && <button type="button" onMouseDown={e => { e.preventDefault(); setQ(''); setResults([]); inputRef?.current?.focus(); }} className="text-slate-300 hover:text-red-400 text-lg leading-none shrink-0">×</button>}
       </div>
       {open && displayList.length > 0 && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-2xl z-60 overflow-hidden max-h-72 overflow-y-auto">
           {displayList.map((p, i) => (
-            <button key={p.id} onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
+            <button key={p.id} onMouseDown={() => { onSelect(p); setOpen(false); }}
               className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex justify-between items-center gap-3 ${navIdx === i ? 'bg-blue-50' : ''}`}>
               <div className="min-w-0">
                 <div className="font-medium text-slate-800 text-sm truncate">{p.name}</div>
@@ -406,6 +409,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         const netUzs = Number(item.unit_cost);
         const prod = products.find(pr => pr.id === item.product_id);
         return {
+          _uid: newUid(), _prod: prod, sku: prod?.sku, barcode: prod?.barcode,
           product_id: item.product_id,
           variant_id: item.variant_id || null,
           product_name: item.variant_name ? `${item.product_name} — ${item.variant_name}` : item.product_name,
@@ -503,6 +507,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const addItem = () => {
     if (!sel || !qty) return;
     const base = {
+      _uid: newUid(), _prod: sel, sku: sel.sku, barcode: sel.barcode,
       product_id: sel.id, variant_id: sel.variant_id || null, product_name: sel.name, unit: sel.unit || t('common.piece'),
       category_is_perishable: sel.category_is_perishable || false,
       expiry_date: expiryDate || '',
@@ -517,9 +522,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
 
     setPoItems(prev => {
-      const sameLine = x => x.product_id === sel.id && (x.variant_id ?? null) === (sel.variant_id ?? null);
-      const ex = prev.find(sameLine);
-      if (ex) return prev.map(x => sameLine(x) ? { ...x, qty_ordered: x.qty_ordered + Number(qty) * unitRatio, unit_note: '' } : x);
+      // Takroriy mahsulot birlashtirilmaydi — alohida qator bo'lib, sariq rang bilan ogohlantiriladi.
+      // D2.4 (dorixona): quti/blister birligi tanlangan bo'lsa miqdor asosiy birlikka (dona) o'tkaziladi.
       return [...prev, { ...base, qty_ordered: Number(qty) * unitRatio }];
     });
     setSel(null); setQty(''); setCost(''); setDiscVal('0'); setExpiryDate('');
@@ -549,6 +553,54 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
 
   const activeItems = poItems;
+  const dupKey = (x) => `${x.product_id}:${x.variant_id ?? ''}`;
+  const dupCounts = activeItems.reduce((m, x) => { const k = dupKey(x); m[k] = (m[k] || 0) + 1; return m; }, {});
+  const isDup = (x) => dupCounts[dupKey(x)] > 1;
+  const dupRowCount = activeItems.filter(isDup).length;
+
+  const [itemFilter, setItemFilter] = useState('');
+  const [selUids, setSelUids] = useState([]);
+  const [massOpen, setMassOpen] = useState(false);
+  const [bcQtyRows, setBcQtyRows] = useState(null);
+  const [bcPrint, setBcPrint] = useState(null);
+  const filterQ = itemFilter.trim();
+  const itemVisible = (x) => !filterQ || matchesSearch(x.product_name || '', filterQ) || matchesSearch(x.sku || '', filterQ) || String(x.barcode || '').includes(filterQ);
+  const visibleItems = activeItems.filter(itemVisible);
+  const allVisibleSelected = visibleItems.length > 0 && visibleItems.every(x => selUids.includes(x._uid));
+  const selCount = activeItems.filter(x => selUids.includes(x._uid)).length;
+  const toggleAllVisible = () => {
+    const ids = visibleItems.map(x => x._uid);
+    setSelUids(prev => allVisibleSelected ? prev.filter(u => !ids.includes(u)) : [...new Set([...prev, ...ids])]);
+  };
+  const toggleOne = (uid) => setSelUids(prev => prev.includes(uid) ? prev.filter(u => u !== uid) : [...prev, uid]);
+  const deleteSelected = () => {
+    setPoItems(p => p.filter(x => !selUids.includes(x._uid)));
+    setSelUids([]); setMassOpen(false);
+  };
+  const openBarcodeQty = () => {
+    setBcQtyRows(activeItems.filter(x => selUids.includes(x._uid)).map(x => ({
+      uid: x._uid, name: x.product_name, qty: String(Math.max(1, Math.round(Number(x.qty_ordered) || 1))),
+    })));
+    setMassOpen(false);
+  };
+  const confirmBarcodeQty = () => {
+    const prods = []; const qtys = {};
+    (bcQtyRows || []).forEach(r => {
+      const it = activeItems.find(x => x._uid === r.uid);
+      const n = Math.max(0, Math.floor(Number(r.qty) || 0));
+      if (!it || n <= 0) return;
+      const base = products.find(p => p.id === it.product_id) || it._prod || {};
+      if (!qtys[it.product_id]) prods.push({ ...base, id: it.product_id, name: it.product_name, barcode: base.barcode ?? it.barcode, sku: base.sku ?? it.sku });
+      qtys[it.product_id] = (qtys[it.product_id] || 0) + n;
+    });
+    if (!prods.length) { toast.error("Miqdorni kiriting"); return; }
+    setBcQtyRows(null); setBcPrint({ products: prods, qtys });
+  };
+  // Valyuta bo'yicha jami (masalan USD) + so'mdagi ekvivalenti
+  const byCur = {};
+  activeItems.forEach(i => { const c = i.currency || 'UZS'; byCur[c] = (byCur[c] || 0) + (Number(i.qty_ordered) || 0) * (i.net_cost || 0); });
+  const curTotals = Object.entries(byCur).map(([c, uzs]) => ({ cur: c, amount: c === 'UZS' ? Math.round(uzs) : Math.round((uzs / getRateFor(c)) * 100) / 100 }));
+  const totalQtyAll = activeItems.reduce((s, i) => s + (Number(i.qty_ordered) || 0), 0);
   const totalNet = activeItems.reduce((s, i) => s + i.qty_ordered * (i.net_cost || 0), 0);
   // ✅ O'RTA-3 TUZATILDI: faqat USD emas, barcha chet el valyutalar
   const hasCurrency = activeItems.some(i => i.currency && i.currency !== 'UZS');
@@ -606,6 +658,37 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   };
 
   const payTotals = calcPayModalTotals();
+
+  // Aralash kirim (so'm + USD qatorlari): jami va qoldiq qarz valyuta bo'yicha (server taqsimoti bilan bir xil qoida:
+  // to'lov avval o'z valyutasidagi qarzni, keyin boshqalarini kurs bo'yicha yopadi, ortig'i avans)
+  const isMixedPo = Object.keys(byCur).length > 1;
+  const mixedBreakdown = (() => {
+    if (!isMixedPo) return null;
+    const rateOf = c => (c === 'UZS' ? 1 : getRateFor(c));
+    const ratio = totalNet > 0 ? Math.max(0, (totalNet - payTotals.finalTotalUzs) / totalNet) : 0;
+    const totals = {};
+    Object.entries(byCur).forEach(([c, uzs]) => { totals[c] = (uzs * (1 - ratio)) / rateOf(c); });
+    const debts = { ...totals };
+    let remaining = Math.max(0, payTotals.paidInPayCur - payTotals.changeInPayCur);
+    const own = debts[payCur] || 0;
+    if (own > 0) { const take = Math.min(own, remaining); debts[payCur] = own - take; remaining -= take; }
+    if (remaining > 0.0005) {
+      let remUzs = remaining * payCurRate;
+      Object.keys(debts).forEach(c => {
+        if (c === payCur || debts[c] <= 0 || remUzs <= 0.0005) return;
+        const cover = Math.min(remUzs, debts[c] * rateOf(c));
+        debts[c] -= cover / rateOf(c);
+        remUzs -= cover;
+      });
+      remaining = remUzs / payCurRate;
+    }
+    if (remaining > 0.0005) debts[payCur] = (debts[payCur] || 0) - remaining;
+    const fmtParts = (obj, sign) => Object.entries(obj)
+      .map(([c, v]) => [c, Math.round(v * 100) / 100])
+      .filter(([, v]) => (sign > 0 ? v > 0.004 : true));
+    return { totals: fmtParts(totals, 0), debts: fmtParts(debts, 1) };
+  })();
+
 
   const handlePayCurrencyChange = (newCur) => {
     const oldCur = payForm.currency || 'UZS';
@@ -954,14 +1037,49 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           {activeItems.length > 0 && (
             <div className="bg-blue-600 rounded-2xl p-4 text-white">
               <div className="text-xs font-semibold opacity-70 uppercase tracking-wide">{t('purchase.totalSum')}</div>
-              <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">{t('purchase.somUnit')}</span></div>
+              {curTotals.some(c => c.cur !== 'UZS') ? (
+                <>
+                  {curTotals.map(c => (
+                    <div key={c.cur} className="text-2xl font-black mt-1">{fmt(c.amount)} <span className="text-sm font-normal opacity-70">{c.cur === 'UZS' ? t('purchase.somUnit') : c.cur}</span></div>
+                  ))}
+                  <div className="text-xs opacity-80 mt-1">≈ {fmt(Math.round(totalNet))} {t('purchase.somUnit')}</div>
+                </>
+              ) : (
+                <div className="text-2xl font-black mt-1">{fmt(Math.round(totalNet))} <span className="text-sm font-normal opacity-70">{t('purchase.somUnit')}</span></div>
+              )}
               <div className="text-xs opacity-60 mt-1">{activeItems.length} {t('purchase.productCount')}</div>
             </div>
           )}
         </div>
 
         {/* ── Right: items table ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          {activeItems.length > 0 && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-100 shrink-0 flex-wrap">
+              <div className="flex items-center gap-2 flex-1 min-w-[220px] border border-slate-200 rounded-xl px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input value={itemFilter} onChange={e => setItemFilter(e.target.value)} placeholder="Mahsulot nomi, artikuli yoki shtrix kodi bo'yicha qidiruv..." className="flex-1 text-sm outline-none bg-transparent min-w-0" />
+                {itemFilter && <button type="button" onClick={() => setItemFilter('')} className="text-slate-300 hover:text-red-400 text-lg leading-none">×</button>}
+              </div>
+              {dupRowCount > 0 && (
+                <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-3 py-2 rounded-xl">⚠️ Takroriy mahsulot: {dupRowCount} ta qator</span>
+              )}
+              {selCount > 0 && (
+                <div className="relative">
+                  <button type="button" onClick={() => setMassOpen(v => !v)} className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-700 text-sm font-bold hover:bg-amber-100 transition-colors">
+                    Massiviy amallar ({selCount} ta) ⌵
+                  </button>
+                  {massOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-2xl z-30 p-1">
+                      <button type="button" onClick={openBarcodeQty} className="w-full text-left px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-2">🖨️ Shtrix kodlarni chop etish</button>
+                      <button type="button" onClick={deleteSelected} className="w-full text-left px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2">🗑️ Tanlanganlarni o'chirish</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto">
           {activeItems.length === 0 ? (
             <div className="flex items-center justify-center h-full text-slate-300 flex-col gap-2">
               <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
@@ -971,6 +1089,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr>
+                  <th className="px-3 py-3 w-8"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="w-4 h-4 cursor-pointer accent-blue-600" /></th>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-slate-400 w-8">№</th>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase">{t('admin.dict.product')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase w-20">{t('purchase.colQty')}</th>
@@ -987,12 +1106,16 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                   const qty_n = it.qty_ordered;
                   const discPct = it.discount_type === 'pct' ? it.discount_val : (it.unit_cost > 0 ? (it.discount_val / it.unit_cost * 100).toFixed(1) : 0);
                   const updFn = updPoItem;
+                  const dup = isDup(it);
+                  if (!itemVisible(it)) return null;
                   return (
-                    <tr key={i} className="hover:bg-slate-50 group">
+                    <tr key={it._uid || i} className={`group ${dup ? 'bg-amber-100/80 hover:bg-amber-200/60 border-l-4 border-l-amber-500' : 'hover:bg-slate-50'}`}>
+                      <td className="px-3 py-2.5"><input type="checkbox" checked={selUids.includes(it._uid)} onChange={() => toggleOne(it._uid)} className="w-4 h-4 cursor-pointer accent-blue-600" /></td>
                       <td className="px-3 py-2.5 text-slate-400 text-xs">{i + 1}</td>
                       <td className="px-3 py-2.5">
                         <div className="font-medium text-sm">{it.product_name}</div>
                         <div className="text-xs text-slate-400">{it.unit}{it.unit_note ? ` · ${it.unit_note}` : ''}</div>
+                        {dup && <div className="text-[11px] font-bold text-amber-700 mt-0.5">⚠️ Takroriy mahsulot</div>}
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <input type="number" min="1" value={qty_n}
@@ -1085,6 +1208,23 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
               </tbody>
             </table>
           )}
+          </div>
+          {activeItems.length > 0 && (
+            <div className="flex items-center justify-between gap-4 px-6 py-3 border-t border-slate-200 bg-white shrink-0 flex-wrap">
+              <div className="text-sm text-slate-500">
+                <strong className="text-slate-700">{activeItems.length}</strong> ta qator · jami miqdor: <strong className="text-slate-700">{fmt(totalQtyAll)}</strong>
+              </div>
+              <div className="flex items-baseline gap-3 flex-wrap justify-end">
+                <span className="text-sm text-slate-500 font-semibold">Umumiy summa:</span>
+                {curTotals.some(c => c.cur !== 'UZS') && curTotals.map(c => (
+                  <span key={c.cur} className="text-lg font-black text-blue-700">{fmt(c.amount)} <span className="text-xs font-semibold">{c.cur === 'UZS' ? t('purchase.somUnit') : c.cur}</span></span>
+                ))}
+                <span className={curTotals.some(c => c.cur !== 'UZS') ? 'text-sm font-semibold text-slate-500' : 'text-lg font-black text-blue-700'}>
+                  {curTotals.some(c => c.cur !== 'UZS') ? '≈ ' : ''}{fmt(Math.round(totalNet))} {t('purchase.somUnit')}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1113,6 +1253,33 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           <Btn onClick={handleOpenPay} disabled={saving}>{t('admin.dict.payment')}</Btn>
         </div>
       </div>
+
+      {bcQtyRows && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-full">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Miqdorni tanlang</h3>
+              <button onClick={() => setBcQtyRows(null)} className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 text-xl leading-none">×</button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-3">
+              <p className="text-xs text-slate-500">Har bir mahsulotdan nechta shtrix kod (yorliq) chiqarilishini kiriting.</p>
+              {bcQtyRows.map(r => (
+                <div key={r.uid} className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">{r.name}</div>
+                  <input type="number" min="0" value={r.qty}
+                    onChange={e => setBcQtyRows(rows => rows.map(x => x.uid === r.uid ? { ...x, qty: e.target.value } : x))}
+                    className="w-24 text-center border border-slate-200 rounded-lg px-2 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
+              <Btn v="ghost" onClick={() => setBcQtyRows(null)}>Bekor</Btn>
+              <Btn onClick={confirmBarcodeQty}>Davom etish</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+      {bcPrint && <BarcodePrintModal products={bcPrint.products} initialQtys={bcPrint.qtys} onClose={() => setBcPrint(null)} />}
 
       {showPay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
@@ -1189,8 +1356,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryTotal')}</span>
                   <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
+                    {mixedBreakdown ? mixedBreakdown.totals.map(([c, v]) => `${fmt(v)} ${c === 'UZS' ? t('purchase.somUnit') : c}`).join(' + ') : (<>
                     {fmt(payTotals.finalTotalInPayCur)} <span className="text-xs uppercase">{payCur}</span>
                     {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.finalTotalUzs)} {t('purchase.somUnit')})</span>}
+                    </>)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
@@ -1203,8 +1372,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryDebt')}</span>
                   <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">
+                    {mixedBreakdown ? (mixedBreakdown.debts.length ? mixedBreakdown.debts.map(([c, v]) => `${fmt(v)} ${c === 'UZS' ? t('purchase.somUnit') : c}`).join(' + ') : '0') : (<>
                     {fmt(payTotals.debtInPayCur)} <span className="text-xs uppercase">{payCur}</span>
                     {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.debtUzs)} {t('purchase.somUnit')})</span>}
+                    </>)}
                   </span>
                 </div>
                 {payTotals.changeInPayCur > 0 && (
@@ -1220,7 +1391,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
             {/* Modal Footer Buttons */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
-              <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{fmt(payTotals.debtInPayCur)} {payCur}</span></div>
+              <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{mixedBreakdown ? (mixedBreakdown.debts.length ? mixedBreakdown.debts.map(([c, v]) => `${fmt(v)} ${c === 'UZS' ? t('purchase.somUnit') : c}`).join(' + ') : '0') : `${fmt(payTotals.debtInPayCur)} ${payCur}`}</span></div>
               <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
               <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, amount: Math.round((payTotals.paidInPayCur - payTotals.changeInPayCur) * 100) / 100, currency: payCur, payment_type: payForm.payment_type || 'cash', info: payForm.info, wallet_id: payForm.wallet_id })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
@@ -1467,7 +1638,7 @@ function KirimlarTab() {
     { k: 'status', l: t('purchase.filterStatus'), r: v => <Badge meta={poMeta} val={v} /> },
     { k: 'total_amount', l: t('purchase.colTotal'), r: (v, row) => {
       const netUzs = Number(v) - Number(row.discount_amount || 0);  // chegirmadan keyin
-      if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null) {
+      if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null && !row.mixed) {
         return (
           <div>
             <div className="font-bold text-blue-600">{fmt(Number(row.original_total_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
@@ -1479,7 +1650,7 @@ function KirimlarTab() {
     } },
     { k: 'paid_amount', l: t('common.paid'), r: (v, row) => {
       // USD yoki boshqa valyutada bo'lsa, original qiymatni ko'rsatish
-      if (row.currency && row.currency !== 'UZS' && row.original_paid_amount != null) {
+      if (row.currency && row.currency !== 'UZS' && row.original_paid_amount != null && !row.mixed) {
         return (
           <div>
             <div className="font-semibold text-emerald-600">{fmt(Number(row.original_paid_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
@@ -1488,7 +1659,7 @@ function KirimlarTab() {
         );
       }
       // Agar currency USD lekin original_paid_amount yo'q bo'lsa — UZS ekvivalentini ko'rsatish
-      if (row.currency && row.currency !== 'UZS') {
+      if (row.currency && row.currency !== 'UZS' && !row.mixed) {
         const origPaid = Number(v);
         return <span className="text-emerald-600 font-semibold">{fmt(origPaid)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
       }
@@ -1498,9 +1669,19 @@ function KirimlarTab() {
       // Server hisobi: faqat qabul qilingan tovar qarz bo'ladi; manfiy — ortiqcha to'lov (avans)
       const d = row.debt_amount != null ? Number(row.debt_amount) : Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0);
       const cur = row.currency && row.currency !== 'UZS' ? row.currency : t('purchase.somUnit');
-      if (d > 0.004) return <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">{cur}</span></span>;
-      if (d < -0.004) return <span className="text-emerald-600 font-semibold">{t('purchase.avans')}: {fmt(-d)} <span className="text-xs">{cur}</span></span>;
-      return '—';
+      const extra = Object.entries(row.debt_extra || {}).filter(([, a]) => Math.abs(Number(a)) > 0.004);
+      const chips = [];
+      if (d > 0.004) chips.push(<span key="main" className="text-red-500 font-semibold whitespace-nowrap">{fmt(d)} <span className="text-xs">{cur}</span></span>);
+      else if (d < -0.004) chips.push(<span key="main" className="text-emerald-600 font-semibold whitespace-nowrap">{t('purchase.avans')}: {fmt(-d)} <span className="text-xs">{cur}</span></span>);
+      extra.forEach(([c, a]) => {
+        const n = Number(a);
+        const label = c === 'UZS' ? t('purchase.somUnit') : c;
+        chips.push(n > 0
+          ? <span key={c} className="text-red-500 font-semibold whitespace-nowrap">{fmt(n)} <span className="text-xs">{label}</span></span>
+          : <span key={c} className="text-emerald-600 font-semibold whitespace-nowrap">{t('purchase.avans')}: {fmt(-n)} <span className="text-xs">{label}</span></span>);
+      });
+      if (!chips.length) return '—';
+      return <div className="flex flex-col gap-0.5">{chips}</div>;
     } },
     { k: 'created_at', l: t('purchase.colDate'), r: v => fmtDay(v) },
     {

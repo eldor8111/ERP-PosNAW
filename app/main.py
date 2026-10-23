@@ -276,6 +276,8 @@ def _run_auto_migrations(engine):
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(14,4);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt NUMERIC(18,4);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt_currency VARCHAR(10);",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt_extra JSON;",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS exchange_rates JSON;",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_sale_price NUMERIC(16,4);",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_wholesale_price NUMERIC(16,4);",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS meta JSON;",
@@ -606,7 +608,10 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
 
-_is_dev = os.environ.get("ENV", "production").lower() == "development"
+_enable_docs = (
+    os.environ.get("ENABLE_DOCS", "1").lower() in ("1", "true", "yes")
+    or os.environ.get("ENV", "production").lower() == "development"
+)
 
 _cors_origins_env = os.environ.get("CORS_ORIGINS", "")
 if _cors_origins_env:
@@ -623,10 +628,26 @@ app = FastAPI(
     title="ERP/POS Tizimi",
     description="Ombor va Savdo Boshqaruv Tizimi",
     version="1.0.0",
-    docs_url="/docs" if _is_dev else None,
-    redoc_url="/redoc" if _is_dev else None,
+    docs_url="/api/docs" if _enable_docs else None,
+    redoc_url="/api/redoc" if _enable_docs else None,
+    openapi_url="/api/openapi.json" if _enable_docs else None,
     lifespan=lifespan,
 )
+
+if _enable_docs:
+    from fastapi.responses import RedirectResponse  # type: ignore
+
+    @app.get("/docs", include_in_schema=False)
+    async def _redirect_docs():
+        return RedirectResponse(url="/api/docs")
+
+    @app.get("/redoc", include_in_schema=False)
+    async def _redirect_redoc():
+        return RedirectResponse(url="/api/redoc")
+
+    @app.get("/openapi.json", include_in_schema=False)
+    async def _redirect_openapi():
+        return RedirectResponse(url="/api/openapi.json")
 
 # Rate limiting
 app.state.limiter = limiter
