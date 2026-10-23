@@ -344,6 +344,28 @@ def debt_by_branch(db: Session, company_id: int, branch_id: Optional[int] = None
         rec = recs.setdefault((sid, br), {"supplier_id": sid, "branch_id": br, "debts": {}})
         rec["debts"][code] = rec["debts"].get(code, ZERO) + _d(total)
 
+    # Aralash valyutali xaridlar: asosiy valyutadan boshqa valyutalardagi musbat qarz hissalari
+    extra_rows = (
+        db.query(PurchaseOrder.supplier_id, Warehouse.branch_id, PurchaseOrder.supplier_debt_extra)
+        .join(Warehouse, Warehouse.id == PurchaseOrder.warehouse_id)
+        .join(Supplier, Supplier.id == PurchaseOrder.supplier_id)
+        .filter(
+            PurchaseOrder.company_id == company_id, Supplier.company_id == company_id,
+            Supplier.is_active == True,  # noqa: E712
+            PurchaseOrder.supplier_debt_extra.isnot(None), PurchaseOrder.status != POStatus.cancelled,
+        )
+        .all()
+    )
+    for sid, br, extra in extra_rows:
+        for code, amt in dict(extra or {}).items():
+            amt = _d(amt)
+            if amt <= 0:
+                continue
+            code = (str(code)).strip().upper() or "UZS"
+            po_total[code] += amt
+            rec = recs.setdefault((sid, br), {"supplier_id": sid, "branch_id": br, "debts": {}})
+            rec["debts"][code] = rec["debts"].get(code, ZERO) + amt
+
     # Umumiy balans (faol ta'minotchilar) va xaridlarga bog'lanmagan qism
     bal_total: dict = defaultdict(lambda: ZERO)
     suppliers = {s.id: s for s in db.query(Supplier).filter(Supplier.company_id == company_id, Supplier.is_active == True).all()}  # noqa: E712

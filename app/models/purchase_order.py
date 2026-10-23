@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import JSON, Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -34,6 +34,10 @@ class PurchaseOrder(Base):
     # qabul qilingan qiymat (chegirma bilan) − to'langan. O'chirish/tahrirda aynan shu qaytariladi.
     supplier_debt = Column(Numeric(18, 4), nullable=True)
     supplier_debt_currency = Column(String(10), nullable=True)
+    # Aralash valyutali xarid (so'm + USD qatorlari): asosiy valyutadan (supplier_debt_currency) boshqa
+    # valyutalardagi hissa {valyuta: summa} va qatorlar valyuta kurslari {valyuta: 1 valyuta = N so'm}.
+    supplier_debt_extra = Column(JSON, nullable=True)
+    exchange_rates = Column(JSON, nullable=True)
     note = Column(Text, nullable=True)
     expected_date = Column(DateTime, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)

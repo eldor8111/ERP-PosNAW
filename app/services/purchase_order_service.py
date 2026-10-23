@@ -121,20 +121,136 @@ def target_contribution(db: Session, po: PurchaseOrder, persist_rate: bool = Tru
     return (net_received_uzs - _d(po.paid_amount)) / po_rate(db, po, persist=persist_rate)
 
 
+def _item_currency(item: POItem) -> str:
+    return (item.cost_currency or "UZS").strip().upper() or "UZS"
+
+
+def is_mixed(po: PurchaseOrder) -> bool:
+    """Qatorlarda so'mdan boshqa valyuta bormi. Ha bo'lsa qarz valyuta bo'yicha ajratiladi
+    (so'mdagi qatorlar — so'mda, USD dagilar — USD da); yo'q bo'lsa butun xarid bitta valyutada."""
+    return any(_item_currency(i) != "UZS" for i in po.items)
+
+
+def rate_for(db: Session, po: PurchaseOrder, code: str, persist: bool = True) -> Decimal:
+    """Xariddagi istalgan valyuta kursi (1 valyuta = N so'm): xarid yaratilgandagi kurs."""
+    code = (code or "UZS").strip().upper() or "UZS"
+    if code == "UZS":
+        return Decimal("1")
+    saved = (po.exchange_rates or {}).get(code)
+    if saved and _d(saved) > 0:
+        return _d(saved)
+    if code == po_currency(po):
+        return po_rate(db, po, persist)
+    rate = ledger.currency_rate(db, po.company_id, code)
+    if persist:
+        po.exchange_rates = {**dict(po.exchange_rates or {}), code: float(rate)}
+    return rate
+
+
+def _stamp_rates(db: Session, po: PurchaseOrder) -> None:
+    """Qatorlardagi (xarid valyutasidan boshqa) valyutalarning joriy kursini xaridga qotiradi."""
+    pcur = po_currency(po)
+    rates = {}
+    for i in po.items:
+        code = _item_currency(i)
+        if code not in ("UZS", pcur):
+            rates[code] = float(ledger.currency_rate(db, po.company_id, code))
+    po.exchange_rates = rates
+
+
+def _payment_events(db: Session, po: PurchaseOrder) -> list:
+    """Xarid to'lovlari: [(valyuta, summa, so'm ekvivalenti)]; tranzaksiyasiz qolgan qism — so'mda."""
+    events, covered = [], ZERO
+    for tx in _po_payment_txs(db, po):
+        code = (tx.currency_code or "UZS").strip().upper() or "UZS"
+        amount = _d(tx.amount)
+        meta = tx.meta or {}
+        if meta.get("po_paid_uzs") is not None:
+            uzs = _d(meta["po_paid_uzs"])
+        else:
+            uzs = amount * ledger.currency_rate(db, po.company_id, code)
+        events.append((code, amount, uzs))
+        covered += uzs
+    residual = _d(po.paid_amount) - covered
+    if residual > Decimal("1"):
+        events.append(("UZS", residual, residual))
+    return events
+
+
+def _allocate_payment(db: Session, po: PurchaseOrder, parts: dict, code: str, amount: Decimal, uzs: Decimal,
+                      persist: bool) -> None:
+    """To'lovni qarz hissalariga taqsimlaydi: avval shu valyutadagi qarz, keyin boshqalari (kurs bo'yicha),
+    ortig'i — to'lov valyutasida avans (manfiy hissa)."""
+    remaining = amount
+    own = parts.get(code, ZERO)
+    if own > 0:
+        take = min(own, remaining)
+        parts[code] = own - take
+        remaining -= take
+    pay_rate = (uzs / amount) if amount > 0 else rate_for(db, po, code, persist)
+    if remaining > TINY and pay_rate > 0:
+        remaining_uzs = remaining * pay_rate
+        for other in list(parts):
+            debt = parts[other]
+            if other == code or debt <= 0 or remaining_uzs <= TINY:
+                continue
+            r = rate_for(db, po, other, persist)
+            cover_uzs = min(remaining_uzs, debt * r)
+            parts[other] = debt - cover_uzs / r
+            remaining_uzs -= cover_uzs
+        remaining = remaining_uzs / pay_rate
+    if remaining > TINY:
+        parts[code] = parts.get(code, ZERO) - remaining
+
+
+def target_parts(db: Session, po: PurchaseOrder, persist_rate: bool = True) -> dict:
+    """Xaridning hozirgi qarz hissasi valyuta bo'yicha {valyuta: summa}.
+    Oddiy xarid — bitta valyutada (eski hisob); aralash xarid — har qator o'z valyutasida."""
+    pcur = po_currency(po)
+    if not is_mixed(po):
+        return {pcur: target_contribution(db, po, persist_rate)}
+    total = _d(po.total_amount)
+    ratio = (_d(po.discount_amount) / total) if total > 0 else ZERO
+    value_uzs: dict = defaultdict(lambda: ZERO)
+    parts: dict = {}
+    for i in po.items:
+        code = _item_currency(i)
+        parts.setdefault(code, ZERO)
+        value_uzs[code] += _d(i.qty_received) * _d(i.unit_cost)
+    for code, v in value_uzs.items():
+        parts[code] = v * (1 - ratio) / rate_for(db, po, code, persist_rate)
+    parts.setdefault(pcur, ZERO)
+    for code, amount, uzs in _payment_events(db, po):
+        _allocate_payment(db, po, parts, code, amount, uzs, persist_rate)
+    return parts
+
+
+def _extra_parts(po: PurchaseOrder) -> dict:
+    return {str(c).upper(): _d(v) for c, v in dict(po.supplier_debt_extra or {}).items()}
+
+
 def _sync_supplier_debt(db: Session, po: PurchaseOrder) -> None:
     supplier = db.get(Supplier, po.supplier_id)
     if not supplier:
         return
     cur = po_currency(po)
-    target = target_contribution(db, po)
+    parts = target_parts(db, po)
+    target = parts.pop(cur, ZERO)
+    extra = {c: v for c, v in parts.items() if abs(v) >= Decimal("0.00005")}
     old = recorded_contribution(db, po)
     old_cur = (po.supplier_debt_currency or cur).upper()
-    if old_cur != cur:
-        ledger.add(db, supplier, old_cur, -old)
-        old = ZERO
-    ledger.add(db, supplier, cur, target - old)
+    delta: dict = defaultdict(lambda: ZERO)
+    delta[old_cur] -= old
+    delta[cur] += target
+    for c, v in _extra_parts(po).items():
+        delta[c] -= v
+    for c, v in extra.items():
+        delta[c] += v
+    for c, d in delta.items():
+        ledger.add(db, supplier, c, d)
     po.supplier_debt = round(target, 4)
     po.supplier_debt_currency = cur
+    po.supplier_debt_extra = {c: float(round(v, 4)) for c, v in extra.items()}
 
 
 def display_amounts(db: Session, po: PurchaseOrder) -> dict:
@@ -142,7 +258,13 @@ def display_amounts(db: Session, po: PurchaseOrder) -> dict:
     cur = po_currency(po)
     rate = po_rate(db, po, persist=False)
     net_total = _d(po.total_amount) - _d(po.discount_amount)
-    contribution = recorded_contribution(db, po) if po.supplier_debt is not None else target_contribution(db, po, persist_rate=False)
+    if po.supplier_debt is not None:
+        contribution = recorded_contribution(db, po)
+        extra = _extra_parts(po)
+    else:
+        parts = target_parts(db, po, persist_rate=False)
+        contribution = parts.pop(cur, ZERO)
+        extra = parts
     return {
         "currency": cur,
         "rate": rate,
@@ -150,7 +272,10 @@ def display_amounts(db: Session, po: PurchaseOrder) -> dict:
         "paid_cur": round(_d(po.paid_amount) / rate, 2),
         "debt_cur": round(contribution, 2),
         "debt_uzs": round(contribution * rate, 2),
+        # Aralash xarid: asosiy valyutadan boshqa valyutalardagi qarz {valyuta: summa}
+        "debt_extra": {c: round(v, 2) for c, v in extra.items() if abs(v) >= Decimal("0.005")},
     }
+
 
 
 # ─── Qabul qilish ────────────────────────────────────────────────────────────
@@ -347,6 +472,7 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
     db.flush()
 
     total = _build_items(db, po, data.items, cid)
+    _stamp_rates(db, po)
     po.total_amount = total
     po.discount_amount = _check_discount(_d(data.discount_amount), total)
     po.paid_amount = _d(data.paid_amount)
@@ -484,6 +610,8 @@ def delete_purchase_order(db: Session, po_id: int, current_user: User) -> None:
     supplier = db.get(Supplier, po.supplier_id)
     if supplier:
         ledger.add(db, supplier, (po.supplier_debt_currency or po_currency(po)), -recorded_contribution(db, po))
+        for c, v in _extra_parts(po).items():
+            ledger.add(db, supplier, c, -v)
 
     log_action(db, action="DELETE", entity_type="purchase_order", entity_id=po.id, user_id=current_user.id,
                old_values={"number": po.number, "status": po.status.value, "total": str(po.total_amount),
@@ -505,7 +633,10 @@ def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> 
     old_cur = (po.supplier_debt_currency or po_currency(po)).upper()
     if old_supplier:
         ledger.add(db, old_supplier, old_cur, -recorded_contribution(db, po))
+        for c, v in _extra_parts(po).items():
+            ledger.add(db, old_supplier, c, -v)
     po.supplier_debt = ZERO
+    po.supplier_debt_extra = {}
     po.supplier_debt_currency = old_cur
 
     if data.supplier_id is not None:
@@ -532,6 +663,7 @@ def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> 
         po.items.clear()
         db.flush()
         po.total_amount = _build_items(db, po, data.items, cid)
+        _stamp_rates(db, po)
     if data.discount_amount is not None:
         po.discount_amount = data.discount_amount
     po.discount_amount = _check_discount(_d(po.discount_amount), _d(po.total_amount))

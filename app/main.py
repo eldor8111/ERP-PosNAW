@@ -276,6 +276,8 @@ def _run_auto_migrations(engine):
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(14,4);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt NUMERIC(18,4);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt_currency VARCHAR(10);",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_debt_extra JSON;",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS exchange_rates JSON;",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_sale_price NUMERIC(16,4);",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS new_wholesale_price NUMERIC(16,4);",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS meta JSON;",

@@ -632,6 +632,37 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
   const payTotals = calcPayModalTotals();
 
+  // Aralash kirim (so'm + USD qatorlari): jami va qoldiq qarz valyuta bo'yicha (server taqsimoti bilan bir xil qoida:
+  // to'lov avval o'z valyutasidagi qarzni, keyin boshqalarini kurs bo'yicha yopadi, ortig'i avans)
+  const isMixedPo = Object.keys(byCur).length > 1;
+  const mixedBreakdown = (() => {
+    if (!isMixedPo) return null;
+    const rateOf = c => (c === 'UZS' ? 1 : getRateFor(c));
+    const ratio = totalNet > 0 ? Math.max(0, (totalNet - payTotals.finalTotalUzs) / totalNet) : 0;
+    const totals = {};
+    Object.entries(byCur).forEach(([c, uzs]) => { totals[c] = (uzs * (1 - ratio)) / rateOf(c); });
+    const debts = { ...totals };
+    let remaining = Math.max(0, payTotals.paidInPayCur - payTotals.changeInPayCur);
+    const own = debts[payCur] || 0;
+    if (own > 0) { const take = Math.min(own, remaining); debts[payCur] = own - take; remaining -= take; }
+    if (remaining > 0.0005) {
+      let remUzs = remaining * payCurRate;
+      Object.keys(debts).forEach(c => {
+        if (c === payCur || debts[c] <= 0 || remUzs <= 0.0005) return;
+        const cover = Math.min(remUzs, debts[c] * rateOf(c));
+        debts[c] -= cover / rateOf(c);
+        remUzs -= cover;
+      });
+      remaining = remUzs / payCurRate;
+    }
+    if (remaining > 0.0005) debts[payCur] = (debts[payCur] || 0) - remaining;
+    const fmtParts = (obj, sign) => Object.entries(obj)
+      .map(([c, v]) => [c, Math.round(v * 100) / 100])
+      .filter(([, v]) => (sign > 0 ? v > 0.004 : true));
+    return { totals: fmtParts(totals, 0), debts: fmtParts(debts, 1) };
+  })();
+
+
   const handlePayCurrencyChange = (newCur) => {
     const oldCur = payForm.currency || 'UZS';
     if (oldCur === newCur) return;
@@ -1258,8 +1289,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryTotal')}</span>
                   <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
+                    {mixedBreakdown ? mixedBreakdown.totals.map(([c, v]) => `${fmt(v)} ${c === 'UZS' ? t('purchase.somUnit') : c}`).join(' + ') : (<>
                     {fmt(payTotals.finalTotalInPayCur)} <span className="text-xs uppercase">{payCur}</span>
                     {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.finalTotalUzs)} {t('purchase.somUnit')})</span>}
+                    </>)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
@@ -1272,8 +1305,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 <div className="flex items-center justify-between w-72 text-base sm:text-lg">
                   <span className="text-slate-500">{t('purchase.summaryDebt')}</span>
                   <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">
+                    {mixedBreakdown ? (mixedBreakdown.debts.length ? mixedBreakdown.debts.map(([c, v]) => `${fmt(v)} ${c === 'UZS' ? t('purchase.somUnit') : c}`).join(' + ') : '0') : (<>
                     {fmt(payTotals.debtInPayCur)} <span className="text-xs uppercase">{payCur}</span>
                     {payCur !== 'UZS' && <span className="text-xs text-slate-400 font-normal ml-1">({fmt(payTotals.debtUzs)} {t('purchase.somUnit')})</span>}
+                    </>)}
                   </span>
                 </div>
                 {payTotals.changeInPayCur > 0 && (
@@ -1289,7 +1324,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
 
             {/* Modal Footer Buttons */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 mt-auto rounded-b-2xl flex-wrap">
-              <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{fmt(payTotals.debtInPayCur)} {payCur}</span></div>
+              <div className="text-sm font-semibold text-slate-500 flex-1">{t('purchase.supplierDebt')} <span className="text-slate-800 ml-1">{mixedBreakdown ? (mixedBreakdown.debts.length ? mixedBreakdown.debts.map(([c, v]) => `${fmt(v)} ${c === 'UZS' ? t('purchase.somUnit') : c}`).join(' + ') : '0') : `${fmt(payTotals.debtInPayCur)} ${payCur}`}</span></div>
               <button onClick={() => setShowPay(false)} className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold bg-white hover:bg-slate-50 transition-colors">{t('common.cancel')}</button>
               <button disabled={saving} onClick={() => savePo('received', { paid: payTotals.paidInUzs - payTotals.changeUzs, amount: Math.round((payTotals.paidInPayCur - payTotals.changeInPayCur) * 100) / 100, currency: payCur, payment_type: payForm.payment_type || 'cash', info: payForm.info, wallet_id: payForm.wallet_id })} className="px-6 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
@@ -1442,7 +1477,7 @@ function KirimlarTab() {
     { k: 'status', l: t('purchase.filterStatus'), r: v => <Badge meta={poMeta} val={v} /> },
     { k: 'total_amount', l: t('purchase.colTotal'), r: (v, row) => {
       const netUzs = Number(v) - Number(row.discount_amount || 0);  // chegirmadan keyin
-      if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null) {
+      if (row.currency && row.currency !== 'UZS' && row.original_total_amount != null && !row.mixed) {
         return (
           <div>
             <div className="font-bold text-blue-600">{fmt(Number(row.original_total_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
@@ -1454,7 +1489,7 @@ function KirimlarTab() {
     } },
     { k: 'paid_amount', l: t('common.paid'), r: (v, row) => {
       // USD yoki boshqa valyutada bo'lsa, original qiymatni ko'rsatish
-      if (row.currency && row.currency !== 'UZS' && row.original_paid_amount != null) {
+      if (row.currency && row.currency !== 'UZS' && row.original_paid_amount != null && !row.mixed) {
         return (
           <div>
             <div className="font-semibold text-emerald-600">{fmt(Number(row.original_paid_amount))} <span className="text-xs uppercase font-semibold">{row.currency}</span></div>
@@ -1463,7 +1498,7 @@ function KirimlarTab() {
         );
       }
       // Agar currency USD lekin original_paid_amount yo'q bo'lsa — UZS ekvivalentini ko'rsatish
-      if (row.currency && row.currency !== 'UZS') {
+      if (row.currency && row.currency !== 'UZS' && !row.mixed) {
         const origPaid = Number(v);
         return <span className="text-emerald-600 font-semibold">{fmt(origPaid)} <span className="text-xs text-slate-400">{t('purchase.somUnit')}</span></span>;
       }
@@ -1473,9 +1508,19 @@ function KirimlarTab() {
       // Server hisobi: faqat qabul qilingan tovar qarz bo'ladi; manfiy — ortiqcha to'lov (avans)
       const d = row.debt_amount != null ? Number(row.debt_amount) : Number(row.total_amount) - Number(row.paid_amount || 0) - Number(row.discount_amount || 0);
       const cur = row.currency && row.currency !== 'UZS' ? row.currency : t('purchase.somUnit');
-      if (d > 0.004) return <span className="text-red-500 font-semibold">{fmt(d)} <span className="text-xs">{cur}</span></span>;
-      if (d < -0.004) return <span className="text-emerald-600 font-semibold">{t('purchase.avans')}: {fmt(-d)} <span className="text-xs">{cur}</span></span>;
-      return '—';
+      const extra = Object.entries(row.debt_extra || {}).filter(([, a]) => Math.abs(Number(a)) > 0.004);
+      const chips = [];
+      if (d > 0.004) chips.push(<span key="main" className="text-red-500 font-semibold whitespace-nowrap">{fmt(d)} <span className="text-xs">{cur}</span></span>);
+      else if (d < -0.004) chips.push(<span key="main" className="text-emerald-600 font-semibold whitespace-nowrap">{t('purchase.avans')}: {fmt(-d)} <span className="text-xs">{cur}</span></span>);
+      extra.forEach(([c, a]) => {
+        const n = Number(a);
+        const label = c === 'UZS' ? t('purchase.somUnit') : c;
+        chips.push(n > 0
+          ? <span key={c} className="text-red-500 font-semibold whitespace-nowrap">{fmt(n)} <span className="text-xs">{label}</span></span>
+          : <span key={c} className="text-emerald-600 font-semibold whitespace-nowrap">{t('purchase.avans')}: {fmt(-n)} <span className="text-xs">{label}</span></span>);
+      });
+      if (!chips.length) return '—';
+      return <div className="flex flex-col gap-0.5">{chips}</div>;
     } },
     { k: 'created_at', l: t('purchase.colDate'), r: v => fmtDay(v) },
     {
