@@ -66,6 +66,7 @@ const NotFound        = lazy(() => import('./pages/NotFound'))
 const TelegramShop    = lazy(() => import('./pages/TelegramShop'))
 const CourierApp      = lazy(() => import('./pages/CourierApp'))
 const Privacy         = lazy(() => import('./pages/Privacy'))
+const Oferta          = lazy(() => import('./pages/Oferta'))
 
 // Moliya/kassa sahifalari: backend (kassa.py, finance.py) bilan mos — FINANCE_ACCESS + super_admin
 const FINANCE_ROUTE_ROLES = [...ROLE_GROUPS.FINANCE_ACCESS, ROLES.SUPER_ADMIN]
@@ -186,6 +187,7 @@ export default function App() {
           <Route path="/yangiliklar" element={<Suspense fallback={<PageLoader />}><Yangiliklar /></Suspense>} />
           <Route path="/aloqa" element={<Suspense fallback={<PageLoader />}><Aloqa /></Suspense>} />
           <Route path="/maxfiylik-siyosati" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
+          <Route path="/oferta" element={<Suspense fallback={<PageLoader />}><Oferta /></Suspense>} />
           <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
         </Routes>
         </BranchProvider>

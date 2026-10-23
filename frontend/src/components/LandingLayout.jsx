@@ -340,7 +340,7 @@ export default function LandingLayout({ children }) {
               © {new Date().getFullYear()} E-Code ERP. Barcha huquqlar himoyalangan.
             </div>
             <div className="flex items-center gap-6">
-              <a href="/oferta.pdf" target="_blank" className="hover:text-slate-200 transition-colors no-underline text-slate-400">Ommaviy oferta</a>
+              <a href="/oferta" className="hover:text-slate-200 transition-colors no-underline text-slate-400">Ommaviy oferta</a>
               <a href="/maxfiylik-siyosati" className="hover:text-slate-200 transition-colors no-underline text-slate-500">Maxfiylik siyosati</a>
             </div>
           </div>
