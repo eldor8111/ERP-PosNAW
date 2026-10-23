@@ -142,16 +142,15 @@ export default function Oferta() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
                 <div className="space-y-2 text-sm text-slate-700">
-                  <p className="font-bold text-base text-slate-900">E-Code ERP Platformasi</p>
-                  <p><span className="font-semibold">{lang === 'ru' ? 'Исполнитель' : 'Ijrochi'}:</span> YaTT / ИП UMAR SHUXRATOV SHOVKAT O'G'LI</p>
+                  <p className="font-bold text-base text-slate-900">E-Code ERP</p>
                   <p><span className="font-semibold">{lang === 'ru' ? 'Сервис' : 'Xizmat'}:</span> e-code.uz / savdo.e-code.uz</p>
-                  <p><span className="font-semibold">{lang === 'ru' ? 'Деятельность' : 'Faoliyat turi'}:</span> Dasturiy ta'minot ishlab chiqish, ERP va POS bulutli xizmatlari</p>
+                  <p><span className="font-semibold">{lang === 'ru' ? 'Деятельность' : 'Faoliyat turi'}:</span> Dasturiy ta'minot, bulutli ERP va POS savdo tizimlari</p>
                 </div>
 
                 <div className="space-y-3 text-sm text-slate-700">
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-blue-600" />
-                    <span>+998 88 911 81 71 / +998 90 939 70 79</span>
+                    <span>+998 88 911 81 71</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-blue-600" />
