@@ -54,6 +54,10 @@ class Company(Base):
     receipt_format = Column(String(20), default="text", server_default="text")
     # Telegram botda xabarlar, cheklar va fayllarni forward qilish/saqlashni cheklash
     tg_protect_content = Column(Boolean, default=False, server_default="false")
+    # D1.1: Dorixona moduli (paket: pharmacy). O'chiq bo'lsa dorixona qoidalarining hech biri ishlamaydi.
+    pharmacy_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Dorixona sozlamalari (app/services/pharmacy.py DEFAULT_SETTINGS): muddat chegaralari, retsept rejimi
+    pharmacy_settings = Column(JSON, nullable=True)
 
     # ── Ixtiyoriy modullar (oddiy do'konlarga ko'rinmasligi uchun) ──
     # manufacturing — Ishlab chiqarish (retseptura, buyurtma, tannarx)

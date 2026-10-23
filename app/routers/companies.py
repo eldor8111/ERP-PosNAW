@@ -14,6 +14,7 @@ from app.config import settings  # type: ignore
 from app.database import get_db  # type: ignore
 from app.core.dependencies import get_current_user, require_roles  # type: ignore
 from app.models.company import Company  # type: ignore
+from app.services.pharmacy import pharmacy_settings_of  # type: ignore
 from app.models.branch import Branch  # type: ignore
 from app.models.user import User, UserRole  # type: ignore
 
@@ -94,6 +95,9 @@ class CompanyUpdate(BaseModel):
     stock_deduct_stage: Optional[str] = None
     agent_order_geo_radius_check: Optional[bool] = None
     default_delivery_radius_m: Optional[int] = None
+    # D1.1: Dorixona moduli va sozlamalari
+    pharmacy_enabled: Optional[bool] = None
+    pharmacy_settings: Optional[dict] = None
 
 
 # Chek shabloni (XSS himoyasi): faqat ma'lum kalitlar va cheklangan qiymatlar
@@ -209,6 +213,8 @@ class CompanyOut(BaseModel):
     default_delivery_radius_m: int = 250
     receipt_format: str = "text"
     tg_protect_content: bool = False
+    pharmacy_enabled: bool = False
+    pharmacy_settings: dict = {}
 
     class Config:
         from_attributes = True
@@ -260,6 +266,8 @@ def list_companies(
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
         tg_protect_content=bool(getattr(c, 'tg_protect_content', False)),
+        pharmacy_enabled=bool(getattr(c, 'pharmacy_enabled', False)),
+        pharmacy_settings=pharmacy_settings_of(c),
         ))  # type: ignore[call-arg]
     return result
 
@@ -275,12 +283,15 @@ def get_my_company_features(
         return {
             "manufacturing": False, "distribution": False, "marketplace_agents": False,
             "require_shift": False, "credit_limit_scope": "distributor",
+            "pharmacy": False, "pharmacy_settings": {},
         }
     c = db.query(Company).filter(Company.id == cid).first()
     return {
         "manufacturing": company_has_feature(db, cid, "manufacturing"),
         "distribution": company_has_feature(db, cid, "distribution"),
         "marketplace_agents": company_has_feature(db, cid, "marketplace_agents"),
+        "pharmacy": company_has_feature(db, cid, "pharmacy"),
+        "pharmacy_settings": pharmacy_settings_of(c),
         "require_shift": bool(c and c.pos_require_shift),
         "credit_limit_scope": (getattr(c, "credit_limit_scope", None) or "distributor") if c else "distributor",
     }
@@ -362,6 +373,8 @@ def create_company(
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
         tg_protect_content=bool(getattr(c, 'tg_protect_content', False)),
+        pharmacy_enabled=bool(getattr(c, 'pharmacy_enabled', False)),
+        pharmacy_settings=pharmacy_settings_of(c),
     )  # type: ignore[call-arg]
 
 
@@ -388,6 +401,17 @@ def update_company(
         update_data.pop("promotions_auto_apply", None)   # NOT NULL ustun (C4.1, T4.3)
     if update_data.get("fiscal_default_vat") is not None and not (0 <= update_data["fiscal_default_vat"] <= 100):
         raise HTTPException(status_code=400, detail="QQS foizi 0 dan 100 gacha bo'lishi kerak")
+    # D1.1: dorixona sozlamalari tekshiriladi; None yuborilsa mavjud qiymat saqlanadi
+    if "pharmacy_settings" in update_data:
+        if update_data["pharmacy_settings"] is None:
+            update_data.pop("pharmacy_settings")
+        else:
+            from app.services.pharmacy import normalize_pharmacy_settings, pharmacy_settings_of as _ps_of
+            merged = _ps_of(c)
+            merged.update(normalize_pharmacy_settings(update_data["pharmacy_settings"]))
+            update_data["pharmacy_settings"] = merged
+    if update_data.get("pharmacy_enabled") is None:
+        update_data.pop("pharmacy_enabled", None)
     if update_data.get("credit_limit_scope") is None:
         update_data.pop("credit_limit_scope", None)  # NOT NULL ustun (T2.12)
 
@@ -432,6 +456,7 @@ def update_company(
             ("manufacturing", "Ishlab chiqarish", "manufacturing_enabled"),
             ("distribution", "Distribyutsiya", "distribution_enabled"),
             ("delivery_automation", "Yetkazib berish avtomatikasi", "orders_auto_create_sale"),
+            ("pharmacy", "Dorixona", "pharmacy_enabled"),
         ]:
             # T3.9: tarif yoki paket faqat modul YANGI yoqilayotganda talab qilinadi (o'chirish va
             # allaqachon yoqilgan bayroqni qayta saqlash — forma qayta saqlanishi — to'sqinlik qilmaydi)
@@ -514,6 +539,8 @@ def update_company(
         default_delivery_radius_m=c.default_delivery_radius_m if c.default_delivery_radius_m is not None else 250,
         receipt_format=getattr(c, 'receipt_format', 'text') or 'text',
         tg_protect_content=bool(getattr(c, 'tg_protect_content', False)),
+        pharmacy_enabled=bool(getattr(c, 'pharmacy_enabled', False)),
+        pharmacy_settings=pharmacy_settings_of(c),
     )  # type: ignore[call-arg]
 
 

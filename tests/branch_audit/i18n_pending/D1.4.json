@@ -1,0 +1,20 @@
+{
+  "uz": {
+    "pharmacyReturn.lot": "Seriya",
+    "pharmacyReturn.expiry": "Yaroqlilik muddati",
+    "pharmacyReturn.needLot": "Asl partiya topilmadi — seriya va muddatni kiriting",
+    "pharmacyReturn.lotRequired": "Seriya raqami va yaroqlilik muddatini kiriting"
+  },
+  "ru": {
+    "pharmacyReturn.lot": "Серия",
+    "pharmacyReturn.expiry": "Срок годности",
+    "pharmacyReturn.needLot": "Исходная партия не найдена — укажите серию и срок годности",
+    "pharmacyReturn.lotRequired": "Укажите номер серии и срок годности"
+  },
+  "en": {
+    "pharmacyReturn.lot": "Lot",
+    "pharmacyReturn.expiry": "Expiry date",
+    "pharmacyReturn.needLot": "Original batch not found — enter lot number and expiry date",
+    "pharmacyReturn.lotRequired": "Enter the lot number and expiry date"
+  }
+}

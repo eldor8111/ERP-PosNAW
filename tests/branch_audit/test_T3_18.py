@@ -18,6 +18,7 @@ import itertools
 import json
 import os
 import py_compile
+import re
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -550,9 +551,10 @@ def test_migration_matches_models():
     py_compile.compile(path, doraise=True)
     src = open(path, encoding='utf-8').read()
     assert "revision = 't3_18'" in src and "down_revision = 't3_17'" in src
-    for token in ("'fiscal_devices'", "'payment_terminals'", "'reference'", "'terminal_id'", "'fiscal_factory_id'",
+    # 6facd10: migratsiya idempotent xom SQL ga o'tkazilgan — jadval/ustun nomlari SQL matnida (qo'shtirnoqsiz)
+    for token in ('fiscal_devices', 'payment_terminals', 'reference', 'terminal_id', 'fiscal_factory_id',
                   'ix_sale_payments_reference', 'uq_fiscal_devices_company_factory'):
         assert token in src, token
-    # Modellardagi ustunlar migratsiyada bor
+    # Modellardagi ustunlar migratsiyada bor (SQL ustun nomi sifatida, butun so'z)
     for col in (FiscalDevice.__table__.columns.keys() + PaymentTerminal.__table__.columns.keys()):
-        assert f"'{col}'" in src, col
+        assert re.search(r"\b" + col + r"\b", src), col

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Query, Session
 from app.models.batch import Batch
 from app.models.category import Category
 from app.models.product import Product
+from app.services.pharmacy import pharmacy_enabled
 
 
 def _day_start(d) -> datetime:
@@ -26,6 +27,7 @@ def expired_batches_query(
     only_expired: bool = False,
     expiry_until: Optional[date] = None,
     expiry_from: Optional[date] = None,
+    pharmacy: Optional[bool] = None,
 ) -> Query:
     """Muddati nazorat qilinadigan partiyalar (Batch) so'rovi.
 
@@ -33,17 +35,21 @@ def expired_batches_query(
     - only_expired=True: faqat muddati o'tganlar (expiry_date < today)
     - expiry_from/expiry_until: muddat oralig'i (ikkala chegara kiritiladi)
     - warehouse_ids: ombor filtri (bo'sh ro'yxat = hech narsa)
+    - D4.1: dorixona moduli yoqilgan korxonada "tez buziladigan" kategoriya sharti olib tashlanadi
+      (hamma dori, kategoriyasiz ham); oddiy korxonada qoida avvalgidek. `pharmacy` — chaqiruvchi
+      allaqachon bilsa (qo'shimcha so'rovsiz); None bo'lsa o'zi tekshiradi.
     """
-    q = (
-        db.query(Batch)
-        .join(Product, Product.id == Batch.product_id)
-        .join(Category, Category.id == Product.category_id)
-        .filter(
-            Batch.company_id == company_id,
-            Batch.quantity > 0,
-            Batch.expiry_date.isnot(None),
+    if pharmacy is None:
+        pharmacy = pharmacy_enabled(db, company_id)
+    q = db.query(Batch).join(Product, Product.id == Batch.product_id)
+    if not pharmacy:
+        q = q.join(Category, Category.id == Product.category_id).filter(
             Category.is_perishable == True,  # noqa: E712
         )
+    q = q.filter(
+        Batch.company_id == company_id,
+        Batch.quantity > 0,
+        Batch.expiry_date.isnot(None),
     )
     if warehouse_ids is not None:
         q = q.filter(Batch.warehouse_id.in_(list(warehouse_ids)))

@@ -25,6 +25,8 @@ import {
   CurrencyDropdown, BulkStockEditModal,
 } from './products/SharedComponents';
 import SizeMatrixModal from './products/SizeMatrixModal';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import { PharmaSection, SubstancePicker, emptyPharma, pharmaToForm, pharmaToPayload, CONTROL_CLASSES } from '../../components/ProductAddModal';
 import useBulkVoice from './products/useBulkVoice';
 import { isScaleUnit } from '../../utils/scale';
 import { buildShtrixM, buildTma, buildRongta } from '../../utils/scaleExport';
@@ -322,6 +324,20 @@ export default function Products() {
   const [mxikCode, setMxikCode] = useState();
   const [barcode_input, setBarcodeInput] = useState();
 
+  /* D2.2: dorixona rejimi — "Dori ma'lumotlari" formasi va ro'yxat filtrlari (oddiy korxonada ishlatilmaydi) */
+  const features = useCompanyFeatures();
+  const pharmacyOn = !!features?.pharmacy;
+  const [pharmaForm, setPharmaForm] = useState({ ...emptyPharma, substances: [] });
+  const [filterSubstance, setFilterSubstance] = useState(null);   // {id, name_uz}
+  const [filterManufacturer, setFilterManufacturer] = useState('');
+  const [manufacturerInput, setManufacturerInput] = useState('');
+  const [filterRx, setFilterRx] = useState('');                   // '' | 'true' | 'false'
+  const [filterControl, setFilterControl] = useState('');         // '' | CONTROL_CLASSES kaliti
+  useEffect(() => {
+    const id = setTimeout(() => setFilterManufacturer(manufacturerInput.trim()), 400);
+    return () => clearTimeout(id);
+  }, [manufacturerInput]);
+
   /* MXIK bulk sync + tarozi export modal */
   const [mxikSyncing, setMxikSyncing] = useState(false);
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
@@ -470,6 +486,13 @@ export default function Products() {
       params.append('sort_by', sortBy);       // 'sale_price' | 'wholesale_price' | 'cost_price' | 'profit'
       params.append('sort_order', sortOrder); // 'asc' | 'desc'
     }
+    // D2.2: dori filtrlari — faqat dorixona rejimida yuboriladi
+    if (pharmacyOn) {
+      if (filterSubstance?.id) params.append('substance_id', String(filterSubstance.id));
+      if (filterManufacturer) params.append('manufacturer', filterManufacturer);
+      if (filterRx) params.append('is_rx', filterRx);
+      if (filterControl) params.append('control_class', filterControl);
+    }
     params.append('limit', String(limit));
     params.append('skip', String((page - 1) * limit));
     api.get('/products/paginated?' + params.toString())
@@ -486,10 +509,10 @@ export default function Products() {
       })
       .catch((err) => { toast.error(err.response?.data?.detail || err.message || "Xatolik yuz berdi") })
       .finally(() => setLoading(false));
-  }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, page, loadBarcodeLimit]);
+  }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, page, loadBarcodeLimit, pharmacyOn, filterSubstance, filterManufacturer, filterRx, filterControl]);
 
   // Filter yoki saralash o'zgarganda 1-sahifaga qaytish
-  useEffect(() => { setPage(1); }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit]);
+  useEffect(() => { setPage(1); }, [search, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, filterSubstance, filterManufacturer, filterRx, filterControl]);
 
   useEffect(() => {
     loadCategories();
@@ -507,7 +530,7 @@ export default function Products() {
     if (activeTab === 'categories') { loadCategories(); loadBinLocations(); }
     if (activeTab === 'marketplace') loadMarketplaceProducts();
     // esliet-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, page, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, loadMarketplaceProducts]);
+  }, [activeTab, page, filterCat, filterStatus, filterWarehouse, filterBranch, filterMeasure, filterStock, sortBy, sortOrder, limit, loadMarketplaceProducts, pharmacyOn, filterSubstance, filterManufacturer, filterRx, filterControl]);
 
   useEffect(() => {
     if (activeTab !== 'products') return;
@@ -552,6 +575,7 @@ export default function Products() {
   const openAdd = () => {
     setForm({ ...emptyProduct, barcode: genBarcodeByFormat('ean8') });
     setMxikCode('');
+    setPharmaForm(pharmaToForm(null));
     setBarcodeInput('');
     setError('');
     setModal('add');
@@ -570,6 +594,7 @@ export default function Products() {
       category_id: parentProduct.category_id || '',
       unit: parentProduct.unit || 'dona',
     });
+    setPharmaForm(pharmaToForm(null));
     setError('');
     setModal('add');
   };
@@ -592,6 +617,7 @@ export default function Products() {
       setSelected(full);
       setForm(fillFormFromProduct(full));
       setMxikCode(full.mxik_code || '');
+      setPharmaForm(pharmaToForm(full.pharma));
       setBarcodeInput(full.parent_code || '');
       setModal('edit');
     } catch (err) {
@@ -659,6 +685,8 @@ export default function Products() {
     if (form.sale_price === '' || form.sale_price === null || form.sale_price === undefined) {
       setError(t('product.enterSalePriceError')); return;
     }
+    // D2.2: dorixona rejimida MXIK kodi majburiy (oddiy korxonada tekshirilmaydi)
+    if (pharmacyOn && !(mxikCode || '').trim()) { setError(tf('pharmaProduct.mxikRequired', "Dorixona rejimida MXIK kodi majburiy")); return; }
     const hasConversion = Boolean(form.conversion_source_id && Number(form.conversion_source_id) > 0);
     const effectiveType = hasConversion ? 'sell' : form.product_type;
 
@@ -716,6 +744,7 @@ export default function Products() {
       } else if (modal === 'edit' && selected?.conversion) {
         payload.conversion = null;
       }
+      if (pharmacyOn) payload.pharma = pharmaToPayload(pharmaForm);   // D2.2
       if (effectiveType !== 'sell' && modal === 'add') {
         payload.initial_stock = form.initial_stock !== '' ? Number(form.initial_stock) : 0;
         payload.initial_warehouse_id = form.initial_warehouse_id ? Number(form.initial_warehouse_id) : undefined;
@@ -988,6 +1017,18 @@ export default function Products() {
     { key: 'Brand', label: t('product.importFieldBrand') },
     { key: 'Kategoriya', label: t('product.importFieldCategoryName') },
     { key: 'Ombor', label: t('product.importFieldWarehouse') },   // T4.5: qator bo'yicha ombor (nom)
+    // D2.2: dori ustunlari (faqat dorixona rejimida; kalitlar product_import.py PHARMA_COLUMNS bilan bir xil)
+    ...(pharmacyOn ? [
+      { key: 'Modda', label: tf('pharmaProduct.import.substance', "Modda (vergul bilan bir nechta)") },
+      { key: 'Doza', label: tf('pharmaProduct.import.strength', 'Doza') },
+      { key: 'Shakl', label: tf('pharmaProduct.import.dosageForm', 'Dori shakli') },
+      { key: 'Qadoqdagi soni', label: tf('pharmaProduct.import.packQty', 'Qadoqdagi soni') },
+      { key: 'Ishlab chiqaruvchi', label: tf('pharmaProduct.import.manufacturer', 'Ishlab chiqaruvchi') },
+      { key: 'Mamlakat', label: tf('pharmaProduct.import.country', 'Mamlakat') },
+      { key: "Ro'yxat raqami", label: tf('pharmaProduct.import.regNumber', "Ro'yxat raqami") },
+      { key: 'Retseptli', label: tf('pharmaProduct.import.isRx', "Retseptli (ha/yo'q)") },
+      { key: 'Nazorat toifasi', label: tf('pharmaProduct.import.controlClass', 'Nazorat toifasi') },
+    ] : []),
     { key: '__SKIP__', label: t('product.importFieldSkip') },
   ];
 
@@ -1107,7 +1148,16 @@ export default function Products() {
 
   const downloadTemplate = async () => {
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
-    const ws = XLSX.utils.json_to_sheet([{
+    const ws = XLSX.utils.json_to_sheet([pharmacyOn ? {
+      // D2.2: dorixona shabloni — qo'shimcha dori ustunlari
+      'Nomi': 'Paratsetamol 500 mg', 'SKU': '', 'Kod': 'PR-001', 'Barkod': '12345678',
+      "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
+      'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol',
+      'Ombor': '',
+      'Modda': 'Paratsetamol, Kofein', 'Doza': '500 mg', 'Shakl': 'tablet', 'Qadoqdagi soni': 20,
+      'Ishlab chiqaruvchi': 'Nika Pharm', 'Mamlakat': "O'zbekiston", "Ro'yxat raqami": 'DV/M 01234/01/24',
+      'Retseptli': "yo'q", 'Nazorat toifasi': 'none',
+    } : {
       'Nomi': 'Coca-Cola 0.5L', 'SKU': '', 'Kod': 'CL-001', 'Barkod': '12345678',
       "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
       'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol',
@@ -1978,6 +2028,39 @@ export default function Products() {
               </Listbox>
             </div>
 
+            {/* D2.2: dori filtrlari (faqat dorixona rejimida) */}
+            {pharmacyOn && (
+              <>
+                <div className="w-full sm:w-auto min-w-[220px] flex-1 sm:flex-none">
+                  <SubstancePicker allowCreate={false} tf={tf}
+                    value={filterSubstance ? [filterSubstance] : []}
+                    onChange={(list) => setFilterSubstance(list.length ? list[list.length - 1] : null)} />
+                </div>
+                <div className="w-full sm:w-auto min-w-[160px] flex-1 sm:flex-none">
+                  <input className="w-full px-3 py-2 xl:py-2.5 rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-xs"
+                    value={manufacturerInput} onChange={e => setManufacturerInput(e.target.value)}
+                    placeholder={tf('pharmaProduct.filterManufacturer', 'Ishlab chiqaruvchi')} />
+                </div>
+                <div className="w-full sm:w-auto min-w-[140px] flex-1 sm:flex-none">
+                  <select className="w-full px-3 py-2 xl:py-2.5 rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 shadow-xs"
+                    value={filterRx} onChange={e => setFilterRx(e.target.value)}>
+                    <option value="">{tf('pharmaProduct.filterRxAll', 'Retsept: hammasi')}</option>
+                    <option value="true">{tf('pharmaProduct.filterRxYes', 'Retseptli')}</option>
+                    <option value="false">{tf('pharmaProduct.filterRxNo', 'Retseptsiz')}</option>
+                  </select>
+                </div>
+                <div className="w-full sm:w-auto min-w-[160px] flex-1 sm:flex-none">
+                  <select className="w-full px-3 py-2 xl:py-2.5 rounded-lg border border-slate-200 text-[14px] xl:text-[16px] bg-white text-slate-900 outline-none focus:border-blue-500 shadow-xs"
+                    value={filterControl} onChange={e => setFilterControl(e.target.value)}>
+                    <option value="">{tf('pharmaProduct.filterControlAll', 'Nazorat: hammasi')}</option>
+                    {CONTROL_CLASSES.filter(([k]) => k !== 'none').map(([k, label]) => (
+                      <option key={k} value={k}>{tf(`pharmaProduct.control.${k}`, label)}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
             {/* ── Birlashgan Saralash ── */}
             <div className="w-full sm:w-auto min-w-[200px] flex-1 sm:flex-none">
               <Listbox
@@ -2118,12 +2201,14 @@ export default function Products() {
             ) : (
               <div className="flex flex-col h-full">
                 <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-                  <table className="w-full table-fixed min-w-[1100px]">
+                  <table className={`w-full table-fixed ${pharmacyOn ? 'min-w-[1450px]' : 'min-w-[1100px]'}`}>
                     <colgroup>
                       <col style={{ width: '44px' }} />
                       <col style={{ width: '46px' }} />
                       <col style={{ width: '52px' }} />
                       <col style={{ width: 'auto' }} />
+                      {pharmacyOn && <col style={{ width: '150px' }} />}
+                      {pharmacyOn && <col style={{ width: '140px' }} />}
                       <col style={{ width: '100px' }} />
                       <col style={{ width: '60px' }} />
                       <col style={{ width: '90px' }} />
@@ -2142,7 +2227,7 @@ export default function Products() {
                             className="w-3 h-3 xl:w-4 xl:h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                           />
                         </th>
-                        {[t('product.thRowNum'), t('product.thImage'), t('product.thProduct'), t('product.category'), t('product.thUnit'), t('product.thCost'), t('product.thWholesale'), t('product.thRetail'), t('product.stock'), t('common.status'), ''].map(h => (
+                        {[t('product.thRowNum'), t('product.thImage'), t('product.thProduct'), ...(pharmacyOn ? [tf('pharmaProduct.colSubstance', 'Modda'), tf('pharmaProduct.colManufacturer', 'Ishlab chiqaruvchi')] : []), t('product.category'), t('product.thUnit'), t('product.thCost'), t('product.thWholesale'), t('product.thRetail'), t('product.stock'), t('common.status'), ''].map(h => (
                           <th key={h} className="py-3 text-left text-[10px] xl:text-[12px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden">{h}</th>
                         ))}
                       </tr>
@@ -2220,6 +2305,19 @@ export default function Products() {
                               </div>
                               {p.bin_location && <div className="text-xs text-slate-400 mt-0.5 truncate">📍 {p.bin_location}</div>}
                             </td>
+                            {pharmacyOn && (
+                              <td className="px-2 py-3 text-xs text-slate-600 font-medium">
+                                {(p.pharma?.substances?.length > 0)
+                                  ? <span className="line-clamp-2" title={p.pharma.substances.map(x => x.name_uz).join(', ')}>{p.pharma.substances.map(x => x.name_uz).join(', ')}</span>
+                                  : <span className="text-slate-300">—</span>}
+                                {p.pharma?.is_rx && <span className="mt-0.5 inline-block px-1.5 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded">Rx</span>}
+                              </td>
+                            )}
+                            {pharmacyOn && (
+                              <td className="px-2 py-3 text-xs text-slate-600 font-medium truncate" title={p.pharma?.manufacturer || ''}>
+                                {p.pharma?.manufacturer || <span className="text-slate-300">—</span>}
+                              </td>
+                            )}
                             <td className="px-2 py-3 text-xs text-slate-600 font-medium truncate">{catName(p.category_id, p.category_name)}</td>
                             <td className="py-3">
                               <span className="inline-flex px-2 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md">{p.unit}</span>
@@ -2293,7 +2391,7 @@ export default function Products() {
                       })}
                       {products.length === 0 && (
                         <tr>
-                          <td colSpan={11} className="px-6 py-20 text-center">
+                          <td colSpan={pharmacyOn ? 13 : 11} className="px-6 py-20 text-center">
                             <div className="flex flex-col items-center gap-3 text-slate-400">
                               <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -3675,7 +3773,7 @@ export default function Products() {
 
                 <div className="flex gap-4 w-full">
                   <div className="sm:col-span-6 relative w-full">
-                    <Field label={t('product.mxikCodeLabel')}>
+                    <Field label={t('product.mxikCodeLabel')} required={pharmacyOn}>
                       <input type="text" inputMode="numeric" value={mxikCode} onChange={(e) => setMxikCode(e.target.value.replace(/[^0-9]/g, ''))} className={inputCls} placeholder={t('product.mxikCodePlaceholder')} />
                     </Field>
                   </div>
@@ -3685,6 +3783,11 @@ export default function Products() {
                     </Field>
                   </div>
                 </div>
+
+                {/* D2.2: Dori ma'lumotlari (faqat dorixona rejimida) */}
+                {pharmacyOn && (
+                  <PharmaSection value={pharmaForm} onChange={setPharmaForm} salePrice={form.sale_price} />
+                )}
 
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input

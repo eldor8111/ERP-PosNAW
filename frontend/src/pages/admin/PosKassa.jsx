@@ -3,6 +3,11 @@ import { matchesSearch } from '../../utils/translit';
 import { useLang } from '../../context/LangContext';
 import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import {
+  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, validateRx, buildRxPayload, unitLinePrice, wholeBoxMax,
+  parseWholeBoxError, getPending, setPending, REJECTED_SALES_KEY, getCurrentCompanyId,
+} from '../../utils/posQueue';
 import { toast } from '../../utils/toast';
 import api from '../../api/axios';
 import { getReceiptSettings, saveReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
@@ -63,6 +68,18 @@ const navigate = useNavigate();
   
   // Savat va UI holatlari
   const [cart, setCart] = useState([]);
+
+  // D2.6: dorixona rejimi — faqat korxonada modul yoqilgan bo'lsa dorixona elementlari ko'rinadi
+  const features = useCompanyFeatures();
+  const pharmacy = !!features?.pharmacy;
+  const rxMode = features?.pharmacy_settings?.rx_mode === 'block' ? 'block' : 'warn';
+  const [rxModal, setRxModal] = useState(null);        // { message?, onDone? } — retsept oynasi
+  const [rxData, setRxData] = useState({});            // { [product_id]: { mode, number, issued_at, doctor, clinic, patient, blank_type } }
+  const [rxReason, setRxReason] = useState('');        // retseptsiz sotish sababi (rx_mode=warn)
+  const [analogModal, setAnalogModal] = useState(null); // { product_id, name, loading, items, auto }
+  const [saleError, setSaleError] = useState(null);    // { message, boxFix? } — server 400 xatosi (muddat, quti, markirovka...)
+  const [rejectedModal, setRejectedModal] = useState(false);
+  const [rejectedTick, setRejectedTick] = useState(0);
   const [custId, setCustId] = useState('');
   // T3.19: tanlangan mijozning individual narxlari { [product_id]: price }
   const [custPrices, setCustPrices] = useState({});
@@ -243,7 +260,8 @@ const navigate = useNavigate();
         const prod = products.find(x => x.id === it.product_id);
         let out = it;
         if (prod) {
-          const np = priceFor(prod, ctx);
+          const unitObj = it.unit_id ? (it.units || []).find(u => u.id === it.unit_id) : null;
+          const np = unitObj ? unitLinePrice(priceFor(prod, ctx), prod.sale_price, unitObj) : priceFor(prod, ctx);
           if (np !== it.unit_price) out = { ...out, unit_price: np };
         }
         // Avto-chegirma (mijoz foizi): faqat o'zi qo'ygan bo'lsa yangilanadi/olib tashlanadi
@@ -292,7 +310,7 @@ const navigate = useNavigate();
     let buf = '';
     let lastTime = Date.now();
     const handleKeyDown = (e) => {
-      if (showCheckout || showNewProduct) return;
+      if (showCheckout || showNewProduct || rxModal || analogModal || saleError || rejectedModal) return;
       const isInput = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
       const now = Date.now();
       if (now - lastTime > 200) buf = '';
@@ -324,6 +342,15 @@ const navigate = useNavigate();
            if (p) {
              addToCart(p);
              return;
+           }
+
+           // D2.6: birlik (quti/blister) shtrix-kodi — mahsulot ham, birlik ham o'zi tanlanadi
+           if (pharmacy) {
+             const up = products.find(x => Array.isArray(x.units) && x.units.some(u => u.barcode && u.barcode === code));
+             if (up) {
+               addToCart(up, undefined, up.units.find(u => u.barcode === code));
+               return;
+             }
            }
 
            // Lokal ro'yxatda topilmadi
@@ -377,6 +404,19 @@ const navigate = useNavigate();
              }
              afterLocalMiss();
            };
+           // D2.6: dorixona — ro'yxatga sig'magan birlik shtrix-kodi serverdan (pos-list scanned_unit_id)
+           if (pharmacy && isOnline && !scale) {
+             api.get('/products/pos-list', {
+               params: { search: code, limit: 5, ...posPriceParams(warehouseId, posBranchId) },
+               _silent: true, _suppressToast: true,
+             }).then(r => {
+               const rows = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+               const hit = rows.find(x => x.scanned_unit_id != null);
+               if (hit) addToCart(hit, undefined, (hit.units || []).find(u => u.id === hit.scanned_unit_id));
+               else handleNotFound();
+             }).catch(() => handleNotFound());
+             return;
+           }
            // Tarozi PLU si lokal ro'yxatda yo'q (masalan, ro'yxatga sig'magan tovar): serverdan PLU bo'yicha
            if (scale && isOnline) {
              api.get('/products/barcode/' + String(scale.plu).padStart(5, '0'))
@@ -395,7 +435,7 @@ const navigate = useNavigate();
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [products, cart, showCheckout, showNewProduct, customers, isOnline]);
+  }, [products, cart, showCheckout, showNewProduct, customers, isOnline, pharmacy, warehouseId, posBranchId, rxModal, analogModal, saleError, rejectedModal]);
 
   // Yangi mahsulotni bazaga saqlash va savatga qo'shish
   const saveNewProduct = async () => {
@@ -448,12 +488,50 @@ const navigate = useNavigate();
   }, [filteredProducts, search, activeCat]);
 
   // Savat boshqaruvi
-  const addToCart = (p, overrideQty) => {
+  // D2.6: dorixona qatorining qo'shimcha maydonlari (muddat, retsept, birliklar); oddiy korxonada bo'sh
+  const pharmaCartFields = (p, unit) => {
+    if (!pharmacy) return {};
+    const packRatio = p.pack_ratio != null ? Number(p.pack_ratio) : null;
+    const ratio = unit ? Number(unit.ratio) || 1 : 1;
+    return {
+      nearest_expiry: p.nearest_expiry || null,
+      expiry_warn: !!p.expiry_warn,
+      is_rx: !!p.is_rx,
+      control_class: p.control_class || 'none',
+      units: Array.isArray(p.units) ? p.units : [],
+      pack_ratio: packRatio,
+      full_boxes: p.full_boxes != null ? Number(p.full_boxes) : null,
+      loose_units: p.loose_units != null ? Number(p.loose_units) : null,
+      stock_display: p.stock_display || null,
+      unit_id: unit ? unit.id : null,
+      unit_name: unit ? unit.name : null,
+      unit_ratio: ratio,
+      base_unit_name: p.unit || 'dona',
+    };
+  };
+
+  // Birlik tanlanganda narx: server ro'yxat narxi (unit.price) yoki asosiy narx * nisbat
+  const unitPriceFor = (p, unit, ctx = priceCtxRef.current) =>
+    unitLinePrice(priceFor(p, ctx), p.sale_price, unit);
+
+  const addToCart = (p, overrideQty, unitArg, opts = {}) => {
+    // nisbati 1 bo'lgan birlik = asosiy birlik (unit_id yuborilmaydi)
+    let unit = pharmacy && unitArg && (Number(unitArg.ratio) || 1) !== 1 ? unitArg : null;
+    // Qoldiq yo'q — analoglar avtomatik taklif qilinadi (savatga qo'shish avvalgidek davom etadi)
+    if (pharmacy && isOnline && !opts.noAnalogs && Number(p.stock_quantity) <= 0 && (p.product_type || 'stock') === 'stock') {
+      openAnalogs(p, true);
+    }
+    // Butun quti shtrix-kodi, lekin omborda butun quti yo'q (faqat ochilgan quti) — dona qilib sotish taklif qilinadi
+    if (unit && p.pack_ratio != null && Number(unit.ratio) >= Number(p.pack_ratio) && p.full_boxes != null && Number(p.full_boxes) < 1) {
+      toast.warn(tf('pos.wholeBoxNone', "Omborda butun quti yo'q (ochilgan qutida {loose} dona). Dona qilib soting.", { loose: p.loose_units ?? 0 }));
+      unit = null;
+    }
     setCart(prev => {
-      const idx = prev.findIndex(x => x.product_id === p.id);
+      const idx = prev.findIndex(x => x.product_id === p.id && (x.unit_id || null) === (unit ? unit.id : null));
       if (idx >= 0) {
         const next = [...prev];
         next[idx].qty_ordered += overrideQty !== undefined ? overrideQty : 1;
+        _clampWholeBox(next[idx]);
         return next;
       }
       return [{
@@ -461,7 +539,7 @@ const navigate = useNavigate();
         product_name: p.name,
         sku: p.sku || '',
         unit: p.unit || 'dona',
-        unit_price: priceFor(p),
+        unit_price: unit ? unitPriceFor(p, unit) : priceFor(p),
         discount_type: custDiscountPct() > 0 ? 'pct' : 'sum',
         discount_val: custDiscountPct(),
         auto_discount: custDiscountPct() > 0,
@@ -473,7 +551,8 @@ const navigate = useNavigate();
         marking_codes: [],
         vat_rate_type: p.vat_rate_type || 'nds_12',
         qty_ordered: overrideQty !== undefined ? overrideQty : 1,
-        max_stock: p.stock_quantity
+        max_stock: p.stock_quantity,
+        ...pharmaCartFields(p, unit),
       }, ...prev];
     });
   };
@@ -531,11 +610,24 @@ const navigate = useNavigate();
     return item;
   };
 
+  // D2.6: butun quti sotuvida miqdor ombordagi butun qutilar sonidan oshmasin (server ham 400 qaytaradi)
+  const _clampWholeBox = (item) => {
+    const max = wholeBoxMax(item);
+    if (max != null && item.qty_ordered > max) {
+      item.qty_ordered = Math.max(max, 1);
+      toast.warn(tf('pos.wholeBoxMax', "Omborda butun quti {boxes} ta (ochilgan qutida {loose} dona). Ko'proq kerak bo'lsa dona qilib soting.", {
+        boxes: item.full_boxes, loose: item.loose_units ?? 0,
+      }));
+    }
+    return item;
+  };
+
   const updateCartQty = (idx, delta) => {
     setCart(prev => {
       const next = [...prev];
       next[idx] = { ...next[idx] };
       next[idx].qty_ordered = Math.max(0.1, next[idx].qty_ordered + delta);
+      _clampWholeBox(next[idx]);
       _trimMarkingCodes(next[idx]);
       return next;
     });
@@ -546,9 +638,68 @@ const navigate = useNavigate();
       const next = [...prev];
       next[idx] = { ...next[idx] };
       next[idx].qty_ordered = Math.max(0.1, Number(qtyVal)||1);
+      _clampWholeBox(next[idx]);
       _trimMarkingCodes(next[idx]);
       return next;
     });
+  };
+
+  // D2.6: savat qatorida birlikni almashtirish (quti <-> blister <-> dona) — narx qayta hisoblanadi, miqdor imkon bo'lsa saqlanadi
+  const switchUnit = (idx, unitIdRaw) => {
+    setCart(prev => {
+      const it = prev[idx];
+      if (!it) return prev;
+      const unit = unitIdRaw ? (it.units || []).find(u => String(u.id) === String(unitIdRaw)) || null : null;
+      if ((it.unit_id || null) === (unit ? unit.id : null)) return prev;
+      const oldRatio = it.unit_ratio || 1;
+      const newRatio = unit ? Number(unit.ratio) || 1 : 1;
+      const prod = products.find(x => x.id === it.product_id);
+      const base = prod ? priceFor(prod) : it.unit_price / oldRatio;
+      const price = unitLinePrice(base, prod ? prod.sale_price : base, unit);
+      const q = (it.qty_ordered * oldRatio) / newRatio;
+      const nextItem = {
+        ...it,
+        unit_id: unit ? unit.id : null,
+        unit_name: unit ? unit.name : null,
+        unit_ratio: newRatio,
+        unit_price: price,
+        qty_ordered: Number.isInteger(q) && q >= 1 ? q : 1,
+      };
+      if (wholeBoxMax(nextItem) === 0) {
+        toast.warn(tf('pos.wholeBoxNone', "Omborda butun quti yo'q (ochilgan qutida {loose} dona). Dona qilib soting.", { loose: it.loose_units ?? 0 }));
+        return prev;
+      }
+      if (nextItem.discount_type === 'sum') nextItem.discount_val = Math.min(nextItem.discount_val || 0, price * nextItem.qty_ordered);
+      _clampWholeBox(nextItem);
+      _trimMarkingCodes(nextItem);
+      const next = [...prev];
+      next[idx] = nextItem;
+      return next;
+    });
+  };
+
+  // D2.6: analoglar (GET /products/{id}/analogs) — qoldiq 0 bo'lganda `auto` rejimida o'zi ochiladi (analog topilmasa jim yopiladi)
+  const openAnalogs = (p, auto = false) => {
+    const pid = p.id ?? p.product_id;
+    const name = p.name ?? p.product_name;
+    if (!isOnline) { toast.warn(tf('pos.analogsOffline', "Analoglar uchun internet kerak")); return; }
+    setAnalogModal({ product_id: pid, name, loading: true, items: [], auto });
+    api.get(`/products/${pid}/analogs`, { _silent: true, _suppressToast: true })
+      .then(r => {
+        const items = Array.isArray(r.data) ? r.data : [];
+        setAnalogModal(m => (m && m.product_id === pid ? (auto && !items.length ? null : { ...m, loading: false, items }) : m));
+      })
+      .catch(() => setAnalogModal(m => (m && m.product_id === pid ? (auto ? null : { ...m, loading: false, items: [], error: true }) : m)));
+  };
+
+  const addAnalogToCart = (a) => {
+    const prod = products.find(x => x.id === a.id) || {
+      id: a.id, name: a.name, barcode: a.barcode, unit: a.unit, sale_price: a.sale_price,
+      stock_quantity: a.stock_quantity, nearest_expiry: a.nearest_expiry, expiry_warn: a.expiry_warn,
+      is_rx: a.is_rx, control_class: a.control_class,
+    };
+    addToCart(prod, undefined, undefined, { noAnalogs: true });
+    setAnalogModal(null);
   };
 
   const updateDiscount = (idx, val) => {
@@ -667,6 +818,69 @@ const navigate = useNavigate();
   const changeAmt = isEnough ? (finalPaid - payableNet) : 0;
   const remaining = isEnough ? 0 : (payableNet - finalPaid);
 
+  // D2.6: to'lovdan oldin dorixona tekshiruvlari — markirovka kodlari to'liq skanerlanmaguncha va retsept
+  // ma'lumoti kiritilmaguncha to'lov oynasi ochilmaydi (server baribir tekshiradi: D2.5, D3.2)
+  const requestCheckout = () => {
+    if (pharmacy) {
+      const incomplete = cart.find(c => c.requires_marking && (c.marking_codes || []).length < c.qty_ordered);
+      if (incomplete) {
+        toast.error(t('pos.markingScanIncomplete', {
+          name: incomplete.product_name, scanned: (incomplete.marking_codes || []).length, qty: incomplete.qty_ordered,
+        }));
+        setMarkingModal({ idx: cart.indexOf(incomplete) });
+        return;
+      }
+      if (rxProductsOf(cart).length && validateRx(cart, rxData, rxReason, rxMode)) {
+        setRxModal({ proceed: true });
+        return;
+      }
+    }
+    setShowCheckout(true);
+  };
+
+  const setRxField = (pid, field, val) => setRxData(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [field]: val } }));
+  const [rxError, setRxError] = useState('');
+  const confirmRx = () => {
+    const err = validateRx(cart, rxData, rxReason, rxMode);
+    if (err) { setRxError(err); return; }
+    setRxError('');
+    const proceed = !!rxModal?.proceed;
+    setRxModal(null);
+    if (proceed) setShowCheckout(true);
+  };
+
+  // Server 400 xatosi (dorixona): retsept — oyna, boshqalari (muddat, quti, markirovka...) — aniq xabar oynasi
+  const handlePharmacyReject = (raw) => {
+    const info = describeRejection(raw);
+    setShowCheckout(false);
+    if (info.category === 'rx' && raw && typeof raw === 'object') {
+      setRxError(info.text);
+      setRxModal({ proceed: true, message: info.text });
+      return;
+    }
+    setSaleError({ category: info.category, message: info.text, boxFix: parseWholeBoxError(raw) });
+  };
+  const applyBoxFix = () => {
+    const name = saleError?.boxFix?.name;
+    const idx = cart.findIndex(c => c.product_name === name && wholeBoxMax(c) != null);
+    if (idx >= 0) switchUnit(idx, '');
+    setSaleError(null);
+  };
+
+  // Oflayn navbatdan server rad etgan sotuvlar (joriy korxona) — sababi bilan
+  const rejectedSales = useMemo(() => {
+    if (!pharmacy) return [];
+    const cid = getCurrentCompanyId();
+    return getPending(REJECTED_SALES_KEY).filter(r => r.kind !== 'return' && (r.company_id == null || cid == null || String(r.company_id) === String(cid)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pharmacy, syncing, pendingCount, rejectedTick]);
+  const clearRejectedSales = () => {
+    const cid = getCurrentCompanyId();
+    setPending(REJECTED_SALES_KEY, getPending(REJECTED_SALES_KEY).filter(r => !(r.company_id == null || cid == null || String(r.company_id) === String(cid))));
+    setRejectedTick(x => x + 1);
+    setRejectedModal(false);
+  };
+
   const checkout = async (isDebtConfirm = false, approvalId = null) => {
     if (!cart.length) return toast.warn(t('pos.emptyCart'));
     if (!hasShift) { setShowShiftModal(true); return; }
@@ -753,6 +967,8 @@ const navigate = useNavigate();
              ? c.unit_price * c.qty_ordered * (c.discount_val / 100)
              : c.discount_val,
           marking_codes: c.marking_codes && c.marking_codes.length ? c.marking_codes : undefined,
+          // D2.6: qadoq birligi (quti/blister) — miqdor shu birlikda; asosiy birlik (dona) uchun yuborilmaydi
+          unit_id: pharmacy && c.unit_id ? c.unit_id : undefined,
         })),
         payment_type: mainType,
         // paid_amount keshbek/ballni o'z ichiga olmaydi (server: paid_amount + paid_cashback + ball*qiymat < jami => qarz)
@@ -770,9 +986,11 @@ const navigate = useNavigate();
         warehouse_id: warehouseId ? Number(warehouseId) : undefined,
         // T4.6: menejer tasdiqlagan so'rov (limitdan oshgan chegirma/narx)
         approval_id: approvalId || undefined,
+        // D2.6: retsept(lar) yoki retseptsiz sotish sababi (D2.5) — faqat dorixona rejimida
+        ...(pharmacy ? buildRxPayload(cart, rxData, rxReason, rxMode) : {}),
       };
 
-      const result = await submitSaleOrQueue(payload, false);
+      const result = await submitSaleOrQueue(payload, false, { suppressToast: pharmacy });
 
       // T3.7: chek faqat sotuv serverga yoki oflayn navbatga yozilgandan KEYIN chop etiladi:
       // raqam bazadagi sale.number (oflaynda OFL-XXXXXXXX), kassir va filial rekvizitlari server javobidan.
@@ -831,6 +1049,8 @@ const navigate = useNavigate();
       const discSnap     = totalDiscount;
 
       setCart([]);
+      setRxData({});
+      setRxReason('');
       setPayments([{ type: 'cash', amount: '' }]);
       setRedeemCash('');
       setRedeemPts('');
@@ -857,6 +1077,11 @@ const navigate = useNavigate();
 
     } catch (e) {
       const raw = e.response?.data?.detail;
+      // D2.6: dorixona 400 xatolari (muddat D1.2, butun quti D2.4, retsept D2.5, markirovka D3.2) — aniq oynada
+      if (pharmacy && e.response?.status === 400 && !(raw && typeof raw === 'object' && String(raw.code || '').startsWith('approval'))) {
+        handlePharmacyReject(raw);
+        return;
+      }
       // T4.6: detail obyekt bo'lishi mumkin ({code, message, ...})
       if (raw && typeof raw === 'object') {
         if (e.response?.status === 403 && raw.code === 'approval_required') {
@@ -1004,6 +1229,12 @@ const navigate = useNavigate();
                 {syncing ? '⏳ ' : ''}{tf('pos.pendingBadge', 'Yuborilmagan sotuvlar: {count}', { count: pendingCount })}
               </span>
             )}
+            {pharmacy && rejectedSales.length > 0 && (
+              <button onClick={() => setRejectedModal(true)} className="bg-red-600 hover:bg-red-700 font-bold px-2.5 py-1 rounded text-xs"
+                title={tf('pos.rejectedTitle', 'Server rad etgan oflayn sotuvlar')}>
+                {tf('pos.rejectedBadge', 'Rad etilgan: {count}', { count: rejectedSales.length })}
+              </button>
+            )}
             {activeShift && (
               <button onClick={() => setShowShiftClose(true)}
                 className="px-2.5 h-8 bg-red-500/80 hover:bg-red-500 rounded-lg text-xs font-bold transition-colors">
@@ -1034,6 +1265,51 @@ const navigate = useNavigate();
                 <div className="w-1.5 bg-blue-500 absolute left-0 top-0 bottom-0 rounded-l-xl"></div>
                 <div className="flex-1 pl-2">
                   <div className="font-black text-slate-800 text-[10px] leading-tight line-clamp-2 leading-none">{item.product_name}</div>
+                  {pharmacy && (
+                    <div className="flex flex-wrap items-center gap-1 mt-0.5" data-testid="pharmacy-cart-extras">
+                      {item.nearest_expiry && (
+                        <span
+                          className={`px-1 rounded text-[9px] font-bold ${item.expiry_warn ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 text-slate-500'}`}
+                          title={item.expiry_warn ? tf('pos.expiryWarnTitle', "Muddati yaqin — eng yaqin yaroqlilik muddati") : tf('pos.expiryNearest', 'Eng yaqin muddat')}
+                        >
+                          {item.expiry_warn ? '⚠ ' : ''}{tf('pos.expiryShort', 'Muddat')}: {fmtExpiry(item.nearest_expiry)}
+                        </span>
+                      )}
+                      {isControlled(item) ? (
+                        <button type="button" onClick={() => setRxModal({})} title={tf('pos.rxOpen', "Retsept ma'lumotlari")}
+                          className="px-1 rounded text-[9px] font-bold bg-red-100 text-red-700 hover:bg-red-200">{tf('pos.rxControlled', 'Nazoratda')}</button>
+                      ) : item.is_rx ? (
+                        <button type="button" onClick={() => setRxModal({})} title={tf('pos.rxOpen', "Retsept ma'lumotlari")}
+                          className="px-1 rounded text-[9px] font-bold bg-violet-100 text-violet-700 hover:bg-violet-200">Rx</button>
+                      ) : null}
+                      {Array.isArray(item.units) && item.units.some(u => (Number(u.ratio) || 1) !== 1) && (
+                        <select
+                          value={item.unit_id || ''}
+                          onChange={e => switchUnit(i, e.target.value)}
+                          className="border border-slate-200 rounded px-0.5 h-5 text-[10px] font-bold text-slate-700 bg-white outline-none"
+                          title={tf('pos.unitSelect', 'Birlik')}
+                        >
+                          <option value="">{item.base_unit_name || 'dona'}</option>
+                          {item.units.filter(u => (Number(u.ratio) || 1) !== 1).map(u => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                          ))}
+                        </select>
+                      )}
+                      {wholeBoxMax(item) != null && (
+                        <>
+                          <span className="text-[9px] font-bold text-slate-400">{tf('pos.wholeBoxMaxShort', 'max {n} quti', { n: wholeBoxMax(item) })}</span>
+                          <button type="button" onClick={() => switchUnit(i, '')}
+                            className="px-1 h-4 rounded text-[9px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100">
+                            {tf('pos.sellByPiece', 'Dona qilib sotish')}
+                          </button>
+                        </>
+                      )}
+                      <button type="button" onClick={() => openAnalogs(item)}
+                        className="px-1 h-4 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                        {tf('pos.analogs', 'Analoglar')}
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1.5 mt-0.5 w-full justify-between">
                     {/* Quantity controls */}
                     <div className="flex items-center bg-slate-100 border border-slate-200 rounded-lg overflow-hidden shrink-0">
@@ -1105,7 +1381,7 @@ const navigate = useNavigate();
           <button 
             onClick={() => {
               if(!cart.length) return;
-              setShowCheckout(true);
+              requestCheckout();
             }}
             className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-[13px] h-8 rounded-md flex items-center justify-center gap-1 shadow-sm uppercase"
           >
@@ -1185,9 +1461,31 @@ const navigate = useNavigate();
                     </span>
                   )}
                   <h3 className="font-extrabold text-slate-800 text-base leading-tight mb-auto z-10 line-clamp-3">{p.name}</h3>
+                  {pharmacy && (
+                    <div className="z-10 flex flex-wrap items-center gap-1 mt-1" data-testid="pharmacy-card-extras">
+                      {p.nearest_expiry && (
+                        <span className={`px-1.5 rounded text-[10px] font-bold ${p.expiry_warn ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 text-slate-500'}`}>
+                          {p.expiry_warn ? '⚠ ' : ''}{fmtExpiry(p.nearest_expiry)}
+                        </span>
+                      )}
+                      {(p.control_class && p.control_class !== 'none') ? (
+                        <span className="px-1.5 rounded text-[10px] font-bold bg-red-100 text-red-700">{tf('pos.rxControlled', 'Nazoratda')}</span>
+                      ) : p.is_rx ? (
+                        <span className="px-1.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">Rx</span>
+                      ) : null}
+                      <span
+                        role="button" tabIndex={0}
+                        onClick={e => { e.stopPropagation(); openAnalogs(p); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); openAnalogs(p); } }}
+                        className="px-1.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+                      >
+                        {tf('pos.analogs', 'Analoglar')}
+                      </span>
+                    </div>
+                  )}
                   <div className="z-10 mt-2">
                     <div className="text-xl font-black text-blue-700 tracking-tight">{fmt(p.sale_price)}{p.price_source === 'branch' && <span title={t('pos.branchPrice') === 'pos.branchPrice' ? 'Filial narxi' : t('pos.branchPrice')} className="ml-1.5 align-middle text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{t('pos.branchPrice') === 'pos.branchPrice' ? 'Filial' : t('pos.branchPrice')}</span>}</div>
-                    <div className="text-xs font-bold text-slate-400 mt-1">{t('pos.stockLabel')} <span title={posWarehouses.find(w => String(w.id) === String(warehouseId))?.name || ''} className={p.stock_quantity<=p.min_stock?'text-red-500':'text-emerald-500'}>{p.stock_quantity>0 ? `${fmt(p.stock_quantity)} ${p.unit||'dona'}` : t('pos.zeroStock')}</span></div>
+                    <div className="text-xs font-bold text-slate-400 mt-1">{t('pos.stockLabel')} <span title={posWarehouses.find(w => String(w.id) === String(warehouseId))?.name || ''} className={p.stock_quantity<=p.min_stock?'text-red-500':'text-emerald-500'}>{p.stock_quantity>0 ? ((pharmacy && p.stock_display) ? p.stock_display : `${fmt(p.stock_quantity)} ${p.unit||'dona'}`) : t('pos.zeroStock')}</span></div>
                   </div>
                 </button>
               ))}
@@ -1212,6 +1510,224 @@ const navigate = useNavigate();
             )}
          </div>
       </div>
+
+      {/* ── D2.6: RETSEPT OYNASI (faqat dorixona rejimi) ── */}
+      {pharmacy && rxModal && (() => {
+        const rxItems = rxProductsOf(cart).filter((it, i, arr) => arr.findIndex(x => x.product_id === it.product_id) === i);
+        const anyNoRx = rxItems.some(it => !isControlled(it) && rxMode !== 'block' && (rxData[it.product_id]?.mode === 'norx'));
+        const inputCls = 'border border-slate-300 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 w-full';
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="rx-modal">
+            <div className="bg-white rounded-2xl shadow-2xl w-[640px] max-w-[96vw] max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="bg-violet-700 px-5 py-3 text-white">
+                <div className="font-black text-base">{tf('pos.rxTitle', "Retsept ma'lumotlari")}</div>
+                <div className="text-violet-100 text-xs">
+                  {rxMode === 'block'
+                    ? tf('pos.rxModeBlock', 'Retseptli dori retseptsiz sotilmaydi')
+                    : tf('pos.rxModeWarn', 'Retsept kiriting yoki retseptsiz sotish sababini yozing')}
+                </div>
+              </div>
+              <div className="p-4 overflow-y-auto space-y-3">
+                {rxModal.message && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-semibold rounded-lg px-3 py-2">{rxModal.message}</div>
+                )}
+                {rxItems.map(it => {
+                  const d = rxData[it.product_id] || {};
+                  const controlled = isControlled(it);
+                  const canSkip = !controlled && rxMode !== 'block';
+                  const mode = canSkip ? (d.mode || 'rx') : 'rx';
+                  return (
+                    <div key={it.product_id} className="border border-slate-200 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-black text-slate-800 text-sm flex-1">{it.product_name}</span>
+                        {controlled
+                          ? <span className="px-1.5 rounded text-[10px] font-bold bg-red-100 text-red-700">{tf('pos.rxControlled', 'Nazoratda')}</span>
+                          : <span className="px-1.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">Rx</span>}
+                      </div>
+                      {canSkip && (
+                        <div className="flex gap-4 mb-2 text-sm font-bold text-slate-600">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mode === 'rx'} onChange={() => setRxField(it.product_id, 'mode', 'rx')} />
+                            {tf('pos.rxHas', 'Retsept bor')}
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mode === 'norx'} onChange={() => setRxField(it.product_id, 'mode', 'norx')} />
+                            {tf('pos.rxNone', 'Retseptsiz sotish')}
+                          </label>
+                        </div>
+                      )}
+                      {mode === 'rx' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input className={inputCls} placeholder={tf('pos.rxNumber', 'Retsept raqami')} value={d.number || ''} onChange={e => setRxField(it.product_id, 'number', e.target.value)} />
+                          <input className={inputCls} type="date" max={todayLocalIso()} value={d.issued_at || ''} onChange={e => setRxField(it.product_id, 'issued_at', e.target.value)} />
+                          <input className={inputCls} placeholder={tf('pos.rxDoctor', 'Shifokor')} value={d.doctor || ''} onChange={e => setRxField(it.product_id, 'doctor', e.target.value)} />
+                          <input className={inputCls} placeholder={tf('pos.rxClinic', 'Muassasa')} value={d.clinic || ''} onChange={e => setRxField(it.product_id, 'clinic', e.target.value)} />
+                          <input className={inputCls} placeholder={tf('pos.rxPatient', 'Bemor (ixtiyoriy)')} value={d.patient || ''} onChange={e => setRxField(it.product_id, 'patient', e.target.value)} />
+                          <select
+                            className={inputCls}
+                            value={d.blank_type || (controlled ? '' : 'simple')}
+                            onChange={e => setRxField(it.product_id, 'blank_type', e.target.value)}
+                          >
+                            {controlled && <option value="">{tf('pos.rxBlankPick', 'Blank turini tanlang (majburiy)')}</option>}
+                            {!controlled && <option value="simple">{tf('pos.rxBlankSimple', 'Oddiy blank')}</option>}
+                            <option value="form_107">{tf('pos.rxBlank107', '107-1/u blank')}</option>
+                            <option value="form_148">{tf('pos.rxBlank148', '148-1/u blank')}</option>
+                            <option value="special">{tf('pos.rxBlankSpecial', 'Maxsus blank')}</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {anyNoRx && (
+                  <textarea
+                    className={`${inputCls} h-16`}
+                    placeholder={tf('pos.rxReason', 'Retseptsiz sotish sababi (majburiy)')}
+                    value={rxReason}
+                    onChange={e => setRxReason(e.target.value)}
+                  />
+                )}
+                {rxError && <div className="text-red-600 text-sm font-bold">{rxError}</div>}
+              </div>
+              <div className="px-4 py-3 border-t border-slate-100 flex gap-3">
+                <button onClick={() => { setRxModal(null); setRxError(''); }} className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50">
+                  {tf('common.cancel', 'Bekor qilish')}
+                </button>
+                <button onClick={confirmRx} className="flex-1 py-2.5 rounded-xl bg-violet-700 hover:bg-violet-800 text-white font-black text-sm">
+                  {tf('pos.rxConfirm', 'Tasdiqlash')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── D2.6: ANALOGLAR OYNASI ── */}
+      {pharmacy && analogModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="analog-modal">
+          <div className="bg-white rounded-2xl shadow-2xl w-[620px] max-w-[96vw] max-h-[88vh] flex flex-col overflow-hidden">
+            <div className="bg-emerald-700 px-5 py-3 text-white flex items-center">
+              <div className="flex-1">
+                <div className="font-black text-base">{tf('pos.analogs', 'Analoglar')}</div>
+                <div className="text-emerald-100 text-xs">
+                  {analogModal.auto ? tf('pos.analogsAuto', "Qoldiq yo'q — {name} o'rniga:", { name: analogModal.name }) : analogModal.name}
+                </div>
+              </div>
+              <button onClick={() => setAnalogModal(null)} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 font-bold">&times;</button>
+            </div>
+            <div className="p-3 overflow-y-auto space-y-2">
+              {analogModal.loading && <div className="text-center text-slate-400 font-bold py-6">{t('pos.refreshing')}</div>}
+              {!analogModal.loading && analogModal.error && <div className="text-center text-red-500 font-bold py-6">{t('common.error')}</div>}
+              {!analogModal.loading && !analogModal.error && analogModal.items.length === 0 && (
+                <div className="text-center text-slate-400 font-bold py-6">{tf('pos.analogsNone', 'Analog topilmadi')}</div>
+              )}
+              {analogModal.items.map(a => (
+                <div key={a.id} className="border border-slate-200 rounded-xl p-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-black text-slate-800 text-sm truncate">{a.name}</div>
+                    <div className="flex flex-wrap gap-1.5 mt-1 text-[11px] font-bold">
+                      <span className="text-blue-700">{fmt(a.sale_price)}</span>
+                      <span className={a.in_stock ? 'text-emerald-600' : 'text-red-500'}>
+                        {a.in_stock ? `${tf('pos.stockLabel', 'Qoldiq')}: ${fmt(a.valid_quantity)}` : t('pos.zeroStock')}
+                      </span>
+                      {a.nearest_expiry && (
+                        <span className={`px-1 rounded ${a.expiry_warn ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {a.expiry_warn ? '⚠ ' : ''}{fmtExpiry(a.nearest_expiry)}
+                        </span>
+                      )}
+                      {a.is_rx && <span className="px-1 rounded bg-violet-100 text-violet-700">Rx</span>}
+                      {[a.dosage_form, a.strength, a.manufacturer].filter(Boolean).length > 0 && (
+                        <span className="text-slate-400">{[a.dosage_form, a.strength, a.manufacturer].filter(Boolean).join(' · ')}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => addAnalogToCart(a)}
+                    disabled={!a.in_stock}
+                    className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs disabled:opacity-40"
+                  >
+                    {tf('pos.analogAdd', 'Savatga')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── D2.6: SOTUV XATOSI (server 400: muddat, butun quti, markirovka...) ── */}
+      {pharmacy && saleError && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="sale-error-modal">
+          <div className="bg-white rounded-2xl shadow-2xl w-[480px] max-w-[96vw] overflow-hidden">
+            <div className="bg-red-600 px-5 py-3 text-white font-black text-base">
+              {saleError.category === 'expiry' ? tf('pos.errExpiry', "Muddati o'tgan yoki yaroqsiz dori")
+                : saleError.category === 'marking' ? tf('pos.errMarking', 'Markirovka xatosi')
+                : saleError.category === 'stock' ? tf('pos.errStock', 'Qoldiq yetarli emas')
+                : tf('pos.errRejected', 'Sotuv rad etildi')}
+            </div>
+            <div className="px-5 py-4 text-slate-700 font-semibold text-sm">{saleError.message}</div>
+            {saleError.boxFix && (
+              <div className="px-5 pb-2 text-xs text-slate-500 font-semibold">
+                {tf('pos.wholeBoxHint', 'Butun quti yetmaydi — dona qilib sotishingiz mumkin.')}
+              </div>
+            )}
+            <div className="px-5 pb-4 pt-2 flex gap-3">
+              <button onClick={() => setSaleError(null)} className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50">
+                {tf('common.close', 'Yopish')}
+              </button>
+              {saleError.boxFix && (
+                <button onClick={applyBoxFix} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm">
+                  {tf('pos.sellByPiece', 'Dona qilib sotish')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── D2.6: OFLAYN NAVBATDAN RAD ETILGAN SOTUVLAR (sabab bilan) ── */}
+      {pharmacy && rejectedModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="rejected-modal">
+          <div className="bg-white rounded-2xl shadow-2xl w-[600px] max-w-[96vw] max-h-[88vh] flex flex-col overflow-hidden">
+            <div className="bg-red-600 px-5 py-3 text-white flex items-center">
+              <div className="flex-1 font-black text-base">{tf('pos.rejectedTitle', 'Server rad etgan oflayn sotuvlar')}</div>
+              <button onClick={() => setRejectedModal(false)} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 font-bold">&times;</button>
+            </div>
+            <div className="p-3 overflow-y-auto space-y-2">
+              {rejectedSales.length === 0 && <div className="text-center text-slate-400 font-bold py-6">{tf('pos.rejectedNone', "Rad etilgan sotuv yo'q")}</div>}
+              {rejectedSales.map((r, i) => {
+                const reason = r.reason || describeRejection(r.detail);
+                return (
+                  <div key={i} className="border border-red-200 bg-red-50 rounded-xl p-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                      <span>{r.localNumber || ''}</span>
+                      <span>{r.rejectedAt ? new Date(r.rejectedAt).toLocaleString('uz-UZ') : ''}</span>
+                      <span className="ml-auto px-1.5 rounded bg-red-100 text-red-700 uppercase">
+                        {reason.category === 'rx' ? tf('pos.rejRx', 'Retsept')
+                          : reason.category === 'expiry' ? tf('pos.rejExpiry', 'Muddat')
+                          : reason.category === 'marking' ? tf('pos.rejMarking', 'Markirovka')
+                          : reason.category === 'stock' ? tf('pos.rejStock', 'Qoldiq')
+                          : tf('pos.rejOther', 'Boshqa')}
+                      </span>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-700 mt-1">{reason.text}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-100 flex gap-3">
+              <button onClick={() => setRejectedModal(false)} className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50">
+                {tf('common.close', 'Yopish')}
+              </button>
+              {rejectedSales.length > 0 && (
+                <button onClick={clearRejectedSales} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-black text-sm">
+                  {tf('pos.rejectedClear', "Ro'yxatni tozalash")}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── CHECKOUT MODAL ── */}
       {showCheckout && (

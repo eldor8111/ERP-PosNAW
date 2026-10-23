@@ -32,11 +32,14 @@ def _d(v) -> Decimal:
 
 
 def _take_batches(db: Session, product_id: int, qty: Decimal, warehouse_id: Optional[int],
-                  company_id: int, variant_id: Optional[int]) -> list:
-    """Partiyalardan eng eskisidan boshlab ayiradi (partiya yetmasa — borigacha, xato bermaydi)."""
+                  company_id: int, variant_id: Optional[int], batch_id: Optional[int] = None) -> list:
+    """Partiyalardan eng eskisidan boshlab ayiradi (partiya yetmasa — borigacha, xato bermaydi).
+    `batch_id` berilsa (D3.3, dorixona) — aynan shu partiyadan ayiriladi."""
     q = db.query(Batch).filter(
         Batch.product_id == product_id, Batch.company_id == company_id, Batch.quantity > 0,
     )
+    if batch_id:
+        q = q.filter(Batch.id == batch_id)
     q = q.filter(Batch.variant_id == variant_id) if variant_id else q.filter(Batch.variant_id.is_(None))
     if warehouse_id is not None:
         q = q.filter(Batch.warehouse_id == warehouse_id)
@@ -112,10 +115,31 @@ def return_logs(db: Session, supplier_id: int) -> list:
     return res
 
 
+def _check_return_batch(db: Session, item, product, qty: Decimal, warehouse_id: Optional[int], cid: int) -> int:
+    """D3.3 (dorixona): ko'rsatilgan partiyani tekshiradi — korxona, mahsulot, variant, ombor mosligi va
+    qoldig'i yetarliligi. Brak/karantin/qaytarib olingan partiyadan ham qaytarish mumkin (faol bo'lishi shart emas).
+    Yozuvlardan OLDIN chaqiriladi."""
+    batch = db.query(Batch).filter(Batch.id == item.batch_id, Batch.company_id == cid).first()
+    if not batch or batch.product_id != product.id:
+        raise HTTPException(status_code=404, detail=f"Partiya topilmadi: {item.batch_id}")
+    if (batch.variant_id or None) != (item.variant_id or None):
+        raise HTTPException(status_code=400, detail=f"Partiya #{batch.id} boshqa variantga tegishli")
+    if warehouse_id is not None and batch.warehouse_id != warehouse_id:
+        raise HTTPException(status_code=400, detail=f"Partiya #{batch.id} boshqa omborda")
+    if _d(batch.quantity) < qty:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{product.name}: partiya #{batch.id} qoldig'i {_d(batch.quantity):f} — {qty:f} qaytarib bo'lmaydi",
+        )
+    return batch.id
+
+
 def create_supplier_return(db: Session, data, user) -> dict:
     from app.services.inventory_service import deduct_stock
+    from app.services.pharmacy import pharmacy_enabled
 
     cid = user.company_id
+    ph_on = pharmacy_enabled(db, cid)  # D3.3: bir marta
     supplier = db.query(Supplier).filter(
         Supplier.id == data.supplier_id, Supplier.company_id == cid, Supplier.is_active == True,
     ).first()
@@ -150,6 +174,10 @@ def create_supplier_return(db: Session, data, user) -> dict:
         ).first()
         if not product:
             raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi: {item.product_id}")
+        # D3.3: dorixona rejimida aniq partiyadan qaytarish (brak/karantin ham). Oddiy do'konda e'tiborga olinmaydi.
+        batch_id = getattr(item, "batch_id", None) if ph_on else None
+        if batch_id:
+            batch_id = _check_return_batch(db, item, product, qty, data.warehouse_id, cid)
         res = deduct_stock(
             db=db, product_id=product.id, quantity=qty, user_id=user.id,
             reason=f"Ta'minotchiga qaytarish: {supplier.name}. {data.note or ''}".strip(),
@@ -161,11 +189,14 @@ def create_supplier_return(db: Session, data, user) -> dict:
         total_value += item_value
         for mv in mvs:
             mv_qty = _d(mv.quantity)
+            taken = _take_batches(db, product.id, mv_qty, mv.warehouse_id, cid, item.variant_id, batch_id)
+            if batch_id and not taken:
+                raise HTTPException(status_code=400, detail=f"Partiya #{batch_id} shu ombordan qaytarishga yaroqsiz")
             movements_info.append({
                 "id": mv.id, "product_id": product.id, "variant_id": item.variant_id,
                 "qty": str(mv_qty), "value": str(round(item_value * mv_qty / qty, 2)),
                 "warehouse_id": mv.warehouse_id,
-                "batches": _take_batches(db, product.id, mv_qty, mv.warehouse_id, cid, item.variant_id),
+                "batches": taken,
             })
     if not movements_info:
         raise HTTPException(status_code=400, detail="Qaytariladigan mahsulot kiritilmagan")

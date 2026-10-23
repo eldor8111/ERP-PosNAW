@@ -8,6 +8,7 @@ import PartialReturnModal from './PartialReturnModal';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useBranches } from '../../hooks/useBranches';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import { canAssignBranch, tBranch } from '../../components/customer/customerProfile';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ')
@@ -48,6 +49,72 @@ const TAB_DEFS = [
   { id: 'akt', labelKey: 'customerDetail.tabAktSverka' },
   { id: 'kirim_tolovlar', labelKey: 'customerDetail.tabIncomePayments' },
 ]
+
+// CD.2: dorixona rejimida sotuv tafsiloti — qatorda seriya/muddat/birlik va retseptlar bloki.
+// Modul o'chiq korxonada null qaytaradi (oddiy do'konda tafsilot avvalgidek).
+const pharmaTf = (t, key, fallback) => { const v = t(key); return v === key ? fallback : v; };
+const pharmaDay = (d) => (d ? new Date(d).toLocaleDateString('uz-UZ') : '—');
+
+function PharmaItemMeta({ item }) {
+  const { t } = useLang();
+  const features = useCompanyFeatures();
+  if (!features?.pharmacy || !item) return null;
+  const batches = Array.isArray(item.batches) ? item.batches : [];
+  const u = item.unit && typeof item.unit === 'object' ? item.unit : (item.unit_info || null);
+  const unitName = u?.unit_name ?? item.unit_name;
+  const unitQty = u?.unit_qty ?? item.unit_qty;
+  if (!batches.length && !unitName) return null;
+  return (
+    <div className="mt-0.5 space-y-0.5 text-[11px] font-normal text-slate-500">
+      {unitName && (
+        <div>{pharmaTf(t, 'pharmaSale.unit', 'Birlik')}: {unitName}{unitQty != null ? ` × ${Number(unitQty)}` : ''}</div>
+      )}
+      {batches.map((b, i) => (
+        <div key={b.batch_id ?? i}>
+          {pharmaTf(t, 'pharmaSale.batch', 'Seriya')}: <span className="font-mono">{b.lot_number ?? b.batch?.lot_number ?? '—'}</span>
+          {' · '}{pharmaTf(t, 'pharmaSale.expiry', 'Muddat')}: {pharmaDay(b.expiry_date ?? b.batch?.expiry_date)}
+          {b.quantity != null ? ` · ${Number(b.quantity)}` : ''}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PharmaPrescriptions({ sale }) {
+  const { t } = useLang();
+  const features = useCompanyFeatures();
+  const list = Array.isArray(sale?.prescriptions) ? sale.prescriptions : [];
+  if (!features?.pharmacy || !list.length) return null;
+  const blank = (bt) => (bt ? pharmaTf(t, `pharmaSale.blank.${bt}`, bt) : '—');
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{pharmaTf(t, 'pharmaSale.prescriptions', 'Retseptlar')}</h4>
+      <div className="border border-slate-100 rounded-xl overflow-x-auto shadow-xs">
+        <table className="min-w-full divide-y divide-slate-100 text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {[['rxNumber', 'Retsept raqami'], ['rxDate', 'Sana'], ['rxDoctor', 'Shifokor'], ['rxClinic', 'Muassasa'], ['rxBlank', 'Blank turi'], ['rxReason', 'Retseptsiz sotish sababi']].map(([k, f]) => (
+                <th key={k} className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{pharmaTf(t, `pharmaSale.${k}`, f)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-slate-100 text-slate-700">
+            {list.map((p, i) => (
+              <tr key={p.id ?? i}>
+                <td className="px-3 py-2 font-mono">{p.number || '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{pharmaDay(p.issued_at)}</td>
+                <td className="px-3 py-2">{p.doctor || '—'}</td>
+                <td className="px-3 py-2">{p.clinic || '—'}</td>
+                <td className="px-3 py-2">{blank(p.blank_type)}</td>
+                <td className="px-3 py-2">{p.reason_without_rx || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ icon, label, value, sub, color = 'indigo' }) {
   const { t } = useLang();
@@ -820,7 +887,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText }) {
                           const currLabel = itemCurrency === 'USD' ? '$' : "so'm";
                           return (
                           <tr key={index} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
+                            <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}<PharmaItemMeta item={item} /></td>
                             <td className="px-4 py-3 text-right font-mono text-slate-600">{Number(item.quantity).toFixed(2).replace(/\.00$/, '')} {item.unit}</td>
                             <td className="px-4 py-3 text-right font-mono text-slate-600 whitespace-nowrap">{fmt(item.unit_price)} {currLabel}</td>
                             <td className="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">{fmt(item.subtotal)} {currLabel}</td>
@@ -831,6 +898,7 @@ function SalesTable({ rows, stats, salesData, loading, onRefresh, emptyText }) {
                   </div>
                 </div>
               </div>
+              <PharmaPrescriptions sale={saleDetailData} />
             </div>
 
             {/* Footer */}
@@ -1391,7 +1459,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
                       <tbody className="bg-white divide-y divide-slate-100 text-sm text-slate-700">
                         {saleDetailData?.items?.map((item, index) => (
                           <tr key={index} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
+                            <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}<PharmaItemMeta item={item} /></td>
                             <td className="px-4 py-3 text-right font-mono text-slate-600">{Number(item.quantity).toFixed(0)} {item.unit}</td>
                             <td className="px-4 py-3 text-right font-mono text-slate-600">{fmt(item.unit_price)}</td>
                             <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(item.subtotal)}</td>
@@ -1402,6 +1470,7 @@ function AktSverka({ stats, sales, loading, history, onRefresh }) {
                   </div>
                 </div>
               </div>
+              <PharmaPrescriptions sale={saleDetailData} />
             </div>
 
             {/* Footer */}

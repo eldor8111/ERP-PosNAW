@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 from pydantic import BaseModel, field_validator
@@ -27,6 +27,9 @@ class POItemCreate(BaseModel):
     new_sale_price: Optional[Decimal] = None
     new_wholesale_price: Optional[Decimal] = None
     expiry_date: Optional[datetime] = None
+    lot_number: Optional[str] = None  # D1.3: seriya (dorixonada qabulda majburiy)
+    manufacture_date: Optional[datetime] = None
+    unit_id: Optional[int] = None  # D2.4 (dorixona): xarid birligi (quti); miqdor shu birlikda
 
     @field_validator("qty_ordered")
     @classmethod
@@ -53,6 +56,12 @@ class POItemOut(BaseModel):
     expiry_date: Optional[datetime] = None
     new_sale_price: Optional[Decimal] = None
     new_wholesale_price: Optional[Decimal] = None
+    lot_number: Optional[str] = None
+    manufacture_date: Optional[datetime] = None
+    # D1.3: dorixona yoqilgan korxonada GET /purchase-orders/{id} da — ustama bilan hisoblangan narx
+    suggested_sale_price: Optional[Decimal] = None
+    # CD.1 (dorixona): mahsulot markirovka (Data Matrix) talab qiladimi — qabul oynasida kod maydonini ko'rsatish uchun
+    requires_marking: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -76,6 +85,8 @@ class POCreate(_PaymentFields):
     status: Optional[POStatus] = None
     note: Optional[str] = None
     expected_date: Optional[datetime] = None
+    supplier_invoice_number: Optional[str] = None  # D1.3
+    supplier_invoice_date: Optional[date] = None
     paid_amount: Decimal = Decimal("0")
     discount_amount: Decimal = Decimal("0")
     wallet_id: Optional[int] = None
@@ -107,6 +118,8 @@ class POUpdate(_PaymentFields):
     warehouse_id: Optional[int] = None
     note: Optional[str] = None
     expected_date: Optional[datetime] = None
+    supplier_invoice_number: Optional[str] = None  # D1.3
+    supplier_invoice_date: Optional[date] = None
     paid_amount: Optional[Decimal] = None
     discount_amount: Optional[Decimal] = None
     wallet_id: Optional[int] = None
@@ -119,11 +132,28 @@ class POUpdate(_PaymentFields):
         return _not_negative(v, "Summa")
 
 
-class POReceiveItem(BaseModel):
-    po_item_id: int
-    qty_received: Decimal
+class POReceiveLot(BaseModel):
+    """D1.3: bir qatorni bir nechta seriyaga bo'lib qabul qilish — har biri alohida partiya."""
     lot_number: Optional[str] = None
     expiry_date: Optional[datetime] = None
+    manufacture_date: Optional[datetime] = None
+    qty: Decimal
+
+    @field_validator("qty")
+    @classmethod
+    def _qty(cls, v):
+        return _positive(v, "Seriya miqdori")
+
+
+class POReceiveItem(BaseModel):
+    po_item_id: int
+    qty_received: Optional[Decimal] = None  # `lots` berilsa — ixtiyoriy (jami seriyalar yig'indisidan olinadi)
+    lot_number: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    manufacture_date: Optional[datetime] = None
+    lots: Optional[List[POReceiveLot]] = None
+    unit_id: Optional[int] = None  # D2.4 (dorixona): qabul birligi (quti); miqdor shu birlikda
+    marking_codes: Optional[List[str]] = None  # D3.2 (dorixona): Data Matrix kodlari qabul bilan bir tranzaksiyada
 
     @field_validator("qty_received")
     @classmethod
@@ -134,6 +164,8 @@ class POReceiveItem(BaseModel):
 class POReceiveRequest(BaseModel):
     items: List[POReceiveItem]
     note: Optional[str] = None
+    supplier_invoice_number: Optional[str] = None  # D1.3: qabul oynasida kiritiladi
+    supplier_invoice_date: Optional[date] = None
 
 
 class POOut(BaseModel):
@@ -154,6 +186,10 @@ class POOut(BaseModel):
     discount_amount: Decimal = Decimal("0")
     currency: Optional[str] = "UZS"
     exchange_rate: Optional[Decimal] = None
+    supplier_invoice_number: Optional[str] = None
+    supplier_invoice_date: Optional[date] = None
+    # D1.3: qabul javobida ogohlantirishlar (masalan, qolgan yaroqlilik muddati kam); rad etmaydi
+    warnings: List[str] = []
     items: List[POItemOut] = []
 
     model_config = {"from_attributes": True}

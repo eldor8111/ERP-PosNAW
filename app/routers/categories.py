@@ -61,7 +61,7 @@ def create_category(
         if not parent:
             raise HTTPException(status_code=404, detail="Ota kategoriya topilmadi")
 
-    cat = Category(name=data.name, parent_id=data.parent_id, sort_order=data.sort_order, is_perishable=data.is_perishable, company_id=current_user.company_id)
+    cat = Category(name=data.name, parent_id=data.parent_id, sort_order=data.sort_order, is_perishable=data.is_perishable, markup_pct=data.markup_pct, company_id=current_user.company_id)
     db.add(cat)
     db.commit()
     db.refresh(cat)
@@ -89,6 +89,8 @@ def update_category(
         cat.sort_order = data.sort_order
     if data.is_perishable is not None:
         cat.is_perishable = data.is_perishable
+    if "markup_pct" in data.model_fields_set:  # D1.3: null — ustamani tozalash
+        cat.markup_pct = data.markup_pct
 
     db.commit()
     db.refresh(cat)

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 import threading
 
@@ -18,7 +18,9 @@ from app.models.product import Product, ProductConversion, ProductStatus
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType, SaleItemBatch, SalePayment
 from app.admin_tg_bot.notifications import trigger_instant_notification
 from app.models.user import User
-from app.schemas.sale import SaleCreate
+from app.schemas.sale import SaleCreate, PrescriptionIn
+from app.models.prescription import SalePrescription, BLANK_TYPES
+from app.models.product_pharma import ProductPharma
 from app.services.customer_service import lock_customer, ARCHIVED_DETAIL
 from app.services.credit_service import check_credit_limit
 from app.services.loyalty_service import get_loyalty_rules, apply_sale_loyalty
@@ -30,20 +32,52 @@ from app.services.sale_helpers import (
 from app.services import approval_service  # T4.6: chegirma / qo'lda narx limitlari va tasdiqlash
 from app.services.batch_allocator import (
     allocate_batches, allocation_cost, is_perishable_product, lock_batches, lock_stock_rows, tashkent_today,
+    assert_pharmacy_sellable, pharmacy_applies,
 )
+from app.services.pharmacy import pharmacy_context
+from app.services.sale_stock import resolve_sale_unit, allocate_unit_batches  # D2.4: quti/blister/dona
+from app.models.product_units import SaleItemUnit
 from app.services.warehouse_resolver import resolve_warehouse
 from app.services.promotion_service import load_sale_pricing_context
 from app.services.wallet_resolver import resolve_wallet
 from app.services.tenant_guards import NO_BRANCH_COMPANY
 
 
-def _resolve_marking_codes(product: Product, item_data) -> list:
+def _is_open_box_line(unit_ctx) -> bool:
+    """CD.1: dorixona, qatorda `unit_id` bor va butun quti sotuvi emas (dona/blister) — qutidan bo'lib sotish."""
+    return unit_ctx is not None and not unit_ctx["whole_boxes"]
+
+
+def _resolve_marking_codes(product: Product, item_data, unit_ctx=None) -> list:
     """
     Markirovka (Data Matrix) kodlarini tekshiradi.
     Mahsulot requires_marking=True bo'lsa, skanerlangan kodlar soni miqdorga
     teng bo'lishi shart — aks holda fiskal chekda markirovka aks etmaydi.
+
+    CD.1 (dorixona, `unit_ctx` — qatorda unit_id bo'lganda): butun quti sotuvida kodlar soni = quti soni;
+    qutidan bo'lib sotishda (dona/blister) kod soni talabi yo'q — kassir ochilgan quti kodini ixtiyoriy (0 yoki 1 ta)
+    yuboradi. `unit_id` siz qatorlarda qoida o'zgarmaydi.
     """
     codes = [c for c in (getattr(item_data, "marking_codes", None) or []) if c and c.strip()]
+    if product.requires_marking and unit_ctx is not None:
+        if _is_open_box_line(unit_ctx):
+            if len(codes) > 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"'{product.name}' — qutidan bo'lib sotishda faqat ochilgan quti kodini (1 ta) yuborish mumkin",
+                )
+            return codes
+        pack = unit_ctx.get("pack_ratio")
+        expected = int(unit_ctx["base_qty"] // pack) if pack else int(unit_ctx["unit_qty"])
+        if len(codes) != expected:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"'{product.name}' — markirovka talab qilinadi. "
+                    f"{expected} ta kod skanerlanishi kerak (har bir quti uchun), {len(codes)} ta kiritildi."
+                ),
+            )
+        return codes
     if product.requires_marking:
         expected = int(item_data.quantity)
         if len(codes) != expected:
@@ -127,6 +161,141 @@ def _assert_branch_open(db: Session, user: User) -> None:
     """T1.12: xodim filiali yopilgan bo'lsa sotuv 409 (yangi sotuv va kutilayotgan sotuv uchun)."""
     from app.services.sale_helpers import assert_user_branch_active
     assert_user_branch_active(db, user)
+
+
+RX_OLD_DAYS = 60   # D2.5: bundan eski retsept sanasi uchun ogohlantirish
+
+
+def _rx_product_info(row, product) -> dict:
+    return {
+        "product_id": product.id,
+        "name": product.name,
+        "control_class": row.control_class if row is not None and row.control_class else "none",
+    }
+
+
+def _prepare_prescriptions(db: Session, data: SaleCreate, sale_items_data: list, company_id: int,
+                           pharmacy_ctx, today) -> tuple:
+    """D2.5: retseptli / nazoratdagi dori tekshiruvi (sotuv yozuvlaridan OLDIN; xato bo'lsa hech narsa yozilmaydi).
+
+    Faqat dorixona moduli yoqilgan korxonada ishlaydi; oddiy do'konda ([], []) qaytadi va so'rovdagi
+    `prescriptions` / `rx_override_reason` e'tiborsiz qoldiriladi.
+    Qaytaradi: (SalePrescription ustunlari ro'yxati, ogohlantirishlar ro'yxati).
+    """
+    enabled, settings = pharmacy_ctx
+    if not enabled:
+        return [], []
+
+    # Savatdagi har bir sotuv mahsuloti uchun retsept talabi (virtual mahsulotda manba dori ham hisobga olinadi)
+    keys_by_pid: dict = {}
+    for d in sale_items_data:
+        prod = d["product"]
+        src = d.get("source_product") if d.get("conversion") is not None else None
+        stock_product = src if src is not None else prod
+        if not pharmacy_applies(True, stock_product):
+            continue
+        keys_by_pid.setdefault(prod.id, (prod, {prod.id} | ({src.id} if src is not None else set())))
+    all_ids = {i for _, ids in keys_by_pid.values() for i in ids}
+    pharma_rows = {}
+    if all_ids:
+        pharma_rows = {
+            r.product_id: r for r in db.query(ProductPharma).filter(
+                ProductPharma.product_id.in_(all_ids), ProductPharma.company_id == company_id,
+            ).all()
+        }
+    needs = {}   # sotuv mahsuloti id -> {"product": ..., "is_rx": bool, "control_class": str}
+    for pid, (prod, ids) in keys_by_pid.items():
+        rows = [pharma_rows[i] for i in ids if i in pharma_rows]
+        control = next((r.control_class for r in rows if r.control_class and r.control_class != "none"), "none")
+        is_rx = any(r.is_rx for r in rows)
+        if is_rx or control != "none":
+            needs[pid] = {"product": prod, "is_rx": is_rx, "control_class": control}
+
+    # So'rovdagi retseptlarni tekshirish
+    cart_pids = {i.product_id for i in data.items}
+    by_pid: dict = {}
+    parsed = []
+    for n, raw in enumerate(getattr(data, "prescriptions", None) or [], start=1):
+        try:
+            pr = raw if isinstance(raw, PrescriptionIn) else PrescriptionIn.model_validate(raw)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{n}-retsept ma'lumotlari to'liq emas (raqam, sana, shifokor va muassasa majburiy)",
+            )
+        pid = pr.product_id
+        if pid is None:
+            if pr.item_index is None or not (0 <= pr.item_index < len(data.items)):
+                raise HTTPException(status_code=400, detail=f"{n}-retsept: product_id yoki to'g'ri item_index kerak")
+            pid = data.items[pr.item_index].product_id
+        if pid not in cart_pids:
+            raise HTTPException(status_code=400, detail=f"{n}-retsept savatda yo'q mahsulotga berilgan")
+        if pr.blank_type not in BLANK_TYPES:
+            raise HTTPException(
+                status_code=400, detail=f"{n}-retsept: blank turi noto'g'ri ({', '.join(BLANK_TYPES)} dan biri bo'lishi kerak)",
+            )
+        if pr.issued_at > today:
+            raise HTTPException(status_code=400, detail=f"{n}-retsept: sanasi kelajakda bo'lishi mumkin emas")
+        parsed.append((pid, pr))
+        by_pid.setdefault(pid, []).append(pr)
+
+    def _info(pid):
+        nd = needs[pid]
+        return {"product_id": pid, "name": nd["product"].name, "control_class": nd["control_class"]}
+
+    missing_control = [pid for pid, nd in needs.items() if nd["control_class"] != "none" and pid not in by_pid]
+    missing_rx = [pid for pid, nd in needs.items() if nd["control_class"] == "none" and pid not in by_pid]
+
+    # Nazoratdagi dori: oddiy blankada sotilmaydi
+    bad_blank = [pid for pid, nd in needs.items() if nd["control_class"] != "none"
+                 and any(p.blank_type == "simple" for p in by_pid.get(pid, []))]
+    if bad_blank:
+        raise HTTPException(status_code=400, detail={
+            "code": "rx_blank_invalid",
+            "message": "Nazoratdagi dori uchun maxsus retsept blankasi kerak (form_107, form_148 yoki special)",
+            "products": [_info(p) for p in bad_blank],
+        })
+
+    override_rows = []
+    if missing_control:
+        # Nazoratdagi dori — retseptsiz sotib bo'lmaydi (rx_mode va sabab bilan ham)
+        raise HTTPException(status_code=400, detail={
+            "code": "rx_required",
+            "message": "Nazoratdagi dori retseptsiz sotilmaydi",
+            "mode": "block",
+            "override_allowed": False,
+            "products": [_info(p) for p in missing_control + missing_rx],
+        })
+    if missing_rx:
+        mode = settings.get("rx_mode") or "warn"
+        reason = (getattr(data, "rx_override_reason", None) or "").strip()
+        if mode == "block" or not reason:
+            raise HTTPException(status_code=400, detail={
+                "code": "rx_required",
+                "message": ("Retseptli dori retseptsiz sotilmaydi" if mode == "block"
+                            else "Retseptli dori uchun retsept yoki retseptsiz sotish sababi kerak"),
+                "mode": mode,
+                "override_allowed": mode != "block",
+                "products": [_info(p) for p in missing_rx],
+            })
+        for pid in missing_rx:
+            override_rows.append({"product_id": pid, "reason_without_rx": reason[:500]})
+
+    rows = []
+    warnings = []
+    for pid, pr in parsed:
+        rows.append({
+            "product_id": pid, "number": pr.number, "issued_at": pr.issued_at, "doctor": pr.doctor,
+            "clinic": pr.clinic, "patient": (pr.patient or "").strip() or None, "blank_type": pr.blank_type,
+        })
+        age = (today - pr.issued_at).days
+        if age > RX_OLD_DAYS:
+            warnings.append({
+                "code": "rx_old", "product_id": pid, "number": pr.number, "age_days": age,
+                "message": f"Retsept {pr.number} {age} kun oldin berilgan ({RX_OLD_DAYS} kundan eski)",
+            })
+    rows.extend(override_rows)
+    return rows, warnings
 
 
 def create_sale(
@@ -216,6 +385,8 @@ def create_sale(
     _approval_violations = []           # T4.6: qoida buzilishlari (qoida yo'q korxonada bo'sh qoladi)
     _gross_total = Decimal("0")         # T4.6: umumiy chegirma foizi uchun (UZS, chegirmasiz)
 
+    _ph_ctx = None   # D1.2: sotuv uchun BIR MARTA olinadi (quyida); `unit_id` li qator bo'lsa tsiklda oldinroq
+    _unit_rows = []  # D2.4: (SaleItem, birlik ma'lumoti) — SaleItemUnit yozish uchun
     for item_data in data.items:
         product = products_map.get(item_data.product_id)
         if not product:
@@ -224,28 +395,60 @@ def create_sale(
                 detail=f"Mahsulot ID={item_data.product_id} topilmadi yoki nofaol",
             )
 
+        # D2.4: qadoq birligi (quti/blister/dona). `unit_id` berilmasa hamma narsa avvalgidek (item_data o'zi).
+        _unit_ctx = None
+        _price_item = item_data
+        if getattr(item_data, "unit_id", None):
+            if _ph_ctx is None:
+                _ph_ctx = pharmacy_context(db, current_user.company_id)
+            _unit_ctx = resolve_sale_unit(db, current_user.company_id, product, item_data, _ph_ctx)
+            _price_item = _unit_ctx["price_item"]   # miqdor — asosiy birlikda, narx — bir asosiy birlikka
+        _line_qty = _price_item.quantity
+
         _customer_price = customer_prices_map.get(item_data.product_id) if data.customer_id else None
         _branch_price = _pricing_ctx.branch_price(item_data.product_id, getattr(item_data, "variant_id", None))
         # T3.19: narx (individual narx > price_type > sale_price) va mijoz chegirmasi serverda hal qilinadi
         unit_price, discount, _price_src = resolve_item_pricing(
-            item_data, product, _customer_price, customer, current_user, branch_price=_branch_price)
+            _price_item, product, _customer_price, customer, current_user, branch_price=_branch_price)
+        if _unit_ctx is not None and _price_src == "sale_price":
+            # D2.4: oddiy ro'yxat narxi — birlik narxi (unit.sale_price yoki quti narxidan hisoblangan) / nisbat
+            unit_price = _unit_ctx["unit_list_price"] / _unit_ctx["ratio"]
+            if Decimal(str(getattr(item_data, "discount", 0) or 0)) == 0 and customer is not None and \
+                    Decimal(str(getattr(customer, "discount_percent", 0) or 0)) > 0:
+                discount = (unit_price * _line_qty * Decimal(str(customer.discount_percent)) / Decimal("100")).quantize(Decimal("0.01"))
+        # D2.4: birlik narxi (bir quti/blister narxi) — kasrli "asosiy birlik narxi"ni qayta ko'paytirmasdan aniq jami
+        # hisoblanadi (5000 / 3 * 3 = 4999.999... bo'lmasligi uchun) va tiyin (0.01) gacha yaxlitlanadi.
+        _unit_level_price = None
+        if _unit_ctx is not None:
+            if _price_src == "sale_price":
+                _unit_level_price = Decimal(str(_unit_ctx["unit_list_price"]))
+            elif _unit_ctx["price_overridden"]:
+                _unit_level_price = Decimal(str(item_data.unit_price))
+            else:
+                _unit_level_price = (unit_price * _unit_ctx["ratio"]).quantize(Decimal("0.0001"))
         # T4.3: aksiya serverda tekshiriladi (noto'g'ri promotion_id -> 400); qo'shimcha chegirma qo'shilmaydi
-        discount, _promo_id, _promo_disc = _pricing_ctx.apply(item_data, unit_price, discount)
-        if discount > unit_price * item_data.quantity:
+        discount, _promo_id, _promo_disc = _pricing_ctx.apply(_price_item, unit_price, discount)
+        if _unit_ctx is not None:
+            _line_gross = (_unit_level_price * _unit_ctx["unit_qty"]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        else:
+            _line_gross = unit_price * _line_qty
+        if discount > _line_gross:
             raise HTTPException(
                 status_code=400,
                 detail=f"'{product.name}' uchun chegirma ({discount}) narxdan oshib ketdi",
             )
-        subtotal = (unit_price * item_data.quantity) - discount
+        subtotal = _line_gross - discount
+        if _unit_ctx is not None:
+            subtotal = subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # T4.6: kassir kiritgan chegirma (aksiya va mijozning doimiy chegirmasi hisobga olinmaydi) va qo'lda
         # tushirilgan narx limiti. Admin/director ozod (limitdan oshsa faqat audit).
         _rate = getattr(item_data, "exchange_rate", None) or Decimal("1")
-        _gross_total += unit_price * item_data.quantity * Decimal(str(_rate))
+        _gross_total += unit_price * _line_qty * Decimal(str(_rate))
         _manual_disc = max(Decimal(str(getattr(item_data, "discount", 0) or 0)) - Decimal(str(_promo_disc or 0)), Decimal("0"))
-        _list_p = price_is_override(item_data, product, _customer_price, customer, _branch_price)
+        _list_p = price_is_override(_price_item, product, _customer_price, customer, _branch_price)
         _approval_violations.extend(approval_service.evaluate_discount(
-            db, current_user, product, unit_price, _manual_disc, item_data.quantity,
+            db, current_user, product, unit_price, _manual_disc, _line_qty,
             branch_id=sale_branch_id, list_price=_list_p, is_override=_list_p is not None, rate=_rate,
         ))
 
@@ -260,12 +463,12 @@ def create_sale(
             if not source_product:
                 conversion = None
 
-        marking_codes = _resolve_marking_codes(product, item_data)
+        marking_codes = _resolve_marking_codes(product, item_data, _unit_ctx)
 
         sale_items_data.append({
             "product": product,
             "variant_id": getattr(item_data, "variant_id", None),
-            "quantity": item_data.quantity,
+            "quantity": _line_qty,   # D2.4: unit_id bo'lsa asosiy birlikda
             "unit_price": unit_price,
             "cost_price": product.cost_price,
             "discount": discount,
@@ -278,10 +481,56 @@ def create_sale(
             "marking_codes": marking_codes,
             "promotion_id": _promo_id,
             "promotion_discount": _promo_disc,
+            "unit_ctx": _unit_ctx,
+            "unit_level_price": _unit_level_price,
+            "marking_open_box": _is_open_box_line(_unit_ctx) and bool(product.requires_marking),   # CD.1
         })
         
         # Jami sotuv summasi doim UZS (asosiy valyuta) da yig'iladi
         total_amount += (subtotal * item_exchange_rate)
+
+    # D1.2: dorixona rejimi — yaroqli (muddati o'tmagan) partiyalar yetmasa sotuv yozuvlardan OLDIN rad etiladi.
+    # `pharmacy_context` sotuv uchun BIR MARTA olinadi; modul o'chiq korxonada hech narsa o'zgarmaydi.
+    if _ph_ctx is None:
+        _ph_ctx = pharmacy_context(db, current_user.company_id)
+    if _ph_ctx[0]:
+        _ph_lines = []
+        for _d in sale_items_data:
+            _conv = _d.get("conversion")
+            _ph_lines.append((
+                _d["source_product"] if _conv is not None else _d["product"],
+                None if _conv is not None else _d["variant_id"],
+                _d.get("item_warehouse_id") or data.warehouse_id,
+                Decimal(_d["quantity"]) * (Decimal(str(_conv.ratio)) if _conv is not None else Decimal("1")),
+            ))
+        assert_pharmacy_sellable(
+            db, company_id=current_user.company_id, lines=_ph_lines, pharmacy_ctx=_ph_ctx, today=tashkent_today(),
+        )
+        # D2.4: butun quti sotuvi — yetarli butun quti bormi (yozuvlardan OLDIN; yetmasa 400 "butun quti X ta, ochilgan ...")
+        for _d in sale_items_data:
+            _uc = _d.get("unit_ctx")
+            if _uc is not None and _uc["whole_boxes"]:
+                allocate_unit_batches(
+                    db, company_id=current_user.company_id, product=_d["product"], variant_id=_d["variant_id"],
+                    warehouse_id=_d.get("item_warehouse_id") or data.warehouse_id, quantity=_d["quantity"],
+                    pack_ratio=_uc["pack_ratio"], whole_boxes=True, today=tashkent_today(),
+                    expiry_block_days=int(_ph_ctx[1].get("expiry_block_days") or 0), lock=False, deduct=False,
+                )
+    _ph_days = int(_ph_ctx[1].get("expiry_block_days") or 0)
+    # D2.5: retseptli / nazoratdagi dori tekshiruvi (modul o'chiq korxonada ([], []) — hech narsa o'zgarmaydi)
+    _rx_rows, _rx_warnings = _prepare_prescriptions(
+        db, data, sale_items_data, current_user.company_id, _ph_ctx, tashkent_today(),
+    )
+    # D3.2: markirovkali dori kodlari omborda (in_stock) va shu korxonada bo'lishi shart; takror sotuv 400.
+    # Modul o'chiq korxonada bu tekshiruv yo'q (markirovka avvalgidek faqat soni bo'yicha tekshiriladi).
+    _mk_plan = {}
+    if _ph_ctx[0]:
+        from app.routers.pharmacy_marking import plan_sale_marking
+        _mk_plan = plan_sale_marking(db, current_user.company_id, [
+            # CD.1: qutidan bo'lib sotishda kod faqat SaleItem.marking_codes ga yoziladi (holati o'zgarmaydi)
+            (_i, _d["product"], _d.get("source_product"), [] if _d.get("marking_open_box") else _d["marking_codes"])
+            for _i, _d in enumerate(sale_items_data)
+        ])
 
     # T4.6: umumiy (chek) chegirmasi ham chegirma limitiga kiradi; so'ng qaror: block -> 403 limit_exceeded,
     # require_approval -> approval_id yo'q bo'lsa 403 approval_required, bor bo'lsa tasdiq bir marta ishlatiladi
@@ -669,13 +918,32 @@ def create_sale(
             reason=f"Sotuv #{sale.number}" + (f" ({product.name} → {stock_product.name} x{ratio})" if is_virtual else ""),
         ))
 
+        _ph_on = pharmacy_applies(_ph_ctx[0], stock_product)   # D1.2
+
         # Partiyalar — OMBOR bo'yicha (shu ombor, so'ng omborsiz eskilari); update_sale/tasdiqlash bilan
         # bir xil servis (T1.6). Qulf yuqorida olingan; yetmagan qism mahsulot tannarxi bilan.
-        allocated_batches, shortfall = allocate_batches(
-            db, company_id=current_user.company_id, product_id=stock_product.id, variant_id=stock_variant_id,
-            warehouse_id=item_warehouse_id, quantity=qty_to_deduct,
-            perishable=is_perishable_product(stock_product), today=tashkent_today(), lock=False,
-        )
+        _uc = item_d.get("unit_ctx")
+        if _uc is not None and _ph_on:
+            # D2.4: qadoq birligidan sotuv — ochilgan quti avval / butun quti faqat butun qutilardan (FEFO)
+            allocated_batches, shortfall = allocate_unit_batches(
+                db, company_id=current_user.company_id, product=stock_product, variant_id=stock_variant_id,
+                warehouse_id=item_warehouse_id, quantity=qty_to_deduct, pack_ratio=_uc["pack_ratio"],
+                whole_boxes=_uc["whole_boxes"], today=tashkent_today(), expiry_block_days=_ph_days, lock=False,
+            )
+        else:
+            allocated_batches, shortfall = allocate_batches(
+                db, company_id=current_user.company_id, product_id=stock_product.id, variant_id=stock_variant_id,
+                warehouse_id=item_warehouse_id, quantity=qty_to_deduct,
+                perishable=is_perishable_product(stock_product), today=tashkent_today(), lock=False,
+                pharmacy=_ph_on, expiry_block_days=_ph_days if _ph_on else 0,
+            )
+        if _ph_on and shortfall > 0:
+            # Oldindan tekshiruvdan keyin ham muddati o'tgan dori sotilib ketmasin (qulfdan keyingi qayta tekshiruv)
+            raise HTTPException(
+                status_code=400,
+                detail=f"{stock_product.name}: yaroqli qoldiq {qty_to_deduct - shortfall}, "
+                       f"yetmaydigan miqdor {shortfall} (muddati o'tgan yoki yaroqsiz)",
+            )
         total_cost = allocation_cost(
             allocated_batches, shortfall,
             source_product.cost_price if is_virtual else product.cost_price,
@@ -701,6 +969,8 @@ def create_sale(
             promotion_discount=item_d.get("promotion_discount"),
         )
         new_sale_items.append((sale_item, allocated_batches))
+        if _uc is not None:
+            _unit_rows.append((sale_item, _uc, item_d.get("unit_level_price")))   # D2.4
 
     for sale_item, _ in new_sale_items:
         db.add(sale_item)
@@ -714,17 +984,43 @@ def create_sale(
                 quantity=ab["quantity"],
                 unit_cost=ab["unit_cost"],
             ))
+    # D2.4: qaysi birlikda sotilgani (nomi va nisbati o'sha paytdagi holatda; SaleItem.quantity — asosiy birlikda)
+    for sale_item, _uc, _base_price in _unit_rows:  # _base_price — bir birlik (quti) narxi
+        db.add(SaleItemUnit(
+            sale_item_id=sale_item.id, company_id=current_user.company_id, unit_id=_uc["unit"].id,
+            unit_name=_uc["unit"].name, unit_ratio=_uc["ratio"], unit_qty=_uc["unit_qty"],
+            unit_price=(Decimal(str(_base_price)).quantize(Decimal("0.0001")) if _base_price is not None else None),
+        ))
     for mov in new_movements:
         db.add(mov)
+
+    # D3.2: kodlar sotildi (sold) — sotuv qatoriga bog'lanadi
+    if _mk_plan:
+        from app.routers.pharmacy_marking import apply_sale_marking
+        apply_sale_marking(_mk_plan, {_i: _si.id for _i, (_si, _) in enumerate(new_sale_items)})
+
+    # D2.5: retseptlar (har biri shu mahsulotning birinchi sotuv qatoriga bog'lanadi)
+    if _rx_rows:
+        _item_by_pid = {}
+        for _si, _ in new_sale_items:
+            _item_by_pid.setdefault(_si.product_id, _si.id)
+        for _row in _rx_rows:
+            db.add(SalePrescription(
+                sale_id=sale.id, sale_item_id=_item_by_pid.get(_row["product_id"]),
+                company_id=current_user.company_id, **_row,
+            ))
 
     if getattr(data, "delivery", None) is not None:
         from app.services.sale_delivery_service import upsert_sale_delivery
         upsert_sale_delivery(db, sale, data.delivery, current_user.company_id)
 
+    _sale_log = {"number": sale.number, "total": str(total_amount), "payment": data.payment_type.value}
+    if any(r.get("reason_without_rx") for r in _rx_rows):
+        _sale_log["rx_override_reason"] = (data.rx_override_reason or "").strip()[:500]
     log_action(
         db=db, action="SALE", entity_type="sale", entity_id=sale.id,
         user_id=current_user.id,
-        new_values={"number": sale.number, "total": str(total_amount), "payment": data.payment_type.value},
+        new_values=_sale_log,
         ip_address=ip,
     )
     db.commit()
@@ -898,6 +1194,7 @@ def create_sale(
                         daemon=True,
                     ).start()
 
+    sale.rx_warnings = _rx_warnings   # D2.5: javobdagi ogohlantirishlar (ustun emas, faqat shu so'rov uchun)
     return sale
 
 
@@ -979,6 +1276,9 @@ def create_pending_sale(
         product = _products_map.get(item_data.product_id)
         if not product:
             raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_data.product_id} topilmadi")
+        if getattr(item_data, "unit_id", None):
+            # D2.4: qadoq birligi faqat oddiy (to'lovli) sotuvda; kutilayotgan sotuvda miqdor asosiy birlikda
+            raise HTTPException(status_code=400, detail="Kutilayotgan sotuvda qadoq birligi qo'llanmaydi — miqdorni asosiy birlikda kiriting")
 
         _customer_price = _pend_customer_prices.get(item_data.product_id) if data.customer_id else None
         unit_price, discount, _price_src = resolve_item_pricing(

@@ -1,0 +1,23 @@
+{
+  "uz": {
+    "purchase.mkTitle": "Markirovka kodlari",
+    "purchase.mkScan": "Data Matrix kodini skanerlang va Enter bosing",
+    "purchase.mkCount": "Kodlar",
+    "purchase.mkDup": "Bu kod allaqachon qo'shilgan",
+    "purchase.mkInvalid": "Kod GS1 formatida emas"
+  },
+  "ru": {
+    "purchase.mkTitle": "Коды маркировки",
+    "purchase.mkScan": "Отсканируйте код Data Matrix и нажмите Enter",
+    "purchase.mkCount": "Коды",
+    "purchase.mkDup": "Этот код уже добавлен",
+    "purchase.mkInvalid": "Код не в формате GS1"
+  },
+  "en": {
+    "purchase.mkTitle": "Marking codes",
+    "purchase.mkScan": "Scan the Data Matrix code and press Enter",
+    "purchase.mkCount": "Codes",
+    "purchase.mkDup": "This code has already been added",
+    "purchase.mkInvalid": "The code is not in GS1 format"
+  }
+}

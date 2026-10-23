@@ -1,0 +1,35 @@
+{
+  "uz": {
+    "pharmacyHub.title": "Dorixona",
+    "pharmacyHub.desc": "Hisobotlar, partiyalar, qaytarib olish, defektura va jurnallar markazi.",
+    "pharmacyHub.tabAnalytics": "Ko'rsatkichlar",
+    "pharmacyHub.tabExpiry": "Muddatlar",
+    "pharmacyHub.tabBatches": "Partiyalar",
+    "pharmacyHub.tabRecall": "Qaytarib olish",
+    "pharmacyHub.tabDefektura": "Defektura",
+    "pharmacyHub.tabJournals": "Jurnallar",
+    "nav.pharmacy": "Dorixona"
+  },
+  "ru": {
+    "pharmacyHub.title": "Аптека",
+    "pharmacyHub.desc": "Центр отчётов, партий, отзыва, дефектуры и журналов.",
+    "pharmacyHub.tabAnalytics": "Показатели",
+    "pharmacyHub.tabExpiry": "Сроки",
+    "pharmacyHub.tabBatches": "Партии",
+    "pharmacyHub.tabRecall": "Отзыв",
+    "pharmacyHub.tabDefektura": "Дефектура",
+    "pharmacyHub.tabJournals": "Журналы",
+    "nav.pharmacy": "Аптека"
+  },
+  "en": {
+    "pharmacyHub.title": "Pharmacy",
+    "pharmacyHub.desc": "Hub for reports, batches, recalls, shortage list and journals.",
+    "pharmacyHub.tabAnalytics": "Metrics",
+    "pharmacyHub.tabExpiry": "Expiry",
+    "pharmacyHub.tabBatches": "Batches",
+    "pharmacyHub.tabRecall": "Recall",
+    "pharmacyHub.tabDefektura": "Shortages",
+    "pharmacyHub.tabJournals": "Journals",
+    "nav.pharmacy": "Pharmacy"
+  }
+}

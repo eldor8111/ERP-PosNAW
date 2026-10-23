@@ -23,6 +23,11 @@ class Batch(Base):
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
     production_order_id = Column(Integer, ForeignKey("production_orders.id"), nullable=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    # D3.3: partiya holati (dorixona). NULL yoki 'active' = faol; 'quarantine' | 'defect' | 'recalled' — sotilmaydi.
+    status = Column(String(20), nullable=True)
+    status_reason = Column(String(500), nullable=True)
+    status_changed_at = Column(DateTime, nullable=True)
+    status_changed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     product = relationship("Product", back_populates="batches")

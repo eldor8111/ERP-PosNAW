@@ -18,7 +18,8 @@ from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.user import User, UserRole
 from app.models.warehouse import Warehouse
-from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate, SalePage, SaleAssignCustomer
+from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, SaleUpdate, SaleReturnRequest, SaleBulkCreate, SaleFiscalUpdate, SalePage, SaleAssignCustomer, SalePrescriptionOut
+from app.models.prescription import SalePrescription  # D2.5
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale, reassign_sale_customer
 from app.services.sale_partial_return import process_partial_return
 from app.services.sale_helpers import apply_sale_branch_filter
@@ -114,7 +115,41 @@ def _delivery_dict(d) -> Optional[dict]:
     }
 
 
+def _pharma_item_details(sale: Sale):
+    """CD.1: dorixona rejimida qatorlar bo'yicha partiyalar va sotuv birligi — ikkita IN so'rov (N+1 yo'q).
+    Oddiy korxonada ({}, {}) qaytadi va qo'shimcha so'rov faqat modul tekshiruvi (bitta) bo'ladi."""
+    db = object_session(sale)
+    ids = [i.id for i in sale.items]
+    if db is None or not ids:
+        return {}, {}
+    from app.services.pharmacy import pharmacy_enabled
+    if not pharmacy_enabled(db, sale.company_id):
+        return {}, {}
+    from app.models.batch import Batch
+    from app.models.product_units import SaleItemUnit
+    from app.models.sale import SaleItemBatch
+    from app.schemas.sale import SaleItemBatchOut, SaleItemUnitOut
+    batches: dict = {}
+    for sib, b in (
+        db.query(SaleItemBatch, Batch).join(Batch, Batch.id == SaleItemBatch.batch_id)
+        .filter(SaleItemBatch.sale_item_id.in_(ids)).order_by(SaleItemBatch.id).all()
+    ):
+        exp = b.expiry_date
+        batches.setdefault(sib.sale_item_id, []).append(SaleItemBatchOut(
+            batch_id=b.id, lot_number=b.lot_number,
+            expiry_date=exp.date() if hasattr(exp, "date") else exp, quantity=sib.quantity,
+        ))
+    units = {
+        u.sale_item_id: SaleItemUnitOut(
+            unit_id=u.unit_id, unit_name=u.unit_name, unit_ratio=u.unit_ratio, unit_qty=u.unit_qty, unit_price=u.unit_price,
+        )
+        for u in db.query(SaleItemUnit).filter(SaleItemUnit.sale_item_id.in_(ids)).all()
+    }
+    return batches, units
+
+
 def _build_sale_out(sale: Sale, hide_cost: bool = False) -> SaleOut:
+    pharma_batches, pharma_units = _pharma_item_details(sale)
     items = [
         SaleItemOut(
             id=i.id,
@@ -138,6 +173,8 @@ def _build_sale_out(sale: Sale, hide_cost: bool = False) -> SaleOut:
             exchange_rate=getattr(i, 'exchange_rate', Decimal("1.0")),
             promotion_id=getattr(i, 'promotion_id', None),  # C4.1 (T4.3)
             promotion_discount=getattr(i, 'promotion_discount', None),
+            batches=pharma_batches.get(i.id, []),
+            unit_info=pharma_units.get(i.id),
         )
         for i in sale.items
     ]
@@ -309,6 +346,7 @@ def make_sale(
         currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
         debt_amounts=getattr(sale, 'debt_amounts', None),
         before_debt_balances=getattr(sale, 'before_debt_balances', None),
+        warnings=getattr(sale, 'rx_warnings', None) or [],   # D2.5: masalan, eski retsept
     )
 
 
@@ -361,6 +399,7 @@ def make_bulk_sales(
                     currency_code=sale.currency.code if getattr(sale, 'currency', None) else "UZS",
                     debt_amounts=getattr(sale, 'debt_amounts', None),
                     before_debt_balances=getattr(sale, 'before_debt_balances', None),
+                    warnings=getattr(sale, 'rx_warnings', None) or [],   # D2.5
                 ))
         except Exception as e:
             # Qaysi sotuvda xato bo'lganini bilish uchun
@@ -653,7 +692,15 @@ def get_sale(
     sale = _load_sale(db, sale_id, current_user)
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
-    return _build_sale_out(sale, hide_cost=current_user.role == UserRole.cashier)
+    out = _build_sale_out(sale, hide_cost=current_user.role == UserRole.cashier)
+    # D2.5: retseptlar (oddiy korxonada jadval bo'sh — javob avvalgidek, prescriptions=[])
+    out.prescriptions = [
+        SalePrescriptionOut.model_validate(p) for p in
+        db.query(SalePrescription).filter(
+            SalePrescription.sale_id == sale.id, SalePrescription.company_id == sale.company_id,
+        ).order_by(SalePrescription.id).all()
+    ]
+    return out
 
 
 @router.patch("/{sale_id}/fiscal", response_model=SaleOut)

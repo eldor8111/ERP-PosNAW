@@ -7,6 +7,7 @@ import { matchesSearch } from '../../utils/translit';
 import { EllipsisVertical, Pen, Undo2 } from 'lucide-react';
 import BranchSelect from '../../components/BranchSelect';
 import CustomerPicker from '../../components/CustomerPicker';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 
 /* ─── Helpers ─── */
 // T1.3: ombor varianti "Ombor — Filial" ko'rinishida (bir xil nomli omborlar chalkashmasin)
@@ -401,6 +402,31 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, ed
   const [qty, setQty] = useState('1');
   const [cost, setCost] = useState('');
 
+  // CD.2: dorixona rejimida ta'minotchiga qaytarishda partiya (seriya) tanlash. Oddiy korxonada umuman ishlamaydi.
+  const features = useCompanyFeatures();
+  const pharmacyOn = !!features?.pharmacy;
+  const showBatchPick = pharmacyOn && !isCustomer;
+  const [batches, setBatches] = useState([]);
+  const [batchId, setBatchId] = useState('');
+  const batchWh = form.warehouse_id || (warehouses?.length === 1 ? String(warehouses[0].id) : '');
+  useEffect(() => {
+    setBatchId(''); setBatches([]);
+    if (!showBatchPick || !sel) return;
+    let cancelled = false;
+    const params = { product_id: sel.id };
+    if (batchWh) params.warehouse_id = batchWh;
+    api.get('/pharmacy/batches', { params, _silent: true })
+      .then(r => { if (!cancelled) setBatches(Array.isArray(r.data) ? r.data : []); })
+      .catch(() => { if (!cancelled) setBatches([]); });
+    return () => { cancelled = true; };
+  }, [showBatchPick, sel, batchWh]);
+  const batchStatusLabel = (st) => {
+    const k = { active: ['pharmacyBatches.statusActive', 'Faol'], quarantine: ['pharmacyBatches.statusQuarantine', 'Karantin'],
+      defect: ['pharmacyBatches.statusDefect', 'Brak'], recalled: ['pharmacyBatches.statusRecalled', 'Qaytarib olingan'] }[st || 'active'];
+    return k ? tOr(t, k[0], k[1]) : st;
+  };
+  const batchText = (b) => `${b.lot_number || '—'} · ${b.expiry_date ? fmtDay(b.expiry_date) : '—'} · ${batchStatusLabel(b.status)} · ${fmt(b.quantity)}`;
+
   // Update cost when product is selected
   useEffect(() => {
     if (sel) {
@@ -415,13 +441,23 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, ed
   const addItem = () => {
     if (!sel || !qty) return;
     if (!cost) { setErr(t('ops.enterReturnPrice')); return; }
+    // CD.2: tanlangan partiya (faqat dorixona + ta'minotchiga qaytarish)
+    const pickedBatch = showBatchPick && batchId ? batches.find(b => String(b.batch_id) === String(batchId)) : null;
+    const bId = pickedBatch ? pickedBatch.batch_id : null;
+    if (pickedBatch && Number(qty) > Number(pickedBatch.quantity || 0)) {
+      setErr(tOr(t, 'pharmaSale.batchQtyExceeded', "Miqdor partiya qoldig'idan oshib ketdi")); return;
+    }
 
     setItems(prev => {
-      const ex = prev.find(i => i.product_id === sel.id && i.cost === Number(cost));
-      if (ex) return prev.map(i => i.product_id === sel.id && i.cost === Number(cost) ? { ...i, qty: Number(i.qty) + Number(qty) } : i);
-      return [...prev, { product_id: sel.id, product_name: sel.name, unit: sel.unit || t('common.piece'), qty: Number(qty), cost: Number(cost), current: Number(sel.stock_quantity || 0) }];
+      const same = (i) => i.product_id === sel.id && i.cost === Number(cost) && (i.batch_id || null) === bId;
+      const ex = prev.find(same);
+      if (ex) return prev.map(i => same(i) ? { ...i, qty: Number(i.qty) + Number(qty) } : i);
+      return [...prev, {
+        product_id: sel.id, product_name: sel.name, unit: sel.unit || t('common.piece'), qty: Number(qty), cost: Number(cost), current: Number(sel.stock_quantity || 0),
+        ...(bId ? { batch_id: bId, batch_label: `${pickedBatch.lot_number || '—'} · ${pickedBatch.expiry_date ? fmtDay(pickedBatch.expiry_date) : '—'}` } : {}),
+      }];
     });
-    setSel(null); setQty('1'); setCost(''); setErr('');
+    setSel(null); setQty('1'); setCost(''); setErr(''); setBatchId('');
   };
 
   const save = async (overridePayType) => {
@@ -490,7 +526,7 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, ed
         const payload = {
           supplier_id: Number(form.supplier_id),
           warehouse_id: form.warehouse_id ? Number(form.warehouse_id) : (warehouses?.length === 1 ? Number(warehouses[0].id) : null),
-          items: items.map(i => ({ product_id: i.product_id, quantity: i.qty, unit_cost: i.cost })),
+          items: items.map(i => ({ product_id: i.product_id, quantity: i.qty, unit_cost: i.cost, ...(showBatchPick && i.batch_id ? { batch_id: i.batch_id } : {}) })),
           received_amount: form.received_amount ? Number(form.received_amount) : 0,
           wallet_id: form.wallet_id ? Number(form.wallet_id) : null,
           note: note
@@ -574,6 +610,14 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, ed
                   <input type="number" min="0" step="any" value={cost} onChange={e => setCost(e.target.value)} className={`w-full ${ic}`} placeholder={`${t('admin.dict.price')}...`} />
                 </Lbl>
               </div>
+              {showBatchPick && (
+                <Lbl t={tOr(t, 'pharmaSale.batchPick', 'Partiya (seriya / muddat / holat / qoldiq)')}>
+                  <select value={batchId} onChange={e => setBatchId(e.target.value)} className={`w-full ${ic}`}>
+                    <option value="">{tOr(t, 'pharmaSale.batchAuto', 'Avtomatik (muddati yaqini birinchi)')}</option>
+                    {batches.map(b => <option key={b.batch_id} value={b.batch_id}>{batchText(b)}</option>)}
+                  </select>
+                </Lbl>
+              )}
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-slate-300 flex-col gap-2 py-8">
@@ -615,7 +659,10 @@ function QaytarishCreateView({ products, type, onBack, suppliers, warehouses, ed
                 {items.map((it, i) => (
                   <tr key={i} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium">{it.product_name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {it.product_name}
+                      {it.batch_id && <div className="text-[11px] font-normal text-slate-500">{tOr(t, 'pharmaSale.batch', 'Seriya')}: {it.batch_label}</div>}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <span className="font-bold">{it.qty}</span>

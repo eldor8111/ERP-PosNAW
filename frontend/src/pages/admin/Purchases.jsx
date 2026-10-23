@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../../context/LangContext';
 import { useBranch } from '../../context/BranchContext';
@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { CircleArrowDown, PackageCheck, Plus, Minus } from 'lucide-react';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import { useBranches } from '../../hooks/useBranches';
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
 // Server xatosi matni (axios interceptor toast ko'rsatadi, bu — formadagi yozuv uchun)
@@ -344,6 +345,8 @@ function SupSearch({ suppliers, value, onChange, placeholder }) {
 ══════════════════════════════════════════════════════════ */
 function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const { t } = useLang();
+  const features = useCompanyFeatures();
+  const pharmacy = !!features?.pharmacy;   // D1.3: dorixona — qabul qilinadigan xaridda seriya/muddat majburiy
   const { currentBranchId, assignedBranchId } = useBranch();
   const [products, setProds] = useState([]);
   const [warehouses, setWhs] = useState([]);
@@ -392,6 +395,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       warehouse_id: String(editPo.warehouse_id || ''),
       note: editPo.note || '',
       expected_date: editPo.expected_date ? String(editPo.expected_date).slice(0, 10) : '',
+      invoice_no: editPo.supplier_invoice_number || '',
+      invoice_date: editPo.supplier_invoice_date ? String(editPo.supplier_invoice_date).slice(0, 10) : '',
     });
     if (editPo.items && editPo.items.length > 0) {
       // Bazada unit_cost — UZS (sof). Valyutali qator narxi xarid kursida valyutaga qaytariladi
@@ -407,6 +412,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           unit: prod?.unit || t('common.piece'),
           category_is_perishable: prod?.category_is_perishable || false,
           expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
+          lot_number: item.lot_number || '',
           unit_cost: cur === 'UZS' ? netUzs : Math.round((netUzs / getRateFor(cur)) * 10000) / 10000,
           discount_type: 'pct',
           discount_val: 0,
@@ -424,7 +430,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   }, [editPo, warehouses, suppliers, productsLoaded]);
 
   // PO form
-  const [poForm, setPoForm] = useState({ supplier_id: '', warehouse_id: '', note: '', expected_date: '' });
+  const [poForm, setPoForm] = useState({ supplier_id: '', warehouse_id: '', note: '', expected_date: '', invoice_no: '', invoice_date: '' });
   const [poItems, setPoItems] = useState([]);
   const [variantPickerProduct, setVariantPickerProduct] = useState(null);
 
@@ -446,6 +452,20 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
   const [discVal, setDiscVal] = useState('0');
   const [currency, setCurrency] = useState('UZS');
   const [expiryDate, setExpiryDate] = useState('');
+  // D2.4: dorixona — qabul birligi (quti/blister/dona). Qoldiq va tannarx asosiy birlikda saqlanadi:
+  // qatorga miqdor * nisbat va narx / nisbat yoziladi; shu sababli serverga birlik emas, asosiy birlikdagi qiymat ketadi.
+  const [selUnits, setSelUnits] = useState([]);
+  const [selUnitId, setSelUnitId] = useState('');
+  const selUnit = selUnits.find(u => String(u.id) === String(selUnitId)) || null;
+  const unitRatio = selUnit ? (Number(selUnit.ratio) || 1) : 1;
+
+  const changeUnit = (id) => {
+    const next = selUnits.find(u => String(u.id) === String(id));
+    const nextRatio = next ? (Number(next.ratio) || 1) : 1;
+    // Kirim narxi tanlangan birlik uchun: birlik almashganda narx nisbatga qarab qayta hisoblanadi
+    if (Number(cost) > 0) setCost(String(Math.round((Number(cost) / unitRatio) * nextRatio * 10000) / 10000));
+    setSelUnitId(id);
+  };
 
   const selectProduct = (p) => {
     if (p.product_type === 'parent') {
@@ -460,6 +480,12 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     setNewSalePrice(p.sale_price ? String(Math.round(p.sale_price)) : '');
     setNewWholesalePrice(p.wholesale_price ? String(Math.round(p.wholesale_price)) : '');
     setQty(''); setDiscVal('0'); setDiscType('pct'); setExpiryDate('');
+    setSelUnits([]); setSelUnitId('');
+    if (pharmacy) {
+      api.get(`/pharmacy/products/${p.id}/units`, { _silent: true })
+        .then(r => setSelUnits(Array.isArray(r.data) ? r.data : []))
+        .catch(() => setSelUnits([]));
+    }
     setTimeout(() => { if (qtyRef.current) qtyRef.current.focus(); }, 10);
   };
 
@@ -480,8 +506,9 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       product_id: sel.id, variant_id: sel.variant_id || null, product_name: sel.name, unit: sel.unit || t('common.piece'),
       category_is_perishable: sel.category_is_perishable || false,
       expiry_date: expiryDate || '',
-      unit_cost: Number(cost) || 0, discount_type: discType, discount_val: Number(discVal) || 0,
-      currency, net_cost: selNet,
+      unit_cost: Math.round(((Number(cost) || 0) / unitRatio) * 10000) / 10000, discount_type: discType, discount_val: Number(discVal) || 0,
+      currency, net_cost: Math.round((selNet / unitRatio) * 100) / 100,
+      unit_note: selUnit ? `${qty} ${selUnit.name} × ${unitRatio}` : '',
       new_sale_price: newSalePrice ? Number(newSalePrice) : null,
       new_wholesale_price: newWholesalePrice ? Number(newWholesalePrice) : null,
       orig_sale_price: Number(sel.sale_price || 0),
@@ -492,10 +519,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     setPoItems(prev => {
       const sameLine = x => x.product_id === sel.id && (x.variant_id ?? null) === (sel.variant_id ?? null);
       const ex = prev.find(sameLine);
-      if (ex) return prev.map(x => sameLine(x) ? { ...x, qty_ordered: x.qty_ordered + Number(qty) } : x);
-      return [...prev, { ...base, qty_ordered: Number(qty) }];
+      if (ex) return prev.map(x => sameLine(x) ? { ...x, qty_ordered: x.qty_ordered + Number(qty) * unitRatio, unit_note: '' } : x);
+      return [...prev, { ...base, qty_ordered: Number(qty) * unitRatio }];
     });
     setSel(null); setQty(''); setCost(''); setDiscVal('0'); setExpiryDate('');
+    setSelUnits([]); setSelUnitId('');
     setTimeout(() => { if (searchRef.current) searchRef.current.focus(); }, 10);
   };
 
@@ -608,6 +636,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       return;
     }
     if (poItems.some(i => !(Number(i.qty_ordered) > 0))) { setErr(t('purchase.qtyMustBePositive')); return; }
+    // D1.3: dorixona — qabul qilinadigan xaridda har bir qatorda seriya va yaroqlilik muddati majburiy
+    if (pharmacy && status === 'received') {
+      const bad = poItems.filter(i => !String(i.lot_number || '').trim() || !i.expiry_date);
+      if (bad.length > 0) {
+        setErr(`"${bad.map(i => i.product_name).join(', ')}": ${t('purchase.phLotRequired')} / ${t('purchase.phExpiryRequired')}`);
+        return;
+      }
+    }
     if (saving) return;
     setSaving(true); setErr('');
 
@@ -618,6 +654,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       supplier_id: Number(poForm.supplier_id), warehouse_id: Number(poForm.warehouse_id),
       ...(editPo ? {} : { status }),
       note: poForm.note || null, expected_date: poForm.expected_date || null,
+      ...(pharmacy ? { supplier_invoice_number: poForm.invoice_no || null, supplier_invoice_date: poForm.invoice_date || null } : {}),
       currency: activeCurrency,
       items: poItems.map(i => ({
         product_id: i.product_id,
@@ -628,7 +665,8 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         original_unit_cost: i.currency && i.currency !== 'UZS' ? (Number(i.unit_cost) || 0) : (i.net_cost || 0),
         new_sale_price: priceIfChanged(i.new_sale_price, i.orig_sale_price, autoRetail),
         new_wholesale_price: priceIfChanged(i.new_wholesale_price, i.orig_wholesale_price, autoWholesale),
-        expiry_date: i.expiry_date || null
+        expiry_date: i.expiry_date || null,
+        ...(pharmacy ? { lot_number: String(i.lot_number || '').trim() || null } : {}),
       })),
     };
 
@@ -688,6 +726,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           {warehouses.map(w => <option key={w.id} value={w.id}>{w.branch_name ? `${w.name} — ${w.branch_name}` : w.name}</option>)}
         </select>
         <input type="date" value={poForm.expected_date} onChange={e => setPoForm(f => ({ ...f, expected_date: e.target.value }))} className={ic} />
+        {pharmacy && (
+          <>
+            <input value={poForm.invoice_no} onChange={e => setPoForm(f => ({ ...f, invoice_no: e.target.value }))}
+              placeholder={t('purchase.phInvoiceNo')} className={`${ic} w-44`} />
+            <input type="date" value={poForm.invoice_date} onChange={e => setPoForm(f => ({ ...f, invoice_date: e.target.value }))}
+              title={t('purchase.phInvoiceDate')} className={ic} />
+          </>
+        )}
 
         {/* Currency rates info — shown when non-UZS currencies are in use */}
         {(hasCurrency || (currency && currency !== 'UZS')) && (
@@ -826,6 +872,18 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                 </div>
               )}
 
+              {/* D2.4: qabul birligi (faqat dorixona rejimida va mahsulotda birliklar bo'lsa) */}
+              {pharmacy && selUnits.length > 0 && (
+                <Lbl t={t('purchase.phUnit')}>
+                  <select value={selUnitId} onChange={e => changeUnit(e.target.value)} className={`w-full ${ic} font-semibold`}>
+                    <option value="">{sel.unit || t('common.piece')} ({t('purchase.phUnitBase')})</option>
+                    {selUnits.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} (× {Number(u.ratio)})</option>
+                    ))}
+                  </select>
+                </Lbl>
+              )}
+
               {/* Quantity */}
               <Lbl t={t('admin.dict.qty')}>
                 <div className="flex gap-2 items-center">
@@ -838,8 +896,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                       }
                     }}
                     className={`flex-1 ${ic} text-center font-bold`} />
-                  <span className="text-sm text-slate-500 font-medium shrink-0">{sel.unit || t('common.piece')}</span>
+                  <span className="text-sm text-slate-500 font-medium shrink-0">{selUnit ? selUnit.name : (sel.unit || t('common.piece'))}</span>
                 </div>
+                {selUnit && Number(qty) > 0 && (
+                  <div className="text-xs text-emerald-700 font-semibold mt-1">
+                    {t('purchase.phUnitConverted')}: {fmt(Number(qty) * unitRatio)} {sel.unit || t('common.piece')}
+                  </div>
+                )}
               </Lbl>
 
               {/* Expiry Date — faqat perishable mahsulotlar uchun */}
@@ -929,7 +992,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                       <td className="px-3 py-2.5 text-slate-400 text-xs">{i + 1}</td>
                       <td className="px-3 py-2.5">
                         <div className="font-medium text-sm">{it.product_name}</div>
-                        <div className="text-xs text-slate-400">{it.unit}</div>
+                        <div className="text-xs text-slate-400">{it.unit}{it.unit_note ? ` · ${it.unit_note}` : ''}</div>
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <input type="number" min="1" value={qty_n}
@@ -970,8 +1033,13 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                         {Number(it.discount_val) > 0 && <div className="text-[10px] text-amber-600 mt-0.5">–{discPct}%</div>}
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        {it.category_is_perishable ? (
+                        {(it.category_is_perishable || pharmacy) ? (
                           <div className="flex flex-col items-center gap-1">
+                            {pharmacy && (
+                              <input value={it.lot_number || ''} onChange={e => updFn(i, 'lot_number', e.target.value)}
+                                placeholder={`${t('purchase.lotNumber')} *`}
+                                className="w-34 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            )}
                             <input type="date" value={it.expiry_date || ''}
                               onChange={e => updFn(i, 'expiry_date', e.target.value)}
                               className={`w-34 text-center border rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
@@ -1213,6 +1281,8 @@ function KirimlarTab() {
   const [recModal, setRec] = useState(null);
   const [recSaving, setRS] = useState(false);
   const [editPo, setEditPo] = useState(null);
+  const features = useCompanyFeatures();
+  const pharmacy = !!features?.pharmacy;   // D1.3: dorixona rejimida seriya/muddat majburiy
   const LIMIT = 20;
 
   const load = useCallback(async () => {
@@ -1239,23 +1309,115 @@ function KirimlarTab() {
   const openReceive = (po) => {
     setRec({
       ...po,
+      _invNo: po.supplier_invoice_number || '',
+      _invDate: po.supplier_invoice_date ? String(po.supplier_invoice_date).slice(0, 10) : '',
       items: (po.items || []).map(i => {
         const rem = Math.max(0, Number(i.qty_ordered) - Number(i.qty_received));
-        return { ...i, _qty: String(rem), _lot: '', _exp: i.expiry_date ? String(i.expiry_date).slice(0, 10) : '' };
+        const exp = i.expiry_date ? String(i.expiry_date).slice(0, 10) : '';
+        return {
+          ...i, _qty: String(rem), _lot: '', _exp: exp,
+          // D3.2: dorixona — skanerlangan markirovka kodlari ({raw, code})
+          _codes: [], _mkOpen: false, _mkInput: '',
+          // D1.3: dorixona — qator seriyalarga bo'linishi mumkin (har biri alohida partiya)
+          _lots: [{ qty: String(rem), lot: i.lot_number || '', mfg: i.manufacture_date ? String(i.manufacture_date).slice(0, 10) : '', exp }],
+        };
       }),
     });
     setDetail(null);
   };
   const updRec = (id, field, val) => setRec(r => ({ ...r, items: r.items.map(i => i.id === id ? { ...i, [field]: val } : i) }));
+  const updLot = (id, idx, field, val) => setRec(r => ({
+    ...r, items: r.items.map(i => i.id === id ? { ...i, _lots: i._lots.map((l, li) => li === idx ? { ...l, [field]: val } : l) } : i),
+  }));
+  const addLot = (id) => setRec(r => ({
+    ...r, items: r.items.map(i => {
+      if (i.id !== id) return i;
+      const rem = Number(i.qty_ordered) - Number(i.qty_received);
+      const left = Math.max(0, rem - i._lots.reduce((a, l) => a + (Number(l.qty) || 0), 0));
+      return { ...i, _lots: [...i._lots, { qty: left ? String(left) : '', lot: '', mfg: '', exp: '' }] };
+    }),
+  }));
+  const delLot = (id, idx) => setRec(r => ({
+    ...r, items: r.items.map(i => i.id === id && i._lots.length > 1 ? { ...i, _lots: i._lots.filter((_, li) => li !== idx) } : i),
+  }));
+
+  // D3.2: markirovka kodini skanerlash — serverda tahlil qilinadi, seriya/muddat bo'sh bo'lsa to'ldiriladi
+  const scanMark = async (id) => {
+    const it = recModal?.items?.find(x => x.id === id);
+    const raw = String(it?._mkInput || '').trim();
+    if (!raw) return;
+    try {
+      const { data: p } = await api.post('/pharmacy/marking/parse', { code: raw });
+      if (!p.valid) { toast.error((p.errors || []).join('; ') || t('purchase.mkInvalid')); return; }
+      if ((it._codes || []).some(c => c.code === p.code)) {
+        toast.error(t('purchase.mkDup'));
+        setRec(r => ({ ...r, items: r.items.map(i => i.id === id ? { ...i, _mkInput: '' } : i) }));
+        return;
+      }
+      setRec(r => ({
+        ...r, items: r.items.map(i => {
+          if (i.id !== id) return i;
+          let at = p.lot ? i._lots.findIndex(l => l.lot === p.lot) : -1;
+          if (at < 0) at = i._lots.findIndex(l => !l.lot);
+          const lots = i._lots.map((l, li) => li === at
+            ? { ...l, lot: l.lot || p.lot || '', exp: l.exp || p.expiry_date || '', mfg: l.mfg || p.manufacture_date || '' } : l);
+          return { ...i, _codes: [...(i._codes || []), { raw, code: p.code }], _mkInput: '', _lots: lots };
+        }),
+      }));
+    } catch { /* xabarni axios interceptor ko'rsatadi */ }
+  };
+  const delMark = (id, code) => setRec(r => ({
+    ...r, items: r.items.map(i => i.id === id ? { ...i, _codes: (i._codes || []).filter(c => c.code !== code) } : i),
+  }));
 
   const receivePo = async () => {
-    const rows = recModal.items
-      .filter(i => Number(i.qty_ordered) > Number(i.qty_received) && Number(i._qty) > 0)
-      .map(i => ({ po_item_id: i.id, qty_received: Number(i._qty), lot_number: i._lot || null, expiry_date: i._exp || null }));
+    let rows;
+    const extra = {};
+    if (pharmacy) {
+      // D1.3: har bir seriya uchun raqam va yaroqlilik muddati majburiy; muddati o'tgan rad etiladi
+      rows = [];
+      const nowD = new Date();
+      const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+      for (const i of recModal.items.filter(x => Number(x.qty_ordered) > Number(x.qty_received))) {
+        const lots = (i._lots || []).filter(l => Number(l.qty) > 0);
+        if (!lots.length) continue;
+        const rem = Number(i.qty_ordered) - Number(i.qty_received);
+        if (lots.reduce((a, l) => a + Number(l.qty), 0) > rem + 1e-9) { toast.error(`${i.product_name}: ${t('purchase.phLotsExceed')}`); return; }
+        for (const l of lots) {
+          if (!String(l.lot || '').trim()) { toast.error(`${i.product_name}: ${t('purchase.phLotRequired')}`); return; }
+          if (!l.exp) { toast.error(`${i.product_name}: ${t('purchase.phExpiryRequired')}`); return; }
+          if (l.exp < today) { toast.error(`${i.product_name}: ${t('purchase.phExpiryPast')}`); return; }
+        }
+        rows.push({
+          po_item_id: i.id,
+          lots: lots.map(l => ({ lot_number: String(l.lot).trim(), expiry_date: l.exp, manufacture_date: l.mfg || null, qty: Number(l.qty) })),
+          ...((i._codes || []).length ? { marking_codes: i._codes.map(c => c.raw) } : {}),
+        });
+      }
+      if (recModal._invNo) extra.supplier_invoice_number = recModal._invNo;
+      if (recModal._invDate) extra.supplier_invoice_date = recModal._invDate;
+    } else {
+      rows = recModal.items
+        .filter(i => Number(i.qty_ordered) > Number(i.qty_received) && Number(i._qty) > 0)
+        .map(i => ({ po_item_id: i.id, qty_received: Number(i._qty), lot_number: i._lot || null, expiry_date: i._exp || null }));
+    }
     if (!rows.length) { toast.error(t('purchase.nothingToReceive')); return; }
     setRS(true);
     try {
-      await api.post(`/purchase-orders/${recModal.id}/receive`, { items: rows });
+      const res = await api.post(`/purchase-orders/${recModal.id}/receive`, { items: rows, ...extra });
+      // D1.3: qolgan yaroqlilik muddati kam bo'lsa server ogohlantiradi (qabulni rad etmaydi)
+      (res?.data?.warnings || []).forEach(w => toast(w, { icon: '⚠️', duration: 8000 }));
+      // D3.2: markirovka kodlari qabul bilan birga yuboriladi; server qabulda yozmagan bo'lsa alohida biriktiriladi
+      // (qayta yuborish zararsiz — allaqachon yozilgan kodlar o'tkazib yuboriladi)
+      const mkRows = rows.filter(r => r.marking_codes?.length);
+      if (pharmacy && mkRows.length) {
+        try {
+          const mr = await api.post('/pharmacy/marking/receive', {
+            po_id: recModal.id, items: mkRows.map(r => ({ po_item_id: r.po_item_id, marking_codes: r.marking_codes })),
+          });
+          (mr?.data?.warnings || []).forEach(w => toast(w, { icon: '⚠️', duration: 8000 }));
+        } catch { /* xabarni axios interceptor ko'rsatadi; qabul allaqachon bajarilgan */ }
+      }
       toast.success(t('purchase.receivedOk'));
       setRec(null); setDetail(null); load();
     } catch { /* xabarni axios interceptor ko'rsatadi, oyna ochiq qoladi */ } finally { setRS(false); }
@@ -1463,21 +1625,124 @@ function KirimlarTab() {
 
       {recModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col">
+          <div className={`bg-white rounded-2xl shadow-2xl w-full ${pharmacy ? 'max-w-5xl' : 'max-w-2xl'} p-6 max-h-[90vh] flex flex-col`}>
             <h3 className="text-lg font-bold mb-4">{t('purchase.receive')} · {recModal.number}</h3>
+            {pharmacy && (
+              <div className="flex flex-wrap gap-3 mb-4">
+                <label className="text-xs text-slate-500 font-semibold">{t('purchase.phInvoiceNo')}
+                  <input value={recModal._invNo} onChange={e => setRec(r => ({ ...r, _invNo: e.target.value }))}
+                    className="block mt-1 w-44 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </label>
+                <label className="text-xs text-slate-500 font-semibold">{t('purchase.phInvoiceDate')}
+                  <input type="date" value={recModal._invDate} onChange={e => setRec(r => ({ ...r, _invDate: e.target.value }))}
+                    className="block mt-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </label>
+              </div>
+            )}
             <div className="overflow-y-auto border border-slate-200 rounded-xl mb-4">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50"><tr>
+                <thead className="bg-slate-50">{pharmacy ? (
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs text-slate-500 font-semibold">{t('admin.dict.product')}</th>
+                    <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.remaining')}</th>
+                    <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.receiveQty')}</th>
+                    <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.lotNumber')} <span className="text-red-500">*</span></th>
+                    <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.phMfgDate')}</th>
+                    <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.expiryDateShort')} <span className="text-red-500">*</span></th>
+                    <th className="text-right px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.phSalePrice')}</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                ) : (
+                  <tr>
                   <th className="text-left px-3 py-2 text-xs text-slate-500 font-semibold">{t('admin.dict.product')}</th>
                   <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.remaining')}</th>
                   <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.receiveQty')}</th>
                   <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.lotNumber')}</th>
                   <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.expiryDateShort')}</th>
-                </tr></thead>
+                  </tr>
+                )}</thead>
                 <tbody className="divide-y divide-slate-100">
                   {recModal.items?.filter(i => Number(i.qty_ordered) > Number(i.qty_received)).map(item => {
                     const rem = Number(item.qty_ordered) - Number(item.qty_received);
                     const bad = Number(item._qty) < 0 || Number(item._qty) > rem;
+                    if (pharmacy) {
+                      const lots = item._lots || [];
+                      const sum = lots.reduce((a, l) => a + (Number(l.qty) || 0), 0);
+                      const over = sum > rem + 1e-9;
+                      const sale = item.new_sale_price ?? item.suggested_sale_price;
+                      const inp = 'border rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500';
+                      return (
+                        <Fragment key={item.id}>
+                          {lots.map((l, li) => (
+                            <tr key={`${item.id}-${li}`}>
+                              <td className="px-3 py-2 font-medium">
+                                {li === 0 && (
+                                  <>
+                                    <div>{item.product_name}{item.variant_name ? ` — ${item.variant_name}` : ''}</div>
+                                    <button type="button" onClick={() => addLot(item.id)}
+                                      className="mt-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700">+ {t('purchase.phSplitLot')}</button>
+                                    <button type="button" onClick={() => updRec(item.id, '_mkOpen', !item._mkOpen)}
+                                      className="mt-1 ml-3 text-[11px] font-semibold text-violet-600 hover:text-violet-700">
+                                      {t('purchase.mkTitle')}{(item._codes || []).length ? ` (${item._codes.length})` : ''}
+                                    </button>
+                                  </>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center text-slate-500">{li === 0 ? fmt(rem) : ''}</td>
+                              <td className="px-3 py-2 text-center">
+                                <input type="number" min="0" max={rem} step="any" value={l.qty} onChange={e => updLot(item.id, li, 'qty', e.target.value)}
+                                  className={`w-20 text-center ${inp} ${over ? 'border-red-300 bg-red-50' : 'border-slate-200'}`} />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <input value={l.lot} onChange={e => updLot(item.id, li, 'lot', e.target.value)}
+                                  className={`w-28 ${inp} ${l.lot ? 'border-slate-200' : 'border-red-300 bg-red-50'}`} />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <input type="date" value={l.mfg} onChange={e => updLot(item.id, li, 'mfg', e.target.value)}
+                                  className={`${inp} border-slate-200`} />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <input type="date" value={l.exp} onChange={e => updLot(item.id, li, 'exp', e.target.value)}
+                                  className={`${inp} ${l.exp ? 'border-slate-200' : 'border-red-300 bg-red-50'}`} />
+                              </td>
+                              <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-700">
+                                {li === 0 && (sale != null ? fmt(Number(sale)) : '—')}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {lots.length > 1 && (
+                                  <button type="button" onClick={() => delLot(item.id, li)} className="text-slate-400 hover:text-red-500">✕</button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {item._mkOpen && (
+                            <tr key={`${item.id}-mk`} className="bg-violet-50/50">
+                              <td colSpan={8} className="px-3 py-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <input value={item._mkInput || ''} onChange={e => updRec(item.id, '_mkInput', e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); scanMark(item.id); } }}
+                                    placeholder={t('purchase.mkScan')}
+                                    className={`w-80 ${inp} border-slate-200`} />
+                                  <span className={`text-xs font-semibold ${(item._codes || []).length && Math.abs((item._codes || []).length - sum) > 1e-9 ? 'text-amber-600' : 'text-slate-500'}`}>
+                                    {t('purchase.mkCount')}: {(item._codes || []).length} / {fmt(sum)}
+                                  </span>
+                                </div>
+                                {(item._codes || []).length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2 max-h-24 overflow-y-auto">
+                                    {item._codes.map(c => (
+                                      <span key={c.code} className="inline-flex items-center gap-1 bg-white border border-violet-200 rounded-md px-1.5 py-0.5 text-[11px] font-mono">
+                                        {c.code}
+                                        <button type="button" onClick={() => delMark(item.id, c.code)} className="text-slate-400 hover:text-red-500">✕</button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    }
                     return (
                       <tr key={item.id}>
                         <td className="px-3 py-2 font-medium">{item.product_name}{item.variant_name ? ` — ${item.variant_name}` : ''}</td>

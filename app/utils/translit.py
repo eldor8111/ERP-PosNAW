@@ -59,6 +59,36 @@ def translit_variants(text: str) -> list[str]:
     return list(dict.fromkeys(variants))
 
 
+def substance_variants(text: str) -> list[str]:
+    """
+    Dori moddasi nomi uchun qidiruv variantlari (D2.3): translit_variants + lotin imlo farqlari.
+
+    'paratsetamol' (uz), 'парацетамол' (ru), 'paracetamol' (lat) bir xil natija berishi uchun:
+    lotin 'c' (e/i/y oldidan) ↔ 'ts', boshqa 'c' → 'k', 'ph' → 'f'; so'ng yana Kirill/Lotin o'giriladi.
+    Apostrof turlari ASCII ' ga tekislanadi.
+    """
+    import re
+
+    t = text.lower().strip()
+    for apos in ("’", "‘", "ʼ", "`", "´", "ʹ"):
+        t = t.replace(apos, "'")
+    seen = translit_variants(t)
+    extra: list[str] = []
+    for v in seen:
+        if not v or any(c in _CYR_TO_LAT for c in v) or not any(c.isascii() and c.isalpha() for c in v):
+            continue
+        a = re.sub(r'c(?!h)(?=[eiy])', 'ts', v)
+        a = re.sub(r'c(?!h)', 'k', a)
+        a = a.replace('ph', 'f')
+        b = re.sub(r'ts(?=[eiy])', 'c', v)
+        for e in (a, b):
+            if e != v:
+                extra.append(e)
+    for e in extra:
+        seen.extend(translit_variants(e))
+    return list(dict.fromkeys(x for x in seen if x))
+
+
 def name_search_filter(column, search: str):
     """
     Ko'p so'zli, transliteratsiya-aware SQLAlchemy filter.

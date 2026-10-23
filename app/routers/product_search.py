@@ -3,19 +3,24 @@ Mahsulot qidiruvi endpointlari: POS uchun yengil ro'yxat, paginated, ids.
 Katta hajmli qidiruv logikasi products.py dan ajratilgan.
 """
 import json
+import re
+from datetime import timedelta
 from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import exists
+from sqlalchemy import and_, case, exists, func, or_, select, true
 from sqlalchemy.orm import Session
 
 from app.core.branch_context import BranchContext, get_branch_context, warehouse_ids_for_ctx
 from app.core.dependencies import get_current_user
 from app.database import get_db
+from app.models.batch import Batch
 from app.models.inventory import StockLevel
 from app.models.product import Product, ProductStatus
+from app.models.product_pharma import PharmaSubstance, ProductPharma, ProductSubstance
+from app.models.product_units import ProductUnit
 from app.models.user import User, UserRole
 from app.models.product import ProductConversion
 from app.schemas.product import (
@@ -28,10 +33,149 @@ from app.services import stock_report
 from app.services.warehouse_scope import (
     default_sale_warehouse_id, sellable_warehouses_query, sellable_warehouse_ids, stock_totals,
 )
-from app.utils.product_filters import name_filter
+from app.services.batch_allocator import expiry_cutoff, tashkent_today
+from app.services.pharmacy import pharmacy_context
+from app.services.sale_stock import loose_units_by_product, pack_unit_name, stock_display_of, unit_list_price
+from app.utils.product_filters import _normalize, _word_condition, name_filter
+from app.utils.translit import substance_variants as _substance_variants
 from app.utils.translit import translit_variants as _translit_variants
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+def _substance_word_cond(word: str):
+    """Bitta so'z moddaning uz/ru/lat nomlaridan birida (translit va imlo variantlari bilan)."""
+    conds = []
+    for v in _substance_variants(word):
+        conds.extend(
+            col.ilike(f"%{v}%")
+            for col in (PharmaSubstance.name_uz, PharmaSubstance.name_ru, PharmaSubstance.name_lat)
+        )
+    return or_(*conds)
+
+
+def product_search_filter(search: str, company_id: int, pharmacy: bool):
+    """Mahsulot qidiruv sharti. Dorixona rejimida har bir so'z mahsulot maydonlari (nom, shtrix-kod, ...)
+    YOKI bog'langan modda nomi (uz/ru/lat; umumiy yoki shu korxona moddasi) bo'yicha topiladi (D2.3).
+    Oddiy korxonada — avvalgi `name_filter` (qo'shimcha so'rov/JOIN yo'q)."""
+    if not pharmacy:
+        return name_filter(search)
+    words = [w for w in _normalize(search).split() if w]
+    if not words:
+        return true()
+    conds = []
+    for w in words:
+        sub = (
+            select(ProductSubstance.product_id)
+            .join(PharmaSubstance, PharmaSubstance.id == ProductSubstance.substance_id)
+            .where(
+                or_(PharmaSubstance.company_id.is_(None), PharmaSubstance.company_id == company_id),
+                _substance_word_cond(w),
+            )
+        )
+        conds.append(or_(_word_condition(w), Product.id.in_(sub)))
+    # D2.4: birlik (quti/blister) shtrix-kodi skanerlansa shu mahsulot topiladi
+    unit_hit = Product.id.in_(
+        select(ProductUnit.product_id).where(ProductUnit.company_id == company_id, ProductUnit.barcode == search.strip())
+    )
+    return or_(and_(*conds), unit_hit)
+
+
+def _pharmacy_pos_extras(db: Session, product_ids, wh_ids, settings: dict) -> dict:
+    """Dorixona rejimida POS qatorlari uchun qo'shimcha maydonlar — butun sahifa uchun 3 ta so'rov.
+    -> {product_id: {substances, is_rx, control_class, nearest_expiry, expiry_warn}}"""
+    ids = list(product_ids)
+    out = {
+        pid: {"substances": [], "is_rx": False, "control_class": "none",
+              "nearest_expiry": None, "expiry_warn": False}
+        for pid in ids
+    }
+    if not ids:
+        return out
+    for pid, is_rx, control_class in db.query(
+        ProductPharma.product_id, ProductPharma.is_rx, ProductPharma.control_class
+    ).filter(ProductPharma.product_id.in_(ids)):
+        out[pid]["is_rx"] = bool(is_rx)
+        out[pid]["control_class"] = control_class or "none"
+    for pid, sid, n_uz, n_ru, n_lat in (
+        db.query(ProductSubstance.product_id, PharmaSubstance.id, PharmaSubstance.name_uz,
+                 PharmaSubstance.name_ru, PharmaSubstance.name_lat)
+        .join(PharmaSubstance, PharmaSubstance.id == ProductSubstance.substance_id)
+        .filter(ProductSubstance.product_id.in_(ids))
+        .order_by(PharmaSubstance.name_uz, PharmaSubstance.id)
+    ):
+        out[pid]["substances"].append({"id": sid, "name_uz": n_uz, "name_ru": n_ru, "name_lat": n_lat})
+    nearest = _nearest_valid_expiry(db, ids, wh_ids, settings)
+    warn_until = tashkent_today() + timedelta(days=int(settings.get("expiry_warn_days") or 0))
+    for pid, d in nearest.items():
+        out[pid]["nearest_expiry"] = d.isoformat()
+        out[pid]["expiry_warn"] = d <= warn_until
+    return out
+
+
+def _nearest_valid_expiry(db: Session, product_ids, wh_ids, settings: dict) -> dict:
+    """{product_id: eng yaqin yaroqli muddat (date)} — berilgan omborlardagi qoldig'i bor, sotuvga yaroqli
+    (muddati `expiry_block_days` dan keyin tugaydigan) partiyalar bo'yicha. Muddatsiz partiyalar hisobga olinmaydi."""
+    ids, wh = list(product_ids), list(wh_ids)
+    if not ids or not wh:
+        return {}
+    cutoff = expiry_cutoff(tashkent_today(), settings.get("expiry_block_days") or 0)
+    rows = (
+        db.query(Batch.product_id, func.min(Batch.expiry_date))
+        .filter(Batch.product_id.in_(ids), Batch.warehouse_id.in_(wh), Batch.quantity > 0,
+                Batch.expiry_date.isnot(None), Batch.expiry_date >= cutoff)
+        .group_by(Batch.product_id)
+        .all()
+    )
+    return {pid: (exp.date() if hasattr(exp, "date") else exp) for pid, exp in rows if exp is not None}
+
+
+def _pharmacy_unit_extras(db: Session, company_id: int, products, prices: dict, stock_map: dict, wh_ids, search,
+                          price_round=0) -> dict:
+    """D2.4: dorixona rejimida POS qatorlari uchun qadoq birliklari — butun sahifa uchun 3 ta so'rov.
+    -> {product_id: {units, pack_ratio, scanned_unit_id, stock_display, full_boxes, loose_units}}
+    `scanned_unit_id` — qidiruv matni aynan birlik shtrix-kodi bo'lsa shu birlik (kassa mahsulot + birlikni qo'shadi)."""
+    ids = [p.id for p in products]
+    units_by = {pid: [] for pid in ids}
+    if ids:
+        for u in (
+            db.query(ProductUnit)
+            .filter(ProductUnit.product_id.in_(ids), ProductUnit.company_id == company_id)
+            .order_by(ProductUnit.ratio.desc(), ProductUnit.sort_order.asc(), ProductUnit.id.asc())
+        ):
+            units_by[u.product_id].append(u)
+    pack_qty = {}
+    if ids:
+        pack_qty = {pid: q for pid, q in db.query(ProductPharma.product_id, ProductPharma.pack_qty).filter(
+            ProductPharma.product_id.in_(ids), ProductPharma.company_id == company_id) if q and int(q) > 0}
+    packs = {}
+    for pid in ids:
+        if pid in pack_qty:
+            packs[pid] = Decimal(int(pack_qty[pid]))
+        elif units_by[pid]:
+            packs[pid] = max(Decimal(str(u.ratio)) for u in units_by[pid])
+    loose = loose_units_by_product(db, company_id, packs, wh_ids)
+    code = (search or "").strip()
+    out = {}
+    for p in products:
+        units = units_by[p.id]
+        pack = packs.get(p.id)
+        base_price = prices[p.id][0]
+        disp = stock_display_of(
+            stock_map.get(p.id, 0.0), loose.get(p.id, 0), pack, pack_unit_name(units, pack), p.unit or "dona",
+        )
+        out[p.id] = {
+            "units": [
+                {"id": u.id, "name": u.name, "ratio": float(u.ratio),
+                 "sale_price": float(u.sale_price) if u.sale_price is not None else None,
+                 "price": float(unit_list_price(u, units, base_price, pack, price_round)), "barcode": u.barcode}
+                for u in units
+            ],
+            "pack_ratio": float(pack) if pack else None,
+            "scanned_unit_id": next((u.id for u in units if code and u.barcode == code), None),
+            **disp,
+        }
+    return out
 
 
 @router.get("/pos-context")
@@ -87,6 +231,7 @@ def list_products_for_pos(
     from app.models.warehouse import Warehouse
     from app.services.tenant_guards import WAREHOUSE_NOT_FOUND, WAREHOUSE_OTHER_BRANCH
 
+    pharma_on, pharma_settings = pharmacy_context(db, current_user.company_id)  # D2.3
     scope = ctx.scope_ids()
     if warehouse_id:
         wh = db.query(Warehouse).filter(
@@ -149,7 +294,7 @@ def list_products_for_pos(
 
     if search:
         try:
-            q = q.filter(name_filter(search))
+            q = q.filter(product_search_filter(search, current_user.company_id, pharma_on))
         except Exception:
             q = q.filter(Product.name.ilike(f"%{search}%"))
 
@@ -247,8 +392,16 @@ def list_products_for_pos(
         return stock_map.get(p.id, 0.0)
 
     prices = {p.id: _price(p) for p in products_raw}  # C4.1: har mahsulot narxi bir marta hisoblanadi
+    pharma_extra = _pharmacy_pos_extras(db, product_ids, wh_ids, pharma_settings) if pharma_on else None
+    if pharma_on:
+        # D2.4: qadoq birliklari, birlik shtrix-kodi va "2 quti 5 dona" ko'rinishidagi qoldiq
+        _unit_extra = _pharmacy_unit_extras(
+            db, current_user.company_id, products_raw, prices, stock_map, wh_ids, search,
+            price_round=pharma_settings.get("price_round") or 0)
+        for _pid, _ex in _unit_extra.items():
+            pharma_extra[_pid].update(_ex)
 
-    return [
+    result = [
         {
             "id": p.id,
             "name": p.name,
@@ -281,6 +434,11 @@ def list_products_for_pos(
         }
         for p in products_raw
     ]
+    if pharma_extra is not None:
+        # D2.3: faqat dorixona rejimida qo'shimcha maydonlar (oddiy korxonada javob o'zgarmaydi)
+        for row in result:
+            row.update(pharma_extra[row["id"]])
+    return result
 
 
 @router.get("/paginated")
@@ -294,6 +452,10 @@ def list_products_paginated(
     stock_status: Optional[str] = Query(None, description="Ombor holati bo'yicha filter (qolmagan, kam-qolgan, minusda)"),
     sort_by: Optional[str] = Query(None, description="Saralash maydoni: sale_price, wholesale_price, cost_price, profit"),
     sort_order: Optional[str] = Query(None, description="Saralash tartibi: asc, desc"),
+    substance_id: Optional[int] = Query(None, description="Dorixona: ta'sir etuvchi modda bo'yicha (oddiy korxonada e'tiborsiz)"),
+    manufacturer: Optional[str] = Query(None, description="Dorixona: ishlab chiqaruvchi nomi bo'yicha (qismi, oddiy korxonada e'tiborsiz)"),
+    is_rx: Optional[bool] = Query(None, description="Dorixona: retseptli/retseptsiz (oddiy korxonada e'tiborsiz)"),
+    control_class: Optional[str] = Query(None, description="Dorixona: nazorat toifasi (oddiy korxonada e'tiborsiz)"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=20000),
     db: Session = Depends(get_db),
@@ -312,8 +474,28 @@ def list_products_paginated(
         joinedload(Product.category),
     )
 
+    # D2.4: dorixona konteksti faqat kerak bo'lganda (qidiruv bor yoki natija bo'sh emas), bir marta olinadi
+    pharma_ctx = None
+    _ph_filters = substance_id is not None or bool((manufacturer or "").strip()) or is_rx is not None or bool(control_class)
+    if search or _ph_filters:
+        pharma_ctx = pharmacy_context(db, current_user.company_id)
     if search:
-        q = q.filter(name_filter(search))
+        q = q.filter(product_search_filter(search, current_user.company_id, pharma_ctx[0]))
+    # CD.1: dorixona filtrlari — faqat modul yoqilgan korxonada qo'llanadi (oddiy korxonada e'tiborsiz)
+    if _ph_filters and pharma_ctx[0]:
+        _pc = [ProductPharma.product_id == Product.id, ProductPharma.company_id == current_user.company_id]
+        if (manufacturer or "").strip():
+            _pc.append(ProductPharma.manufacturer.ilike(f"%{manufacturer.strip()}%"))
+        if is_rx is not None:
+            _pc.append(ProductPharma.is_rx == is_rx)
+        if control_class:
+            _pc.append(ProductPharma.control_class == control_class)
+        if substance_id is not None:
+            q = q.filter(exists().where(
+                ProductSubstance.product_id == Product.id, ProductSubstance.substance_id == substance_id,
+            ))
+        if len(_pc) > 2:
+            q = q.filter(exists().where(*_pc))
     if category_id:
         q = q.filter(Product.category_id == category_id)
     if status:
@@ -513,6 +695,28 @@ def list_products_paginated(
 
         items.append(item.model_dump())
 
+    if items and pharma_ctx is None:
+        pharma_ctx = pharmacy_context(db, current_user.company_id)
+    pharma_on, pharma_settings = pharma_ctx if pharma_ctx is not None else (False, {})
+    if pharma_on and items:
+        # D2.4: dorixona rejimida qoldiq qadoq bo'yicha ("2 quti 5 dona"), full_boxes, loose_units va birliklar.
+        # Oddiy korxonada javob o'zgarmaydi.
+        _wh_for_loose = [warehouse_id] if warehouse_id else (
+            list(branch_wh_set) if branch_wh_set is not None else list(warehouses.keys()))
+        _extra = _pharmacy_unit_extras(
+            db, current_user.company_id, products,
+            {p.id: (float(p.sale_price or 0),) for p in products},
+            {it["id"]: float(it.get("stock_quantity") or 0) for it in items},
+            _wh_for_loose, None, price_round=pharma_settings.get("price_round") or 0)
+        for it in items:
+            it.update(_extra[it["id"]])
+        # CD.1: dori bloki (moddalari bilan) — bitta-ikkita so'rovda, N+1 yo'q
+        from app.routers.products import _load_pharma_map
+        _pm = _load_pharma_map(db, current_user.company_id, [it["id"] for it in items])
+        for it in items:
+            _po = _pm.get(it["id"])
+            it["pharma"] = _po.model_dump() if _po is not None else None
+
     return {
         "items": items,
         "total": total_count,
@@ -540,7 +744,8 @@ def list_product_ids(
     q = q.filter(Product.company_id == current_user.company_id)
 
     if search:
-        q = q.filter(name_filter(search))
+        q = q.filter(product_search_filter(
+            search, current_user.company_id, pharmacy_context(db, current_user.company_id)[0]))
     if category_id:
         q = q.filter(Product.category_id == category_id)
     if status:
@@ -579,3 +784,119 @@ def products_by_ids(
          "sale_price": float(r.sale_price or 0), "sale_currency": r.sale_currency}
         for r in (by_id.get(i) for i in ids) if r is not None
     ]
+
+
+def _norm_strength(v) -> Optional[str]:
+    """Doza solishtirish uchun: '500 mg' == '500MG' == '500mg'; bo'sh -> None."""
+    t = re.sub(r"\s+", "", (v or "").lower())
+    return t or None
+
+
+@router.get("/{product_id}/analogs")
+def product_analogs(
+    product_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    ctx: BranchContext = Depends(get_branch_context),
+):
+    """Dori analoglari (D2.3): ta'sir etuvchi moddalar to'plami AYNAN bir xil, dori shakli va dozasi mos
+    faol mahsulotlar (shu korxonaniki). Joriy filial omborlarida yaroqli qoldig'i borlar avval, keyin arzonlari.
+
+    Faqat dorixona rejimida; modul o'chiq korxonada 404 qaytadi. Mahsulot topilmasa / boshqa korxonaniki — 404.
+    Moddasi bog'lanmagan mahsulotda analog yo'q (bo'sh ro'yxat).
+    Har bir element: `stock_quantity` (joriy filial omborlari qoldig'i), `valid_quantity` (muddati o'tgan/bloklangan
+    partiyalarsiz), `in_stock`, `sale_price` (filial narxi bo'lsa shu), `nearest_expiry`, `expiry_warn`.
+    """
+    from app.core.branch_context import effective_branch_id
+    from app.services.branch_price_service import get_branch_prices
+
+    company_id = current_user.company_id
+    enabled, settings = pharmacy_context(db, company_id)
+    if not enabled:
+        raise HTTPException(status_code=404, detail="Dorixona rejimi yoqilmagan")
+    product = db.query(Product.id).filter(
+        Product.id == product_id, Product.company_id == company_id, Product.is_deleted == False,  # noqa: E712
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
+
+    sub_ids = [r[0] for r in db.query(ProductSubstance.substance_id).filter(ProductSubstance.product_id == product_id)]
+    if not sub_ids:
+        return []
+    target = db.query(ProductPharma.dosage_form, ProductPharma.strength).filter(
+        ProductPharma.product_id == product_id).first()
+    t_form = target[0] if target else None
+    t_strength = _norm_strength(target[1]) if target else None
+
+    # moddalar to'plami aynan teng: soni teng va hammasi maqsad to'plamida (juftlik UNIQUE) — bitta so'rov
+    same_set = (
+        select(ProductSubstance.product_id)
+        .group_by(ProductSubstance.product_id)
+        .having(
+            func.count() == len(sub_ids),
+            func.sum(case((ProductSubstance.substance_id.in_(sub_ids), 1), else_=0)) == len(sub_ids),
+        )
+    )
+    cand_q = (
+        db.query(Product, ProductPharma)
+        .outerjoin(ProductPharma, ProductPharma.product_id == Product.id)
+        .filter(
+            Product.company_id == company_id, Product.is_deleted == False,  # noqa: E712
+            Product.status == ProductStatus.active, Product.id != product_id,
+            Product.id.in_(same_set),
+        )
+    )
+    cand_q = cand_q.filter(ProductPharma.dosage_form == t_form) if t_form else cand_q.filter(
+        ProductPharma.dosage_form.is_(None))
+    cands = [(p, ph) for p, ph in cand_q.all() if _norm_strength(ph.strength if ph else None) == t_strength]
+    if not cands:
+        return []
+
+    ids = [p.id for p, _ in cands]
+    wh_ids = sellable_warehouse_ids(db, company_id, branch_ids=ctx.scope_ids())
+    stock_map = stock_totals(db, ids, wh_ids)
+    cutoff = expiry_cutoff(tashkent_today(), settings.get("expiry_block_days") or 0)
+    expired_map = {}
+    if wh_ids:
+        expired_map = {
+            pid: Decimal(str(q or 0))
+            for pid, q in db.query(Batch.product_id, func.sum(Batch.quantity))
+            .filter(Batch.product_id.in_(ids), Batch.warehouse_id.in_(wh_ids), Batch.quantity > 0,
+                    Batch.expiry_date.isnot(None), Batch.expiry_date < cutoff)
+            .group_by(Batch.product_id)
+        }
+    nearest = _nearest_valid_expiry(db, ids, wh_ids, settings)
+    warn_until = tashkent_today() + timedelta(days=int(settings.get("expiry_warn_days") or 0))
+    price_branch_id = effective_branch_id(db, current_user)
+    branch_prices = get_branch_prices(db, company_id, price_branch_id, ids)
+
+    items = []
+    for p, ph in cands:
+        stock = stock_map.get(p.id, Decimal("0"))
+        valid = max(stock - expired_map.get(p.id, Decimal("0")), Decimal("0"))
+        bp = branch_prices.get((p.id, None))
+        sale = float(bp.sale_price) if bp is not None and bp.sale_price is not None else float(p.sale_price or 0)
+        exp = nearest.get(p.id)
+        items.append({
+            "id": p.id,
+            "name": p.name,
+            "barcode": p.barcode,
+            "unit": p.unit,
+            "sale_price": sale,
+            "sale_currency": p.sale_currency or "UZS",
+            "price_source": "branch" if bp is not None else "product",
+            "stock_quantity": float(stock),
+            "valid_quantity": float(valid),
+            "in_stock": valid > 0,
+            "nearest_expiry": exp.isoformat() if exp else None,
+            "expiry_warn": bool(exp and exp <= warn_until),
+            "dosage_form": ph.dosage_form if ph else None,
+            "strength": ph.strength if ph else None,
+            "manufacturer": ph.manufacturer if ph else None,
+            "is_rx": bool(ph.is_rx) if ph else False,
+            "control_class": (ph.control_class if ph else None) or "none",
+        })
+    # yaroqli qoldig'i borlar avval, keyin arzonlari (barqaror: nom, id)
+    items.sort(key=lambda i: (0 if i["in_stock"] else 1, i["sale_price"], i["name"] or "", i["id"]))
+    return items[:limit]

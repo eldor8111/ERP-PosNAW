@@ -9,8 +9,8 @@ Qarz va to'lov qoidalari — app/services/supplier_ledger.py da. Qisqasi:
 """
 from collections import defaultdict
 from datetime import datetime, timezone
-from decimal import Decimal
-from typing import Optional
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func, or_
@@ -25,8 +25,9 @@ from app.models.supplier import Supplier
 from app.models.user import User, UserRole
 from app.models.warehouse import Warehouse
 from app.services import supplier_ledger as ledger
-from app.services.document_numbers import next_document_number
+from app.services.document_numbers import next_document_number, tashkent_today
 from app.services.inventory_service import receive_stock
+from app.services.pharmacy import pharmacy_context
 from app.services.warehouse_access import assert_warehouse_branch_access
 
 ZERO = Decimal("0")
@@ -197,8 +198,123 @@ def _update_product_on_receipt(db: Session, product: Product, item: POItem, comp
         )
 
 
+# ─── Dorixona qoidalari (D1.3): faqat dorixona moduli yoqilgan korxonada ──────
+
+def _round_price(price: Decimal, step: int, mode=ROUND_CEILING) -> Decimal:
+    """Narxni `step` so'm qadamiga yaxlitlash (standart — yuqoriga); step=0 — faqat tiyin aniqligi."""
+    if step and step > 0:
+        return (price / step).to_integral_value(rounding=mode) * step
+    return price.quantize(Decimal("0.01"), rounding=mode)
+
+
+def _category_markup(product: Product, settings: dict) -> Decimal:
+    """Mahsulot kategoriyasi (yoki ota kategoriyalari) ustamasi; yo'q bo'lsa — korxona sozlamasi."""
+    cat = getattr(product, "category", None)
+    for _ in range(10):  # ota kategoriyalar bo'ylab (tsikldan himoya)
+        if cat is None:
+            break
+        if cat.markup_pct is not None:
+            return _d(cat.markup_pct)
+        cat = cat.parent
+    return _d(settings.get("markup_pct"))
+
+
+def _price_target(db: Session, product: Product, item: POItem):
+    if item.variant_id:
+        return item.variant or db.get(ProductVariant, item.variant_id) or product
+    return product
+
+
+def _auto_sale_price(product: Product, item: POItem, settings: dict) -> Optional[Decimal]:
+    """Kirim narxi * (1 + ustama%), yuqoriga yaxlitlangan. Qo'lda narx berilgan yoki ustama yo'q bo'lsa — None."""
+    unit = _d(item.unit_cost)
+    if item.new_sale_price is not None or unit <= 0:
+        return None
+    pct = _category_markup(product, settings)
+    if pct <= 0:
+        return None
+    step = int(settings.get("price_round") or 0)
+    auto = _round_price(unit * (1 + pct / 100), step)
+    max_pct = _d(settings.get("max_markup_pct"))
+    if max_pct > 0 and auto > unit * (1 + max_pct / 100):
+        auto = _round_price(unit * (1 + max_pct / 100), step, ROUND_FLOOR)  # yaxlitlash chegaradan oshirib yubormasin
+    return auto
+
+
+def suggested_sale_prices(db: Session, po: PurchaseOrder) -> dict:
+    """Qabul oynasi uchun: {po_item_id: hisoblangan sotuv narxi}. Faqat dorixona yoqilgan korxonada (aks holda bo'sh)."""
+    enabled, settings = pharmacy_context(db, po.company_id)
+    if not enabled:
+        return {}
+    out = {}
+    for it in po.items:
+        product = it.product or db.get(Product, it.product_id)
+        price = _auto_sale_price(product, it, settings) if product else None
+        if price is not None:
+            out[it.id] = price
+    return out
+
+
+def _plan_sale_price(db: Session, product: Product, item: POItem, settings: dict, label: str) -> Optional[Decimal]:
+    """Dorixona: qabulda yangi sotuv narxi (ustama bilan) va narx chegarasi tekshiruvi.
+    Qaytaradi: avtomatik hisoblangan narx (yoki None — qo'lda berilgan / ustama yo'q)."""
+    unit = _d(item.unit_cost)
+    auto = _auto_sale_price(product, item, settings)
+    max_pct = _d(settings.get("max_markup_pct"))
+    limit = unit * (1 + max_pct / 100) if (max_pct > 0 and unit > 0) else None
+    if limit is not None:
+        eff = item.new_sale_price if item.new_sale_price is not None else auto
+        if eff is None:
+            eff = _price_target(db, product, item).sale_price
+        if eff is not None and _d(eff) > limit + Decimal("0.01"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{label}: sotuv narxi ({_d(eff):.0f}) kirim narxiga nisbatan eng ko'p ruxsat etilgan "
+                       f"ustamadan ({max_pct:.0f}%) oshib ketdi — narx {limit:.0f} dan oshmasligi kerak",
+            )
+    return auto
+
+
+def _check_pharmacy_lots(label: str, lots: list, settings: dict, today, warnings: List[str]) -> None:
+    """Dorixona: seriya va yaroqlilik majburiy; muddati o'tgan rad etiladi; qolgan muddat kam bo'lsa ogohlantirish."""
+    min_pct = _d(settings.get("min_shelf_life_pct"))
+    for j, (lot, expiry, manufacture, _qty) in enumerate(lots, 1):
+        where = f"{label} ({j}-seriya)" if len(lots) > 1 else label
+        if not (lot or "").strip():
+            raise HTTPException(status_code=400, detail=f"{where}: seriya raqami majburiy (dorixona rejimi)")
+        if expiry is None:
+            raise HTTPException(status_code=400, detail=f"{where}: yaroqlilik muddati majburiy (dorixona rejimi)")
+        exp_d = expiry.date() if isinstance(expiry, datetime) else expiry
+        if exp_d < today:
+            raise HTTPException(status_code=400, detail=f"{where}: yaroqlilik muddati o'tgan ({exp_d:%d.%m.%Y})")
+        if manufacture is None:
+            continue
+        man_d = manufacture.date() if isinstance(manufacture, datetime) else manufacture
+        if man_d >= exp_d:
+            raise HTTPException(status_code=400, detail=f"{where}: ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak")
+        if min_pct > 0:
+            pct = Decimal((exp_d - today).days) * 100 / Decimal((exp_d - man_d).days)
+            if pct < min_pct:
+                warnings.append(f"{where}: qolgan yaroqlilik muddati {pct:.0f}% (minimal {min_pct:.0f}%)")
+
+
+def _plan_receipt(db: Session, po: PurchaseOrder, n: int, item: POItem, lots: list,
+                  pharm: Tuple[bool, dict], warnings: List[str]) -> Optional[Decimal]:
+    """Bitta qator qabulini tekshiradi (yozmaydi). Dorixona yoqilgan bo'lsa — seriya/muddat/narx qoidalari."""
+    enabled, settings = pharm
+    if not enabled:
+        return None
+    product = item.product or db.get(Product, item.product_id)
+    label = f"{n}-qator '{product.name}'"
+    _check_pharmacy_lots(label, lots, settings, tashkent_today(), warnings)
+    return _plan_sale_price(db, product, item, settings, label)
+
+
 def _receive_item(db: Session, po: PurchaseOrder, item: POItem, qty: Decimal, user: User,
-                  lot: Optional[str] = None, expiry=None) -> None:
+                  lot: Optional[str] = None, expiry=None, manufacture=None,
+                  lots: Optional[list] = None, sale_price: Optional[Decimal] = None) -> None:
+    """lots — D1.3: [(seriya, muddat, ishlab chiqarilgan sana, miqdor)], har biri alohida Batch;
+    berilmasa bitta partiya (lot/expiry/manufacture). sale_price — ustama bilan hisoblangan narx."""
     product = item.product or db.get(Product, item.product_id)
     if getattr(product, "product_type", "stock") == "sell":
         raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot bo'lgani uchun uni qabul qilib bo'lmaydi")
@@ -207,15 +323,43 @@ def _receive_item(db: Session, po: PurchaseOrder, item: POItem, qty: Decimal, us
         reason=f"PO #{po.number} qabul", reference_type="purchase_order", reference_id=po.id,
         warehouse_id=po.warehouse_id, variant_id=item.variant_id,
     )
-    db.add(Batch(
-        product_id=item.product_id, variant_id=item.variant_id, warehouse_id=po.warehouse_id,
-        lot_number=lot or f"PO-{po.number}",
-        expiry_date=_to_datetime(expiry) or item.expiry_date,  # qabulda berilmasa — xarid qatoridagi muddat
-        initial_quantity=qty, quantity=qty, purchase_price=item.unit_cost,
-        po_id=po.id, company_id=po.company_id,
-    ))
+    if lots is None:
+        lots = [(lot, expiry, manufacture, qty)]
+    for lot_no, lot_expiry, lot_manufacture, lot_qty in lots:
+        db.add(Batch(
+            product_id=item.product_id, variant_id=item.variant_id, warehouse_id=po.warehouse_id,
+            lot_number=lot_no or f"PO-{po.number}",
+            manufacture_date=_to_datetime(lot_manufacture),
+            expiry_date=_to_datetime(lot_expiry) or item.expiry_date,  # qabulda berilmasa — xarid qatoridagi muddat
+            initial_quantity=lot_qty, quantity=lot_qty, purchase_price=item.unit_cost,
+            po_id=po.id, company_id=po.company_id,
+        ))
     item.qty_received = _d(item.qty_received) + qty
+    if sale_price is not None and item.new_sale_price is None:
+        item.new_sale_price = sale_price  # dorixona ustamasi: mavjud mantiq bilan mahsulot narxiga yoziladi
     _update_product_on_receipt(db, product, item, po.company_id, user, branch_id=getattr(po.warehouse, "branch_id", None))
+
+
+def _register_marking(db: Session, po: PurchaseOrder, n: int, item: POItem, qty: Decimal, codes,
+                      pharm: Tuple[bool, dict], warnings: List[str]) -> None:
+    """D3.2: dorixona rejimida qabul qatoridagi markirovka kodlarini `in_stock` holatida yozadi.
+    Modul o'chiq korxonada yoki mahsulot `requires_marking` bo'lmasa hech narsa qilinmaydi."""
+    codes = [c for c in (codes or []) if c and str(c).strip()]
+    if not codes or not pharm[0]:
+        return
+    product = item.product or db.get(Product, item.product_id)
+    label = f"{n}-qator '{product.name}'"
+    if not product.requires_marking:
+        warnings.append(f"{label}: mahsulot markirovka talab qilmaydi — kodlar e'tiborga olinmadi")
+        return
+    from app.routers.pharmacy_marking import register_receipt_codes
+    batches = (
+        db.query(Batch)
+        .filter(Batch.po_id == po.id, Batch.product_id == item.product_id, Batch.variant_id == item.variant_id)
+        .order_by(Batch.id.asc()).all()
+    )
+    register_receipt_codes(db, po=po, product=product, codes=codes, batches=batches, label=label,
+                           warnings=warnings, expected_qty=qty)
 
 
 def _refresh_status(po: PurchaseOrder) -> None:
@@ -295,27 +439,56 @@ def _resolve_item_variant(db: Session, prod: Product, variant_id: Optional[int])
     return variant
 
 
+def _unit_ratio(db: Session, company_id: int, product_id: int, unit_id, pharm: Tuple[bool, dict]) -> Decimal:
+    """D2.4: qadoq birligi (quti/blister) nisbati — asosiy birlikda nechta. `unit_id` yo'q -> 1 (hech narsa o'zgarmaydi).
+    Birlik faqat dorixona rejimida va shu korxonaning shu mahsulotiniki bo'lishi shart."""
+    if not unit_id:
+        return Decimal("1")
+    if not pharm[0]:
+        raise HTTPException(status_code=400, detail="Qadoq birliklari (quti, blister) faqat dorixona rejimida ishlaydi")
+    from app.models.product_units import ProductUnit
+    u = db.query(ProductUnit).filter(
+        ProductUnit.id == unit_id, ProductUnit.product_id == product_id, ProductUnit.company_id == company_id,
+    ).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Birlik topilmadi")
+    return _d(u.ratio)
+
+
 def _build_items(db: Session, po: PurchaseOrder, items_data, company_id: int) -> Decimal:
     total = ZERO
+    pharm = None   # D2.4: faqat `unit_id` li qator bo'lsa, bir marta olinadi
     for it in items_data:
         prod = _company_product(db, it.product_id, company_id)
         variant = _resolve_item_variant(db, prod, getattr(it, "variant_id", None))
+        # D2.4: kirim birligi (quti): miqdor * nisbat, narx / nisbat — qoldiq va tannarx asosiy birlikda.
+        qty_ordered, unit_cost = it.qty_ordered, it.unit_cost
+        original_cost = it.original_unit_cost if it.original_unit_cost is not None else it.unit_cost
+        if getattr(it, "unit_id", None):
+            if pharm is None:
+                pharm = pharmacy_context(db, company_id)
+            ratio = _unit_ratio(db, company_id, prod.id, it.unit_id, pharm)
+            qty_ordered = _d(it.qty_ordered) * ratio
+            unit_cost = (_d(it.unit_cost) / ratio).quantize(Decimal("0.01"))
+            original_cost = (_d(original_cost) / ratio).quantize(Decimal("0.0001"))
         item = POItem(
             product_id=prod.id,
             variant_id=variant.id if variant else None,
-            qty_ordered=it.qty_ordered,
+            qty_ordered=qty_ordered,
             qty_received=ZERO,
-            unit_cost=it.unit_cost,
+            unit_cost=unit_cost,
             cost_currency=(it.cost_currency or "UZS").strip().upper() or "UZS",
-            original_unit_cost=it.original_unit_cost if it.original_unit_cost is not None else it.unit_cost,
+            original_unit_cost=original_cost,
             expiry_date=it.expiry_date,
+            lot_number=(getattr(it, "lot_number", None) or "").strip() or None,
+            manufacture_date=getattr(it, "manufacture_date", None),
             new_sale_price=it.new_sale_price,
             new_wholesale_price=it.new_wholesale_price,
         )
         item.product = prod
         item.variant = variant
         po.items.append(item)
-        total += _d(it.qty_ordered) * _d(it.unit_cost)
+        total += _d(qty_ordered) * _d(unit_cost)
     return total
 
 
@@ -339,6 +512,8 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
     po = PurchaseOrder(
         number=generate_po_number(db, cid, po_wh.branch_id), supplier_id=supplier.id, warehouse_id=data.warehouse_id,
         note=data.note, expected_date=data.expected_date, created_by=current_user.id, company_id=cid,
+        supplier_invoice_number=(getattr(data, "supplier_invoice_number", None) or "").strip() or None,
+        supplier_invoice_date=getattr(data, "supplier_invoice_date", None),
         status=POStatus.draft, currency=currency, exchange_rate=ledger.currency_rate(db, cid, currency),
         total_amount=ZERO, paid_amount=ZERO, discount_amount=ZERO,
         supplier_debt=ZERO, supplier_debt_currency=currency,  # yangi xarid — hissa hali 0
@@ -353,9 +528,18 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
     db.flush()
 
     if status == POStatus.received:
-        for item in po.items:
-            _receive_item(db, po, item, _d(item.qty_ordered), current_user)
+        pharm = pharmacy_context(db, cid)
+        warnings: List[str] = []
+        plan = []
+        for n, item in enumerate(po.items, 1):
+            qty = _d(item.qty_ordered)
+            lots = [(item.lot_number, item.expiry_date, item.manufacture_date, qty)]
+            plan.append((item, qty, lots, _plan_receipt(db, po, n, item, lots, pharm, warnings)))
+        for item, qty, lots, sale_price in plan:
+            _receive_item(db, po, item, qty, current_user, lot=item.lot_number, manufacture=item.manufacture_date,
+                          sale_price=sale_price)
         po.status = POStatus.received
+        po.receive_warnings = warnings
     else:
         po.status = status
 
@@ -379,21 +563,49 @@ def receive_purchase_order(db: Session, po_id: int, data, current_user: User) ->
         raise HTTPException(status_code=400, detail="Buyurtma allaqachon to'liq qabul qilingan")
 
     items_map = {item.id: item for item in po.items}
-    received_any = False
-    for r in data.items:
+    pharm = pharmacy_context(db, po.company_id)  # D1.3: bitta amal uchun bir marta
+    warnings: List[str] = []
+    planned = defaultdict(lambda: ZERO)
+    plan = []
+    for n, r in enumerate(data.items, 1):
         item = items_map.get(r.po_item_id)
         if not item:
             raise HTTPException(status_code=404, detail=f"PO item ID={r.po_item_id} topilmadi")
-        qty = _d(r.qty_received)
-        if qty <= 0:
-            continue
-        remaining = _d(item.qty_ordered) - _d(item.qty_received)
+        # D2.4: qabul birligi (quti): kiritilgan miqdor * nisbat = asosiy birlikdagi qabul (unit_id yo'q -> 1)
+        ratio = _unit_ratio(db, po.company_id, item.product_id, getattr(r, "unit_id", None), pharm)
+        if getattr(r, "lots", None):
+            qty = sum((_d(x.qty) for x in r.lots), ZERO)
+            if r.qty_received and abs(_d(r.qty_received) - qty) > TINY:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{n}-qator: seriyalar yig'indisi ({qty}) qabul miqdoriga ({_d(r.qty_received)}) teng emas",
+                )
+            qty = qty * ratio
+            lots = [(x.lot_number, x.expiry_date or item.expiry_date, x.manufacture_date or item.manufacture_date,
+                     _d(x.qty) * ratio)
+                    for x in r.lots]
+        else:
+            qty = _d(r.qty_received) * ratio
+            if qty <= 0:
+                continue
+            lots = [(r.lot_number or item.lot_number, r.expiry_date or item.expiry_date,
+                     getattr(r, "manufacture_date", None) or item.manufacture_date, qty)]
+        remaining = _d(item.qty_ordered) - _d(item.qty_received) - planned[item.id]
         if qty > remaining + TINY:
             raise HTTPException(status_code=400, detail=f"Qabul miqdori ({qty}) qolgan miqdordan ({remaining}) ko'p")
-        _receive_item(db, po, item, qty, current_user, lot=r.lot_number, expiry=r.expiry_date)
-        received_any = True
-    if not received_any:
+        planned[item.id] += qty
+        plan.append((item, qty, lots, _plan_receipt(db, po, n, item, lots, pharm, warnings),
+                     getattr(r, "marking_codes", None), n))   # D3.2: markirovka kodlari (ixtiyoriy)
+    if not plan:
         raise HTTPException(status_code=400, detail="Qabul qilinadigan miqdor kiritilmagan")
+    for item, qty, lots, sale_price, mk_codes, n in plan:
+        _receive_item(db, po, item, qty, current_user, lots=lots, sale_price=sale_price)
+        _register_marking(db, po, n, item, qty, mk_codes, pharm, warnings)
+    if getattr(data, "supplier_invoice_number", None):
+        po.supplier_invoice_number = data.supplier_invoice_number.strip() or po.supplier_invoice_number
+    if getattr(data, "supplier_invoice_date", None):
+        po.supplier_invoice_date = data.supplier_invoice_date
+    po.receive_warnings = warnings
 
     _refresh_status(po)
     _sync_supplier_debt(db, po)
@@ -522,6 +734,10 @@ def update_purchase_order(db: Session, po_id: int, data, current_user: User) -> 
         po.note = data.note
     if data.expected_date is not None:
         po.expected_date = data.expected_date
+    if getattr(data, "supplier_invoice_number", None) is not None:
+        po.supplier_invoice_number = data.supplier_invoice_number.strip() or None
+    if getattr(data, "supplier_invoice_date", None) is not None:
+        po.supplier_invoice_date = data.supplier_invoice_date
     if data.currency:
         new_cur = data.currency.strip().upper()
         if new_cur != po_currency(po):

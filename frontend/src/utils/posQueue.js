@@ -101,7 +101,8 @@ export function flushPosQueue(api, { onReject } = {}) {
           const status = e.response?.status;
           if (status >= 400 && status < 500) {
             const detail = e.response?.data?.detail || `HTTP ${status}`;
-            rejected.push({ ...item, kind, detail, rejectedAt: Date.now() });
+            // D2.6: rad etish sababi (retsept / muddat / markirovka / boshqa) — kassirga aniq ko'rsatish uchun
+            rejected.push({ ...item, kind, detail, reason: describeRejection(detail), rejectedAt: Date.now() });
             rejectedCount += 1;
             if (typeof onReject === 'function') onReject(item, kind, detail);
           } else {
@@ -125,4 +126,109 @@ export function flushPosQueue(api, { onReject } = {}) {
     return { sent, rejected: rejectedCount, remaining: getPendingPosCount(companyId) };
   })();
   return flushing;
+}
+
+// ─── D2.6: dorixona POS yordamchilari (faqat dorixona rejimida ishlatiladi) ───────────────────────────
+
+/** Bugungi sana (kassir qurilmasi vaqt mintaqasida) YYYY-MM-DD — retsept sanasi kelajakda bo'lmasligi uchun */
+export function todayLocalIso() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+/** ISO sana (2026-03-05 yoki 2026-03-05T00:00:00) -> 05.03.2026 */
+export function fmtExpiry(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+}
+
+/** Server rad etgan sotuv sababi: { category: 'rx'|'expiry'|'marking'|'stock'|'other', text, products }.
+ *  detail — satr yoki { code, message, products: [{name}] } (D1.2 muddat, D2.5 retsept, D3.2 markirovka xatolari). */
+export function describeRejection(detail) {
+  const isObj = detail && typeof detail === 'object' && !Array.isArray(detail);
+  const msg = isObj ? String(detail.message || '') : String(detail || '');
+  const code = isObj ? String(detail.code || '') : '';
+  const products = isObj && Array.isArray(detail.products) ? detail.products.map(p => p?.name).filter(Boolean) : [];
+  let category = 'other';
+  if (code === 'rx_required' || code === 'rx_blank_invalid' || /retsept/i.test(msg)) category = 'rx';
+  else if (/markirovka|data\s*matrix/i.test(msg) || /kod.*(sotilgan|topilmadi|yaroqsiz)/i.test(msg)) category = 'marking';
+  else if (/muddat|yaroqlilik|expir/i.test(msg)) category = 'expiry';
+  else if (/butun quti|qoldiq|yetarli/i.test(msg)) category = 'stock';
+  const text = products.length ? `${msg} (${products.join(', ')})` : msg;
+  return { category, text: text || (isObj ? JSON.stringify(detail) : ''), products };
+}
+
+/** Savatdagi retseptli (is_rx) yoki nazoratdagi dorilar (nomi: product_name yoki name). */
+export function rxProductsOf(items) {
+  return (items || []).filter(it => it && (it.is_rx || (it.control_class && it.control_class !== 'none')));
+}
+
+export const isControlled = (it) => !!(it && it.control_class && it.control_class !== 'none');
+
+/** Retsept oynasi ma'lumotini tekshiradi. rxData = { [product_id]: { mode:'rx'|'norx', number, issued_at, doctor, clinic, patient, blank_type } }.
+ *  Xato matni yoki null (hammasi joyida). rxMode — 'warn' | 'block'. */
+export function validateRx(items, rxData, reason, rxMode = 'warn', todayIso = todayLocalIso()) {
+  for (const it of rxProductsOf(items)) {
+    const nm = it.product_name || it.name || '';
+    const d = (rxData || {})[it.product_id] || {};
+    const controlled = isControlled(it);
+    const mode = controlled || rxMode === 'block' ? 'rx' : (d.mode || 'rx');
+    if (mode === 'norx') {
+      if (String(reason || '').trim().length < 3) return `${nm}: retseptsiz sotish sababini kiriting`;
+      continue;
+    }
+    if (!String(d.number || '').trim() || !String(d.doctor || '').trim() || !String(d.clinic || '').trim() || !d.issued_at) {
+      return `${nm}: retsept raqami, sanasi, shifokori va muassasasini kiriting`;
+    }
+    if (String(d.issued_at) > todayIso) return `${nm}: retsept sanasi kelajakda bo'lishi mumkin emas`;
+    if (controlled && (!d.blank_type || d.blank_type === 'simple')) return `${nm}: nazoratdagi dori uchun maxsus blank turini tanlang`;
+  }
+  return null;
+}
+
+/** So'rovga qo'shiladigan maydonlar: { prescriptions, rx_override_reason } (bo'sh bo'lsa — bo'sh obyekt). */
+export function buildRxPayload(items, rxData, reason, rxMode = 'warn') {
+  const prescriptions = [];
+  let needReason = false;
+  for (const it of rxProductsOf(items)) {
+    const d = (rxData || {})[it.product_id] || {};
+    const mode = isControlled(it) || rxMode === 'block' ? 'rx' : (d.mode || 'rx');
+    if (mode === 'norx') { needReason = true; continue; }
+    prescriptions.push({
+      product_id: it.product_id,
+      number: String(d.number || '').trim(),
+      issued_at: d.issued_at,
+      doctor: String(d.doctor || '').trim(),
+      clinic: String(d.clinic || '').trim(),
+      patient: String(d.patient || '').trim() || undefined,
+      blank_type: isControlled(it) ? (d.blank_type || 'form_107') : (d.blank_type || 'simple'),
+    });
+  }
+  const out = {};
+  if (prescriptions.length) out.prescriptions = prescriptions;
+  if (needReason && String(reason || '').trim()) out.rx_override_reason = String(reason).trim();
+  return out;
+}
+
+/** Qatordagi birlik ro'yxat narxi (mijozga maxsus/narx turi bo'lmasa serverdagi `unit.price`, aks holda asosiy narx * nisbat). */
+export function unitLinePrice(basePrice, productSalePrice, unit) {
+  if (!unit) return Number(basePrice) || 0;
+  const ratio = Number(unit.ratio) || 1;
+  if (unit.price != null && Number(basePrice) === (Number(productSalePrice) || 0)) return Number(unit.price);
+  return (Number(basePrice) || 0) * ratio;
+}
+
+/** Butun quti sotuvi uchun eng ko'pi: ombordagi butun qutilar soni (birlik nisbatiga bo'lingan). null — cheklov yo'q. */
+export function wholeBoxMax(item) {
+  const ratio = Number(item?.unit_ratio) || 1;
+  const pack = Number(item?.pack_ratio) || 0;
+  if (!item?.unit_id || !pack || ratio < pack || item.full_boxes == null) return null;
+  return Math.floor((Number(item.full_boxes) * pack) / ratio);
+}
+
+/** Server "butun quti X ta, ochilgan qutida Y dona bor" (D2.4) xatosini ajratadi; boshqa xato uchun null. */
+export function parseWholeBoxError(detail) {
+  const msg = typeof detail === 'string' ? detail : String(detail?.message || '');
+  const m = /^(.*?):\s*butun quti\s+([\d.,]+)\s*ta,\s*ochilgan qutida\s+([\d.,]+)\s*dona/i.exec(msg);
+  return m ? { name: m[1].trim(), boxes: m[2], loose: m[3], message: msg } : null;
 }

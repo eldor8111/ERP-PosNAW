@@ -1,0 +1,35 @@
+{
+  "uz": {
+    "purchase.phSplitLot": "Seriyaga bo'lish",
+    "purchase.phLotRequired": "seriya raqami majburiy",
+    "purchase.phExpiryRequired": "yaroqlilik muddati majburiy",
+    "purchase.phExpiryPast": "yaroqlilik muddati o'tgan",
+    "purchase.phLotsExceed": "seriyalar yig'indisi qolgan miqdordan oshdi",
+    "purchase.phMfgDate": "Ishlab chiqarilgan sana",
+    "purchase.phSalePrice": "Sotuv narxi",
+    "purchase.phInvoiceNo": "Yuk xati raqami",
+    "purchase.phInvoiceDate": "Yuk xati sanasi"
+  },
+  "ru": {
+    "purchase.phSplitLot": "Разбить на серии",
+    "purchase.phLotRequired": "номер серии обязателен",
+    "purchase.phExpiryRequired": "срок годности обязателен",
+    "purchase.phExpiryPast": "срок годности истёк",
+    "purchase.phLotsExceed": "сумма серий превышает оставшееся количество",
+    "purchase.phMfgDate": "Дата производства",
+    "purchase.phSalePrice": "Цена продажи",
+    "purchase.phInvoiceNo": "Номер накладной",
+    "purchase.phInvoiceDate": "Дата накладной"
+  },
+  "en": {
+    "purchase.phSplitLot": "Split into lots",
+    "purchase.phLotRequired": "lot number is required",
+    "purchase.phExpiryRequired": "expiry date is required",
+    "purchase.phExpiryPast": "expiry date has passed",
+    "purchase.phLotsExceed": "lots total exceeds the remaining quantity",
+    "purchase.phMfgDate": "Manufacture date",
+    "purchase.phSalePrice": "Sale price",
+    "purchase.phInvoiceNo": "Supplier invoice no.",
+    "purchase.phInvoiceDate": "Supplier invoice date"
+  }
+}

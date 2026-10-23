@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -36,6 +36,9 @@ class PurchaseOrder(Base):
     supplier_debt_currency = Column(String(10), nullable=True)
     note = Column(Text, nullable=True)
     expected_date = Column(DateTime, nullable=True)
+    # D1.3: ta'minotchi yuk xati (nakladnoy) raqami va sanasi
+    supplier_invoice_number = Column(String(100), nullable=True)
+    supplier_invoice_date = Column(Date, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
@@ -60,6 +63,9 @@ class POItem(Base):
     original_unit_cost = Column(Numeric(12, 4), nullable=True)  # Original currency amount
     cost_currency = Column(String(3), nullable=True, default='UZS')  # Original currency code
     expiry_date = Column(DateTime, nullable=True)
+    # D1.3: xarid qatoridagi seriya va ishlab chiqarilgan sana (qabulda berilmasa shu ishlatiladi)
+    lot_number = Column(String(100), nullable=True)
+    manufacture_date = Column(DateTime, nullable=True)
     # Yangi sotuv narxlari — tovar qabul qilinganda qo'llanadi (qoralamada emas)
     new_sale_price = Column(Numeric(16, 4), nullable=True)
     new_wholesale_price = Column(Numeric(16, 4), nullable=True)

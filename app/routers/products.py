@@ -15,6 +15,7 @@ from app.models.inventory import StockLevel
 from app.models.product import Product, ProductConversion, ProductStatus
 from app.models.user import User, UserRole
 from app.schemas.product import ProductCreate, ProductListOut, ProductOut, ProductStatusUpdate, ProductUpdate
+from app.services.pharmacy import pharmacy_context, pharmacy_enabled
 from app.utils.image_pipeline import reconcile_product
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -22,6 +23,99 @@ router = APIRouter(prefix="/products", tags=["Products"])
 WRITE_ROLES = (UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.manager)
 
 from app.utils.product_filters import name_filter as _name_filter  # noqa: E402
+
+
+def _load_pharma_map(db: Session, company_id, product_ids) -> dict:
+    """D2.1: mahsulotlarning dori bloklarini (moddalari bilan) bitta-ikkita so'rovda yuklaydi — N+1 yo'q.
+    Faqat dorixona rejimi yoqilgan korxona uchun chaqiriladi. {product_id: PharmaOut}."""
+    from collections import defaultdict
+    from app.models.product_pharma import PharmaSubstance, ProductPharma, ProductSubstance
+    from app.schemas.product import PharmaOut, PharmaSubstanceOut
+    ids = list(product_ids)
+    if not ids:
+        return {}
+    rows = db.query(ProductPharma).filter(
+        ProductPharma.company_id == company_id, ProductPharma.product_id.in_(ids),
+    ).all()
+    if not rows:
+        return {}
+    subs = defaultdict(list)
+    for pid, sub in (
+        db.query(ProductSubstance.product_id, PharmaSubstance)
+        .join(PharmaSubstance, PharmaSubstance.id == ProductSubstance.substance_id)
+        .filter(ProductSubstance.product_id.in_([r.product_id for r in rows]))
+        .order_by(PharmaSubstance.name_uz)
+        .all()
+    ):
+        subs[pid].append(PharmaSubstanceOut.model_validate(sub))
+    result = {}
+    for r in rows:
+        out = PharmaOut.model_validate(r)
+        out.substances = subs.get(r.product_id, [])
+        result[r.product_id] = out
+    return result
+
+
+def _assert_max_markup(settings: dict, cost_price, sale_price) -> None:
+    """CD.1: dorixona — sotuv narxi `max_markup_pct` ustamadan oshmasin. Faqat dorixona rejimida chaqiriladi;
+    chegara 0 yoki tannarx 0 bo'lsa o'tkazib yuboriladi."""
+    max_pct = int((settings or {}).get("max_markup_pct") or 0)
+    cost = Decimal(str(cost_price or 0))
+    sale = Decimal(str(sale_price or 0))
+    if max_pct <= 0 or cost <= 0 or sale <= 0:
+        return
+    if sale > cost * (Decimal(100) + Decimal(max_pct)) / Decimal(100):
+        raise HTTPException(
+            status_code=400, detail=f"Sotuv narxi ruxsat etilgan ustamadan ({max_pct}%) oshib ketdi",
+        )
+
+
+def _save_pharma(db: Session, company_id, product_id: int, pharma_in) -> None:
+    """D2.1: mahsulotning dori blokini saqlaydi (faqat dorixona rejimida chaqiriladi).
+    Faqat yuborilgan maydonlar yangilanadi; substance_ids berilsa moddalar to'liq almashtiriladi."""
+    from app.models.product_pharma import PharmaSubstance, ProductPharma, ProductSubstance
+    fields = pharma_in.model_dump(exclude_unset=True)
+    raw_ids = fields.pop("substance_ids", None)
+    if fields.get("is_rx", True) is None:
+        fields.pop("is_rx")
+    if "control_class" in fields and fields["control_class"] is None:
+        fields["control_class"] = "none"
+
+    new_ids = None
+    if raw_ids is not None:
+        new_ids = list(dict.fromkeys(raw_ids))
+        if new_ids:
+            # umumiy (company_id NULL) yoki o'z korxonasi moddalari; begonasi ko'rinmaydi
+            found = {
+                sid for (sid,) in db.query(PharmaSubstance.id).filter(
+                    PharmaSubstance.id.in_(new_ids),
+                    (PharmaSubstance.company_id.is_(None)) | (PharmaSubstance.company_id == company_id),
+                ).all()
+            }
+            missing = [i for i in new_ids if i not in found]
+            if missing:
+                raise HTTPException(status_code=404, detail=f"Modda topilmadi: {missing[0]}")
+
+    row = db.query(ProductPharma).filter(ProductPharma.product_id == product_id).first()
+    if row is None:
+        row = ProductPharma(product_id=product_id, company_id=company_id)
+        db.add(row)
+    for k, v in fields.items():
+        setattr(row, k, v)
+    db.flush()
+
+    if new_ids is not None:
+        existing = {
+            ps.substance_id: ps
+            for ps in db.query(ProductSubstance).filter(ProductSubstance.product_id == product_id).all()
+        }
+        for sid, ps in existing.items():
+            if sid not in new_ids:
+                db.delete(ps)
+        for sid in new_ids:
+            if sid not in existing:
+                db.add(ProductSubstance(product_id=product_id, substance_id=sid))
+        db.flush()
 
 
 def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None, wh_scope=None) -> ProductOut:
@@ -104,6 +198,9 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
                     sell_product_name=sell_p.name,
                     ratio=conv.ratio,
                 ))
+    # D2.1: dori bloki faqat dorixona rejimida; oddiy korxonada pharma = null
+    if db and pharmacy_enabled(db, product.company_id):
+        out.pharma = _load_pharma_map(db, product.company_id, [product.id]).get(product.id)
     return out
 
 
@@ -220,6 +317,12 @@ def list_products(
 
     products = q.order_by(Product.name).offset(skip).limit(limit).all()
 
+    # D2.1: dori bloklari faqat dorixona rejimida va bitta so'rovda (N+1 yo'q)
+    pharma_map = (
+        _load_pharma_map(db, current_user.company_id, [p.id for p in products])
+        if products and pharmacy_enabled(db, current_user.company_id) else {}
+    )
+
     # T1.1: ko'rinadigan omborlar yagona filial kontekstidan (None → cheklov yo'q)
     branch_wh_set = warehouse_ids_for_ctx(db, ctx)
 
@@ -257,6 +360,8 @@ def list_products(
     result = []
     for p in products:
         item = ProductListOut.model_validate(p)
+        if pharma_map:
+            item.pharma = pharma_map.get(p.id)
 
         all_stocks = stock_by_product[p.id]  # bazaga murojaat yo'q, xotiradan olamiz
 
@@ -477,6 +582,13 @@ def create_product(
         current_user: User = Depends(require_roles(*WRITE_ROLES)),
         ctx: BranchContext = Depends(get_branch_context),  # T1.5: X-Branch-Id -> boshlang'ich qoldiq filiali (db.info)
 ):
+    # D2.1: dorixona rejimida MXIK kodi majburiy (oddiy korxonada o'zgarishsiz)
+    pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
+    if pharmacy_on and not (data.mxik_code or "").strip():
+        raise HTTPException(status_code=400, detail="Dorixona rejimida MXIK kodi majburiy")
+    if pharmacy_on:
+        _assert_max_markup(_ph_settings, data.cost_price, data.sale_price)   # CD.1: ustama chegarasi
+
     extra_count = len([b.strip() for b in (data.extra_barcodes or []) if b.strip()])
     variant_count = len([v for v in (data.variants or []) if getattr(v, 'barcode', None) and v.barcode.strip()])
     total_new_barcodes = 1 + extra_count + variant_count
@@ -487,7 +599,7 @@ def create_product(
     initial_stock = data.initial_stock or Decimal("0")
     initial_warehouse_id = data.initial_warehouse_id
     conversion_data = data.conversion
-    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id", "conversion", "variants"})
+    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id", "conversion", "variants", "pharma"})
 
     # Serialize images list → JSON string for DB storage
     if product_data.get("images") is not None:
@@ -673,6 +785,9 @@ def create_product(
         )
         db.add(conv)
 
+    if pharmacy_on and data.pharma is not None:
+        _save_pharma(db, current_user.company_id, product.id, data.pharma)
+
     log_action(
         db=db,
         action="CREATE",
@@ -719,7 +834,20 @@ def update_product(
             product_id, current_user.id,
         )
 
-    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id", "variants"})
+    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id", "variants", "pharma"})
+
+    # D2.1: dorixona rejimida tahrirlanayotgan mahsulotda MXIK kodi majburiy (oddiy korxonada o'zgarishsiz)
+    pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
+    if pharmacy_on:
+        eff_mxik = update_data["mxik_code"] if "mxik_code" in update_data else product.mxik_code
+        if not (eff_mxik or "").strip():
+            raise HTTPException(status_code=400, detail="Dorixona rejimida MXIK kodi majburiy")
+        # CD.1: faqat sotuv narxi o'zgarganda ustama chegarasi tekshiriladi
+        if "sale_price" in update_data and Decimal(str(update_data["sale_price"] or 0)) != Decimal(str(product.sale_price or 0)):
+            _assert_max_markup(
+                _ph_settings, update_data["cost_price"] if "cost_price" in update_data else product.cost_price,
+                update_data["sale_price"],
+            )
 
     # Duplicate checks (exclude current product)
     dup_q = db.query(Product).filter(Product.is_deleted == False, Product.id != product_id)
@@ -891,6 +1019,9 @@ def update_product(
         db.query(StockLevel).filter(StockLevel.product_id == product_id).delete(
             synchronize_session=False
         )
+
+    if pharmacy_on and data.pharma is not None:
+        _save_pharma(db, current_user.company_id, product.id, data.pharma)
 
     log_action(
         db=db,

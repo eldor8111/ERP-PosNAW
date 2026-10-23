@@ -41,6 +41,9 @@ class StockReceiveItem(BaseModel):
     cost_price: Optional[Decimal] = None      # frontend nomi — purchase_price bilan bir xil
     lot_number: Optional[str] = None
     expiry_date: Optional[date] = None
+    manufacture_date: Optional[date] = None  # CD.1 (dorixona): ishlab chiqarilgan sana; qolgan muddat foizi shundan hisoblanadi
+    # CD.1/D3.2 (dorixona): markirovkali dori kodlari (Data Matrix) — partiya bilan bir tranzaksiyada in_stock bo'lib yoziladi
+    marking_codes: Optional[List[str]] = None
 
     @field_validator("quantity")
     @classmethod
@@ -183,6 +186,7 @@ class SupplierReturnItem(BaseModel):
     variant_id: Optional[int] = None
     quantity: Decimal
     unit_cost: Decimal  # The price at which the item is being returned
+    batch_id: Optional[int] = None  # D3.3 (dorixona): aynan shu partiyadan qaytarish (oddiy korxonada e'tiborsiz)
 
     @field_validator("quantity", "unit_cost")
     @classmethod

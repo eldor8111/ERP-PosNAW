@@ -5,6 +5,8 @@ import { toast } from 'react-hot-toast';
 import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../utils/receiptBuilder';
 import { useLang } from '../../context/LangContext';
 import { useApprovalFlow, ApprovalModal } from './Approvals'; // T4.6: menejer tasdig'i
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import { tOr } from '../../utils/shiftBalances';
 
 function fmt(n) {
   if (!n) return '0';
@@ -13,6 +15,10 @@ function fmt(n) {
 
 export default function PartialReturnModal({ sale, onClose, onSuccess }) {
   const { t } = useLang();
+  const tf = (k, fb) => tOr(t, k, fb);
+  // D1.4: dorixona rejimida asl partiyasi yo'q qator uchun seriya va muddat kiritiladi (modul o'chiq bo'lsa — o'zgarmaydi)
+  const features = useCompanyFeatures();
+  const pharmacy = !!features?.pharmacy;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchingItems, setFetchingItems] = useState(false);
@@ -57,6 +63,14 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
     setItems(newItems);
   };
 
+  const handleLotChange = (index, field, val) => {
+    setItems(prev => prev.map((it, i) => (i === index ? { ...it, [field]: val } : it)));
+  };
+
+  // Asl partiya yo'q qator: serverdan 400 kelgan (needLot) yoki sotuv qatorida batches bo'sh massiv
+  const rowNeedsLot = (item) => pharmacy && item.returnQty > 0
+    && (item.needLot || (Array.isArray(item.batches) && item.batches.length === 0));
+
   const calculateTotalRefund = () => {
     return items.reduce((sum, item) => {
       const avgPrice = item.subtotal / item.quantity;
@@ -72,11 +86,19 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
       .filter(item => item.returnQty > 0)
       .map(item => ({
         sale_item_id: item.id,
-        quantity: item.returnQty
+        quantity: item.returnQty,
+        // D1.4: faqat dorixona rejimida va kiritilgan bo'lsa
+        ...(pharmacy && item.lot_number && String(item.lot_number).trim() ? { lot_number: String(item.lot_number).trim() } : {}),
+        ...(pharmacy && item.expiry_date ? { expiry_date: item.expiry_date } : {}),
       }));
 
     if (returnItems.length === 0) {
       toast.error(t('partialReturn.noItemsSelected'));
+      return;
+    }
+    // D1.4: seriya/muddat so'ralgan qatorlar to'ldirilmaguncha yuborilmaydi
+    if (items.some(it => rowNeedsLot(it) && (!String(it.lot_number || '').trim() || !it.expiry_date))) {
+      toast.error(tf('pharmacyReturn.lotRequired', "Seriya raqami va yaroqlilik muddatini kiriting"));
       return;
     }
 
@@ -157,6 +179,13 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
         if (raw.code === 'approval_invalid') approvalFlow.close();
         toast.error(raw.message || t('auth.errGeneral'));
       } else {
+        // D1.4: server "asl partiya topilmadi" desa (xabarda lot_number) — shu qatorlarga seriya/muddat maydoni ochiladi
+        if (pharmacy && error.response?.status === 400 && typeof raw === 'string' && raw.includes('lot_number')) {
+          const named = items.filter(it => it.returnQty > 0 && it.product_name && raw.includes(`'${it.product_name}'`)).map(it => it.id);
+          setItems(prev => prev.map(it => (
+            it.returnQty > 0 && (named.length === 0 || named.includes(it.id)) ? { ...it, needLot: true } : it
+          )));
+        }
         toast.error(raw || t('auth.errGeneral'));
       }
     } finally {
@@ -219,7 +248,32 @@ export default function PartialReturnModal({ sale, onClose, onSuccess }) {
                     const itemRefund = avgPrice * item.returnQty;
                     return (
                       <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {item.product_name}
+                          {rowNeedsLot(item) && (
+                            <div className="mt-2 space-y-1.5">
+                              <div className="text-[11px] font-semibold text-amber-600">
+                                {tf('pharmacyReturn.needLot', "Asl partiya topilmadi — seriya va muddatni kiriting")}
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={item.lot_number || ''}
+                                  onChange={(e) => handleLotChange(idx, 'lot_number', e.target.value)}
+                                  placeholder={tf('pharmacyReturn.lot', 'Seriya')}
+                                  className="w-32 px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-blue-400"
+                                />
+                                <input
+                                  type="date"
+                                  value={item.expiry_date || ''}
+                                  onChange={(e) => handleLotChange(idx, 'expiry_date', e.target.value)}
+                                  title={tf('pharmacyReturn.expiry', 'Yaroqlilik muddati')}
+                                  className="px-2 py-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-blue-400"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right text-slate-600 font-mono">
                           {fmt(item.quantity)} {item.unit}
                           {item.returned_quantity > 0 && (

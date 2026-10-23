@@ -32,7 +32,8 @@ def _prepare_send(company_id: int, notif_type: str, branch_id=None):
         if not admin_bot:
             return None
 
-        # Check settings (T4.6: 'approval' — tasdiq so'rovi har doim yuboriladi, sozlama talab qilinmaydi)
+        # Check settings (T4.6: 'approval' — tasdiq so'rovi har doim yuboriladi, sozlama talab qilinmaydi;
+        # D4.2: 'recall' — dori seriyasini qaytarib olish xabari ham har doim yuboriladi)
         if notif_type == 'sale' and not admin_bot.notify_instant_sales:
             return None
         if notif_type == 'finance' and not admin_bot.notify_instant_finance:
@@ -41,7 +42,7 @@ def _prepare_send(company_id: int, notif_type: str, branch_id=None):
         # Admin/direktorlar + (yoqilgan bo'lsa) shu filial menejerlari; faqat faol a'zolar (T0.16, T3.16)
         # T4.6: tasdiq so'rovi — admin/director va so'rov filiali menejeri ("finance" qabul qiluvchilari qoidasi)
         recipients = resolve_recipients(db, company_id, branch_id=branch_id,
-                                        kind="finance" if notif_type == "approval" else notif_type)
+                                        kind="finance" if notif_type in ("approval", "recall") else notif_type)
         chat_ids = [u.tg_chat_id for u in recipients]
         if not chat_ids:
             return None
@@ -80,7 +81,8 @@ async def _send_to_chat(bot: Bot, chat_id: str, chunks: list, reply_markup=None)
 async def send_instant_notification(company_id: int, message_text: str, notif_type: str, branch_id=None,
                                     reply_markup=None):
     """
-    notif_type: 'sale', 'finance' yoki 'approval' (T4.6: tasdiq so'rovi — sozlamadan qat'i nazar yuboriladi)
+    notif_type: 'sale', 'finance', 'approval' (T4.6: tasdiq so'rovi) yoki 'recall' (D4.2: seriyani qaytarib olish) —
+    oxirgi ikkisi sozlamadan qat'i nazar yuboriladi
     branch_id: xabar filiali — shu filial menejerlari ham oladi (notify_branch_managers yoqilgan bo'lsa).
     reply_markup: inline tugmalar (masalan `approval_keyboard`).
     """
@@ -172,3 +174,28 @@ def trigger_instant_notification(company_id: int, message_text: str, notif_type:
         loop.create_task(coro)
     except RuntimeError:
         threading.Thread(target=asyncio.run, args=(coro,), daemon=True).start()
+
+
+def build_recall_message(lot: str, product_names, reason: str, user_name: str, batches_count: int,
+                         remaining_qty, customers_count: int, sales_count: int) -> str:
+    """D4.2: dori seriyasi qaytarib olingani haqida xabar matni. Barcha dinamik qiymatlar HTML-escape qilinadi."""
+    names = [str(n) for n in (product_names or []) if n]
+    shown = ", ".join(esc(n) for n in names[:5]) + (f" va yana {len(names) - 5} ta" if len(names) > 5 else "")
+    qty = float(remaining_qty or 0)
+    msg = "⚠️ <b>Dori seriyasi qaytarib olindi</b>\n"
+    msg += f"🔖 Seriya: <b>{esc(lot)}</b>\n"
+    if shown:
+        msg += f"💊 Mahsulot: {shown}\n"
+    msg += f"📦 Bloklangan partiyalar: {int(batches_count)} ta, qoldiq: {qty:g}\n"
+    msg += f"👥 Sotilgan: {int(sales_count)} ta sotuv, {int(customers_count)} ta mijoz\n"
+    msg += f"📝 Sabab: {esc(reason)}\n"
+    msg += f"👤 Bloklagan: {esc(user_name)}"
+    return msg
+
+
+def trigger_batch_recalled(company_id: int, *, lot: str, product_names, reason: str, user_name: str,
+                           batches_count: int, remaining_qty, customers_count: int, sales_count: int) -> None:
+    """D4.2: seriya bloklangani haqida admin/direktorlarga Telegram xabari (fon rejimida, kutmaydi)."""
+    msg = build_recall_message(lot, product_names, reason, user_name, batches_count,
+                               remaining_qty, customers_count, sales_count)
+    trigger_instant_notification(company_id, msg, "recall")

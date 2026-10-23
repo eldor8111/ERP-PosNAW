@@ -25,9 +25,13 @@ from app.services.sale_helpers import (
     resolve_item_pricing, apply_sale_branch_filter, resolve_txn_branch, assert_sale_items_one_branch,
     _warehouse_branch_id, SALE_WAREHOUSE_BRANCH_CHANGE,
 )
-from app.services.batch_allocator import deduct_sale_item
+from app.services.batch_allocator import assert_pharmacy_sellable, deduct_sale_item, tashkent_today
+from app.services.pharmacy import pharmacy_context
 from app.services.sale_stock import is_return_linked, restore_sale_batches, restore_sale_stock
-from app.services.sale_create import _resolve_marking_codes
+from app.services.sale_create import _resolve_marking_codes, _prepare_prescriptions, _is_open_box_line
+from app.services.sale_stock import resolve_sale_unit  # CD.1: tahrirda qadoq birligi (dorixona)
+from app.models.product_units import SaleItemUnit
+from app.models.prescription import SalePrescription
 from app.services.promotion_service import load_sale_pricing_context
 from app.services.tenant_guards import BRANCH_FREE_ROLES
 
@@ -44,7 +48,110 @@ def _earn_on_confirm(db: Session, sale: Sale, customer: Customer, paid_amount) -
     )
 
 
-def _reverse_sale_effects(db: Session, sale: Sale, current_user: User) -> list:
+def _pharmacy_check_lines(db: Session, sale: Sale, rows, ph_ctx, credit=None) -> None:
+    """D1.2: dorixona rejimida qoldiq yechilishidan OLDIN yaroqli partiyalar yetarliligini tekshiradi.
+
+    `rows`: `(product, variant_id, warehouse_id|None, quantity)`; virtual mahsulot manba mahsulotga
+    o'tkaziladi (`deduct_target_for_sale`, deduct_sale_item bilan bir xil). Modul o'chiq bo'lsa hech narsa qilmaydi.
+    """
+    if not ph_ctx[0]:
+        return
+    from app.utils.product_conversion import deduct_target_for_sale
+    lines = []
+    for product, variant_id, wh_id, qty in rows:
+        if product is None:
+            continue
+        _did, deduct_qty, conv, src = deduct_target_for_sale(db, product.id, Decimal(str(qty or 0)))
+        lines.append((
+            src if (conv and src) else product,
+            None if conv else variant_id,
+            wh_id if wh_id is not None else sale.warehouse_id,
+            deduct_qty,
+        ))
+    assert_pharmacy_sellable(
+        db, company_id=sale.company_id, lines=lines, pharmacy_ctx=ph_ctx, today=tashkent_today(), credit=credit,
+    )
+
+
+def _sale_batch_credit(db: Session, sale: Sale) -> dict:
+    """Sotuv teskari qilinganda partiyalarga qaytadigan miqdor: {batch_id: miqdor} (SaleItemBatch bo'yicha)."""
+    from app.models.sale import SaleItemBatch
+    credit: dict = {}
+    rows = (
+        db.query(SaleItemBatch.batch_id, SaleItemBatch.quantity)
+        .join(SaleItem, SaleItem.id == SaleItemBatch.sale_item_id)
+        .filter(SaleItem.sale_id == sale.id)
+        .all()
+    )
+    for batch_id, qty in rows:
+        credit[batch_id] = credit.get(batch_id, Decimal("0")) + Decimal(str(qty or 0))
+    return credit
+
+
+def _release_sale_marking(db: Session, sale: Sale) -> None:
+    """CD.1/D3.2: sotuv teskari qilinganda (tahrir, kutilayotganga qaytarish, bekor qilish) shu sotuv qatorlarining
+    `sold` kodlari omborga qaytadi (in_stock). Qutidan bo'lib sotishdagi kodlar holati o'zgarmagan edi — tegilmaydi."""
+    from app.models.marking_code import MarkingCode
+    item_ids = [r[0] for r in db.query(SaleItem.id).filter(SaleItem.sale_id == sale.id).all()]
+    if not item_ids:
+        return
+    for row in db.query(MarkingCode).filter(
+        MarkingCode.company_id == sale.company_id, MarkingCode.sale_item_id.in_(item_ids),
+        MarkingCode.status == "sold",
+    ).with_for_update().all():
+        row.status = "in_stock"
+        row.sale_item_id = None
+    db.flush()
+
+
+def _confirm_rx_and_marking(db: Session, sale: Sale, data, ph_ctx, items) -> tuple:
+    """CD.1: kutilayotgan sotuvni tasdiqlash (qatorlar o'zgarmaydi): dorixonada retsept tekshiruvi va markirovka kodlari
+    (yozishdan OLDIN; xato bo'lsa 400). Qaytaradi: (retsept qatorlari, markirovka rejasi). Modul o'chiq bo'lsa ([], {})."""
+    if not ph_ctx[0]:
+        return [], {}
+    from app.routers.pharmacy_marking import plan_sale_marking
+    convs = {c.sell_product_id: c for c in db.query(ProductConversion).filter(
+        ProductConversion.sell_product_id.in_([it.product_id for it in items])).all()} if items else {}
+    srcs = {}
+    if convs:
+        srcs = {p.id: p for p in db.query(Product).filter(
+            Product.id.in_({c.source_product_id for c in convs.values()})).all()}
+    lines = []
+    for it in items:
+        conv = convs.get(it.product_id)
+        lines.append({
+            "product": it.product, "conversion": conv,
+            "source_product": srcs.get(conv.source_product_id) if conv is not None else None,
+        })
+    rx_data = SimpleNamespace(
+        items=[SimpleNamespace(product_id=it.product_id) for it in items],
+        prescriptions=getattr(data, "prescriptions", None), rx_override_reason=getattr(data, "rx_override_reason", None),
+    )
+    rx_rows, _warn = _prepare_prescriptions(db, rx_data, lines, sale.company_id, ph_ctx, tashkent_today())
+    mk_lines = []
+    for idx, (it, ln) in enumerate(zip(items, lines)):
+        codes = [c for c in (it.marking_codes or []) if c and str(c).strip()]
+        prod = it.product
+        if prod is not None and prod.requires_marking and ph_ctx[0]:
+            if db.query(SaleItemUnit.id).filter(SaleItemUnit.sale_item_id == it.id).first() is None                     and len(codes) != int(it.quantity):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"'{prod.name}' — markirovka talab qilinadi. "
+                            f"{int(it.quantity)} ta kod skanerlanishi kerak, {len(codes)} ta kiritildi."),
+                )
+        mk_lines.append((idx, prod, ln["source_product"], codes))
+    plan = plan_sale_marking(db, sale.company_id, [l for l in mk_lines if l[1] is not None])
+    return rx_rows, plan
+
+
+def _write_prescriptions(db: Session, sale: Sale, rx_rows: list, item_by_pid: dict) -> None:
+    for row in rx_rows:
+        db.add(SalePrescription(
+            sale_id=sale.id, sale_item_id=item_by_pid.get(row["product_id"]), company_id=sale.company_id, **row,
+        ))
+
+
+def _reverse_sale_effects(db: Session, sale: Sale, current_user: User, release_marking: bool = False) -> list:
     """Sotuvning barcha moliyaviy ta'sirlarini bekor qilish.
 
     Qoldiq qator ombori va variant bo'yicha, partiyalar `SaleItemBatch` bo'yicha,
@@ -60,6 +167,8 @@ def _reverse_sale_effects(db: Session, sale: Sale, current_user: User) -> list:
 
     restore_sale_stock(db, sale)
     restore_sale_batches(db, sale)
+    if release_marking:
+        _release_sale_marking(db, sale)   # CD.1: dorixona — eski kodlar in_stock ga qaytadi
 
     if customer is not None:
         # Qarzni tiklash: sale.debt_amounts JSON dan aniq valyuta miqdorlarini ishlatamiz
@@ -223,11 +332,44 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     raise HTTPException(status_code=403, detail=SALE_WAREHOUSE_BRANCH_CHANGE)
                 _new_sale_branch = _wh_branch
 
+        # D1.2: dorixona rejimi — yangi qatorlar uchun yaroqli partiyalar yetarliligi teskari ta'sirlar yozilishidan
+        # OLDIN tekshiriladi (eski sotuv partiyalariga qaytadigan miqdor hisobga olinadi). `pharmacy_context` bir marta.
+        _ph_ctx = pharmacy_context(db, sale.company_id)
+        # CD.1: qadoq birligi (quti/blister) — miqdor asosiy birlikka o'tkaziladi (oddiy korxonada resolve_sale_unit 400 beradi)
+        _unit_ctxs = {}
+        for _ix, _it in enumerate(data.items):
+            if getattr(_it, "unit_id", None):
+                _up = db.query(Product).filter(
+                    Product.id == _it.product_id, Product.company_id == current_user.company_id,
+                    Product.is_deleted == False,
+                ).first()
+                if _up is None:
+                    raise HTTPException(status_code=404, detail=f"Mahsulot ID={_it.product_id} topilmadi")
+                _unit_ctxs[_ix] = resolve_sale_unit(db, sale.company_id, _up, _it, _ph_ctx)
+        if _ph_ctx[0]:
+            if data.status is not None:
+                _ph_pending = data.status == SaleStatus.pending
+            elif sale.status == SaleStatus.pending:
+                _ph_pending = not (bool(data.payments) or (data.paid_amount is not None and data.paid_amount > 0)
+                                   or (data.payment_type if data.payment_type is not None else old_payment_type) == PaymentType.debt)
+            else:
+                _ph_pending = sale.status == SaleStatus.pending
+            if not _ph_pending:
+                _ph_rows = []
+                for _ix, _i in enumerate(data.items):
+                    _p = db.query(Product).filter(
+                        Product.id == _i.product_id, Product.company_id == current_user.company_id,
+                        Product.is_deleted == False,
+                    ).first()
+                    _q = _unit_ctxs[_ix]["base_qty"] if _ix in _unit_ctxs else _i.quantity
+                    _ph_rows.append((_p, getattr(_i, "variant_id", None), getattr(_i, "warehouse_id", None) or _hdr_wh_id, _q))
+                _pharmacy_check_lines(db, sale, _ph_rows, _ph_ctx, credit=_sale_batch_credit(db, sale))
+
         # T2.12: tahrirda sarflangan keshbek/ball qayta yechiladi (teskari hisobda mijozga qaytadi)
-        _old_pc = Decimal(str(sale.paid_cashback or 0))
+        _old_pc =Decimal(str(sale.paid_cashback or 0))
         _old_pts = int(sale.loyalty_points_used or 0)
         _old_customer_id = sale.customer_id
-        _reversed_wallet_ids = _reverse_sale_effects(db, sale, current_user)
+        _reversed_wallet_ids = _reverse_sale_effects(db, sale, current_user, release_marking=_ph_ctx[0])
         clear_sale_loyalty(sale)
         if _new_sale_branch is not None:
             sale.branch_id = _new_sale_branch
@@ -256,7 +398,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         sale_items_data = []
         total_amount = Decimal("0")
 
-        for item_d in data.items:
+        for _ix, item_d in enumerate(data.items):
             product = db.query(Product).filter(
                 Product.id == item_d.product_id,
                 Product.company_id == current_user.company_id,
@@ -264,6 +406,12 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             ).first()
             if not product:
                 raise HTTPException(status_code=404, detail=f"Mahsulot ID={item_d.product_id} topilmadi")
+
+            _unit_ctx = _unit_ctxs.get(_ix)
+            if _unit_ctx is not None and final_status == SaleStatus.pending:
+                raise HTTPException(status_code=400, detail="Kutilayotgan sotuvda qadoq birligi qo'llanmaydi — miqdorni asosiy birlikda kiriting")
+            _price_item = _unit_ctx["price_item"] if _unit_ctx is not None else item_d
+            _line_qty = _price_item.quantity
 
             _customer_price = None
             _customer = None
@@ -278,15 +426,34 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 ).first()
 
             unit_price, discount, _price_src = resolve_item_pricing(
-                item_d, product, _customer_price, _customer, current_user,
+                _price_item, product, _customer_price, _customer, current_user,
                 branch_price=_pricing_ctx.branch_price(item_d.product_id, getattr(item_d, "variant_id", None)))
-            discount, _promo_id, _promo_disc = _pricing_ctx.apply(item_d, unit_price, discount)
-            if discount > unit_price * item_d.quantity:
+            _unit_level_price = None
+            if _unit_ctx is not None:
+                # CD.1 (create_sale bilan bir xil): oddiy ro'yxat narxi — birlik narxi / nisbat; jami tiyingacha aniq
+                if _price_src == "sale_price":
+                    unit_price = _unit_ctx["unit_list_price"] / _unit_ctx["ratio"]
+                    _unit_level_price = Decimal(str(_unit_ctx["unit_list_price"]))
+                    if Decimal(str(getattr(item_d, "discount", 0) or 0)) == 0 and _customer is not None and \
+                            Decimal(str(getattr(_customer, "discount_percent", 0) or 0)) > 0:
+                        discount = (unit_price * _line_qty * Decimal(str(_customer.discount_percent)) / Decimal("100")).quantize(Decimal("0.01"))
+                elif _unit_ctx["price_overridden"]:
+                    _unit_level_price = Decimal(str(item_d.unit_price))
+                else:
+                    _unit_level_price = (unit_price * _unit_ctx["ratio"]).quantize(Decimal("0.0001"))
+            discount, _promo_id, _promo_disc = _pricing_ctx.apply(_price_item, unit_price, discount)
+            if _unit_ctx is not None:
+                _line_gross = (_unit_level_price * _unit_ctx["unit_qty"]).quantize(Decimal("0.01"))
+            else:
+                _line_gross = unit_price * _line_qty
+            if discount > _line_gross:
                 raise HTTPException(
                     status_code=400,
                     detail=f"'{product.name}' uchun chegirma ({discount}) narxdan oshib ketdi",
                 )
-            subtotal = (unit_price * item_d.quantity) - discount
+            subtotal = _line_gross - discount
+            if _unit_ctx is not None:
+                subtotal = subtotal.quantize(Decimal("0.01"))
             
             item_currency_code = getattr(item_d, "currency_code", "UZS")
             item_exchange_rate = getattr(item_d, "exchange_rate", Decimal("1.0"))
@@ -295,6 +462,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 ProductConversion.sell_product_id == product.id
             ).first()
             cost_price = product.cost_price
+            source = None
             if conversion:
                 source = db.query(Product).filter(Product.id == conversion.source_product_id).first()
                 if source:
@@ -303,7 +471,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             # Sotuv "completed" ga o'tayotgan bo'lsa markirovka to'liq skanerlanganini
             # tekshiramiz — pending (qoralama) holatda hali majburiy emas.
             if final_status != SaleStatus.pending:
-                marking_codes = _resolve_marking_codes(product, item_d)
+                marking_codes = _resolve_marking_codes(product, item_d, _unit_ctx)
             else:
                 marking_codes = [c for c in (getattr(item_d, "marking_codes", None) or []) if c and c.strip()]
 
@@ -321,7 +489,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             sale_items_data.append({
                 "product": product,
                 "variant_id": variant_id,
-                "quantity": item_d.quantity,
+                "quantity": _line_qty,   # CD.1: unit_id bo'lsa asosiy birlikda
                 "unit_price": unit_price,
                 "cost_price": cost_price,
                 "discount": discount,
@@ -332,6 +500,11 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 "marking_codes": marking_codes,
                 "promotion_id": _promo_id,
                 "promotion_discount": _promo_disc,
+                "conversion": conversion if source is not None else None,
+                "source_product": source,
+                "unit_ctx": _unit_ctx,
+                "unit_level_price": _unit_level_price,
+                "marking_open_box": _is_open_box_line(_unit_ctx) and bool(product.requires_marking),
             })
             total_amount += (subtotal * item_exchange_rate)
 
@@ -339,6 +512,23 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         paid_amount = data.paid_amount if data.paid_amount is not None else old_paid_amount
         paid_cash = data.paid_cash if data.paid_cash is not None else old_paid_cash
         paid_card = data.paid_card if data.paid_card is not None else old_paid_card
+
+        # CD.1: dorixona — retsept tekshiruvi (kutilayotgandan tasdiqlashda yoki so'rovda retsept berilganda) va markirovka
+        # kodlari (eski kodlar yuqorida in_stock ga qaytarilgan); yozishdan OLDIN, xatoda 400
+        _rx_rows, _mk_plan = [], {}
+        if _ph_ctx[0] and final_status != SaleStatus.pending:
+            _wants_rx = _old_status == SaleStatus.pending or bool(data.prescriptions) or bool(data.rx_override_reason)
+            if _wants_rx:
+                _rx_rows, _ = _prepare_prescriptions(
+                    db, data, sale_items_data, sale.company_id, _ph_ctx, tashkent_today(),
+                )
+            from app.routers.pharmacy_marking import plan_sale_marking
+            _mk_plan = plan_sale_marking(db, sale.company_id, [
+                (_i, _d["product"], _d.get("source_product"), [] if _d.get("marking_open_box") else _d["marking_codes"])
+                for _i, _d in enumerate(sale_items_data)
+            ])
+        _new_items = []
+        _unit_rows = []
 
         for sid in sale_items_data:
             item_wh = sid.get("item_warehouse_id") or wh_id
@@ -360,13 +550,34 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 promotion_discount=sid.get("promotion_discount"),
             )
             db.add(new_item)
+            _new_items.append(new_item)
             if final_status != SaleStatus.pending:
                 # Variant, qator ombori, partiya (FIFO) va SaleItemBatch — create_sale bilan bir xil
                 db.flush()
                 deduct_sale_item(
                     db, sale, new_item, current_user, allow_negative_stock,
-                    reason=f"Sotuv tahrirlash (sale #{sale_id})",
+                    reason=f"Sotuv tahrirlash (sale #{sale_id})", pharmacy_ctx=_ph_ctx,
                 )
+            if sid.get("unit_ctx") is not None:
+                _unit_rows.append((new_item, sid["unit_ctx"], sid.get("unit_level_price")))
+
+        db.flush()
+        # CD.1: qaysi birlikda sotilgani (D2.4), kodlar sold (D3.2), retseptlar (D2.5)
+        for _ni, _uc, _base_price in _unit_rows:
+            db.add(SaleItemUnit(
+                sale_item_id=_ni.id, company_id=sale.company_id, unit_id=_uc["unit"].id,
+                unit_name=_uc["unit"].name, unit_ratio=_uc["ratio"], unit_qty=_uc["unit_qty"],
+                unit_price=(Decimal(str(_base_price)).quantize(Decimal("0.0001")) if _base_price is not None else None),
+            ))
+        if _mk_plan:
+            from app.routers.pharmacy_marking import apply_sale_marking
+            apply_sale_marking(_mk_plan, {_i: _ni.id for _i, _ni in enumerate(_new_items)})
+        if _rx_rows:
+            db.query(SalePrescription).filter(SalePrescription.sale_id == sale.id).delete(synchronize_session=False)
+            _by_pid = {}
+            for _ni in _new_items:
+                _by_pid.setdefault(_ni.product_id, _ni.id)
+            _write_prescriptions(db, sale, _rx_rows, _by_pid)
 
         if new_customer_id and final_status != SaleStatus.pending:
             # T0.26: mijoz qatori qulflanadi; yangi mijozga o'tishda arxivlangan mijoz — 400,
@@ -557,6 +768,23 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         unconfirming = old_status == SaleStatus.completed and new_status == SaleStatus.pending
         cancelling_completed = old_status == SaleStatus.completed and new_status == SaleStatus.cancelled
 
+        # D1.2: dorixona rejimida pending -> completed (qoldiq shu yerda yechiladigan holat): yaroqli partiyalar
+        # yetarliligi mijoz qarzi/to'lov yozuvlaridan OLDIN tekshiriladi. `pharmacy_context` bir marta.
+        _ph_ctx = (False, {})
+        _confirm_items, _confirm_rx, _confirm_mk = [], [], {}
+        if confirming:
+            _ph_ctx = pharmacy_context(db, sale.company_id)
+            _ph_stage = getattr(_neg_company, "stock_deduct_stage", "order_confirmed") or "order_confirmed"
+            if _ph_ctx[0] and not (getattr(sale, "delivery", None) is not None and _ph_stage in ("loaded", "delivered")):
+                _pending_items = db.query(SaleItem).filter(SaleItem.sale_id == sale.id).all()
+                _pharmacy_check_lines(db, sale, [
+                    (it.product, it.variant_id, it.warehouse_id, it.quantity) for it in _pending_items
+                ], _ph_ctx)
+            if _ph_ctx[0]:
+                # CD.1: dorixona — retsept tekshiruvi va markirovka kodlari (yozishdan OLDIN; xatoda 400)
+                _confirm_items = db.query(SaleItem).filter(SaleItem.sale_id == sale.id).order_by(SaleItem.id).all()
+                _confirm_rx, _confirm_mk = _confirm_rx_and_marking(db, sale, data, _ph_ctx, _confirm_items)
+
         _paid_delta = Decimal("0")
         if data.paid_amount is not None:
             _paid_delta = Decimal(str(data.paid_amount)) - Decimal(str(sale.paid_amount or 0))
@@ -693,6 +921,14 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         _delivery = getattr(sale, "delivery", None)
         _has_delivery = _delivery is not None
         if confirming:
+            if _confirm_mk:
+                from app.routers.pharmacy_marking import apply_sale_marking
+                apply_sale_marking(_confirm_mk, {_i: _it.id for _i, _it in enumerate(_confirm_items)})   # CD.1: kodlar sold
+            if _confirm_rx:
+                _by_pid = {}
+                for _it in _confirm_items:
+                    _by_pid.setdefault(_it.product_id, _it.id)
+                _write_prescriptions(db, sale, _confirm_rx, _by_pid)
             from app.models.company import Company
             _comp = db.query(Company).filter(Company.id == sale.company_id).first()
             _stage = getattr(_comp, "stock_deduct_stage", "order_confirmed") or "order_confirmed"
@@ -702,7 +938,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 for item in db.query(SaleItem).filter(SaleItem.sale_id == sale.id).all():
                     deduct_sale_item(
                         db, sale, item, current_user, allow_negative_stock,
-                        reason=f"Sotuv tasdiqlandi (sale #{sale.id})",
+                        reason=f"Sotuv tasdiqlandi (sale #{sale.id})", pharmacy_ctx=_ph_ctx,
                     )
                 if _has_delivery:
                     _delivery.stock_deducted = True
@@ -715,11 +951,15 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             # Nisbiy qaytarish (absolyut qty_before emas — oradagi boshqa sotuvlar saqlanadi)
             restore_sale_stock(db, sale)
             restore_sale_batches(db, sale)
+            if pharmacy_context(db, sale.company_id)[0]:
+                _release_sale_marking(db, sale)   # CD.1: kodlar omborga qaytadi
             if _has_delivery and _had_sale_stock:
                 _delivery.stock_deducted = False
         elif cancelling_completed:
             # To'liq teskari: qoldiq, partiya, mijoz qarzi/loyalligi, Transaction va kassa
             cancel_sale_effects(db, sale, current_user, _cancel_customer)
+            if pharmacy_context(db, sale.company_id)[0]:
+                _release_sale_marking(db, sale)   # CD.1: bekor qilingan sotuv kodlari omborga qaytadi
 
         # To'lov oshgan bo'lsa (masalan buyurtma to'lov bilan tasdiqlandi) — kassaga tushadi:
         # SalePayment, Transaction va KassaMovement (smena ham, kassa X-hisoboti ham ko'radi)

@@ -23,6 +23,24 @@ import { isPageAllowed } from '../utils/permissions';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 
+// Sidebar havolasi foydalanuvchiga ko'rinadimi: modul (feature) yoqilganmi, huquqlar (user.permissions) va rol.
+// permKey — route segmenti (masalan 'ombor'); `false` aniq belgilangan bo'lsa yopiladi (ombor <-> warehouse alias bilan),
+// `true` aniq belgilangan bo'lsa rol ro'yxatidan qat'i nazar ochiladi.
+function isNavLinkVisible(user, link, features) {
+  if (!user) return false;
+  if (link.feature && !features?.[link.feature]) return false;
+  if (user.role === 'super_admin') return true;
+
+  const permKey = link.path.split('?')[0].split('/').pop();
+  if (user.permissions && Object.keys(user.permissions).length > 0) {
+    if (!isPageAllowed(user, permKey)) return false;
+    if (user.permissions[permKey] !== undefined) {
+      return user.permissions[permKey] === true;
+    }
+  }
+  return !link.roles || link.roles.includes(user.role);
+}
+
 function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
   return [
     {
@@ -127,6 +145,14 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
           icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
         },
+        // D4.6: Dorixona markazi — faqat dorixona moduli yoqilgan korxonada (feature: 'pharmacy')
+        {
+          name: t('nav.pharmacy') || 'Dorixona',
+          path: '/admin/pharmacy',
+          feature: 'pharmacy',
+          roles: ROLE_GROUPS.OPS_ACCESS,
+          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>,
+        },
       ],
     },
     {
@@ -200,7 +226,7 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
       label: t('nav.access_group') || 'Xodimlar & Ruxsatlar',
       primaryPath: '/admin/settings?tab=users',
       icon: <Users className="w-[20px] h-[20px]" />,
-      roles: ROLE_GROUPS.MANAGEMENT,
+      roles: ROLE_GROUPS.POS_ACCESS,
       links: [
         {
           name: t('nav.users') || 'Foydalanuvchilar',
@@ -217,7 +243,7 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
         {
           name: t('approvals.title') || 'Tasdiqlashlar',
           path: '/admin/approvals',
-          roles: ROLE_GROUPS.MANAGEMENT,
+          roles: ROLE_GROUPS.POS_ACCESS,
           icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
           badge: approvalsCount > 0 ? String(approvalsCount) : null,
         },
@@ -605,7 +631,8 @@ export default function AdminLayout() {
           {navGroups.map((group) => {
             if (!user) return null;
             if (group.feature && !features?.[group.feature]) return null;
-            if (user.role !== 'super_admin' && group.roles && !group.roles.includes(user.role)) return null;
+            // Guruh — kamida bitta havolasi ko'rinsagina (rol + huquq filtri havola darajasida)
+            if (!group.links.some((l) => isNavLinkVisible(user, l, features))) return null;
 
             // Check if any sub-link is active
             const isGroupActive = group.links.some((l) => {
@@ -625,6 +652,15 @@ export default function AdminLayout() {
                 className="relative"
               >
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isFlyoutOpen}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveFlyout(isFlyoutOpen ? null : group.key);
+                    }
+                  }}
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 group cursor-pointer ${
                     isGroupActive
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 font-bold'
@@ -773,8 +809,7 @@ export default function AdminLayout() {
                 /* STANDART GURUHLARNING HAVOLALARI */
                 <div className="space-y-0.5 px-2">
                   {activeGroup.links.map((link) => {
-                    if (link.feature && !features?.[link.feature]) return null;
-                    if (user.role !== 'super_admin' && link.roles && !link.roles.includes(user.role)) return null;
+                    if (!isNavLinkVisible(user, link, features)) return null;
 
                     const isActive = link.path.includes('?')
                       ? location.pathname === link.path.split('?')[0] && location.search.includes(link.path.split('?')[1])

@@ -877,11 +877,14 @@ function DrawerPackagesPanel({ companyId }) {
     manufacturing: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
     distribution: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z',
     delivery_automation: 'M13 10V3L4 14h7v7l9-11h-7z',
+    // D1.1b: Dorixona (kapsula)
+    pharmacy: 'M10.5 20.5a5 5 0 01-7.07-7.07l10-10a5 5 0 017.07 7.07l-10 10zM8.5 8.5l7 7',
   };
   const PKG_COLORS = {
     manufacturing: { bg: 'from-amber-50 to-orange-50', border: 'border-amber-200', icon: 'bg-amber-100 text-amber-700', active: 'bg-amber-500' },
     distribution: { bg: 'from-blue-50 to-sky-50', border: 'border-blue-200', icon: 'bg-blue-100 text-blue-700', active: 'bg-blue-500' },
     delivery_automation: { bg: 'from-violet-50 to-purple-50', border: 'border-violet-200', icon: 'bg-violet-100 text-violet-700', active: 'bg-violet-500' },
+    pharmacy: { bg: 'from-emerald-50 to-teal-50', border: 'border-emerald-200', icon: 'bg-emerald-100 text-emerald-700', active: 'bg-emerald-500' },
   };
 
   if (loading) return (

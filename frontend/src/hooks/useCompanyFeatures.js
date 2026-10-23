@@ -11,8 +11,9 @@ let inflight = null;
 function load() {
   if (!inflight) {
     inflight = api.get('/companies/me/features', { _silent: true })
-      .then(r => { cache = r.data; return cache; })
-      .catch(() => { cache = { manufacturing: false, distribution: false, require_shift: false }; return cache; })
+      // D1.1b: dorixona maydonlari doim mavjud (eski server javobida bo'lmasa — o'chiq modul)
+      .then(r => { cache = { pharmacy: false, pharmacy_settings: {}, ...r.data }; return cache; })
+      .catch(() => { cache = { manufacturing: false, distribution: false, require_shift: false, pharmacy: false, pharmacy_settings: {} }; return cache; })
       .finally(() => { inflight = null; window.dispatchEvent(new Event(EVENT)); });
   }
   return inflight;
@@ -23,7 +24,7 @@ export function refreshCompanyFeatures() {
   return load();
 }
 
-/** null — hali yuklanmoqda; keyin { manufacturing, distribution, marketplace_agents, require_shift } */
+/** null — hali yuklanmoqda; keyin { manufacturing, distribution, marketplace_agents, require_shift, pharmacy, pharmacy_settings } */
 export default function useCompanyFeatures() {
   const [features, setFeatures] = useState(cache);
   useEffect(() => {

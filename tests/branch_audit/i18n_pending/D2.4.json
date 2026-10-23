@@ -1,0 +1,17 @@
+{
+  "uz": {
+    "purchase.phUnit": "Birlik (quti, blister, dona)",
+    "purchase.phUnitBase": "asosiy birlik",
+    "purchase.phUnitConverted": "Omborga asosiy birlikda kiradi"
+  },
+  "ru": {
+    "purchase.phUnit": "Единица (упаковка, блистер, штука)",
+    "purchase.phUnitBase": "основная единица",
+    "purchase.phUnitConverted": "На склад поступит в основных единицах"
+  },
+  "en": {
+    "purchase.phUnit": "Unit (box, blister, piece)",
+    "purchase.phUnitBase": "base unit",
+    "purchase.phUnitConverted": "Will be received into stock as base units"
+  }
+}

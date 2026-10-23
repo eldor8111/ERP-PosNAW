@@ -61,9 +61,12 @@ def test_payment_reconciliation_route():
 
 # 5. T3.18 — sozlamalar menyusida payment_terminals
 def test_settings_menu_payment_terminals():
-    s = read("constants/settingsMenus.jsx")
-    assert "id: 'payment_terminals'" in s
-    assert "id: 'payment_reconciliation'" in s and "/admin/payment-reconciliation" in s
+    # 344afc9 (jamoa qarori): to'lov terminallari va solishtirish sozlamalar menyusidan asosiy menyuning
+    # "Moliya" guruhiga ko'chirildi; Settings.jsx dagi tab o'zgarishsiz qoladi
+    s = read("components/AdminLayout.jsx")
+    assert "path: '/admin/settings?tab=payment_terminals'" in s
+    assert "path: '/admin/payment-reconciliation'" in s
+    assert "id: 'payment_terminals'" not in read("constants/settingsMenus.jsx")
     # Settings.jsx da tab allaqachon tayyor
     assert "tab === 'payment_terminals'" in read("pages/admin/Settings.jsx")
 

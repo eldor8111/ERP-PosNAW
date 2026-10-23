@@ -71,3 +71,7 @@ from .warehouse_stock_setting import WarehouseStockSetting  # type: ignore  # T4
 from .sales_target import SalesTarget  # type: ignore  # T4.7: filial/sotuvchi oylik savdo rejasi
 from .employee_commission import EmployeeCommission  # type: ignore  # T4.7: sotuvchi komissiya stavkasi
 from .approval import ApprovalRule, ApprovalRequest  # type: ignore  # T4.6: tasdiqlash qoidalari
+from .product_pharma import ProductPharma, PharmaSubstance, ProductSubstance  # type: ignore  # D2.1: dori ma'lumotlari
+from .prescription import SalePrescription  # type: ignore  # D2.5: retsept ma'lumotlari
+from .marking_code import MarkingCode  # type: ignore  # D3.2: markirovka kodlari
+from .product_units import ProductUnit, SaleItemUnit  # type: ignore  # D2.4: quti/blister/dona birliklari

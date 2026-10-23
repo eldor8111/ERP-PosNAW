@@ -19,6 +19,8 @@ from app.services.sale_helpers import (
     validate_sale_warehouse,
 )
 from app.services.loyalty_service import get_loyalty_rules, reverse_sale_loyalty, returned_ratio
+from app.services.pharmacy import pharmacy_context  # D1.4: dorixona rejimida asl partiyaga qaytarish
+from app.services.sale_return import plan_pharmacy_batch_return, apply_pharmacy_batch_return
 from app.services.tenant_guards import find_tx_branch
 from app.services.wallet_resolver import resolve_wallet, NEGATIVE_BALANCE_WARNING
 import datetime
@@ -46,6 +48,11 @@ def process_partial_return(
     fallback_warehouse_id = None
     if data.warehouse_id:
         fallback_warehouse_id = validate_sale_warehouse(db, current_user, data.warehouse_id).id
+
+    # D1.4: dorixona moduli yoqilgan korxonada qaytgan tovar aynan sotilgan partiyaga qaytadi
+    pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
+    batch_used = {}
+    marking_used = set()   # CD.1/D3.2: bir so'rovda bir kod ikki marta qaytmasin
 
     sale_currency = original_sale.currency.code if original_sale.currency else "UZS"
     exchange_rate = Decimal(str(original_sale.exchange_rate or "1.0")) or Decimal("1")
@@ -103,7 +110,34 @@ def process_partial_return(
                     detail=f"'{sale_item.product.name}' uchun konversiya topilmadi",
                 )
 
-        
+        # D1.4: dorixona rejimida partiya rejasi (yozishdan oldin; asl ajratma yo'q bo'lsa seriya/muddat majburiy, aks holda 400)
+        batch_plan = None
+        if pharmacy_on and sale_item.product is not None and sale_item.product.product_type != "service":
+            _ratio = Decimal(str(conversion.ratio)) or Decimal("1") if conversion is not None else Decimal("1")
+            batch_plan = plan_pharmacy_batch_return(
+                db, sale_item, qty_to_return * _ratio, _ratio, batch_used, ret_item, sale_item.product,
+            )
+
+        # CD.1/D3.2: dorixona rejimida markirovkali dori kodlari (sold -> in_stock); to'liq qaytarishdagi (sale_return) qoida
+        marking_rows = []
+        if pharmacy_on and sale_item.product is not None and sale_item.product.requires_marking:
+            from app.models.product import Product as _Product
+            from app.models.product_units import SaleItemUnit as _SIU
+            from app.routers.pharmacy_marking import plan_return_marking
+            _codes_qty = qty_to_return
+            _siu = db.query(_SIU).filter(_SIU.sale_item_id == sale_item.id).first()
+            if _siu is not None and Decimal(str(_siu.unit_ratio or 0)) > 0:
+                # Qutida sotilgan qator: kod har bir quti uchun — qaytarilayotgan quti soni (butun)
+                from app.services.sale_stock import pack_ratio_of
+                _pack = pack_ratio_of(db, sale_item.product_id, current_user.company_id)
+                _codes_qty = (qty_to_return // _pack) if _pack else Decimal("0")
+            marking_rows = plan_return_marking(
+                db, current_user.company_id, product=sale_item.product,
+                source=db.get(_Product, conversion.source_product_id) if conversion is not None else None,
+                original_item=sale_item, codes=getattr(ret_item, "marking_codes", None), qty=_codes_qty,
+                used_ids=marking_used,
+            )
+
         returned_items_info.append(f"{sale_item.product.name} ({qty_to_return} ta)")
         
         # Yangi return document (Sale) uchun item yaratamiz
@@ -120,7 +154,9 @@ def process_partial_return(
             'subtotal': refund_value,
             'currency_code': sale_item.currency_code or "UZS",
             'exchange_rate': item_rate,
-            'product': sale_item.product
+            'product': sale_item.product,
+            'batch_plan': batch_plan,
+            'marking_rows': marking_rows,
         })
 
     # 2. Yangi Return hujjatini (Sale ob'ektini) yaratamiz.
@@ -232,12 +268,18 @@ def process_partial_return(
             subtotal=item_data['subtotal'],
             currency_code=item_data['currency_code'],
             exchange_rate=item_data['exchange_rate'],
+            marking_codes=[r.code for r in item_data.get('marking_rows') or []] or None,
         ))
-        
+        if item_data.get('marking_rows'):
+            from app.routers.pharmacy_marking import apply_return_marking
+            apply_return_marking(item_data['marking_rows'], item_data['warehouse_id'])   # CD.1/D3.2
+
         product = item_data['product']
         conversion = item_data['conversion']
+        batch_plan = item_data.get('batch_plan')
         if conversion is not None:
             ratio = Decimal(str(conversion.ratio)) or Decimal("1")
+            # D1.4: dorixona rejimida purchase_price berilmaydi — qoldiq oshadi, partiyani esa pastda asl partiyalarga yozamiz
             receive_stock(
                 db=db,
                 product_id=conversion.source_product_id,
@@ -247,9 +289,15 @@ def process_partial_return(
                 reference_type="sale_refund",
                 reference_id=return_sale.id,
                 warehouse_id=item_data['warehouse_id'],
-                purchase_price=Decimal(str(item_data['cost_price'] or 0)) / ratio,
-                company_id=current_user.company_id,
+                purchase_price=None if batch_plan is not None else Decimal(str(item_data['cost_price'] or 0)) / ratio,
+                company_id=None if batch_plan is not None else current_user.company_id,
             )
+            if batch_plan is not None:
+                apply_pharmacy_batch_return(
+                    db, batch_plan, product_id=conversion.source_product_id, variant_id=None,
+                    warehouse_id=item_data['warehouse_id'], company_id=current_user.company_id,
+                    purchase_price=Decimal(str(item_data['cost_price'] or 0)) / ratio,
+                )
         elif product and product.product_type != "service":
             receive_stock(
                 db=db,
@@ -260,10 +308,16 @@ def process_partial_return(
                 reference_type="sale_refund",
                 reference_id=return_sale.id,
                 warehouse_id=item_data['warehouse_id'],
-                purchase_price=item_data['cost_price'],
-                company_id=current_user.company_id,
+                purchase_price=None if batch_plan is not None else item_data['cost_price'],
+                company_id=None if batch_plan is not None else current_user.company_id,
                 variant_id=item_data['variant_id'],
             )
+            if batch_plan is not None:
+                apply_pharmacy_batch_return(
+                    db, batch_plan, product_id=item_data['product_id'], variant_id=item_data['variant_id'],
+                    warehouse_id=item_data['warehouse_id'], company_id=current_user.company_id,
+                    purchase_price=item_data['cost_price'],
+                )
 
     # 4. Moliya / Qarzni to'g'rilash (Yangi return hujjatiga bog'langan holda)
     customer = None

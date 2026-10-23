@@ -293,7 +293,9 @@ def test_settings_menus_use_t_for_every_id():
     src = _read('constants', 'settingsMenus.jsx')
     assert 'getSettingsMenus = (t) =>' in src
     ids = re.findall(r"id: '([\w-]+)'", src)
-    assert len(ids) >= 14
+    # 344afc9 (jamoa qarori): foydalanuvchilar/rollar/filiallar/terminallar asosiy menyuga ko'chirildi,
+    # sozlamalar menyusida 7 ta bo'lim qoldi (general, password, currencies, fiskal, receipt, tgbot, api)
+    assert len(ids) >= 7
     p = _pending()
     for i in ids:
         assert f"t('settings.menu.{i}')" in src

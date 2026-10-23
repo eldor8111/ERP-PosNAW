@@ -402,6 +402,9 @@ def _run_auto_migrations(engine):
         "ALTER TABLE customers ADD COLUMN IF NOT EXISTS receipt_format VARCHAR(20) DEFAULT NULL;",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS receipt_format VARCHAR(20) DEFAULT 'text';",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS tg_protect_content BOOLEAN DEFAULT FALSE;",
+        # D1.1: Dorixona moduli
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS pharmacy_enabled BOOLEAN NOT NULL DEFAULT FALSE;",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS pharmacy_settings JSON;",
         "UPDATE customers SET receipt_format = NULL WHERE receipt_format = 'text';",
     ]
     _sa_text = __import__('sqlalchemy').text
@@ -504,6 +507,15 @@ def _seed_default_feature_packages():
                 'bhm_percent': 10.0,
                 'price_per_month': 44000,
                 'sort_order': 3
+            },
+            {
+                'code': 'pharmacy',
+                'name': 'Dorixona',
+                'description': "Seriya va yaroqlilik muddati nazorati, muddati o'tgan dorini bloklash, "
+                               "ta'sir etuvchi modda va analoglar, retseptli sotuv, dorixona hisobotlari",
+                'bhm_percent': 25.0,
+                'price_per_month': 110000,
+                'sort_order': 4
             }
         ]
         for p in pkgs:
@@ -572,6 +584,7 @@ async def lifespan(app: FastAPI):
     _backfill_customer_debt_log(engine)
     # 4. Standart paketlar
     _seed_default_feature_packages()
+    _pharmacy_catalog.seed_pharma_substances()  # D2.1: umumiy dori moddalari (idempotent)
     # T3.15: scheduler va admin bot polling ko'p worker'da faqat bitta "rahbar" jarayonda ishlaydi
     # (background_leases ijarasi). RUN_BACKGROUND_JOBS=0 — web jarayon ularni ishga tushirmaydi
     # (alohida `python -m app.worker` jarayoni bajaradi).
@@ -766,6 +779,24 @@ app.include_router(_branch_plans_router.router, prefix=API_PREFIX)  # T4.7: fili
 app.include_router(_staff_reports_router.router, prefix=API_PREFIX)  # T4.7: ish soati va komissiya hisobotlari
 from app.routers import approvals as _approvals_router  # noqa: E402  # T4.6
 app.include_router(_approvals_router.router, prefix=API_PREFIX)  # T4.6: tasdiqlash qoidalari va so'rovlari
+from app.routers import pharmacy_catalog as _pharmacy_catalog  # noqa: E402  # D2.1
+app.include_router(_pharmacy_catalog.router, prefix=API_PREFIX)  # D2.1: dori moddalari ma'lumotnomasi
+from app.routers import pharmacy_defektura as _pharmacy_defektura_router  # noqa: E402  # D4.3
+app.include_router(_pharmacy_defektura_router.router, prefix=API_PREFIX)  # D4.3: defektura va buyurtma tavsiyasi
+from app.routers import pharmacy_reports as _pharmacy_reports_router  # noqa: E402  # D4.1
+app.include_router(_pharmacy_reports_router.router, prefix=API_PREFIX)  # D4.1: muddat hisoboti va dalolatnoma
+from app.routers import pharmacy_analytics as _pharmacy_analytics_router  # noqa: E402  # D4.5
+app.include_router(_pharmacy_analytics_router.router, prefix=API_PREFIX)  # D4.5: modda/ishlab chiqaruvchi/ustama tahlili
+from app.routers import pharmacy_batches as _pharmacy_batches_router  # noqa: E402  # D3.3
+app.include_router(_pharmacy_batches_router.router, prefix=API_PREFIX)  # D3.3: partiya holatlari (karantin/brak/qaytarib olingan)
+from app.routers import pharmacy_marking as _pharmacy_marking_router  # noqa: E402  # D3.2
+app.include_router(_pharmacy_marking_router.router, prefix=API_PREFIX)  # D3.2: markirovka kodlari (kirim, sotuv, qaytarish)
+from app.routers import pharmacy_journals as _pharmacy_journals_router  # noqa: E402  # D4.4
+app.include_router(_pharmacy_journals_router.router, prefix=API_PREFIX)  # D4.4: nazoratdagi dorilar va retsept jurnallari
+from app.routers import pharmacy_recall as _pharmacy_recall_router  # noqa: E402  # D4.2
+app.include_router(_pharmacy_recall_router.router, prefix=API_PREFIX)  # D4.2: seriya kuzatuvi va qaytarib olish
+from app.routers import pharmacy_units as _pharmacy_units_router  # noqa: E402  # D2.4
+app.include_router(_pharmacy_units_router.router, prefix=API_PREFIX)  # D2.4: quti/blister/dona birliklari
 
 # Serve uploaded static files
 import os

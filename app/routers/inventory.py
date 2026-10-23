@@ -935,6 +935,8 @@ def receive_goods(
     from app.models.batch import Batch
     from app.models.supplier import Supplier
     from app.services import supplier_ledger as ledger
+    from app.services.document_numbers import tashkent_today
+    from app.services.pharmacy import pharmacy_context
 
     cid = current_user.company_id
     wh_q = db.query(Warehouse).filter(Warehouse.company_id == cid, Warehouse.is_active == True)
@@ -961,8 +963,50 @@ def receive_goods(
         if not supplier:
             raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
 
+    # D1.3: dorixona rejimida seriya va yaroqlilik muddati majburiy (faqat modul yoqilgan korxonada)
+    pharm_on, _pharm_settings = pharmacy_context(db, cid)
+    _rcv_warnings: list = []
+    if pharm_on:
+        today = tashkent_today()
+        from app.services.purchase_order_service import _check_pharmacy_lots
+        from app.models.marking_code import MarkingCode
+        from app.routers.pharmacy_marking import canonical_code
+        _seen_codes: set = set()
+        for n, item in enumerate(data.items, 1):
+            pname = db.query(Product.name).filter(
+                Product.id == item.product_id, Product.company_id == cid, Product.is_deleted == False,
+            ).scalar()
+            if pname is None:
+                raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi: {item.product_id}")
+            label = f"{n}-qator '{pname}'"
+            if not (item.lot_number or "").strip():
+                raise HTTPException(status_code=400, detail=f"{label}: seriya raqami majburiy (dorixona rejimi)")
+            if item.expiry_date is None:
+                raise HTTPException(status_code=400, detail=f"{label}: yaroqlilik muddati majburiy (dorixona rejimi)")
+            if item.expiry_date < today:
+                raise HTTPException(status_code=400, detail=f"{label}: yaroqlilik muddati o'tgan ({item.expiry_date:%d.%m.%Y})")
+            # CD.1: ishlab chiqarilgan sana bo'lsa — D1.3 (xarid qabuli) dagi qoida: qolgan muddat foizi < min_shelf_life_pct
+            # bo'lsa ogohlantirish (rad etmaydi); sana muddatdan keyin bo'lsa 400
+            _check_pharmacy_lots(
+                label, [(item.lot_number, item.expiry_date, item.manufacture_date, item.quantity)],
+                _pharm_settings, today, _rcv_warnings,
+            )
+            # CD.1/D3.2: markirovka kodi allaqachon ro'yxatda bo'lsa — qo'lda kirimda 400 (yozishdan oldin)
+            if item.marking_codes and db.query(Product.requires_marking).filter(Product.id == item.product_id).scalar():
+                for raw in item.marking_codes:
+                    if not (raw or "").strip():
+                        continue
+                    canon, _p = canonical_code(raw)
+                    if canon in _seen_codes:
+                        raise HTTPException(status_code=400, detail=f"{label}: kod takrorlangan — {canon}")
+                    _seen_codes.add(canon)
+                    if canon and db.query(MarkingCode.id).filter(
+                        MarkingCode.company_id == cid, MarkingCode.code == canon,
+                    ).first() is not None:
+                        raise HTTPException(status_code=400, detail=f"{label}: kod allaqachon ro'yxatda — {canon}")
+
     movements = []
-    for item in data.items:
+    for _n, item in enumerate(data.items, 1):
         product = db.query(Product).filter(
             Product.id == item.product_id, Product.company_id == cid, Product.is_deleted == False,
         ).first()
@@ -984,13 +1028,25 @@ def receive_goods(
             product.cost_price = unit_uzs if cur == "UZS" else round(unit_uzs / rate, 4)
         else:
             unit_uzs = Decimal(str(product.cost_price or 0)) * rate
-        db.add(Batch(
+        new_batch = Batch(
             product_id=product.id, variant_id=item.variant_id, warehouse_id=warehouse.id,
             lot_number=item.lot_number or (f"manual-{supplier.id}" if supplier else "manual"),
             expiry_date=dt.combine(item.expiry_date, dt.min.time()) if item.expiry_date else None,
+            manufacture_date=dt.combine(item.manufacture_date, dt.min.time()) if (pharm_on and item.manufacture_date) else None,
             initial_quantity=item.quantity, quantity=item.quantity, purchase_price=unit_uzs,
             company_id=cid,
-        ))
+        )
+        db.add(new_batch)
+        if pharm_on and product.requires_marking and item.marking_codes:
+            # CD.1/D3.2: kodlar shu partiyaga in_stock bo'lib yoziladi (received_po_id bo'sh), kirim bilan bir tranzaksiyada
+            from types import SimpleNamespace
+            from app.routers.pharmacy_marking import register_receipt_codes
+            db.flush()
+            register_receipt_codes(
+                db, po=SimpleNamespace(id=None, company_id=cid, warehouse_id=warehouse.id), product=product,
+                codes=item.marking_codes, batches=[new_batch], label=f"{_n}-qator '{product.name}'",
+                warnings=_rcv_warnings, expected_qty=item.quantity, warehouse_id=warehouse.id,
+            )
         movements.append({"product_id": product.id, "variant_id": item.variant_id,
                           "qty_added": str(item.quantity), "new_qty": str(m.qty_after)})
 
@@ -1000,8 +1056,11 @@ def receive_goods(
         branch_id=warehouse.branch_id,
     )
     db.commit()
-    return {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements,
-            "warehouse_id": warehouse.id}
+    result = {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements,
+              "warehouse_id": warehouse.id}
+    if pharm_on:
+        result["warnings"] = _rcv_warnings  # D1.3/CD.1: qolgan muddat foizi, markirovka kodlari ogohlantirishlari
+    return result
 
 
 @router.post("/return-from-customer")

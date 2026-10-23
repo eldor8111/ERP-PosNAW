@@ -627,7 +627,10 @@ def test_frontend_alerts_layout_profile_products():
     al = _read('frontend/src/pages/admin/Alerts.jsx')
     assert "/inventory/low-stock'" in al and 'low_stock_only=true&limit=200' not in al and 'alert.byWarehouse' in al
     lay = _read('frontend/src/components/AdminLayout.jsx')
-    assert "link.path === '/admin/warehouse'" not in lay and "link.path === '/admin/alerts'" in lay
+    # 344afc9 (jamoa qarori): menyu guruhlarga bo'lindi; ogohlantirishlar nishoni link.badge orqali (eski
+    # `link.path === '/admin/alerts'` tarmog'i o'rniga), '/admin/warehouse' esa havolalarda yo'q
+    assert "link.path === '/admin/warehouse'" not in lay and "path: '/admin/warehouse'" not in lay
+    assert "path: '/admin/alerts'" in lay and "badge: alertsCount > 0" in lay
     assert 'lowStockCount + expiredCount' in lay
     pr = _read('frontend/src/pages/admin/Profile.jsx')
     assert 'fmtCurrency(c.totals)' in pr and 'fmt(c.total)' not in pr and 'c.cashier_id' in pr

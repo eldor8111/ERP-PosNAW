@@ -12,10 +12,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { getStoredLang, createTranslator } from '../i18n/index.js';
+import useCompanyFeatures from './useCompanyFeatures';
 
 import {
   PENDING_SALES_BASE, PENDING_RETURNS_BASE, queueKey, getPending, setPending,
-  getPendingPosCount, flushPosQueue, getCurrentUser,
+  getPendingPosCount, flushPosQueue, getCurrentUser, describeRejection,
 } from '../utils/posQueue';
 
 const CACHE_PRODUCTS_KEY = 'pos_cache_products';
@@ -82,6 +83,10 @@ export default function usePosSync({ onSyncSuccess } = {}) {
   const [syncing, setSyncing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const syncRef = useRef(false);
+  // D2.6: dorixona rejimida rad etilgan oflayn sotuv sababi (retsept / muddat / markirovka) aniq ko'rsatiladi
+  const features = useCompanyFeatures();
+  const pharmacyRef = useRef(false);
+  pharmacyRef.current = !!features?.pharmacy;
 
   // Pending count ni yangilab turish
   const refreshPendingCount = useCallback(() => {
@@ -110,6 +115,15 @@ export default function usePosSync({ onSyncSuccess } = {}) {
             // Oflayn navbatdagi amal menejer tasdig'ini talab qiladi — "tasdiq kerak" holati
             toast.error(
               `DIQQAT: oflayn ${label} uchun menejer tasdig'i kerak, shuning uchun yuborilmadi${detail.message ? `: ${detail.message}` : ''}. Amalni qayta kiriting va tasdiq so'rang.`,
+              { duration: 15000 }
+            );
+            return;
+          }
+          if (pharmacyRef.current && kind !== 'return') {
+            const why = describeRejection(detail);
+            const cat = { rx: 'RETSEPT', expiry: 'MUDDAT', marking: 'MARKIROVKA', stock: 'QOLDIQ' }[why.category];
+            toast.error(
+              `DIQQAT: oflayn ${label}${item?.localNumber ? ` (${item.localNumber})` : ''} server tomonidan RAD ETILDI va saqlanmadi${cat ? ` [${cat}]` : ''}: ${why.text}`,
               { duration: 15000 }
             );
             return;

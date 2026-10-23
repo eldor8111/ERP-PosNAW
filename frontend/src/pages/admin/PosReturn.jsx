@@ -7,6 +7,8 @@ import { getReceiptSettings, buildReceiptHtml, printReceiptHtml } from '../../ut
 import toast from 'react-hot-toast';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
 import { useApprovalFlow, ApprovalModal } from './Approvals'; // T4.6: menejer tasdig'i
+import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import { tOr } from '../../utils/shiftBalances';
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
@@ -67,6 +69,10 @@ function CustSearch({ customers, value, onChange, placeholder }) {
 
 export default function PosReturn() {
   const { t } = useLang();
+  const tf = (k, fb) => tOr(t, k, fb);
+  // D1.4: dorixona rejimida asl sotuvsiz qaytarishda har qator uchun seriya va muddat majburiy
+  const features = useCompanyFeatures();
+  const pharmacy = !!features?.pharmacy;
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -176,6 +182,9 @@ export default function PosReturn() {
   };
 
   const removeCartItem = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
+
+  const updateCartLot = (idx, field, val) =>
+    setCart(prev => prev.map((x, i) => (i === idx ? { ...x, [field]: val } : x)));
 
   // Global Barcode Listener
   useEffect(() => {
@@ -290,6 +299,13 @@ export default function PosReturn() {
   const submitSale = async (approvalId = null) => {
     if (!cart.length) { setErr(t('posReturn.cartEmptyError')); setTimeout(()=>setErr(''),3000); return; }
     if (!warehouseId) { setErr(t('posReturn.selectWarehouseError')); setTimeout(()=>setErr(''),3000); return; }
+    // D1.4: dorixona rejimida seriya va yaroqlilik muddati kiritilmagan qator bo'lsa yuborilmaydi
+    if (pharmacy && cart.some(c => !String(c.lot_number || '').trim() || !c.expiry_date)) {
+      setShowCheckout(false);
+      setErr(tf('pharmacyReturn.lotRequired', "Seriya raqami va yaroqlilik muddatini kiriting"));
+      setTimeout(()=>setErr(''),4000);
+      return;
+    }
 
     setIsPaying(true);
     setErr('');
@@ -321,6 +337,7 @@ export default function PosReturn() {
           quantity: c.qty_ordered,
           unit_price: c.unit_price,
           discount: c.discount_type === 'pct' ? c.unit_price * c.qty_ordered * (c.discount_val / 100) : c.discount_val * c.qty_ordered,
+          ...(pharmacy ? { lot_number: String(c.lot_number).trim(), expiry_date: c.expiry_date } : {}),
         })),
         payment_type: finalType,
         paid_amount: paidAmt,
@@ -486,6 +503,24 @@ export default function PosReturn() {
                     <span>×</span> 
                     <span>{item.qty_ordered} {item.unit}</span>
                   </div>
+                  {pharmacy && (
+                    <div className="flex gap-1.5 mt-1.5 pr-6">
+                      <input
+                        type="text"
+                        value={item.lot_number || ''}
+                        onChange={(e) => updateCartLot(idx, 'lot_number', e.target.value)}
+                        placeholder={tf('pharmacyReturn.lot', 'Seriya')}
+                        className="w-24 px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-blue-400"
+                      />
+                      <input
+                        type="date"
+                        value={item.expiry_date || ''}
+                        onChange={(e) => updateCartLot(idx, 'expiry_date', e.target.value)}
+                        title={tf('pharmacyReturn.expiry', 'Yaroqlilik muddati')}
+                        className="px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex flex-col items-end gap-1.5">

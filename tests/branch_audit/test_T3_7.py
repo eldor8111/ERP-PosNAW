@@ -335,7 +335,8 @@ def test_migration_file():
     assert "revision = 't3_7'" in src and "down_revision = 't2_12'" in src
     assert 'label_templates' in src and 'COALESCE(branch_id, 0)' in src
     assert 'ix_label_templates_company_kind' in src and 'uq_label_templates_scope' in src
-    assert "ondelete='CASCADE'" in src and "ondelete='SET NULL'" in src
+    # 6facd10: migratsiya idempotent xom SQL ga o'tkazilgan (ondelete= kwarg o'rniga REFERENCES ... ON DELETE ...)
+    assert 'ON DELETE CASCADE' in src and 'ON DELETE SET NULL' in src
 
 
 # ── 5. Frontend (manba matni bo'yicha) ──────────────────────────────────────────
@@ -366,8 +367,9 @@ def test_pos_receipts_use_server_number():
     assert 'Math.random' not in kassa and 'Math.random' not in desktop
     assert 'orderId' not in kassa and 'orderNum' not in desktop
     assert 'receiptPrintedThisAttempt' not in kassa
-    assert kassa.index('await submitSaleOrQueue(payload, false)') < kassa.index('printReceiptHtml(')
-    assert desktop.index('await submitSaleOrQueue(payload, false)') < desktop.index('printReceiptHtml(')
+    # D2.6: PosKassa uchinchi argument (dorixona rejimida { suppressToast }) uzatadi — chaqiruv ochiq qavs bilan tekshiriladi
+    assert kassa.index('await submitSaleOrQueue(payload, false') < kassa.index('printReceiptHtml(')
+    assert desktop.index('await submitSaleOrQueue(payload, false') < desktop.index('printReceiptHtml(')
     for src in (kassa, desktop):
         assert 'result?.localNumber' in src and 'saved?.number' in src and 'saved?.cashier_name' in src
         assert 'saved?.branch_name' in src and 'saved?.branch_address' in src and 'saved?.branch_phone' in src

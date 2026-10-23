@@ -50,6 +50,163 @@ STATUS_MAP = {
     "arxiv": "archived", "archived": "archived",
 }
 
+# ── D2.2: dorixona rejimidagi qo'shimcha ustunlar (faqat modul yoqilgan korxonada o'qiladi) ──
+PHARMA_COLUMNS = (
+    "Modda", "Doza", "Shakl", "Qadoqdagi soni", "Ishlab chiqaruvchi", "Mamlakat",
+    "Ro'yxat raqami", "Retseptli", "Nazorat toifasi",
+)
+
+_DOSAGE_FORM_ALIASES = {
+    "tablet": "tablet", "tabletka": "tablet", "tabletki": "tablet", "таблетка": "tablet", "таблетки": "tablet",
+    "capsule": "capsule", "kapsula": "capsule", "капсула": "capsule", "капсулы": "capsule",
+    "syrup": "syrup", "sirop": "syrup", "сироп": "syrup",
+    "injection": "injection", "inyeksiya": "injection", "ukol": "injection", "ампула": "injection", "инъекция": "injection",
+    "ointment": "ointment", "malham": "ointment", "мазь": "ointment",
+    "drops": "drops", "tomchi": "drops", "капли": "drops",
+    "powder": "powder", "kukun": "powder", "порошок": "powder",
+    "solution": "solution", "eritma": "solution", "раствор": "solution",
+    "suppository": "suppository", "sham": "suppository", "свечи": "suppository", "свеча": "suppository",
+    "other": "other", "boshqa": "other", "другое": "other",
+}
+_CONTROL_ALIASES = {
+    "none": "none", "yo'q": "none", "yoq": "none", "yo`q": "none", "yo‘q": "none", "-": "none", "нет": "none",
+    "potent": "potent", "kuchli": "potent", "kuchli ta'sir etuvchi": "potent", "сильнодействующие": "potent",
+    "psychotropic": "psychotropic", "psixotrop": "psychotropic", "психотропные": "psychotropic",
+    "narcotic": "narcotic", "giyohvand": "narcotic", "narkotik": "narcotic", "наркотические": "narcotic",
+    "precursor": "precursor", "prekursor": "precursor", "прекурсор": "precursor", "прекурсоры": "precursor",
+}
+_YES = {"ha", "yes", "true", "1", "+", "rx", "retseptli", "да", "y"}
+_NO = {"yo'q", "yoq", "yo`q", "yo‘q", "no", "false", "0", "-", "n", "нет", "retseptsiz"}
+
+
+def _cell(row: dict, key: str) -> str:
+    return str(row.get(key) if row.get(key) is not None else "").replace("\xa0", " ").strip()
+
+
+def _parse_pharma_row(row: dict):
+    """Qatordagi dori ustunlarini tekshiradi: (fields | None, modda_nomlari, xato_matni | None).
+    Bo'sh katak = "o'zgartirmaslik"; hech bir dori ustuni to'ldirilmagan bo'lsa fields = None."""
+    fields: dict = {}
+    names: list = []
+
+    form = _cell(row, "Shakl")
+    if form:
+        key = _DOSAGE_FORM_ALIASES.get(form.casefold())
+        if key is None:
+            return None, [], f"Dori shakli noto'g'ri: {form}"
+        fields["dosage_form"] = key
+
+    strength = _cell(row, "Doza")
+    if strength:
+        if len(strength) > 100:
+            return None, [], "Doza 100 belgidan oshmasligi kerak"
+        fields["strength"] = strength
+
+    pack = _cell(row, "Qadoqdagi soni")
+    if pack:
+        try:
+            pack_dec = Decimal(pack.replace(" ", "").replace(",", "."))
+            if pack_dec != pack_dec.to_integral_value() or pack_dec < 1:
+                raise ValueError
+            fields["pack_qty"] = int(pack_dec)
+        except Exception:
+            return None, [], f"Qadoqdagi soni noto'g'ri (butun son >= 1 kerak): {pack}"
+
+    for col, field, max_len in (
+        ("Ishlab chiqaruvchi", "manufacturer", 200), ("Mamlakat", "country", 100), ("Ro'yxat raqami", "reg_number", 100),
+    ):
+        val = _cell(row, col)
+        if val:
+            if len(val) > max_len:
+                return None, [], f"'{col}' {max_len} belgidan oshmasligi kerak"
+            fields[field] = val
+
+    rx = _cell(row, "Retseptli")
+    if rx:
+        low = rx.casefold()
+        if low in _YES:
+            fields["is_rx"] = True
+        elif low in _NO:
+            fields["is_rx"] = False
+        else:
+            return None, [], f"Retseptli qiymati noto'g'ri (ha/yo'q kerak): {rx}"
+
+    ctrl = _cell(row, "Nazorat toifasi")
+    if ctrl:
+        key = _CONTROL_ALIASES.get(ctrl.casefold())
+        if key is None:
+            return None, [], f"Nazorat toifasi noto'g'ri: {ctrl}"
+        fields["control_class"] = key
+
+    seen: set = set()
+    for part in _cell(row, "Modda").replace(";", ",").split(","):
+        nm = " ".join(part.split())
+        if nm and nm.casefold() not in seen:
+            if len(nm) > 200:
+                return None, [], "Modda nomi 200 belgidan oshmasligi kerak"
+            seen.add(nm.casefold())
+            names.append(nm)
+
+    if not fields and not names:
+        return None, [], None
+    return fields, names, None
+
+
+class _SubstanceResolver:
+    """Modda nomi -> id. Umumiy (company_id NULL) va o'z korxonasi moddalari (uz/ru/lotin nomi bo'yicha,
+    harf registrisiz); topilmasa korxona yozuvi sifatida yaratiladi. Yangi yozuvlar keshga FAQAT qator
+    savepoint'i muvaffaqiyatli tugagach qo'shiladi (`commit_new`) - qator bekor bo'lsa kesh toza qoladi."""
+
+    def __init__(self, db: Session, company_id):
+        from sqlalchemy import or_
+        from app.models.product_pharma import PharmaSubstance
+        self.db = db
+        self.company_id = company_id
+        self.by_name: dict = {}
+        rows = db.query(PharmaSubstance).filter(
+            or_(PharmaSubstance.company_id.is_(None), PharmaSubstance.company_id == company_id)
+        ).order_by(PharmaSubstance.company_id.isnot(None), PharmaSubstance.id).all()   # umumiy yozuv birinchi
+        for s in rows:
+            for nm in (s.name_uz, s.name_ru, s.name_lat):
+                if nm:
+                    self.by_name.setdefault(nm.strip().casefold(), s.id)
+        self._new: dict = {}
+
+    def resolve(self, names: list) -> list:
+        """Qator savepoint'i ichida chaqiriladi: id'lar ro'yxati (tartib saqlanadi, takrorsiz)."""
+        from app.models.product_pharma import PharmaSubstance
+        self._new = {}
+        ids: list = []
+        for nm in names:
+            key = nm.casefold()
+            sid = self.by_name.get(key) or self._new.get(key)
+            if sid is None:
+                sub = PharmaSubstance(company_id=self.company_id, name_uz=nm)
+                self.db.add(sub)
+                self.db.flush()
+                sid = sub.id
+                self._new[key] = sid
+            if sid not in ids:
+                ids.append(sid)
+        return ids
+
+    def commit_new(self) -> None:
+        self.by_name.update(self._new)
+        self._new = {}
+
+    def discard_new(self) -> None:
+        self._new = {}
+
+
+def _apply_pharma(db: Session, resolver: "_SubstanceResolver", company_id, product_id: int, fields: dict, names: list) -> None:
+    """Qator savepoint'i ichida: dori blokini saqlaydi (faqat berilgan maydonlar), modda berilsa to'liq almashtiradi."""
+    from app.routers.products import _save_pharma
+    from app.schemas.product import PharmaIn
+    data = dict(fields)
+    if names:
+        data["substance_ids"] = resolver.resolve(names)
+    _save_pharma(db, company_id, product_id, PharmaIn(**data))
+
 
 def _resolve_target_warehouse(db: Session, current_user: User, warehouse_id: Optional[int]):
     """So'rov parametridagi (yoki joriy filialning default) omborni aniqlaydi (T1.5).
@@ -226,6 +383,11 @@ def bulk_import_products(
     first_wh_name = chosen_wh.name if chosen_wh else None
     wh_resolver = _RowWarehouseResolver(db, current_user, chosen_wh)
 
+    # D2.2: dorixona rejimi faqat bir marta tekshiriladi; o'chiq korxonada dori ustunlari e'tiborsiz (avvalgidek)
+    from app.services.pharmacy import pharmacy_context
+    pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
+    substance_resolver = _SubstanceResolver(db, current_user.company_id) if pharmacy_on else None
+
     # ── Bazadagi BARCHA (o'chirilmagan) mahsulotlarni yuklash ──────────
     all_products = db.query(Product).filter(
         Product.is_deleted == False,
@@ -273,6 +435,14 @@ def bulk_import_products(
             row_wh_id, wh_err = wh_resolver.resolve(wh_raw)
             if wh_err:
                 errors.append({"row": row_num, "name": name or barcode, "error": wh_err})
+                continue
+
+        # D2.2: dori ustunlari (faqat dorixona rejimida) - xato bo'lsa faqat shu qator xato
+        pharma_fields, pharma_names = None, []
+        if pharmacy_on:
+            pharma_fields, pharma_names, pharma_err = _parse_pharma_row(row)
+            if pharma_err:
+                errors.append({"row": row_num, "name": name or barcode, "error": pharma_err})
                 continue
 
         # ── Mavjud mahsulotni topish ───────────────────────────────────
@@ -378,11 +548,18 @@ def bulk_import_products(
                                 user_id=current_user.id,
                                 reason="Excel import",
                             ))
+                if pharmacy_on and (pharma_fields or pharma_names):
+                    _apply_pharma(db, substance_resolver, current_user.company_id, existing.id,
+                                  pharma_fields or {}, pharma_names)
                 db.flush()
                 sp.commit()
+                if substance_resolver:
+                    substance_resolver.commit_new()
                 updated += 1
             except Exception as exc:
                 sp.rollback()
+                if substance_resolver:
+                    substance_resolver.discard_new()
                 # Session ni tozalash
                 db.expire(existing)
                 errors.append({
@@ -492,7 +669,12 @@ def bulk_import_products(
                     warehouse_id=row_wh_id, purchase_price=cost_price,
                     company_id=current_user.company_id,
                 )
+            if pharmacy_on and (pharma_fields or pharma_names):
+                _apply_pharma(db, substance_resolver, current_user.company_id, product.id,
+                              pharma_fields or {}, pharma_names)
             sp.commit()
+            if substance_resolver:
+                substance_resolver.commit_new()
 
             # Muvaffaqiyatli qo'shildi — in-memory map larni yangilash
             session_barcodes.add(barcode)
@@ -504,6 +686,8 @@ def bulk_import_products(
 
         except Exception as exc:
             sp.rollback()  # Product va StockLevel avtomatik session dan o'chiriladi
+            if substance_resolver:
+                substance_resolver.discard_new()
             err_msg = str(exc)
             if "uq_products_barcode" in err_msg or "duplicate key" in err_msg.lower():
                 user_msg = f"Barkod '{barcode}' allaqachon bazada mavjud — o'tkazib yuborildi"

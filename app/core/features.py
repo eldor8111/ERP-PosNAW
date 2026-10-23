@@ -16,6 +16,7 @@ FEATURES = {
     "distribution": ("distribution_enabled", "Distribyutorlar va logistika"),
     "marketplace_agents": ("marketplace_agents_enabled", "Marketplace agentlari"),
     "delivery_automation": ("orders_auto_create_sale", "Yetkazib berish avtomatikasi"),
+    "pharmacy": ("pharmacy_enabled", "Dorixona"),
 }
 
 

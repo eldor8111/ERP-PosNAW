@@ -21,6 +21,7 @@ import {
   Check,
   X,
   AlertTriangle,
+  Pill,
 } from 'lucide-react';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('uz-UZ');
@@ -754,6 +755,7 @@ function PaketlarTab({ billing, refreshBilling, setToast }) {
   const getPackageIcon = (code) => {
     if (code === 'manufacturing') return Factory;
     if (code === 'distribution') return Truck;
+    if (code === 'pharmacy') return Pill;
     return Zap;
   };
 

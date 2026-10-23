@@ -277,11 +277,15 @@ def test_pos_return_route():
 
 def test_admin_layout_logout_guard():
     src = _read("frontend/src/components/AdminLayout.jsx")
-    body = src[src.index("const handleLogout"):src.index("// Rebuild navGroups")]
+    body = src[src.index("const handleLogout"):src.index("const navGroups = useMemo")]
     assert "getPendingPosCount()" in body and "flushPosQueue(api)" in body
     assert "window.confirm" in body and "pos.logoutPendingConfirm" in body
-    assert "toast.error" in body and "pos.logoutBlockedPending" in body
-    assert body.index("navigator.onLine") < body.index("flushPosQueue")
+    # 344afc9 (jamoa qarori): oflayn holatda chiqish bloklanmaydi (toast.error + navigator.onLine olib tashlandi) —
+    # o'rniga avval "serverga yuborilsinmi?" (pos.logoutWarningSync), yuborilmasa ikkinchi tasdiq so'raladi;
+    # navbat chiqishda tozalanmaydi (qurilmada qoladi). Himoya: foydalanuvchi tasdiqlamasa chiqmaydi.
+    assert "pos.logoutWarningSync" in body
+    assert body.index("pos.logoutWarningSync") < body.index("flushPosQueue(api)") < body.index("pos.logoutPendingConfirm")
+    assert body.count("return;") >= 2 and body.index("logout();") > body.index("pos.logoutPendingConfirm")
 
 
 def test_pos_kassa_pending_badge_and_barcode_lookup():

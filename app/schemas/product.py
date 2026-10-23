@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, date
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -40,6 +40,50 @@ class WarehouseStockOut(BaseModel):
     warehouse_id: int
     warehouse_name: str
     quantity: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PharmaSubstanceOut(BaseModel):
+    """Ta'sir etuvchi modda (D2.1)."""
+    id: int
+    name_uz: str
+    name_ru: Optional[str] = None
+    name_lat: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PharmaBase(BaseModel):
+    """Dori ma'lumotlari maydonlari (D2.1). Faqat dorixona moduli yoqilgan korxonada saqlanadi."""
+    dosage_form: Optional[Literal["tablet", "capsule", "syrup", "injection", "ointment",
+                                  "drops", "powder", "solution", "suppository", "other"]] = None
+    strength: Optional[str] = Field(None, max_length=100)
+    pack_qty: Optional[int] = Field(None, ge=1)
+    manufacturer: Optional[str] = Field(None, max_length=200)
+    country: Optional[str] = Field(None, max_length=100)
+    reg_number: Optional[str] = Field(None, max_length=100)
+    reg_valid_until: Optional[date] = None
+    atc_code: Optional[str] = Field(None, max_length=20)
+    storage: Optional[Literal["room", "cold_2_8", "frozen"]] = None
+    is_rx: Optional[bool] = False
+    control_class: Optional[Literal["none", "potent", "psychotropic", "narcotic", "precursor"]] = "none"
+    max_retail_price: Optional[Decimal] = Field(None, ge=0)
+
+    @field_validator("dosage_form", "storage", "control_class", mode="before")
+    @classmethod
+    def blank_to_none(cls, v):
+        # forma bo'sh qatorni yuborishi mumkin — "tanlanmagan" deb qabul qilamiz
+        return None if isinstance(v, str) and not v.strip() else v
+
+
+class PharmaIn(PharmaBase):
+    """Yozishda: faqat yuborilgan maydonlar yangilanadi; substance_ids berilsa moddalar to'liq almashtiriladi."""
+    substance_ids: Optional[List[int]] = None
+
+
+class PharmaOut(PharmaBase):
+    substances: List[PharmaSubstanceOut] = []
 
     model_config = {"from_attributes": True}
 
@@ -86,6 +130,9 @@ class ProductCreate(BaseModel):
     conversion: Optional[ProductConversionIn] = None  # faqat product_type='sell' uchun
     initial_stock: Optional[Decimal] = None
     initial_warehouse_id: Optional[int] = None
+
+    # D2.1: dori ma'lumotlari — faqat dorixona rejimida saqlanadi, oddiy korxonada e'tiborsiz qoldiriladi
+    pharma: Optional[PharmaIn] = None
 
     @field_validator("cost_price", "sale_price")
     @classmethod
@@ -138,6 +185,9 @@ class ProductUpdate(BaseModel):
     initial_stock: Optional[Decimal] = None  # deprecated: PUT da e'tiborsiz
     initial_warehouse_id: Optional[int] = None  # deprecated: PUT da e'tiborsiz
 
+    # D2.1: dori ma'lumotlari — faqat dorixona rejimida saqlanadi, oddiy korxonada e'tiborsiz qoldiriladi
+    pharma: Optional[PharmaIn] = None
+
 
 class ProductStatusUpdate(BaseModel):
     status: ProductStatus
@@ -186,6 +236,7 @@ class ProductOut(BaseModel):
     sale_currency: str = "UZS"
     expiry_date: Optional[date] = None
     category_is_perishable: Optional[bool] = False
+    pharma: Optional[PharmaOut] = None  # D2.1: faqat dorixona rejimida to'ldiriladi, aks holda null
 
     model_config = {"from_attributes": True}
 
@@ -258,6 +309,7 @@ class ProductListOut(BaseModel):
     category_name: Optional[str] = None
     category_is_perishable: Optional[bool] = False
     expiry_date: Optional[date] = None
+    pharma: Optional[PharmaOut] = None  # D2.1: faqat dorixona rejimida to'ldiriladi, aks holda null
 
     model_config = {"from_attributes": True}
 

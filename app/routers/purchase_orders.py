@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, object_session
 
 from app.core.branch_context import (
     BRANCH_FORBIDDEN, BranchContext, apply_warehouse_scope, get_branch_context,
@@ -16,8 +16,9 @@ from app.models.warehouse import Warehouse
 from app.schemas.purchase_order import POCreate, POListOut, POOut, POItemOut, POReceiveRequest, POUpdate  # type: ignore
 from app.services.purchase_order_service import (  # type: ignore
     cancel_purchase_order, create_purchase_order, delete_purchase_order, display_amounts,
-    receive_purchase_order, update_purchase_order,
+    receive_purchase_order, suggested_sale_prices, update_purchase_order,
 )
+from app.services.pharmacy import pharmacy_enabled  # CD.1
 from app.services.warehouse_access import resolve_ctx
 from app.utils.report_utils import _date_range
 
@@ -34,7 +35,11 @@ class POListBranchOut(POListOut):
     branch_name: Optional[str] = None
 
 
-def _build_po_out(po: PurchaseOrder) -> POOut:
+def _build_po_out(po: PurchaseOrder, warnings: Optional[List[str]] = None,
+                  suggested: Optional[dict] = None) -> POOut:
+    # CD.1: markirovka belgisi faqat dorixona rejimida to'ldiriladi (oddiy korxonada False)
+    _db = object_session(po)
+    _ph = bool(_db is not None and pharmacy_enabled(_db, po.company_id))
     return POOut(
         id=po.id,
         number=po.number,
@@ -53,6 +58,9 @@ def _build_po_out(po: PurchaseOrder) -> POOut:
         created_at=po.created_at,
         currency=po.currency or 'UZS',
         exchange_rate=po.exchange_rate,
+        supplier_invoice_number=po.supplier_invoice_number,
+        supplier_invoice_date=po.supplier_invoice_date,
+        warnings=warnings or [],
         items=[
             POItemOut(
                 id=item.id,
@@ -68,6 +76,10 @@ def _build_po_out(po: PurchaseOrder) -> POOut:
                 expiry_date=item.expiry_date,
                 new_sale_price=item.new_sale_price,
                 new_wholesale_price=item.new_wholesale_price,
+                lot_number=item.lot_number,
+                manufacture_date=item.manufacture_date,
+                suggested_sale_price=(suggested or {}).get(item.id),
+                requires_marking=bool(_ph and item.product is not None and item.product.requires_marking),
             )
             for item in po.items
         ],
@@ -187,8 +199,9 @@ def create_po(
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.accountant)),
 ):
     po = create_purchase_order(db, data, current_user)
+    warnings = list(getattr(po, "receive_warnings", None) or [])
     db.commit()
-    return _build_po_out(_load_po(db, po.id, current_user))
+    return _build_po_out(_load_po(db, po.id, current_user), warnings)
 
 
 @router.get("/{po_id}", response_model=POOut)
@@ -197,7 +210,8 @@ def get_po(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*ALLOWED)),
 ):
-    return _build_po_out(_load_po(db, po_id, current_user))
+    po = _load_po(db, po_id, current_user)
+    return _build_po_out(po, suggested=suggested_sale_prices(db, po))
 
 
 @router.post("/{po_id}/receive", response_model=POOut)
@@ -207,9 +221,10 @@ def receive_po(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.warehouse, UserRole.manager)),
 ):
-    receive_purchase_order(db, po_id, data, current_user)
+    po = receive_purchase_order(db, po_id, data, current_user)
+    warnings = list(getattr(po, "receive_warnings", None) or [])  # D1.3: dorixona ogohlantirishlari
     db.commit()
-    return _build_po_out(_load_po(db, po_id, current_user))
+    return _build_po_out(_load_po(db, po_id, current_user), warnings)
 
 
 @router.post("/{po_id}/cancel")

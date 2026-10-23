@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, and_
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Boolean, and_
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -14,6 +14,8 @@ class Category(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     sort_order = Column(Integer, default=0)
     is_perishable = Column(Boolean, default=False)
+    # D1.3: dorixona rejimida kirimda sotuv narxi ustamasi (foiz); NULL — korxona sozlamasi ishlatiladi
+    markup_pct = Column(Numeric(6, 2), nullable=True)
     is_deleted = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),

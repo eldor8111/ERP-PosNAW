@@ -18,6 +18,10 @@ import { useBranch } from '../../context/BranchContext';
 import SaleDeliveryBlock from '../../components/sale/SaleDeliveryBlock';
 import CustomerPicker from '../../components/CustomerPicker';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
+import {
+  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, validateRx, buildRxPayload, unitLinePrice, wholeBoxMax,
+  parseWholeBoxError,
+} from '../../utils/posQueue';
 import { EMPTY_DELIVERY, deliveryFromSale, deliveryPayload } from '../../components/sale/saleDelivery';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 
@@ -25,6 +29,38 @@ import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 const parseN = (s) => parseFloat(String(s || '').replace(/\s/g, '')) || 0;
+
+// D2.6: dorixona savat qatorining qo'shimcha maydonlari (muddat, retsept, birliklar); faqat dorixona rejimida chaqiriladi
+const pharmaFieldsOf = (p, unit) => ({
+  nearest_expiry: p.nearest_expiry || null,
+  expiry_warn: !!p.expiry_warn,
+  is_rx: !!p.is_rx,
+  control_class: p.control_class || 'none',
+  units: Array.isArray(p.units) ? p.units : [],
+  pack_ratio: p.pack_ratio != null ? Number(p.pack_ratio) : null,
+  full_boxes: p.full_boxes != null ? Number(p.full_boxes) : null,
+  loose_units: p.loose_units != null ? Number(p.loose_units) : null,
+  stock_display: p.stock_display || null,
+  unit_id: unit ? unit.id : null,
+  unit_name: unit ? unit.name : null,
+  unit_ratio: unit ? Number(unit.ratio) || 1 : 1,
+  base_unit_name: p.unit || 'dona',
+});
+
+// D2.6: birlik (quti/blister) qatorining ASOSIY birlikdagi narxi. Qator narxi qo'lda o'zgartirilmagan bo'lsa
+// qo'shilganda saqlangan base_price (aks holda narx/nisbat). Birlik bo'lmasa — qator narxining o'zi.
+const lineBasePrice = (it) => {
+  if (!it.unit_id) return it.price;
+  const un = (it.units || []).find(u => u.id === it.unit_id);
+  if (un && it.base_price != null && Number(it.price) === unitLinePrice(it.base_price, it.sale_price, un)) return Number(it.base_price);
+  return (Number(it.price) || 0) / (Number(it.unit_ratio) || 1);
+};
+// Qayta narxlashda (mijoz/narx turi) yangi ASOSIY narxni qatorga qo'llaydi: birlik qatorida narx birlik narxiga aylantiriladi
+const repriceLine = (it, newBase) => {
+  if (!it.unit_id) return { ...it, price: newBase };
+  const un = (it.units || []).find(u => u.id === it.unit_id);
+  return { ...it, price: un ? unitLinePrice(newBase, it.sale_price, un) : newBase * (Number(it.unit_ratio) || 1), base_price: newBase };
+};
 
 const fmtPrice = (v) => {
   if (v === '' || v === null || v === undefined) return '';
@@ -342,6 +378,9 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
   const inputRef = useRef(null);
   const timerRef = useRef(null);
   const listRef = useRef(null);
+  // D2.6: dorixona rejimida qidiruv /products/pos-list orqali (nearest_expiry, is_rx, units, stock_display)
+  const searchFeatures = useCompanyFeatures();
+  const searchEndpoint = searchFeatures?.pharmacy ? '/products/pos-list' : '/products';
   // true — oxirgi tanlovdan keyingi natijalar ushlab turiladi (maydon bo'sh bo'lsa ham)
   const keepResultsRef = useRef(false);
 
@@ -358,7 +397,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await api.get('/products', {
+        const res = await api.get(searchEndpoint, {
           params: { search: q.trim(), limit: 50, warehouse_id: warehouseId || undefined },
           signal: abortCtrl.signal,
           _silent: true,
@@ -385,7 +424,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
       }
     }, 280);
     return () => { clearTimeout(timerRef.current); abortCtrl.abort(); };
-  }, [q, warehouseId]);
+  }, [q, warehouseId, searchEndpoint]);
 
   // Tanlangandan keyin qidiruv maydoni tozalanadi, lekin natijalar ro'yxati saqlanadi — bir xil
   // turdagi keyingi mahsulotni (masalan, boshqa rangini) qayta yozmasdan tanlash uchun.
@@ -419,13 +458,13 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
     if (!q.trim() && !(keepResultsRef.current && results.length)) {
       setLoading(true);
       try {
-        const res = await api.get('/products', { params: { limit: 30, warehouse_id: warehouseId || undefined }, _silent: true });
+        const res = await api.get(searchEndpoint, { params: { limit: 30, warehouse_id: warehouseId || undefined }, _silent: true });
         const items = Array.isArray(res.data) ? res.data : (res.data?.items || []);
         setResults(items.slice(0, 30));
       } catch { /* ignore */ }
       finally { setLoading(false); }
     }
-  }, [disabled, q, warehouseId, results.length]);
+  }, [disabled, q, warehouseId, results.length, searchEndpoint]);
 
   const handleBlur = useCallback(() => {
     // kichik delay — mouseDown evenidan keyin blur ishlaydi
@@ -475,6 +514,14 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
                 <div className="flex items-center gap-2 mt-0.5">
                   {p.sku && <span className="text-xs text-slate-400 font-mono">{p.sku}</span>}
                   {p.barcode && <><span className="text-xs text-slate-300">|</span><span className="text-xs text-slate-400 font-mono">{p.barcode}</span></>}
+                  {searchFeatures?.pharmacy && p.nearest_expiry && (
+                    <span className={`text-[10px] font-bold px-1 rounded ${p.expiry_warn ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {p.expiry_warn ? '⚠ ' : ''}{fmtExpiry(p.nearest_expiry)}
+                    </span>
+                  )}
+                  {searchFeatures?.pharmacy && ((p.control_class && p.control_class !== 'none') || p.is_rx) && (
+                    <span className="text-[10px] font-bold px-1 rounded bg-violet-100 text-violet-700">Rx</span>
+                  )}
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -497,7 +544,7 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
                     {fmt(p.wholesale_price)} {p.wholesale_currency === 'USD' ? '$' : (p.wholesale_currency || 's')} ({t('wholesale.wholesaleShort')})
                   </div>
                 )}
-                <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{fmt(p.stock_quantity)} {p.unit || t('common.piece')}</div>
+                <div className={`text-xs font-semibold mt-0.5 ${Number(p.stock_quantity) <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>{(searchFeatures?.pharmacy && p.stock_display && Number(p.stock_quantity) > 0) ? p.stock_display : `${fmt(p.stock_quantity)} ${p.unit || t('common.piece')}`}</div>
               </div>
             </button>
           ))}
@@ -565,6 +612,15 @@ export default function UlgurjiSotuv() {
   const [note, setNote] = useState('');
   const [delivery, setDelivery] = useState(EMPTY_DELIVERY);
   const features = useCompanyFeatures();
+  // D2.6: dorixona rejimi — faqat modul yoqilgan korxonada retsept/analog/birlik elementlari ko'rinadi
+  const pharmacy = !!features?.pharmacy;
+  const rxMode = features?.pharmacy_settings?.rx_mode === 'block' ? 'block' : 'warn';
+  const [rxModal, setRxModal] = useState(null);         // { proceed?, message? }
+  const [rxData, setRxData] = useState({});
+  const [rxReason, setRxReason] = useState('');
+  const [rxError, setRxError] = useState('');
+  const [analogModal, setAnalogModal] = useState(null);
+  const [saleError, setSaleError] = useState(null);
   const [showPayment, setShowPayment] = useState(false);
   const [saving, setSaving] = useState(false);
   const { shift: activeShift, hasShift, reload: reloadShift } = useActiveShift();
@@ -620,14 +676,14 @@ export default function UlgurjiSotuv() {
       const next = ORDER2[(ORDER2.indexOf(cur) + 1) % ORDER2.length];
       return prev.map(it => {
         if (it.price_manual) return it;
-        let newPrice = it.price;
+        let newPrice = lineBasePrice(it);
         if (next === 'wholesale' && it.wholesale_price > 0) newPrice = it.wholesale_price;
         else if (next === 'cost' && it.cost_price > 0) newPrice = it.cost_price;
         else if (it.sale_price > 0) newPrice = it.sale_price;
         // T3.19: individual narx narx turidan ustun
         const cp = custPricesRef.current[it.product_id];
         if (cp != null && Number(cp) > 0 && (it.currency || 'UZS') === 'UZS') newPrice = Number(cp);
-        return { ...it, price: newPrice };
+        return repriceLine(it, newPrice);
       });
     });
   }, [custId, customers]);
@@ -653,14 +709,14 @@ export default function UlgurjiSotuv() {
         const pt = cust.price_type || 'sale';
         setCart(prev => prev.map(it => {
           if (it.price_manual) return it;   // saqlangan buyurtma narxi o'zgarmaydi
-          let newPrice = it.price;
+          let newPrice = lineBasePrice(it);
           if (pt === 'wholesale' && it.wholesale_price > 0) newPrice = it.wholesale_price;
           else if (pt === 'cost' && it.cost_price > 0) newPrice = it.cost_price;
           else if (pt === 'sale' && it.sale_price > 0) newPrice = it.sale_price;
           // T3.19: individual narx narx turidan ustun
           const cp = custPrices[it.product_id];
           if (cp != null && Number(cp) > 0 && (it.currency || 'UZS') === 'UZS') newPrice = Number(cp);
-          return { ...it, price: newPrice };
+          return repriceLine(it, newPrice);
         }));
       }
     } else {
@@ -691,13 +747,17 @@ export default function UlgurjiSotuv() {
     if (it.price_manual) return true;
     const price = Number(it.price) || 0;
     if ((it.currency || 'UZS') !== 'UZS') return true;
+    // D2.6: birlik (quti/blister) qatori — narx shu birlikning ro'yxat narxiga (unit.price yo'q bo'lsa asosiy narx * nisbat) teng bo'lsa qo'lda emas
+    const un = it.unit_id ? (it.units || []).find(u => u.id === it.unit_id) : null;
+    if (it.unit_id && !un) return true;
+    const lineList = (base) => (un ? unitLinePrice(base, it.sale_price, un) : base);
     const cp = custPrices[it.product_id];
-    if (cp != null && Number(cp) > 0) return price !== Number(cp);
+    if (cp != null && Number(cp) > 0) return price !== lineList(Number(cp));
     const pt = selected?.price_type || 'sale';
     let list = Number(it.sale_price) || 0;
     if (pt === 'wholesale') list = Number(it.wholesale_price) || list;
     else if (pt === 'cost') list = Number(it.cost_price) || list;
-    return price !== list;
+    return price !== lineList(list);
   };
 
   const saveSettings = () => {
@@ -747,6 +807,8 @@ export default function UlgurjiSotuv() {
     if (v === key) v = fallback;
     return vars ? Object.keys(vars).reduce((acc, k) => acc.replace(`{${k}}`, vars[k]), v) : v;
   };
+  const tfRef = useRef(tfb);
+  tfRef.current = tfb;
   const saleBranchId = warehouses.find(w => String(w.id) === String(warehouseId))?.branch_id || null;
   // Joriy filial terminallari (filial aniqlangan bo'lsa); butun korxona terminallari (branch_id yo'q) hammada
   const providerTerminals = (type) => terminals.filter(x =>
@@ -778,6 +840,7 @@ export default function UlgurjiSotuv() {
   const customersRef = useRef([]);
   const setCustIdRef = useRef(setCustId);
   const addToCartRef = useRef(null);
+  const pharmaRef = useRef({ pharmacy: false, warehouseId: '' });   // D2.6: skaner effekti ([] deps) uchun
   // custIdRef: addToCart closuresi uchun — har doim yangi qiymatni o'qiydi
   const custIdRef = useRef(custId);
 
@@ -1354,6 +1417,19 @@ export default function UlgurjiSotuv() {
     return v > 0 ? v : 0;
   };
 
+  // D2.6: analoglar (GET /products/{id}/analogs); `auto` — qoldiq 0 bo'lganda o'zi ochiladi (analog topilmasa jim yopiladi)
+  const openAnalogs = useCallback((p, auto = false) => {
+    const pid = p.id ?? p.product_id;
+    const name = p.name ?? p.product_name;
+    setAnalogModal({ product_id: pid, name, loading: true, items: [], auto });
+    api.get(`/products/${pid}/analogs`, { _silent: true, _suppressToast: true })
+      .then(r => {
+        const items = Array.isArray(r.data) ? r.data : [];
+        setAnalogModal(m => (m && m.product_id === pid ? (auto && !items.length ? null : { ...m, loading: false, items }) : m));
+      })
+      .catch(() => setAnalogModal(m => (m && m.product_id === pid ? (auto ? null : { ...m, loading: false, items: [], error: true }) : m)));
+  }, []);
+
   const addToCart = useCallback((p) => {
     // Parent mahsulot (variantli) bo'lsa — variant picker modal ochiladi
     if (p.product_type === 'parent') {
@@ -1365,11 +1441,22 @@ export default function UlgurjiSotuv() {
       toast.error(t('sale.mustSelectCustomer'));
       return;
     }
+    // D2.6: dorixona — birlik shtrix-kodi skanerlansa birlik o'zi tanlanadi; qoldiq 0 bo'lsa analoglar taklif qilinadi
+    const isPharma = pharmaRef.current.pharmacy;
+    let scanUnit = isPharma && p._scanUnit && (Number(p._scanUnit.ratio) || 1) !== 1 ? p._scanUnit : null;
+    if (scanUnit && p.pack_ratio != null && Number(scanUnit.ratio) >= Number(p.pack_ratio) && p.full_boxes != null && Number(p.full_boxes) < 1) {
+      toast.warn(tfRef.current('pos.wholeBoxNone', "Omborda butun quti yo'q (ochilgan qutida {loose} dona). Dona qilib soting.", { loose: p.loose_units ?? 0 }));
+      scanUnit = null;
+    }
+    if (isPharma && !p._noAnalogs && Number(p.stock_quantity) <= 0 && (p.product_type || 'stock') === 'stock') openAnalogs(p, true);
     // Mijoz narx turiga qarab narxni olish
     let { price, currency } = getProductPrice(p);
     let rate = getRate(currency);
+    let basePrice = price;   // D2.6: asosiy birlikdagi narx (birlik almashtirganda asos)
+    if (scanUnit) price = currency === 'UZS' ? unitLinePrice(price, p.sale_price, scanUnit) : price * (Number(scanUnit.ratio) || 1);
 
     if (onlySom && currency !== 'UZS') {
+      basePrice = basePrice * rate;
       price = price * rate;
       currency = 'UZS';
       rate = 1;
@@ -1379,13 +1466,15 @@ export default function UlgurjiSotuv() {
     const { discount: promoDisc, promo } = getPromoDiscount(p.id, price);
 
     setCart(prev => {
-      const ex = prev.find(i => i.product_id === p.id);
+      const unitKey = scanUnit ? scanUnit.id : null;
+      const ex = prev.find(i => i.product_id === p.id && (i.unit_id || null) === unitKey);
       if (ex) {
-        return prev.map(i => i.product_id === p.id
+        return prev.map(i => i === ex
           ? { ...i, qty: i.qty + 1 }
           : i);
       }
       return [...prev, {
+        ...(isPharma ? { ...pharmaFieldsOf(p, scanUnit), base_price: basePrice } : {}),
         product_id: p.id, name: p.name, sku: p.sku || '', unit: p.unit || 'dona', qty: 1, price,
         currency, rate,
         discount_type: promoDisc > 0 ? 'sum' : 'pct',
@@ -1407,7 +1496,7 @@ export default function UlgurjiSotuv() {
       }];
     });
     if (promo) toast.success(t('wholesale.promoAppliedName', { name: promo.name }), { duration: 2000 });
-  }, [getProductPrice, getPromoDiscount, getRate, onlySom]);
+  }, [getProductPrice, getPromoDiscount, getRate, onlySom, openAnalogs]);
 
   const updateItem = useCallback((idx, field, val) => setCart(prev => prev.map((it, i) => {
     if (i !== idx) return it;
@@ -1415,6 +1504,16 @@ export default function UlgurjiSotuv() {
     // Miqdor kamaytirilganda ortiqcha skanerlangan markirovka kodlarini kesib tashlaymiz
     if (field === 'qty' && next.requires_marking && (next.marking_codes || []).length > Number(val)) {
       next.marking_codes = next.marking_codes.slice(0, Math.floor(Number(val)) || 0);
+    }
+    // D2.6: butun quti sotuvida miqdor ombordagi butun qutilar sonidan oshmasin (server ham 400 qaytaradi)
+    if (field === 'qty') {
+      const wbMax = wholeBoxMax(next);
+      if (wbMax != null && Number(val) > wbMax) {
+        next.qty = Math.max(wbMax, 1);
+        toast.warn(tfRef.current('pos.wholeBoxMax', "Omborda butun quti {boxes} ta (ochilgan qutida {loose} dona). Ko'proq kerak bo'lsa dona qilib soting.", {
+          boxes: next.full_boxes, loose: next.loose_units ?? 0,
+        }));
+      }
     }
     // Chegirma [0, narx x miqdor] (pct uchun [0, 100]) oralig'ida bo'lishi
     // shart - aks holda manfiy summali sotuv bazaga yozilishi mumkin edi.
@@ -1425,6 +1524,47 @@ export default function UlgurjiSotuv() {
     return next;
   })), []);
   const removeItem = useCallback((idx) => setCart(prev => prev.filter((_, i) => i !== idx)), []);
+
+  // D2.6: savat qatorida birlikni almashtirish (quti <-> blister <-> dona) — narx qayta hisoblanadi, miqdor imkon bo'lsa saqlanadi
+  const switchUnit = useCallback((idx, unitIdRaw) => setCart(prev => {
+    const it = prev[idx];
+    if (!it) return prev;
+    const unit = unitIdRaw ? (it.units || []).find(u => String(u.id) === String(unitIdRaw)) || null : null;
+    if ((it.unit_id || null) === (unit ? unit.id : null)) return prev;
+    const oldRatio = it.unit_ratio || 1;
+    const newRatio = unit ? Number(unit.ratio) || 1 : 1;
+    const basePrice = Number(lineBasePrice(it)) || 0;
+    const q = (it.qty * oldRatio) / newRatio;
+    const nextItem = {
+      ...it,
+      unit_id: unit ? unit.id : null,
+      unit_name: unit ? unit.name : null,
+      unit_ratio: newRatio,
+      price: unitLinePrice(basePrice, it.sale_price, unit),
+      base_price: basePrice,
+      qty: Number.isInteger(q) && q >= 1 ? q : 1,
+    };
+    const wbMax = wholeBoxMax(nextItem);
+    if (wbMax === 0) {
+      toast.warn(tfRef.current('pos.wholeBoxNone', "Omborda butun quti yo'q (ochilgan qutida {loose} dona). Dona qilib soting.", { loose: it.loose_units ?? 0 }));
+      return prev;
+    }
+    if (wbMax != null && nextItem.qty > wbMax) nextItem.qty = wbMax;
+    if (nextItem.discount_type !== 'pct') nextItem.discount_val = Math.min(parseN(nextItem.discount_val), nextItem.price * nextItem.qty);
+    if (nextItem.requires_marking && (nextItem.marking_codes || []).length > nextItem.qty) {
+      nextItem.marking_codes = nextItem.marking_codes.slice(0, Math.floor(nextItem.qty) || 0);
+    }
+    return prev.map((x, i) => (i === idx ? nextItem : x));
+  }), []);
+
+  const addAnalogToCart = (a) => {
+    addToCart({
+      id: a.id, name: a.name, barcode: a.barcode, unit: a.unit, sale_price: a.sale_price, sale_currency: a.sale_currency || 'UZS',
+      stock_quantity: a.stock_quantity, nearest_expiry: a.nearest_expiry, expiry_warn: a.expiry_warn,
+      is_rx: a.is_rx, control_class: a.control_class, _noAnalogs: true,
+    });
+    setAnalogModal(null);
+  };
 
   // Markirovka (Data Matrix) kod skanerlash — savat qatoriga kod qo'shish/o'chirish
   const [markingModal, setMarkingModal] = useState(null); // { idx }
@@ -1541,12 +1681,15 @@ export default function UlgurjiSotuv() {
     const currency = formCurrency || 'UZS';
     const rate = getRate(currency);
 
+    // D2.6: qoldiq 0 bo'lgan dorida analoglar avtomatik taklif qilinadi
+    if (pharmacy && Number(formProduct.stock_quantity) <= 0 && (formProduct.product_type || 'stock') === 'stock') openAnalogs(formProduct, true);
     setCart(prev => {
-      const ex = prev.find(i => i.product_id === formProduct.id);
-      if (ex) return prev.map(i => i.product_id === formProduct.id
+      const ex = prev.find(i => i.product_id === formProduct.id && !i.unit_id);
+      if (ex) return prev.map(i => i === ex
         ? { ...i, qty: i.qty + qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0 }
         : i);
       return [...prev, {
+        ...(pharmacy ? pharmaFieldsOf(formProduct, null) : {}),
         product_id: formProduct.id, name: formProduct.name, unit: formProduct.unit || 'dona',
         qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0,
         promo_id: formPromoId || null,
@@ -1575,6 +1718,7 @@ export default function UlgurjiSotuv() {
   customersRef.current = customers;
   setCustIdRef.current = setCustId;
   addToCartRef.current = addToCart;
+  pharmaRef.current = { pharmacy, warehouseId };
 
   // Global barcode scanner
   useEffect(() => {
@@ -1606,6 +1750,21 @@ export default function UlgurjiSotuv() {
         }
 
         const fetchProduct = async () => {
+           // D2.6: dorixona — pos-list (birlik shtrix-kodi `scanned_unit_id`, muddat, retsept maydonlari bilan)
+           if (pharmaRef.current.pharmacy) {
+             try {
+               const pr = await api.get('/products/pos-list', {
+                 params: { search: searchCode, limit: 5, warehouse_id: pharmaRef.current.warehouseId || undefined },
+                 _silent: true, _suppressToast: true,
+               });
+               const rows = Array.isArray(pr.data) ? pr.data : (pr.data?.items || []);
+               const hit = rows.find(x => x.scanned_unit_id != null) || rows.find(x => x.barcode === searchCode || x.sku === searchCode);
+               if (hit) {
+                 if (hit.scanned_unit_id != null) hit._scanUnit = (hit.units || []).find(u => u.id === hit.scanned_unit_id) || null;
+                 return hit;
+               }
+             } catch { /* oddiy oqimga o'tamiz */ }
+           }
            try {
              // 1-urinish: shtrixkod bo'yicha qidirish
              const r = await api.get(`/products/barcode/${encodeURIComponent(searchCode)}`);
@@ -1694,6 +1853,12 @@ export default function UlgurjiSotuv() {
       setMarkingModal({ idx: cart.indexOf(incompleteMarking) });
       return;
     }
+    // D2.6: retseptli / nazoratdagi dori — retsept ma'lumoti kiritilmaguncha sotuv yuborilmaydi (server D2.5 ham tekshiradi)
+    if (pharmacy && rxProductsOf(cart).length && validateRx(cart, rxData, rxReason, rxMode)) {
+      setShowPayment(false);
+      setRxModal({ proceed: false });
+      return;
+    }
     // T3.18: click/payme/uzum to'lovida terminal talab qilsa tranzaksiya raqami majburiy
     const missingRef = payments.find(p => parseN(p.amt) > 0 && referenceRequired(p) && !String(p.reference || '').trim());
     if (missingRef) return toast.error(tfb('pos.referenceRequired', 'Tranzaksiya raqamini kiriting'));
@@ -1713,6 +1878,8 @@ export default function UlgurjiSotuv() {
           currency_code: it.currency || 'UZS',
           exchange_rate: it.rate || 1,
           marking_codes: it.marking_codes && it.marking_codes.length ? it.marking_codes : undefined,
+          // D2.6: qadoq birligi (quti/blister) — miqdor shu birlikda; asosiy birlik uchun yuborilmaydi
+          unit_id: pharmacy && it.unit_id ? it.unit_id : undefined,
         };
       });
       // To'lovlarni ham valyutasi bilan yuboramiz
@@ -1792,6 +1959,8 @@ export default function UlgurjiSotuv() {
         currency_id: currencyId,
         currency_code: primaryCurrencyCode || 'UZS',
         delivery: deliveryPayload(delivery),
+        // D2.6: retsept(lar) yoki retseptsiz sotish sababi (D2.5) — faqat dorixona rejimida
+        ...(pharmacy ? buildRxPayload(cart, rxData, rxReason, rxMode) : {}),
       };
 
       let res;
@@ -1804,10 +1973,11 @@ export default function UlgurjiSotuv() {
         sessionStorage.removeItem('ulgurji_session_sale_id'); // ← sessiyani tozalash
       } else {
         // Yangi sotuv — hech qachon sessionStorage dagi pending ID ishlatilmaydi!
-        res = await api.post('/sales/', payload);
+        res = await api.post('/sales/', payload, pharmacy ? { _suppressToast: true } : undefined);
         sessionStorage.removeItem('ulgurji_session_sale_id'); // ← old pending session clear
         toast.success(t('wholesale.saleSavedSuccess'));
       }
+      if (pharmacy) { setRxData({}); setRxReason(''); }
 
       if (autoPrint) {
         try {
@@ -1935,6 +2105,18 @@ export default function UlgurjiSotuv() {
       // T2.12: PUT /sales/{id} endi kredit limitdan oshganda 400 "Kredit limitidan oshadi: ..." qaytaradi —
       // server matni (limit, joriy qarz, yangi qarz) ko'rsatiladi; sotuv tahrir holatida qoladi.
       const detail = e?.response?.data?.detail;
+      // D2.6: dorixona 400 xatolari (muddat D1.2, butun quti D2.4, retsept D2.5, markirovka D3.2) — aniq oynada
+      if (pharmacy && e?.response?.status === 400) {
+        const info = describeRejection(detail);
+        setShowPayment(false);
+        if (info.category === 'rx' && detail && typeof detail === 'object') {
+          setRxError(info.text);
+          setRxModal({ proceed: false, message: info.text });
+        } else {
+          setSaleError({ category: info.category, message: info.text, boxFix: parseWholeBoxError(detail) });
+        }
+        return;
+      }
       toast.error((typeof detail === 'string' && detail) || t('wholesale.saveError'));
     }
     finally { setSaving(false); }
@@ -1975,10 +2157,31 @@ export default function UlgurjiSotuv() {
     }
   };
 
+  // D2.6: retsept ma'lumotini tasdiqlash (to'lov oynasidan oldin)
+  const setRxField = (pid, field, val) => setRxData(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [field]: val } }));
+  const confirmRx = () => {
+    const err = validateRx(cart, rxData, rxReason, rxMode);
+    if (err) { setRxError(err); return; }
+    setRxError('');
+    const proceed = !!rxModal?.proceed;
+    setRxModal(null);
+    if (proceed) openPayModal();
+  };
+  const applyBoxFix = () => {
+    const name = saleError?.boxFix?.name;
+    const idx = cart.findIndex(c => c.name === name && wholeBoxMax(c) != null);
+    if (idx >= 0) switchUnit(idx, '');
+    setSaleError(null);
+  };
+
   const openPayModal = () => {
     if (!cart.length) return;
     if (!custId) return toast.error(t('wholesale.customerNotSelected'));
     if (!hasShift) { setShowShiftModal(true); return; }
+    if (pharmacy && rxProductsOf(cart).length && validateRx(cart, rxData, rxReason, rxMode)) {
+      setRxModal({ proceed: true });
+      return;
+    }
     
     const uniqueCurrencies = [...new Set(cart.map(item => item.currency || 'UZS'))];
     
@@ -2005,8 +2208,11 @@ export default function UlgurjiSotuv() {
         const disc = it.discount_type === 'pct'
           ? it.price * it.qty * (parseN(it.discount_val) / 100)
           : parseN(it.discount_val);
+        // D2.6: pending sotuv unit_id ni qabul qilmaydi — birlik (quti/blister) qatori asosiy birlikka (dona) o'tkaziladi
+        // (miqdor * nisbat, narx / nisbat; summa o'zgarmaydi). Oddiy korxonada unit_id yo'q — ratio 1.
+        const unitRatio = pharmacy && it.unit_id ? (Number(it.unit_ratio) || 1) : 1;
         return {
-          product_id: it.product_id, quantity: it.qty, unit_price: it.price,
+          product_id: it.product_id, quantity: it.qty * unitRatio, unit_price: it.price / unitRatio,
           price_manual: isPriceManual(it),
           discount: disc,
           promotion_id: (it.promo_id && disc > 0) ? it.promo_id : undefined,   // T4.3: server tekshiradi, qo'shimcha chegirma qo'shmaydi
@@ -2659,6 +2865,45 @@ export default function UlgurjiSotuv() {
                               <div className="font-semibold text-slate-800 text-xs md:text-sm leading-tight">{it.name}</div>
                               <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                 <span className="text-[11px] text-slate-400">{it.unit}</span>
+                                {pharmacy && (
+                                  <>
+                                    {it.nearest_expiry && (
+                                      <span className={`text-[9px] font-bold px-1 rounded ${it.expiry_warn ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 text-slate-500'}`}
+                                        title={it.expiry_warn ? tfb('pos.expiryWarnTitle', 'Muddati yaqin — eng yaqin yaroqlilik muddati') : tfb('pos.expiryNearest', 'Eng yaqin muddat')}>
+                                        {it.expiry_warn ? '⚠ ' : ''}{tfb('pos.expiryShort', 'Muddat')}: {fmtExpiry(it.nearest_expiry)}
+                                      </span>
+                                    )}
+                                    {(isControlled(it) || it.is_rx) && (
+                                      <button type="button" onClick={() => setRxModal({})}
+                                        className={`text-[9px] font-bold px-1 rounded ${isControlled(it) ? 'bg-red-100 text-red-700' : 'bg-violet-100 text-violet-700'}`}>
+                                        {isControlled(it) ? tfb('pos.rxControlled', 'Nazoratda') : 'Rx'}
+                                      </button>
+                                    )}
+                                    {Array.isArray(it.units) && it.units.some(u => (Number(u.ratio) || 1) !== 1) && (
+                                      <select value={it.unit_id || ''} onChange={e => switchUnit(idx, e.target.value)}
+                                        className="border border-slate-200 rounded px-0.5 text-[10px] font-bold text-slate-700 bg-white outline-none"
+                                        title={tfb('pos.unitSelect', 'Birlik')}>
+                                        <option value="">{it.base_unit_name || 'dona'}</option>
+                                        {it.units.filter(u => (Number(u.ratio) || 1) !== 1).map(u => (
+                                          <option key={u.id} value={u.id}>{u.name}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                    {wholeBoxMax(it) != null && (
+                                      <>
+                                        <span className="text-[9px] font-bold text-slate-400">{tfb('pos.wholeBoxMaxShort', 'max {n} quti', { n: wholeBoxMax(it) })}</span>
+                                        <button type="button" onClick={() => switchUnit(idx, '')}
+                                          className="text-[9px] font-bold px-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">
+                                          {tfb('pos.sellByPiece', 'Dona qilib sotish')}
+                                        </button>
+                                      </>
+                                    )}
+                                    <button type="button" onClick={() => openAnalogs(it)}
+                                      className="text-[9px] font-bold px-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                                      {tfb('pos.analogs', 'Analoglar')}
+                                    </button>
+                                  </>
+                                )}
                                 {it.warehouse_name && (
                                   <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-bold px-1 py-0.2 rounded flex items-center gap-0.5">
                                     <Ic d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" cls="w-2.5 h-2.5" />
@@ -3641,6 +3886,180 @@ export default function UlgurjiSotuv() {
         </div>
       )}
       {/* ── VARIANT PICKER MODAL ── */}
+      {/* ── D2.6: RETSEPT OYNASI (faqat dorixona rejimi) ── */}
+      {pharmacy && rxModal && (() => {
+        const rxItems = rxProductsOf(cart).filter((it, i, arr) => arr.findIndex(x => x.product_id === it.product_id) === i);
+        const anyNoRx = rxItems.some(it => !isControlled(it) && rxMode !== 'block' && (rxData[it.product_id]?.mode === 'norx'));
+        const inputCls = 'border border-slate-300 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 w-full';
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="rx-modal">
+            <div className="bg-white rounded-2xl shadow-2xl w-[640px] max-w-[96vw] max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="bg-violet-700 px-5 py-3 text-white">
+                <div className="font-black text-base">{tfb('pos.rxTitle', "Retsept ma'lumotlari")}</div>
+                <div className="text-violet-100 text-xs">
+                  {rxMode === 'block'
+                    ? tfb('pos.rxModeBlock', 'Retseptli dori retseptsiz sotilmaydi')
+                    : tfb('pos.rxModeWarn', 'Retsept kiriting yoki retseptsiz sotish sababini yozing')}
+                </div>
+              </div>
+              <div className="p-4 overflow-y-auto space-y-3">
+                {rxModal.message && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-semibold rounded-lg px-3 py-2">{rxModal.message}</div>
+                )}
+                {rxItems.map(it => {
+                  const d = rxData[it.product_id] || {};
+                  const controlled = isControlled(it);
+                  const canSkip = !controlled && rxMode !== 'block';
+                  const mode = canSkip ? (d.mode || 'rx') : 'rx';
+                  return (
+                    <div key={it.product_id} className="border border-slate-200 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-black text-slate-800 text-sm flex-1">{it.name}</span>
+                        {controlled
+                          ? <span className="px-1.5 rounded text-[10px] font-bold bg-red-100 text-red-700">{tfb('pos.rxControlled', 'Nazoratda')}</span>
+                          : <span className="px-1.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">Rx</span>}
+                      </div>
+                      {canSkip && (
+                        <div className="flex gap-4 mb-2 text-sm font-bold text-slate-600">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mode === 'rx'} onChange={() => setRxField(it.product_id, 'mode', 'rx')} />
+                            {tfb('pos.rxHas', 'Retsept bor')}
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={mode === 'norx'} onChange={() => setRxField(it.product_id, 'mode', 'norx')} />
+                            {tfb('pos.rxNone', 'Retseptsiz sotish')}
+                          </label>
+                        </div>
+                      )}
+                      {mode === 'rx' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input className={inputCls} placeholder={tfb('pos.rxNumber', 'Retsept raqami')} value={d.number || ''} onChange={e => setRxField(it.product_id, 'number', e.target.value)} />
+                          <input className={inputCls} type="date" max={todayLocalIso()} value={d.issued_at || ''} onChange={e => setRxField(it.product_id, 'issued_at', e.target.value)} />
+                          <input className={inputCls} placeholder={tfb('pos.rxDoctor', 'Shifokor')} value={d.doctor || ''} onChange={e => setRxField(it.product_id, 'doctor', e.target.value)} />
+                          <input className={inputCls} placeholder={tfb('pos.rxClinic', 'Muassasa')} value={d.clinic || ''} onChange={e => setRxField(it.product_id, 'clinic', e.target.value)} />
+                          <input className={inputCls} placeholder={tfb('pos.rxPatient', 'Bemor (ixtiyoriy)')} value={d.patient || ''} onChange={e => setRxField(it.product_id, 'patient', e.target.value)} />
+                          <select
+                            className={inputCls}
+                            value={d.blank_type || (controlled ? '' : 'simple')}
+                            onChange={e => setRxField(it.product_id, 'blank_type', e.target.value)}
+                          >
+                            {controlled && <option value="">{tfb('pos.rxBlankPick', 'Blank turini tanlang (majburiy)')}</option>}
+                            {!controlled && <option value="simple">{tfb('pos.rxBlankSimple', 'Oddiy blank')}</option>}
+                            <option value="form_107">{tfb('pos.rxBlank107', '107-1/u blank')}</option>
+                            <option value="form_148">{tfb('pos.rxBlank148', '148-1/u blank')}</option>
+                            <option value="special">{tfb('pos.rxBlankSpecial', 'Maxsus blank')}</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {anyNoRx && (
+                  <textarea
+                    className={`${inputCls} h-16`}
+                    placeholder={tfb('pos.rxReason', 'Retseptsiz sotish sababi (majburiy)')}
+                    value={rxReason}
+                    onChange={e => setRxReason(e.target.value)}
+                  />
+                )}
+                {rxError && <div className="text-red-600 text-sm font-bold">{rxError}</div>}
+              </div>
+              <div className="px-4 py-3 border-t border-slate-100 flex gap-3">
+                <button onClick={() => { setRxModal(null); setRxError(''); }} className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50">
+                  {tfb('common.cancel', 'Bekor qilish')}
+                </button>
+                <button onClick={confirmRx} className="flex-1 py-2.5 rounded-xl bg-violet-700 hover:bg-violet-800 text-white font-black text-sm">
+                  {tfb('pos.rxConfirm', 'Tasdiqlash')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── D2.6: ANALOGLAR OYNASI ── */}
+      {pharmacy && analogModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="analog-modal">
+          <div className="bg-white rounded-2xl shadow-2xl w-[620px] max-w-[96vw] max-h-[88vh] flex flex-col overflow-hidden">
+            <div className="bg-emerald-700 px-5 py-3 text-white flex items-center">
+              <div className="flex-1">
+                <div className="font-black text-base">{tfb('pos.analogs', 'Analoglar')}</div>
+                <div className="text-emerald-100 text-xs">
+                  {analogModal.auto ? tfb('pos.analogsAuto', "Qoldiq yo'q — {name} o'rniga:", { name: analogModal.name }) : analogModal.name}
+                </div>
+              </div>
+              <button onClick={() => setAnalogModal(null)} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 font-bold">&times;</button>
+            </div>
+            <div className="p-3 overflow-y-auto space-y-2">
+              {analogModal.loading && <div className="text-center text-slate-400 font-bold py-6">{t('pos.productsLoading')}</div>}
+              {!analogModal.loading && analogModal.error && <div className="text-center text-red-500 font-bold py-6">{t('common.error')}</div>}
+              {!analogModal.loading && !analogModal.error && analogModal.items.length === 0 && (
+                <div className="text-center text-slate-400 font-bold py-6">{tfb('pos.analogsNone', 'Analog topilmadi')}</div>
+              )}
+              {analogModal.items.map(a => (
+                <div key={a.id} className="border border-slate-200 rounded-xl p-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-black text-slate-800 text-sm truncate">{a.name}</div>
+                    <div className="flex flex-wrap gap-1.5 mt-1 text-[11px] font-bold">
+                      <span className="text-blue-700">{fmt(a.sale_price)}</span>
+                      <span className={a.in_stock ? 'text-emerald-600' : 'text-red-500'}>
+                        {a.in_stock ? `${tfb('pos.stockLabel', 'Qoldiq')}: ${fmt(a.valid_quantity)}` : t('pos.zeroStock')}
+                      </span>
+                      {a.nearest_expiry && (
+                        <span className={`px-1 rounded ${a.expiry_warn ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {a.expiry_warn ? '⚠ ' : ''}{fmtExpiry(a.nearest_expiry)}
+                        </span>
+                      )}
+                      {a.is_rx && <span className="px-1 rounded bg-violet-100 text-violet-700">Rx</span>}
+                      {[a.dosage_form, a.strength, a.manufacturer].filter(Boolean).length > 0 && (
+                        <span className="text-slate-400">{[a.dosage_form, a.strength, a.manufacturer].filter(Boolean).join(' · ')}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => addAnalogToCart(a)}
+                    disabled={!a.in_stock}
+                    className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs disabled:opacity-40"
+                  >
+                    {tfb('pos.analogAdd', 'Savatga')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── D2.6: SOTUV XATOSI (server 400: muddat, butun quti, markirovka...) ── */}
+      {pharmacy && saleError && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="sale-error-modal">
+          <div className="bg-white rounded-2xl shadow-2xl w-[480px] max-w-[96vw] overflow-hidden">
+            <div className="bg-red-600 px-5 py-3 text-white font-black text-base">
+              {saleError.category === 'expiry' ? tfb('pos.errExpiry', "Muddati o'tgan yoki yaroqsiz dori")
+                : saleError.category === 'marking' ? tfb('pos.errMarking', 'Markirovka xatosi')
+                : saleError.category === 'stock' ? tfb('pos.errStock', 'Qoldiq yetarli emas')
+                : tfb('pos.errRejected', 'Sotuv rad etildi')}
+            </div>
+            <div className="px-5 py-4 text-slate-700 font-semibold text-sm">{saleError.message}</div>
+            {saleError.boxFix && (
+              <div className="px-5 pb-2 text-xs text-slate-500 font-semibold">
+                {tfb('pos.wholeBoxHint', 'Butun quti yetmaydi — dona qilib sotishingiz mumkin.')}
+              </div>
+            )}
+            <div className="px-5 pb-4 pt-2 flex gap-3">
+              <button onClick={() => setSaleError(null)} className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50">
+                {tfb('common.close', 'Yopish')}
+              </button>
+              {saleError.boxFix && (
+                <button onClick={applyBoxFix} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm">
+                  {tfb('pos.sellByPiece', 'Dona qilib sotish')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {markingModal && cart[markingModal.idx] && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 p-4" onClick={() => setMarkingModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>

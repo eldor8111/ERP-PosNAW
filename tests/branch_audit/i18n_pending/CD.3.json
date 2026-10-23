@@ -1,0 +1,29 @@
+{
+  "uz": {
+    "header.collapseSidebar": "Menyuni yig'ish",
+    "header.expandSidebar": "Menyuni yoyish",
+    "settings.group.system": "Tizim sozlamalari",
+    "settings.group.finance": "Fiskal & Chek sozlamalari",
+    "settings.group.integrations": "Integratsiyalar",
+    "subscription.renewNow": "Hozir yangilash",
+    "pos.logoutWarningSync": "{count} ta saqlanmagan oflayn sotuv bor. Serverga yuborilsinmi? Bekor qilinsa, ular qurilmada qoladi."
+  },
+  "ru": {
+    "header.collapseSidebar": "Свернуть меню",
+    "header.expandSidebar": "Развернуть меню",
+    "settings.group.system": "Системные настройки",
+    "settings.group.finance": "Фискальные настройки и чеки",
+    "settings.group.integrations": "Интеграции",
+    "subscription.renewNow": "Продлить сейчас",
+    "pos.logoutWarningSync": "Есть несохранённые офлайн-продажи: {count}. Отправить их на сервер? Если отменить, они останутся на устройстве."
+  },
+  "en": {
+    "header.collapseSidebar": "Collapse sidebar",
+    "header.expandSidebar": "Expand sidebar",
+    "settings.group.system": "System settings",
+    "settings.group.finance": "Fiscal & receipt settings",
+    "settings.group.integrations": "Integrations",
+    "subscription.renewNow": "Renew now",
+    "pos.logoutWarningSync": "There are {count} unsaved offline sales. Send them to the server? If you cancel, they stay on this device."
+  }
+}

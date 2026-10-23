@@ -25,6 +25,11 @@ class SaleItemCreate(BaseModel):
     # Har bir sotilgan birlik uchun skanerlangan Data Matrix (markirovka) kodi.
     # Markirovka talab qilinadigan mahsulotlar uchun uzunligi quantity ga teng bo'lishi shart.
     marking_codes: Optional[List[str]] = None
+    # D2.4 (dorixona): qadoq birligi (quti/blister/dona); quantity shu birlikda. Oddiy korxonada 400.
+    unit_id: Optional[int] = None
+    # D1.4 (dorixona): qaytarishda asl partiya topilmasa — seriya va yaroqlilik muddati (yangi partiya shu bilan ochiladi)
+    lot_number: Optional[str] = None
+    expiry_date: Optional[date] = None
 
     @field_validator("quantity")
     @classmethod
@@ -68,6 +73,41 @@ class DeliveryIn(BaseModel):
     delivery_fee: Decimal = Field(Decimal("0"), ge=0)
     planned_date: Optional[date] = None
     note: Optional[str] = Field(None, max_length=1000)
+
+
+class PrescriptionIn(BaseModel):
+    """D2.5: retsept ma'lumoti (faqat dorixona rejimida ishlatiladi). product_id yoki item_index majburiy."""
+    product_id: Optional[int] = None
+    item_index: Optional[int] = None       # savat qatori tartibi (0 dan)
+    number: str
+    issued_at: date
+    doctor: str
+    clinic: str
+    patient: Optional[str] = None
+    blank_type: str = "simple"             # simple, form_107, form_148, special
+
+    @field_validator("number", "doctor", "clinic")
+    @classmethod
+    def _not_blank(cls, v):
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("Retsept raqami, shifokor va muassasa majburiy")
+        return v
+
+
+class SalePrescriptionOut(BaseModel):
+    id: int
+    sale_item_id: Optional[int] = None
+    product_id: Optional[int] = None
+    number: Optional[str] = None
+    issued_at: Optional[date] = None
+    doctor: Optional[str] = None
+    clinic: Optional[str] = None
+    patient: Optional[str] = None
+    blank_type: Optional[str] = None
+    reason_without_rx: Optional[str] = None
+
+    model_config = {"from_attributes": True}
 
 
 class SaleCreate(BaseModel):
@@ -117,6 +157,10 @@ class SaleCreate(BaseModel):
     delivery: Optional[DeliveryIn] = None
     # T4.6: limitdan oshgan chegirma/narx/qaytarish uchun tasdiqlangan so'rov (menejer tasdig'i)
     approval_id: Optional[int] = None
+    # D2.5: retseptlar (PrescriptionIn ko'rinishida) va retseptsiz sotish sababi. Faqat dorixona yoqilgan
+    # korxonada tekshiriladi; oddiy korxonada e'tiborsiz qoldiriladi.
+    prescriptions: Optional[list] = None
+    rx_override_reason: Optional[str] = None
 
     @field_validator("items")
     @classmethod
@@ -124,6 +168,23 @@ class SaleCreate(BaseModel):
         if not v:
             raise ValueError("Savdo elementi bo'sh bo'lishi mumkin emas")
         return v
+
+
+class SaleItemBatchOut(BaseModel):
+    """D1.1/CD.1: sotuv qatori qaysi partiyalardan yechilgani (faqat dorixona rejimida to'ldiriladi)."""
+    batch_id: int
+    lot_number: Optional[str] = None
+    expiry_date: Optional[date] = None
+    quantity: Decimal
+
+
+class SaleItemUnitOut(BaseModel):
+    """D2.4/CD.1: qator qaysi birlikda (quti/blister/dona) sotilgani (faqat dorixona rejimida)."""
+    unit_id: Optional[int] = None
+    unit_name: str
+    unit_ratio: Decimal
+    unit_qty: Decimal
+    unit_price: Optional[Decimal] = None
 
 
 class SaleItemOut(BaseModel):
@@ -145,6 +206,9 @@ class SaleItemOut(BaseModel):
     warehouse_name: Optional[str] = None    # Ombor nomi
     currency_code: Optional[str] = "UZS"
     exchange_rate: Optional[Decimal] = Decimal("1.0")
+    # CD.1 (dorixona): partiyalar va sotuv birligi; oddiy korxonada [] / None
+    batches: List[SaleItemBatchOut] = []
+    unit_info: Optional[SaleItemUnitOut] = None
 
     model_config = {"from_attributes": True}
 
@@ -204,6 +268,8 @@ class SaleOut(BaseModel):
     delivery: Optional[dict] = None
     # Qaytarish hujjati (R...) uchun asl sotuv (T0.30)
     original_sale_id: Optional[int] = None
+    # D2.5: retseptlar (dorixona rejimi; oddiy korxonada bo'sh)
+    prescriptions: List[SalePrescriptionOut] = []
 
     model_config = {"from_attributes": True}
 
@@ -251,6 +317,8 @@ class SaleListOut(BaseModel):
     branch_stir: Optional[str] = None         # T4.2
     warehouse_name: Optional[str] = None
     company_name: Optional[str] = None
+    # D2.5: ogohlantirishlar (masalan, eski retsept); oddiy korxonada bo'sh
+    warnings: List[dict] = []
 
     model_config = {"from_attributes": True}
 
@@ -274,11 +342,18 @@ class SaleUpdate(BaseModel):
     currency_code: Optional[str] = None
     exchange_rate: Optional[Decimal] = None
     delivery: Optional[DeliveryIn] = None
+    # CD.1 (dorixona): kutilayotgan sotuvni tasdiqlashda retseptlar va retseptsiz sotish sababi (oddiy korxonada e'tiborsiz)
+    prescriptions: Optional[list] = None
+    rx_override_reason: Optional[str] = None
 
 
 class PartialReturnItem(BaseModel):
     sale_item_id: int
     quantity: Decimal
+    # D1.4 (dorixona): asl partiya topilmasa — seriya va yaroqlilik muddati; D3.2: qaytayotgan markirovka kodlari
+    lot_number: Optional[str] = None
+    expiry_date: Optional[date] = None
+    marking_codes: Optional[List[str]] = None
     
     @field_validator("quantity")
     @classmethod

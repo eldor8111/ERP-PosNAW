@@ -1026,8 +1026,9 @@ def test_migration_adds_two_boolean_columns():
     src = open(path, encoding='utf-8').read()
     assert "revision = 't3_16'" in src and "down_revision = 't3_15'" in src
     for col in ("notify_branch_managers", "report_by_branch"):
-        assert f"'{col}'" in src
-    assert src.count("server_default=sa.true()") == 2 and src.count("nullable=False") == 2
+        assert col in src
+    # 6facd10: migratsiya idempotent xom SQL ga o'tkazilgan; ikkala ustun ham NOT NULL DEFAULT true
+    assert src.count('BOOLEAN NOT NULL DEFAULT true') == 2 and src.count('ADD COLUMN IF NOT EXISTS') == 2
 
 
 def test_frontend_new_keys_in_all_languages_and_used():

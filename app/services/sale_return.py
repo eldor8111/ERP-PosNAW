@@ -1,3 +1,4 @@
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
 
@@ -12,7 +13,7 @@ from app.models.customer_prices import CustomerPrice
 from app.models.currency import Currency
 from app.models.moliya import Transaction, KassaMovement, Wallet, NON_CASH_PAYMENT_TYPES
 from app.models.product import Product, ProductConversion
-from app.models.sale import Sale, SaleItem, SaleStatus, PaymentType
+from app.models.sale import Sale, SaleItem, SaleItemBatch, SaleStatus, PaymentType
 from app.models.user import User
 from app.schemas.sale import SaleCreate
 from app.services.inventory_service import receive_stock
@@ -24,8 +25,104 @@ from app.services.sale_helpers import (
 from app.services.loyalty_service import (
     get_loyalty_rules, reverse_sale_loyalty, reverse_return_without_sale, returned_ratio,
 )
+from app.services.pharmacy import pharmacy_context  # D1.4: dorixona rejimida asl partiyaga qaytarish
 from app.services.tenant_guards import find_tx_branch, get_company_variant
 from app.services.wallet_resolver import resolve_wallet, NEGATIVE_BALANCE_WARNING
+
+
+# ─── D1.4: dorixona rejimida qaytarish — asl partiyaga ───────────────────────
+
+def _parse_return_expiry(value, product_name: str) -> Optional[datetime]:
+    """So'rovdagi yaroqlilik muddatini (date / datetime / 'YYYY-MM-DD') Batch.expiry_date (DateTime) ga o'tkazadi."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    if isinstance(value, date):
+        return datetime.combine(value, time.min)
+    try:
+        return datetime.combine(date.fromisoformat(str(value).strip()[:10]), time.min)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{product_name}': yaroqlilik muddati (expiry_date) noto'g'ri formatda (YYYY-MM-DD kerak)",
+        )
+
+
+def plan_pharmacy_batch_return(
+    db: Session,
+    sale_item: Optional[SaleItem],
+    src_qty: Decimal,
+    ratio: Decimal,
+    used: dict,
+    item_req,
+    product,
+) -> dict:
+    """Dorixona rejimi: qaytgan `src_qty` (manba mahsulot birligida) qaysi partiyalarga yozilishini REJALAYDI
+    (bazaga hech narsa yozmaydi — xato bo'lsa hech narsa o'zgarmasin).
+
+    1) `SaleItemBatch` bo'yicha aynan sotilgan partiyalarga, oxirgi ajratilgandan boshlab. Oldingi qisman
+       qaytarishlar ham oxiridan olingan deb hisoblanadi (`returned_quantity`), shuning uchun ustun kerak emas.
+    2) Asl ajratma topilmasa yoki yetmasa (eski sotuv, sotuvsiz qaytarish): so'rovdagi `lot_number` va
+       `expiry_date` majburiy (400), shu bilan yangi partiya ochiladi.
+    Muddati o'tgan partiyaga ham shu partiyaning o'ziga yoziladi (sotilishini D1.2 to'sadi).
+    `used` — bir so'rov ichida bir xil ajratmadan ikki marta olmaslik uchun ({sib.id: miqdor}).
+    """
+    remainder = Decimal(str(src_qty))
+    allocs = []
+    if sale_item is not None:
+        sibs = (
+            db.query(SaleItemBatch)
+            .filter(SaleItemBatch.sale_item_id == sale_item.id)
+            .order_by(SaleItemBatch.id.asc())
+            .all()
+        )
+        prev = Decimal(str(sale_item.returned_quantity or 0)) * ratio
+        for sib in reversed(sibs):
+            sib_qty = Decimal(str(sib.quantity or 0))
+            already = min(prev, sib_qty)
+            prev -= already
+            avail = sib_qty - already - used.get(sib.id, Decimal("0"))
+            take = min(remainder, avail)
+            if take <= 0:
+                continue
+            allocs.append((sib.batch_id, take))
+            used[sib.id] = used.get(sib.id, Decimal("0")) + take
+            remainder -= take
+
+    new_batch = None
+    if remainder > 0:
+        lot = (getattr(item_req, "lot_number", None) or "").strip() if item_req is not None else ""
+        expiry = _parse_return_expiry(getattr(item_req, "expiry_date", None), product.name) if item_req is not None else None
+        if not lot or expiry is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{product.name}': asl sotuv partiyasi topilmadi — qaytarish uchun seriya raqami "
+                       f"(lot_number) va yaroqlilik muddati (expiry_date) majburiy",
+            )
+        new_batch = {"lot_number": lot[:100], "expiry_date": expiry, "quantity": remainder}
+    return {"allocs": allocs, "new_batch": new_batch}
+
+
+def apply_pharmacy_batch_return(
+    db: Session, plan: dict, *, product_id: int, variant_id: Optional[int], warehouse_id: Optional[int],
+    company_id: int, purchase_price,
+) -> None:
+    """`plan_pharmacy_batch_return` natijasini qo'llaydi: asl partiyalar qoldig'i oshadi, yetmagan qism uchun
+    kiritilgan seriya/muddat bilan yangi partiya ochiladi (RETURN-<raqam> partiya ochilmaydi)."""
+    for batch_id, qty in plan["allocs"]:
+        batch = db.query(Batch).filter(Batch.id == batch_id).with_for_update().first()
+        if batch is not None:
+            batch.quantity = Decimal(str(batch.quantity or 0)) + qty
+    nb = plan["new_batch"]
+    if nb is not None:
+        db.add(Batch(
+            product_id=product_id, variant_id=variant_id, warehouse_id=warehouse_id,
+            lot_number=nb["lot_number"], expiry_date=nb["expiry_date"],
+            initial_quantity=nb["quantity"], quantity=nb["quantity"],
+            purchase_price=purchase_price, company_id=company_id,
+        ))
+    db.flush()
 
 
 def create_return_sale(
@@ -43,6 +140,10 @@ def create_return_sale(
     # Ombor shu korxonaning faol ombori bo'lishi shart (T0.13); filial ruxsati joriy korxona bo'yicha
     # (T1.2: uc.branch_id ∪ user_branches), global users.branch_id bo'yicha emas
     validate_sale_warehouse(db, current_user, data.warehouse_id)
+    # D1.4: dorixona moduli yoqilgan korxonada qaytgan tovar asl partiyaga qaytadi (oddiy do'konda o'zgarmaydi)
+    pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
+    batch_used = {}
+    marking_used = set()   # D3.2: bir so'rovda bir kod ikki marta qaytmasin
 
     # Asl sotuv (ixtiyoriy): shu korxonadan, xodimning filial ruxsati doirasida, qaytarilmagan
     original_sale = None
@@ -152,6 +253,27 @@ def create_return_sale(
             if source:
                 cost_price = (source.cost_price or Decimal("0")) * conversion.ratio
 
+        # D1.4: dorixona rejimida partiya rejasi (yozishdan oldin; seriya/muddat yetishmasa 400)
+        batch_plan = None
+        if pharmacy_on and getattr(product, "product_type", "stock") != "service":
+            _is_virtual = getattr(product, "product_type", "stock") == "sell"
+            if not (_is_virtual and not conversion):   # konversiyasiz virtual mahsulot pastda o'z xatosini beradi
+                _ratio = Decimal(str(conversion.ratio)) if (_is_virtual and conversion) else Decimal("1")
+                batch_plan = plan_pharmacy_batch_return(
+                    db, original_item, qty * _ratio, _ratio, batch_used, item_d, product,
+                )
+
+        # D3.2: dorixona rejimida markirovkali dori kodlari (sold -> in_stock); modul o'chiq bo'lsa bo'sh
+        marking_rows = []
+        if pharmacy_on and product.requires_marking:
+            from app.routers.pharmacy_marking import plan_return_marking
+            marking_rows = plan_return_marking(
+                db, current_user.company_id, product=product,
+                source=db.get(Product, conversion.source_product_id) if conversion else None,
+                original_item=original_item, codes=getattr(item_d, "marking_codes", None), qty=qty,
+                used_ids=marking_used,
+            )
+
         sale_items_data.append({
             "product": product,
             "variant_id": variant_id,
@@ -162,6 +284,8 @@ def create_return_sale(
             "cost_price": cost_price,
             "currency_code": item_currency,
             "exchange_rate": item_rate,
+            "batch_plan": batch_plan,
+            "marking_rows": marking_rows,
         })
 
     total_amount = max(Decimal("0"), total_amount - data.discount_amount)
@@ -345,12 +469,19 @@ def create_return_sale(
                 reference_type="sale_refund", reference_id=sale.id, warehouse_id=data.warehouse_id,
             )
             source_prod = db.query(Product).filter(Product.id == conversion.source_product_id).first()
-            db.add(Batch(
-                product_id=conversion.source_product_id, warehouse_id=data.warehouse_id,
-                lot_number=f"RETURN-{sale.number}", initial_quantity=conv_qty, quantity=conv_qty,
-                purchase_price=source_prod.cost_price if source_prod else Decimal("0"),
-                company_id=current_user.company_id,
-            ))
+            if item_d.get("batch_plan") is not None:
+                apply_pharmacy_batch_return(
+                    db, item_d["batch_plan"], product_id=conversion.source_product_id, variant_id=None,
+                    warehouse_id=data.warehouse_id, company_id=current_user.company_id,
+                    purchase_price=source_prod.cost_price if source_prod else Decimal("0"),
+                )
+            else:
+                db.add(Batch(
+                    product_id=conversion.source_product_id, warehouse_id=data.warehouse_id,
+                    lot_number=f"RETURN-{sale.number}", initial_quantity=conv_qty, quantity=conv_qty,
+                    purchase_price=source_prod.cost_price if source_prod else Decimal("0"),
+                    company_id=current_user.company_id,
+                ))
         else:
             receive_stock(
                 db=db, product_id=product.id, quantity=qty_needed,
@@ -358,11 +489,18 @@ def create_return_sale(
                 reference_type="sale_refund", reference_id=sale.id, warehouse_id=data.warehouse_id,
                 variant_id=item_d["variant_id"],
             )
-            db.add(Batch(
-                product_id=product.id, variant_id=item_d["variant_id"], warehouse_id=data.warehouse_id,
-                lot_number=f"RETURN-{sale.number}", initial_quantity=qty_needed, quantity=qty_needed,
-                purchase_price=product.cost_price, company_id=current_user.company_id,
-            ))
+            if item_d.get("batch_plan") is not None:
+                apply_pharmacy_batch_return(
+                    db, item_d["batch_plan"], product_id=product.id, variant_id=item_d["variant_id"],
+                    warehouse_id=data.warehouse_id, company_id=current_user.company_id,
+                    purchase_price=product.cost_price,
+                )
+            else:
+                db.add(Batch(
+                    product_id=product.id, variant_id=item_d["variant_id"], warehouse_id=data.warehouse_id,
+                    lot_number=f"RETURN-{sale.number}", initial_quantity=qty_needed, quantity=qty_needed,
+                    purchase_price=product.cost_price, company_id=current_user.company_id,
+                ))
 
         db.add(SaleItem(
             sale_id=sale.id, product_id=product.id, variant_id=item_d["variant_id"],
@@ -370,7 +508,11 @@ def create_return_sale(
             unit_price=item_d["unit_price"], cost_price=item_d["cost_price"],
             discount=item_d["discount"], subtotal=item_d["subtotal"],
             currency_code=item_d["currency_code"], exchange_rate=item_d["exchange_rate"],
+            marking_codes=[r.code for r in item_d["marking_rows"]] or None,
         ))
+        if item_d["marking_rows"]:
+            from app.routers.pharmacy_marking import apply_return_marking
+            apply_return_marking(item_d["marking_rows"], data.warehouse_id)   # D3.2
 
     # T2.12: sodiqlik qoidalari (korxona + filial)
     _loy_rules = get_loyalty_rules(db, current_user.company_id, warehouse_id=data.warehouse_id)

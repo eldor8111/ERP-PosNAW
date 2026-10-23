@@ -231,11 +231,14 @@ def test_sidebar_links_and_flyout():
         ("nav.shifts", "/admin/shifts", "ROLE_GROUPS.SALES"),
         ("nav.warehouse", "/admin/ombor", "ROLE_GROUPS.WAREHOUSE_ACCESS"),
     ]:
-        pat = r"name: t\('%s'\),\s*path: '%s',\s*roles: %s," % (re.escape(name), re.escape(path), re.escape(roles))
+        # 344afc9: nom endi `t('kalit') || 'zaxira'` ko'rinishida
+        pat = r"name: t\('%s'\)[^\n]*,\s*path: '%s',\s*roles: %s," % (re.escape(name), re.escape(path), re.escape(roles))
         assert re.search(pat, src), name
     assert "'ERP System'" not in src and "t('app.title')" in src
-    assert "aria-expanded" in src and "onFocus=" in src
-    assert "handleSettingsEnter : () =>" in src      # Sozlamalar havolasi aside'ni yopmaydi
+    # 344afc9: yon panel guruhlarga bo'lingan, flyout bosish/hover bilan ochiladi (eski handleSettingsEnter/onFocus
+    # yo'q: touch'da fokus flyout'ni ochib, bosish yopib yuborar edi); klaviatura uchun aria-expanded + Enter/Space qoldi
+    assert "aria-expanded={isFlyoutOpen}" in src and "onKeyDown=" in src
+    assert "setActiveFlyout(null)" in src            # havolani bosish flyout'ni yopadi
 
 
 def test_shift_close_modal_shared_by_shifts_and_pos_pages():
