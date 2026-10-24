@@ -588,8 +588,7 @@ def activate_subscription(
     c.subscription_starts_at = base
     c.subscription_ends_at = base + timedelta(days=extra_days)
     # Modullarni tarifga moslab faollashtirish
-    c.manufacturing_enabled = bool(tariff.has_manufacturing)
-    c.distribution_enabled = bool(tariff.has_distribution)
+    _apply_tariff_module_flags(db, c, tariff)
 
     discount_str = f" (-{quote['discount_percent']}%)" if quote["discount_percent"] > 0 else ""
     log = BalanceLog(
@@ -672,8 +671,7 @@ def subscribe_my_company(
     c.subscription_starts_at = base
     c.subscription_ends_at = base + timedelta(days=extra_days)
     # Modullarni tarifga moslab faollashtirish
-    c.manufacturing_enabled = bool(tariff.has_manufacturing)
-    c.distribution_enabled = bool(tariff.has_distribution)
+    _apply_tariff_module_flags(db, c, tariff)
 
     discount_str = f" (-{quote['discount_percent']}%)" if quote["discount_percent"] > 0 else ""
     log = BalanceLog(
@@ -864,6 +862,38 @@ def get_my_company_packages(
     return result
 
 
+def _active_package_codes(db: Session, company_id: int) -> set:
+    """Kompaniyaning hozir faol (muddati tugamagan) paket kodlari."""
+    now = datetime.now(timezone.utc)
+    codes = set()
+    for cp in db.query(CompanyPackage).filter(CompanyPackage.company_id == company_id,
+                                              CompanyPackage.is_active == True).all():  # noqa: E712
+        ends = cp.ends_at
+        if ends is not None and ends.tzinfo is None:
+            ends = ends.replace(tzinfo=timezone.utc)
+        if ends is None or ends > now:
+            codes.add(cp.package_code)
+    return codes
+
+
+def _apply_tariff_module_flags(db: Session, company, tariff) -> None:
+    """Tarif obunasida modul bayroqlari: tarifda bor YOKI alohida faol paketi bor bo'lsa yoqiq.
+    Avval faqat tarifga qarab yozilardi — sotib olingan ishlab chiqarish/distribyutsiya paketi tarif
+    yangilanganda o'chib qolardi."""
+    pkgs = _active_package_codes(db, company.id)
+    company.manufacturing_enabled = bool(tariff.has_manufacturing) or "manufacturing" in pkgs
+    company.distribution_enabled = bool(tariff.has_distribution) or "distribution" in pkgs
+
+
+def _enable_package_flag(company, package_code: str) -> None:
+    """Paket sotib olinganda yoki berilganda tegishli modul bayrog'ini yoqadi (app/core/features.FEATURES).
+    Avval faqat 3 ta paket qo'lda sanalgan edi — Dorixona (pharmacy) paketi sotib olinsa ham modul yopiq qolardi."""
+    from app.core.features import FEATURES
+    entry = FEATURES.get(package_code)
+    if entry and package_code != "marketplace_agents":   # marketplace agentlarini faqat super admin boshqaradi
+        setattr(company, entry[0], True)
+
+
 class PackageSubscribeIn(BaseModel):
     package_code: str
     months: int = 1
@@ -935,13 +965,8 @@ def subscribe_my_company_package(
         cp.is_trial = False
         cp.purchased_at = now
 
-    # Kompaniya maydonini avtomatik faollashtirish
-    if data.package_code == "manufacturing":
-        c.manufacturing_enabled = True
-    elif data.package_code == "distribution":
-        c.distribution_enabled = True
-    elif data.package_code == "delivery_automation":
-        c.orders_auto_create_sale = True
+    # Kompaniya maydonini avtomatik faollashtirish (barcha modul paketlari, jumladan Dorixona)
+    _enable_package_flag(c, data.package_code)
 
     # Balansdan yechish
     c.balance = current_balance - total_price
@@ -1020,12 +1045,7 @@ def grant_company_package(
         cp.is_active = True
         cp.is_trial = data.is_trial
 
-    if data.package_code == "manufacturing":
-        c.manufacturing_enabled = True
-    elif data.package_code == "distribution":
-        c.distribution_enabled = True
-    elif data.package_code == "delivery_automation":
-        c.orders_auto_create_sale = True
+    _enable_package_flag(c, data.package_code)
 
     db.commit()
 

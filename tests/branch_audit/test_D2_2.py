@@ -284,7 +284,8 @@ def test_two_companies_import_isolation(client, db, mk):
 
 # ---------------------------------------------------------------- frontend: fayl-matn tekshiruvlari
 
-MODAL = 'frontend/src/components/ProductAddModal.jsx'
+MODAL = 'frontend/src/components/PharmacyProductModal.jsx'   # P.2: dori maydonlari alohida oynaga ko'chirildi
+PLAIN_MODAL = 'frontend/src/components/ProductAddModal.jsx'
 PRODUCTS_JSX = 'frontend/src/pages/admin/Products.jsx'
 
 
@@ -292,35 +293,33 @@ def test_import_module_compiles():
     py_compile.compile(os.path.join(ROOT, 'app/routers/product_import.py'), doraise=True)
 
 
-def test_product_add_modal_has_pharma_section_and_hides_single_expiry():
+def test_pharmacy_modal_has_pharma_fields_and_plain_modal_keeps_expiry():
     s = _read(MODAL)
+    # P.2: dori maydonlari alohida PharmacyProductModal oynasida (faqat dorixona rejimida ochiladi)
     assert "import useCompanyFeatures from '../hooks/useCompanyFeatures'" in s
-    assert 'const pharmacyOn = !!features?.pharmacy' in s
-    # bo'lim, moddalarni qidirish va yaratish, MXIK majburiy
-    assert 'export function PharmaSection' in s and '<PharmaSection' in s
     assert "api.get('/pharmacy/substances'" in s and "api.post('/pharmacy/substances'" in s
     for field in ('dosage_form', 'strength', 'pack_qty', 'manufacturer', 'country', 'reg_number',
                   'reg_valid_until', 'atc_code', 'storage', 'is_rx', 'control_class', 'max_retail_price', 'substance_ids'):
         assert field in s, field
-    assert 'pharmacyOn && !mxikCode.trim()' in s
-    assert 'payload.mxik_code = mxikCode.trim()' in s and 'payload.pharma = pharmaToPayload(pharma)' in s
-    # yagona "Yaroqlilik muddati" faqat oddiy korxonada ko'rinadi va yuboriladi
-    assert '{!pharmacyOn && (' in s
-    assert re.search(r"\{!pharmacyOn && \(\s*<div>\s*<label[^>]*>(?:(?!</label>).)*Yaroqlilik muddati", s, re.S)
-    assert 'expiry_date:      pharmacyOn ? null : (form.expiry_date || null)' in s
-    # forma bo'limi faqat dorixona rejimida
-    assert re.search(r"\{pharmacyOn && \(\s*<PharmaSection", s)
+    # MXIK majburiy va yuboriladi; pharma bloki yuboriladi
+    assert '!form.mxik.trim()' in s and 'mxik_code: form.mxik.trim()' in s
+    assert 'pharma: pharmaToPayload(pharma)' in s
+    # oddiy forma: dori maydonlari yo'q, yagona "Yaroqlilik muddati" avvalgidek ko'rinadi va yuboriladi
+    p = _read(PLAIN_MODAL)
+    for bad in ('pharma', 'substance', 'PharmaSection', 'useCompanyFeatures'):
+        assert bad not in p, bad
+    assert 'expiry_date:      form.expiry_date || null' in p
+    assert 'Yaroqlilik muddati' in p
 
 
 def test_products_page_edit_form_filters_columns_and_import():
     s = _read(PRODUCTS_JSX)
     assert "import useCompanyFeatures from '../../hooks/useCompanyFeatures'" in s
     assert 'const pharmacyOn = !!features?.pharmacy' in s
-    # tahrirlash: serverdan kelgan pharma formaga yuklanadi, saqlashda yuboriladi; MXIK majburiy
-    assert 'setPharmaForm(pharmaToForm(full.pharma))' in s
-    assert 'if (pharmacyOn) payload.pharma = pharmaToPayload(pharmaForm)' in s
+    # P.2: pharma bor mahsulot alohida PharmacyProductModal da tahrirlanadi, oddiy formada pharma yuborilmaydi; MXIK majburiy
+    assert 'if (pharmacyOn && full.pharma) { setSelected(null); setPharmModal({ product: full }); return; }' in s
+    assert 'payload.pharma' not in s and 'PharmaSection' not in s
     assert 'pharmacyOn && !(mxikCode ||' in s
-    assert re.search(r"\{pharmacyOn && \(\s*<PharmaSection", s)
     assert 'required={pharmacyOn}' in s
     # filtrlar faqat dorixona rejimida so'rovga qo'shiladi
     m = re.search(r"if \(pharmacyOn\) \{(.*?)\n    \}", s, re.S)
@@ -333,21 +332,22 @@ def test_products_page_edit_form_filters_columns_and_import():
 
 
 def test_import_columns_and_template_in_frontend_match_backend():
-    from app.routers.product_import import FIELD_MAP, PHARMA_COLUMNS
+    from app.routers.product_import import FIELD_MAP, LOT_COLUMNS, PACK_COLUMNS, PHARMA_COLUMNS
     s = _read(PRODUCTS_JSX)
     m = re.search(r"\.\.\.\(pharmacyOn \? \[(.*?)\] : \[\]\),\s*\{ key: '__SKIP__'", s, re.S)
     assert m, 'IMPORT_FIELDS dori ustunlari topilmadi'
     keys = re.findall(r"key: (?:'([^']*)'|\"([^\"]*)\")", m.group(1))
     keys = [a or b for a, b in keys]
-    assert keys == list(PHARMA_COLUMNS)
+    # P.1/P.2: dori ustunlariga qadoq tuzilmasi ustunlari (PACK_COLUMNS, LOT_COLUMNS) ham qo'shilgan
+    assert keys == list(PHARMA_COLUMNS) + list(PACK_COLUMNS) + list(LOT_COLUMNS)
     # dori ustunlari mavjud FIELD_MAP kalitlari bilan to'qnashmaydi
-    assert not set(PHARMA_COLUMNS) & set(FIELD_MAP)
+    assert not (set(PHARMA_COLUMNS) | set(PACK_COLUMNS) | set(LOT_COLUMNS)) & set(FIELD_MAP)
     # shablon: dorixona rejimida qo'shimcha ustunlar bor, oddiy shablon o'zgarmagan
     t = re.search(r"const downloadTemplate = async \(\) => \{(.*?)saveAs\(", s, re.S)
     assert t
     body = t.group(1)
     assert 'pharmacyOn ? {' in body
-    for col in PHARMA_COLUMNS:
+    for col in list(PHARMA_COLUMNS) + list(PACK_COLUMNS) + list(LOT_COLUMNS):
         assert (f"'{col}'" in body) or (f'"{col}"' in body), col
     assert "'Nomi': 'Coca-Cola 0.5L'" in body and "'Ombor': ''   // T4.5" in body
 

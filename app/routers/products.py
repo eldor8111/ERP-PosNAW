@@ -118,6 +118,153 @@ def _save_pharma(db: Session, company_id, product_id: int, pharma_in) -> None:
         db.flush()
 
 
+
+# ── P.1: qadoq tuzilmasi (ProductUnit) va boshlang'ich qoldiq seriyasi — faqat dorixona rejimida ──
+def _load_units_map(db: Session, company_id, product_ids) -> dict:
+    """P.1: mahsulotlarning qadoq birliklarini BITTA so'rovda yuklaydi (N+1 yo'q), ratio o'sish tartibida.
+    Faqat dorixona rejimi yoqilgan korxona uchun chaqiriladi. {product_id: [ProductUnitOut]}."""
+    from collections import defaultdict
+    from app.models.product_units import ProductUnit
+    from app.schemas.product import ProductUnitOut
+    ids = list(product_ids)
+    if not ids:
+        return {}
+    result = defaultdict(list)
+    for u in db.query(ProductUnit).filter(
+        ProductUnit.company_id == company_id, ProductUnit.product_id.in_(ids),
+    ).order_by(ProductUnit.product_id, ProductUnit.ratio, ProductUnit.id).all():
+        result[u.product_id].append(ProductUnitOut(
+            id=u.id, name=u.name, ratio=int(u.ratio),
+            sale_price=float(u.sale_price) if u.sale_price is not None else None, barcode=u.barcode,
+        ))
+    return dict(result)
+
+
+def _clean_units(units_in) -> list:
+    """P.1: yuborilgan birliklarni tekshiradi (400, o'zbekcha) va [{name, ratio:int, sale_price, barcode}] qaytaradi,
+    ratio o'sish tartibida. Nomlar va nisbatlar takrorlanmaydi, nisbat butun son > 1, narx >= 0."""
+    out: list = []
+    names: set = set()
+    ratios: set = set()
+    barcodes: set = set()
+    for u in units_in or []:
+        name = " ".join((u.name or "").split())
+        if not name:
+            raise HTTPException(status_code=400, detail="Qadoq birligi nomi bo'sh bo'lmasligi kerak")
+        if len(name) > 50:
+            raise HTTPException(status_code=400, detail=f"Qadoq nomi 50 belgidan oshmasligi kerak: {name[:20]}...")
+        ratio = Decimal(str(u.ratio))
+        if not ratio.is_finite() or ratio != ratio.to_integral_value() or ratio <= 1:
+            raise HTTPException(status_code=400, detail=f"'{name}': nisbat 1 dan katta butun son bo'lishi kerak")
+        if ratio > Decimal("1000000"):
+            raise HTTPException(status_code=400, detail=f"'{name}': nisbat juda katta")
+        if name.casefold() in names:
+            raise HTTPException(status_code=400, detail=f"'{name}' qadoq nomi takrorlangan")
+        if int(ratio) in ratios:
+            raise HTTPException(status_code=400, detail=f"Bir xil nisbatli ({int(ratio)}) ikkita qadoq bo'lishi mumkin emas")
+        price = None
+        if u.sale_price is not None:
+            price = Decimal(str(u.sale_price))
+            if not price.is_finite() or price < 0:
+                raise HTTPException(status_code=400, detail=f"'{name}': narx manfiy bo'lishi mumkin emas")
+        barcode = (u.barcode or "").strip() or None
+        if barcode:
+            if len(barcode) > 100:
+                raise HTTPException(status_code=400, detail=f"'{name}': shtrix-kod 100 belgidan oshmasligi kerak")
+            if barcode in barcodes:
+                raise HTTPException(status_code=400, detail=f"Shtrix-kod {barcode} qadoqlarda takrorlangan")
+            barcodes.add(barcode)
+        names.add(name.casefold())
+        ratios.add(int(ratio))
+        out.append({"name": name, "ratio": int(ratio), "sale_price": price, "barcode": barcode})
+    out.sort(key=lambda x: x["ratio"])
+    return out
+
+
+def _check_unit_barcodes(db: Session, company_id, units: list, product_id: Optional[int] = None,
+                         own_barcodes=()) -> None:
+    """P.1: birlik shtrix-kodi korxona ichida noyob: mahsulotlarning asosiy shtrix-kodlari (shu mahsulotniki ham) va
+    boshqa mahsulotlar birliklari bilan to'qnashmasin. `product_id` berilsa, uning o'z birliklari tekshirilmaydi
+    (ular almashtiriladi). `own_barcodes` — hali saqlanmagan shu mahsulotning shtrix-kodlari (yaratishda)."""
+    from app.models.product_units import ProductUnit
+    own = {b for b in own_barcodes if b}
+    for u in units:
+        bc = u["barcode"]
+        if not bc:
+            continue
+        if bc in own or db.query(Product.id).filter(
+            Product.company_id == company_id, Product.barcode == bc, Product.is_deleted == False,  # noqa: E712
+        ).first():
+            raise HTTPException(status_code=400, detail=f"Shtrix-kod {bc} mahsulot shtrix-kodi sifatida ishlatilgan")
+        q = db.query(ProductUnit.id).filter(ProductUnit.company_id == company_id, ProductUnit.barcode == bc)
+        if product_id:
+            q = q.filter(ProductUnit.product_id != product_id)
+        if q.first():
+            raise HTTPException(status_code=400, detail=f"Shtrix-kod {bc} boshqa birlikda ishlatilgan")
+
+
+def _sync_units(db: Session, company_id, product_id: int, units: list) -> None:
+    """P.1: mahsulotning ProductUnit qatorlarini `units` (`_clean_units` natijasi) ga TO'LIQ almashtiradi:
+    yo'qlari o'chiriladi, borlari nomi bo'yicha yangilanadi, yangilari qo'shiladi."""
+    from app.models.product_units import ProductUnit
+    existing = db.query(ProductUnit).filter(ProductUnit.product_id == product_id).all()
+    by_name = {e.name.casefold(): e for e in existing}
+    keep = {u["name"].casefold() for u in units}
+    for e in existing:
+        if e.name.casefold() not in keep:
+            db.delete(e)
+        elif e.barcode:
+            e.barcode = None   # shtrix-kod almashinuvida (uq cheklovi) vaqtinchalik to'qnashuv bo'lmasin
+    db.flush()
+    for idx, u in enumerate(units):
+        row = by_name.get(u["name"].casefold())
+        if row is None:
+            row = ProductUnit(product_id=product_id, company_id=company_id)
+            db.add(row)
+        row.name, row.ratio, row.sale_price, row.barcode, row.sort_order = (
+            u["name"], u["ratio"], u["sale_price"], u["barcode"], idx,
+        )
+    db.flush()
+
+
+def _fill_pack_qty(db: Session, company_id, product_id: int, units: list) -> None:
+    """P.1: `pharma.pack_qty` bo'sh bo'lsa eng katta qadoq nisbati bilan to'ldiriladi (quti = shuncha dona)."""
+    if not units:
+        return
+    from app.models.product_pharma import ProductPharma
+    from app.schemas.product import PharmaIn
+    cur = db.query(ProductPharma.pack_qty).filter(ProductPharma.product_id == product_id).scalar()
+    if cur and int(cur) > 0:
+        return
+    _save_pharma(db, company_id, product_id, PharmaIn(pack_qty=max(u["ratio"] for u in units)))
+
+
+def _initial_batch_dates(data, pharmacy_on: bool) -> dict:
+    """P.1: boshlang'ich qoldiq Batch'iga muddat/ishlab chiqarilgan sana (faqat dorixonada; oddiy korxonada muddatsiz)."""
+    if not pharmacy_on:
+        return {}
+    from datetime import datetime as _dt
+    return {
+        "expiry_date": _dt.combine(data.initial_expiry_date, _dt.min.time()) if data.initial_expiry_date else None,
+        "manufacture_date": (
+            _dt.combine(data.initial_manufacture_date, _dt.min.time()) if data.initial_manufacture_date else None
+        ),
+    }
+
+
+def _validate_initial_lot(data) -> None:
+    """P.1: dorixonada boshlang'ich qoldiq bo'lsa seriya va yaroqlilik muddati (bugundan keyin) majburiy."""
+    if not (data.initial_lot_number or "").strip():
+        raise HTTPException(status_code=400, detail="Dorixona rejimida boshlang'ich qoldiq uchun seriya (partiya) raqami majburiy")
+    if data.initial_expiry_date is None:
+        raise HTTPException(status_code=400, detail="Dorixona rejimida boshlang'ich qoldiq uchun yaroqlilik muddati majburiy")
+    from app.services.batch_allocator import tashkent_today
+    if data.initial_expiry_date <= tashkent_today():
+        raise HTTPException(status_code=400, detail="Yaroqlilik muddati bugundan keyingi sana bo'lishi kerak")
+    if data.initial_manufacture_date and data.initial_manufacture_date >= data.initial_expiry_date:
+        raise HTTPException(status_code=400, detail="Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak")
+
+
 def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None, wh_scope=None) -> ProductOut:
     """`wh_scope` (T2.3): ko'rinadigan omborlar to'plami (filialga biriktirilgan xodim uchun o'z filiali
     omborlari); `None` — cheklov yo'q, bo'sh to'plam — hech narsa (qoldiq 0)."""
@@ -201,6 +348,7 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
     # D2.1: dori bloki faqat dorixona rejimida; oddiy korxonada pharma = null
     if db and pharmacy_enabled(db, product.company_id):
         out.pharma = _load_pharma_map(db, product.company_id, [product.id]).get(product.id)
+        out.units = _load_units_map(db, product.company_id, [product.id]).get(product.id, [])   # P.1
     return out
 
 
@@ -318,10 +466,9 @@ def list_products(
     products = q.order_by(Product.name).offset(skip).limit(limit).all()
 
     # D2.1: dori bloklari faqat dorixona rejimida va bitta so'rovda (N+1 yo'q)
-    pharma_map = (
-        _load_pharma_map(db, current_user.company_id, [p.id for p in products])
-        if products and pharmacy_enabled(db, current_user.company_id) else {}
-    )
+    pharma_on = bool(products) and pharmacy_enabled(db, current_user.company_id)
+    pharma_map = _load_pharma_map(db, current_user.company_id, [p.id for p in products]) if pharma_on else {}
+    units_map = _load_units_map(db, current_user.company_id, [p.id for p in products]) if pharma_on else {}   # P.1
 
     # T1.1: ko'rinadigan omborlar yagona filial kontekstidan (None → cheklov yo'q)
     branch_wh_set = warehouse_ids_for_ctx(db, ctx)
@@ -362,6 +509,8 @@ def list_products(
         item = ProductListOut.model_validate(p)
         if pharma_map:
             item.pharma = pharma_map.get(p.id)
+        if units_map:
+            item.units = units_map.get(p.id, [])
 
         all_stocks = stock_by_product[p.id]  # bazaga murojaat yo'q, xotiradan olamiz
 
@@ -599,7 +748,10 @@ def create_product(
     initial_stock = data.initial_stock or Decimal("0")
     initial_warehouse_id = data.initial_warehouse_id
     conversion_data = data.conversion
-    product_data = data.model_dump(exclude={"initial_stock", "initial_warehouse_id", "conversion", "variants", "pharma"})
+    product_data = data.model_dump(exclude={
+        "initial_stock", "initial_warehouse_id", "conversion", "variants", "pharma",
+        "units", "initial_lot_number", "initial_expiry_date", "initial_manufacture_date",   # P.1
+    })
 
     # Serialize images list → JSON string for DB storage
     if product_data.get("images") is not None:
@@ -662,6 +814,19 @@ def create_product(
         initial_warehouse_id = resolve_warehouse(
             db, current_user.company_id, requested_id=initial_warehouse_id, purpose="receive", user=current_user,
         )
+
+    # P.1: dorixonada qadoq birliklari tekshiriladi (saqlashdan oldin) va boshlang'ich qoldiqqa seriya/muddat majburiy.
+    # Oddiy korxonada bu maydonlar e'tiborsiz (hozirgi xatti-harakat).
+    units_clean = None
+    if pharmacy_on:
+        if data.units is not None:
+            units_clean = _clean_units(data.units)
+            _check_unit_barcodes(
+                db, current_user.company_id, units_clean,
+                own_barcodes=[data.barcode, *[b.strip() for b in (data.extra_barcodes or [])]],
+            )
+        if _needs_stock:
+            _validate_initial_lot(data)
 
     product_data.pop("variants", None)
     # attributes va tags None bo'lsa bo'sh list bilan almashtir
@@ -743,11 +908,12 @@ def create_product(
                         product_id=product.id,
                         variant_id=child.id,
                         warehouse_id=initial_warehouse_id,
-                        lot_number=f"initial-variant-{child.id}",
+                        lot_number=(data.initial_lot_number.strip() if pharmacy_on else f"initial-variant-{child.id}"),
                         initial_quantity=variant_stock_qty,
                         quantity=variant_stock_qty,
                         purchase_price=child.cost_price or product.cost_price or 0,
                         company_id=current_user.company_id,
+                        **_initial_batch_dates(data, pharmacy_on),
                     ))
 
     elif product_type in ("stock", "simple"):
@@ -759,11 +925,12 @@ def create_product(
             db.add(Batch(
                 product_id=product.id,
                 warehouse_id=initial_warehouse_id,
-                lot_number=f"initial-{product.id}",
+                lot_number=(data.initial_lot_number.strip() if pharmacy_on else f"initial-{product.id}"),
                 initial_quantity=initial_stock,
                 quantity=initial_stock,
                 purchase_price=product.cost_price or 0,
                 company_id=current_user.company_id,
+                **_initial_batch_dates(data, pharmacy_on),
             ))
 
     # Virtual mahsulot uchun ProductConversion yozuvi
@@ -787,6 +954,9 @@ def create_product(
 
     if pharmacy_on and data.pharma is not None:
         _save_pharma(db, current_user.company_id, product.id, data.pharma)
+    if pharmacy_on and units_clean is not None:   # P.1
+        _sync_units(db, current_user.company_id, product.id, units_clean)
+        _fill_pack_qty(db, current_user.company_id, product.id, units_clean)
 
     log_action(
         db=db,
@@ -834,7 +1004,10 @@ def update_product(
             product_id, current_user.id,
         )
 
-    update_data = data.model_dump(exclude_none=True, exclude={"conversion", "initial_stock", "initial_warehouse_id", "variants", "pharma"})
+    update_data = data.model_dump(exclude_none=True, exclude={
+        "conversion", "initial_stock", "initial_warehouse_id", "variants", "pharma",
+        "units", "initial_lot_number", "initial_expiry_date", "initial_manufacture_date",   # P.1
+    })
 
     # D2.1: dorixona rejimida tahrirlanayotgan mahsulotda MXIK kodi majburiy (oddiy korxonada o'zgarishsiz)
     pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
@@ -863,6 +1036,22 @@ def update_product(
     if "name" in update_data and update_data["name"] != product.name:
         if dup_q.filter(Product.name == update_data["name"]).first():
             raise HTTPException(status_code=400, detail=f"'{update_data['name']}' nomli mahsulot allaqachon mavjud")
+
+    # P.1: dorixonada qadoq birliklari (berilsa to'liq almashtiriladi) saqlashdan oldin tekshiriladi
+    units_clean = None
+    if pharmacy_on and data.units is not None:
+        units_clean = _clean_units(data.units)
+        eff_barcode = update_data["barcode"] if "barcode" in update_data else product.barcode
+        eff_extra = update_data["extra_barcodes"] if "extra_barcodes" in update_data else product.extra_barcodes
+        if isinstance(eff_extra, str):
+            try:
+                eff_extra = json.loads(eff_extra)
+            except Exception:
+                eff_extra = []
+        _check_unit_barcodes(
+            db, current_user.company_id, units_clean, product_id=product.id,
+            own_barcodes=[eff_barcode, *[str(b).strip() for b in (eff_extra or [])]],
+        )
 
     # Serialize images list → JSON string for DB storage
     if "images" in update_data:
@@ -1022,6 +1211,9 @@ def update_product(
 
     if pharmacy_on and data.pharma is not None:
         _save_pharma(db, current_user.company_id, product.id, data.pharma)
+    if units_clean is not None:   # P.1
+        _sync_units(db, current_user.company_id, product.id, units_clean)
+        _fill_pack_qty(db, current_user.company_id, product.id, units_clean)
 
     log_action(
         db=db,

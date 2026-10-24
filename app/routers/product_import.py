@@ -3,6 +3,7 @@ Mahsulotlarni Excel/JSON dan ommaviy yuklash endpointi.
 bulk_import_products products.py dan ajratilgan.
 """
 import random
+from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
@@ -79,6 +80,14 @@ _YES = {"ha", "yes", "true", "1", "+", "rx", "retseptli", "да", "y"}
 _NO = {"yo'q", "yoq", "yo`q", "yo‘q", "no", "false", "0", "-", "n", "нет", "retseptsiz"}
 
 
+# ── P.1: qadoq tuzilmasi va boshlang'ich qoldiq seriyasi (faqat dorixona rejimida o'qiladi) ──
+PACK_COLUMNS = (
+    "Katta qadoq nomi", "Katta qadoq narxi", "Katta qadoqdagi o'rta qadoq soni",
+    "O'rta qadoq nomi", "O'rta qadoqdagi dona soni",
+)
+LOT_COLUMNS = ("Seriya", "Yaroqlilik muddati")
+
+
 def _cell(row: dict, key: str) -> str:
     return str(row.get(key) if row.get(key) is not None else "").replace("\xa0", " ").strip()
 
@@ -150,6 +159,152 @@ def _parse_pharma_row(row: dict):
     if not fields and not names:
         return None, [], None
     return fields, names, None
+
+
+def _num_cell(row: dict, col: str):
+    """Katak -> Decimal (probel/vergul tozalanadi); bo'sh katak -> None; noto'g'ri -> ValueError."""
+    raw = _cell(row, col)
+    if not raw:
+        return None
+    try:
+        val = Decimal(raw.replace(" ", "").replace(",", "."))
+    except Exception:
+        raise ValueError(f"'{col}' qiymati noto'g'ri: {raw}")
+    if not val.is_finite():
+        raise ValueError(f"'{col}' qiymati noto'g'ri: {raw}")
+    return val
+
+
+def _int_cell(row: dict, col: str):
+    """Katak -> butun son >= 1 (yoki bo'sh bo'lsa None)."""
+    val = _num_cell(row, col)
+    if val is None:
+        return None
+    if val != val.to_integral_value() or val < 1:
+        raise ValueError(f"'{col}' butun son (>= 1) bo'lishi kerak: {_cell(row, col)}")
+    return int(val)
+
+
+def _divide_price(total: Decimal, parts: int, step) -> Decimal:
+    """P.1: narxni `parts` ga bo'ladi; bo'linmasa `price_round` qadamiga YUQORIGA yaxlitlaydi
+    (qadam 0 bo'lsa 2 xonagacha). 100 000 / 5 = 20 000 (aniq); 100 000 / 3 = 33 333,33 -> 33 400."""
+    from decimal import ROUND_CEILING
+    q = Decimal(total) / Decimal(parts)
+    if q == q.to_integral_value() and (Decimal(total) % Decimal(parts)) == 0:
+        return q.to_integral_value()
+    step = Decimal(int(step or 0))
+    if step > 0:
+        return (q / step).to_integral_value(rounding=ROUND_CEILING) * step
+    return q.quantize(Decimal("0.01"), rounding=ROUND_CEILING)
+
+
+def _parse_date_cell(raw):
+    """Excel sanasi: YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY, DD-MM-YYYY, MM.YYYY / MM/YYYY (oyning oxirgi kuni),
+    Excel seriya raqami. Noto'g'ri bo'lsa ValueError."""
+    from calendar import monthrange
+    from datetime import date, datetime, timedelta
+    import re
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, date):
+        return raw
+    text = str(raw).replace("\xa0", " ").strip()
+    if not text:
+        return None
+    text = text.split("T")[0] if re.match(r"^\d{4}-\d{2}-\d{2}T", text) else text
+    text = text.split(" ")[0] if re.match(r"^\d{4}-\d{2}-\d{2} ", text) else text
+    try:
+        m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", text)
+        if m:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        m = re.match(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$", text)
+        if m:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        m = re.match(r"^(\d{1,2})[./-](\d{4})$", text)
+        if m:
+            y, mo = int(m.group(2)), int(m.group(1))
+            return date(y, mo, monthrange(y, mo)[1])
+        if re.match(r"^\d{5}(\.\d+)?$", text):
+            return date(1899, 12, 30) + timedelta(days=int(float(text)))
+    except ValueError:
+        pass
+    raise ValueError(f"Yaroqlilik muddati noto'g'ri sana: {text}")
+
+
+def _parse_pack_row(row: dict, price_round):
+    """P.1: qatordagi qadoq va seriya ustunlarini tekshiradi.
+    Qaytaradi: {"units": [..] | None, "unit_price": Decimal | None, "lot": str | None, "expiry": date | None}, xato_matni.
+    units — products._clean_units natijasi (None = qadoq ustunlari to'ldirilmagan, tegilmaydi).
+    Hisob: o'rta nisbat = dona soni; katta nisbat = o'rta soni x dona soni; o'rta narx = katta narx / o'rtalar soni;
+    dona narxi = o'rta narx / donalar soni (o'rta qadoq bo'lmasa: katta narx / katta qadoqdagi dona soni)."""
+    from fastapi import HTTPException
+    from app.routers.products import _clean_units
+    from app.schemas.product import ProductUnitIn
+    res = {"units": None, "unit_price": None, "lot": None, "expiry": None}
+    try:
+        lot = _cell(row, "Seriya")
+        if len(lot) > 100:
+            return res, "Seriya 100 belgidan oshmasligi kerak"
+        res["lot"] = lot or None
+        res["expiry"] = _parse_date_cell(row.get("Yaroqlilik muddati")) if _cell(row, "Yaroqlilik muddati") else None
+
+        big_name = " ".join(_cell(row, "Katta qadoq nomi").split())
+        mid_name = " ".join(_cell(row, "O'rta qadoq nomi").split())
+        big_price = _num_cell(row, "Katta qadoq narxi")
+        mid_cnt = _int_cell(row, "Katta qadoqdagi o'rta qadoq soni")
+        pcs = _int_cell(row, "O'rta qadoqdagi dona soni")
+        if big_price is not None and big_price < 0:
+            return res, "Katta qadoq narxi manfiy bo'lishi mumkin emas"
+        if not (big_name or mid_name or big_price is not None or mid_cnt or pcs):
+            return res, None
+
+        units: list = []
+        unit_price = None
+        if mid_name:
+            if pcs is None:
+                return res, "O'rta qadoqdagi dona soni kiritilmagan"
+            mid_unit = {"name": mid_name, "ratio": pcs, "sale_price": None}
+            units.append(mid_unit)
+            if big_name:
+                if mid_cnt is None:
+                    return res, "Katta qadoqdagi o'rta qadoq soni kiritilmagan"
+                units.append({"name": big_name, "ratio": mid_cnt * pcs, "sale_price": big_price})
+                if big_price is not None:
+                    mid_price = _divide_price(big_price, mid_cnt, price_round)
+                    mid_unit["sale_price"] = mid_price
+                    unit_price = _divide_price(mid_price, pcs, price_round)
+            elif big_price is not None or mid_cnt:
+                return res, "Katta qadoq nomi kiritilmagan"
+        else:
+            if not big_name:
+                return res, "Katta qadoq nomi kiritilmagan"
+            if mid_cnt and pcs:
+                return res, "O'rta qadoq nomi kiritilmagan"
+            count = mid_cnt or pcs
+            if not count:
+                return res, "Qadoqdagi dona soni kiritilmagan"
+            units.append({"name": big_name, "ratio": count, "sale_price": big_price})
+            if big_price is not None:
+                unit_price = _divide_price(big_price, count, price_round)
+        res["units"] = _clean_units([ProductUnitIn(**u) for u in units])
+        res["unit_price"] = unit_price
+    except ValueError as e:
+        return res, str(e)
+    except HTTPException as e:
+        return res, str(e.detail)
+    return res, None
+
+
+def _stamp_initial_batch(db: Session, product_id: int, warehouse_id, lot: str, manufacture=None) -> None:
+    """P.1: receive_stock yaratgan boshlang'ich Batch'ga seriya raqamini yozadi (receive_stock lot qabul qilmaydi)."""
+    from app.models.batch import Batch
+    batch = db.query(Batch).filter(
+        Batch.product_id == product_id, Batch.warehouse_id == warehouse_id,
+    ).order_by(Batch.id.desc()).first()
+    if batch is not None:
+        batch.lot_number = lot[:100]
+        if manufacture is not None:
+            batch.manufacture_date = manufacture
 
 
 class _SubstanceResolver:
@@ -445,6 +600,14 @@ def bulk_import_products(
                 errors.append({"row": row_num, "name": name or barcode, "error": pharma_err})
                 continue
 
+        # P.1: qadoq tuzilmasi va seriya/muddat (faqat dorixona rejimida) - xato bo'lsa faqat shu qator xato
+        pack = {"units": None, "unit_price": None, "lot": None, "expiry": None}
+        if pharmacy_on:
+            pack, pack_err = _parse_pack_row(row, _ph_settings.get("price_round"))
+            if pack_err:
+                errors.append({"row": row_num, "name": name or barcode, "error": pack_err})
+                continue
+
         # ── Mavjud mahsulotni topish ───────────────────────────────────
         existing = None
         if name and name in name_map:
@@ -508,6 +671,10 @@ def bulk_import_products(
                     errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati noto'g'ri: {raw}"})
                     continue
 
+            # P.1: katta qadoq narxidan hisoblangan dona narxi (qo'lda "Chakana narxi" berilmagan bo'lsa)
+            if pack["unit_price"] is not None and not _cell(row, "Chakana narxi"):
+                existing.sale_price = pack["unit_price"]
+
             # Ob'ektni sessiyada ochiqchasiga belgilash va o'zgarishlarni qo'llash
             db.add(existing)
             sp = db.begin_nested()
@@ -551,6 +718,10 @@ def bulk_import_products(
                 if pharmacy_on and (pharma_fields or pharma_names):
                     _apply_pharma(db, substance_resolver, current_user.company_id, existing.id,
                                   pharma_fields or {}, pharma_names)
+                if pharmacy_on and pack["units"]:   # P.1
+                    from app.routers.products import _fill_pack_qty, _sync_units
+                    _sync_units(db, current_user.company_id, existing.id, pack["units"])
+                    _fill_pack_qty(db, current_user.company_id, existing.id, pack["units"])
                 db.flush()
                 sp.commit()
                 if substance_resolver:
@@ -605,6 +776,25 @@ def bulk_import_products(
         if initial_stock < 0:
             errors.append({"row": row_num, "name": name, "error": "Qoldiq manfiy bo'lishi mumkin emas"})
             continue
+        if pharmacy_on:
+            # P.1: qo'lda chakana narx yo'q bo'lsa — katta qadoq narxidan hisoblangan dona narxi
+            if not sale_price and pack["unit_price"] is not None:
+                sale_price = pack["unit_price"]
+            # P.1: dorixonada qoldiq bo'lsa seriya va yaroqlilik muddati (bugundan keyin) majburiy
+            if initial_stock > 0:
+                from app.services.batch_allocator import tashkent_today
+                if not pack["lot"]:
+                    errors.append({"row": row_num, "name": name,
+                                   "error": "Qoldiq uchun Seriya majburiy (dorixona rejimi)"})
+                    continue
+                if pack["expiry"] is None:
+                    errors.append({"row": row_num, "name": name,
+                                   "error": "Qoldiq uchun Yaroqlilik muddati majburiy (dorixona rejimi)"})
+                    continue
+                if pack["expiry"] <= tashkent_today():
+                    errors.append({"row": row_num, "name": name,
+                                   "error": "Yaroqlilik muddati bugundan keyingi sana bo'lishi kerak"})
+                    continue
         if initial_stock > 0 and row_wh_id is None:
             errors.append({"row": row_num, "name": name, "error": "Ombor aniqlanmadi — omborni tanlang, qoldiqli mahsulotni yuklab bo'lmaydi"})
             continue
@@ -668,10 +858,19 @@ def bulk_import_products(
                     reason="Excel import", reference_type="product_import", reference_id=None,
                     warehouse_id=row_wh_id, purchase_price=cost_price,
                     company_id=current_user.company_id,
+                    expiry_date=(datetime.combine(pack["expiry"], datetime.min.time())
+                                 if pharmacy_on and pack["expiry"] else None),
                 )
+                if pharmacy_on and pack["lot"]:
+                    db.flush()
+                    _stamp_initial_batch(db, product.id, row_wh_id, pack["lot"])   # P.1: seriya raqami
             if pharmacy_on and (pharma_fields or pharma_names):
                 _apply_pharma(db, substance_resolver, current_user.company_id, product.id,
                               pharma_fields or {}, pharma_names)
+            if pharmacy_on and pack["units"]:   # P.1
+                from app.routers.products import _fill_pack_qty, _sync_units
+                _sync_units(db, current_user.company_id, product.id, pack["units"])
+                _fill_pack_qty(db, current_user.company_id, product.id, pack["units"])
             sp.commit()
             if substance_resolver:
                 substance_resolver.commit_new()

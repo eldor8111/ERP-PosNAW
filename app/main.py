@@ -407,6 +407,16 @@ def _run_auto_migrations(engine):
         # D1.1: Dorixona moduli
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS pharmacy_enabled BOOLEAN NOT NULL DEFAULT FALSE;",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS pharmacy_settings JSON;",
+        # Dorixona moduli: alembic (d1_3, d3_3) bilan bir xil, server alembic'siz ishga tushsa ham ustunlar bo'lsin
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_number VARCHAR(100);",
+        "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_date DATE;",
+        "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS lot_number VARCHAR(100);",
+        "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS manufacture_date TIMESTAMP;",
+        "ALTER TABLE categories ADD COLUMN IF NOT EXISTS markup_pct NUMERIC(6, 2);",
+        "ALTER TABLE batches ADD COLUMN IF NOT EXISTS status VARCHAR(20);",
+        "ALTER TABLE batches ADD COLUMN IF NOT EXISTS status_reason VARCHAR(500);",
+        "ALTER TABLE batches ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP;",
+        "ALTER TABLE batches ADD COLUMN IF NOT EXISTS status_changed_by INTEGER REFERENCES users(id);",
         "UPDATE customers SET receipt_format = NULL WHERE receipt_format = 'text';",
     ]
     _sa_text = __import__('sqlalchemy').text

@@ -3,7 +3,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer
 
 from app.models.product import ProductStatus
 from app.schemas.product_variant import ProductVariantOut, ProductVariantCreate
@@ -88,6 +88,24 @@ class PharmaOut(PharmaBase):
     model_config = {"from_attributes": True}
 
 
+class ProductUnitIn(BaseModel):
+    """P.1: qadoq birligi (blister, quti, ...). `ratio` — asosiy birlikda (dona) nechta.
+    Qiymatlar products.py da tekshiriladi (xato 400, o'zbekcha), shuning uchun bu yerda yumshoq."""
+    name: str
+    ratio: Decimal
+    sale_price: Optional[Decimal] = None
+    barcode: Optional[str] = None
+
+
+class ProductUnitOut(BaseModel):
+    """P.1: mahsulot kartochkasida qadoq birligi (faqat dorixona rejimida to'ldiriladi)."""
+    id: int
+    name: str
+    ratio: int
+    sale_price: Optional[float] = None
+    barcode: Optional[str] = None
+
+
 class ProductCreate(BaseModel):
     name: str
     product_code: Optional[str] = None
@@ -133,6 +151,12 @@ class ProductCreate(BaseModel):
 
     # D2.1: dori ma'lumotlari — faqat dorixona rejimida saqlanadi, oddiy korxonada e'tiborsiz qoldiriladi
     pharma: Optional[PharmaIn] = None
+
+    # P.1: qadoq tuzilmasi va boshlang'ich qoldiq seriyasi — faqat dorixona rejimida (oddiy korxonada e'tiborsiz)
+    units: Optional[List[ProductUnitIn]] = None
+    initial_lot_number: Optional[str] = Field(None, max_length=100)
+    initial_expiry_date: Optional[date] = None
+    initial_manufacture_date: Optional[date] = None
 
     @field_validator("cost_price", "sale_price")
     @classmethod
@@ -188,6 +212,13 @@ class ProductUpdate(BaseModel):
     # D2.1: dori ma'lumotlari — faqat dorixona rejimida saqlanadi, oddiy korxonada e'tiborsiz qoldiriladi
     pharma: Optional[PharmaIn] = None
 
+    # P.1: qadoq birliklari (berilsa to'liq almashtiriladi; [] = o'chirish) — faqat dorixona rejimida
+    units: Optional[List[ProductUnitIn]] = None
+    # PUT da boshlang'ich qoldiq e'tiborsiz, shuning uchun seriya maydonlari ham qabul qilinadi-yu, ishlatilmaydi
+    initial_lot_number: Optional[str] = None
+    initial_expiry_date: Optional[date] = None
+    initial_manufacture_date: Optional[date] = None
+
 
 class ProductStatusUpdate(BaseModel):
     status: ProductStatus
@@ -237,6 +268,7 @@ class ProductOut(BaseModel):
     expiry_date: Optional[date] = None
     category_is_perishable: Optional[bool] = False
     pharma: Optional[PharmaOut] = None  # D2.1: faqat dorixona rejimida to'ldiriladi, aks holda null
+    units: List[ProductUnitOut] = []  # P.1: qadoq birliklari (ratio o'sish tartibida), faqat dorixona rejimida
 
     model_config = {"from_attributes": True}
 
@@ -310,8 +342,17 @@ class ProductListOut(BaseModel):
     category_is_perishable: Optional[bool] = False
     expiry_date: Optional[date] = None
     pharma: Optional[PharmaOut] = None  # D2.1: faqat dorixona rejimida to'ldiriladi, aks holda null
+    # P.1: qadoq birliklari (ratio o'sish tartibida) — faqat dorixona rejimida; oddiy korxonada maydon umuman chiqmaydi
+    units: Optional[List[ProductUnitOut]] = None
 
     model_config = {"from_attributes": True}
+
+    @model_serializer(mode="wrap")
+    def _drop_empty_units(self, handler):
+        data = handler(self)
+        if isinstance(data, dict) and data.get("units") is None:
+            data.pop("units", None)   # oddiy korxona javobi avvalgidek (units kaliti yo'q)
+        return data
 
     @field_validator("images", mode="before")
     @classmethod

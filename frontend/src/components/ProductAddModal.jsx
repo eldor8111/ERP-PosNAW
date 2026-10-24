@@ -3,7 +3,6 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { ImageUploadZone, uploadProductImage } from '../pages/admin/products/SharedComponents';
 import { useLang } from '../context/LangContext';
-import useCompanyFeatures from '../hooks/useCompanyFeatures';
 
 const genBarcode = () => Math.floor(10000000 + Math.random() * 90000000).toString();
 const BARCODE_FORMATS = [
@@ -146,213 +145,8 @@ function ProdSearch({ value, onChange, placeholder = 'Asosiy mahsulotni qidiring
   );
 }
 
-// ── D2.2: "Dori ma'lumotlari" bo'limi (faqat dorixona rejimida) ────────────────────────────
-// ProductAddModal va Products.jsx (qo'shish/tahrirlash) umumiy ishlatadi.
-export const DOSAGE_FORMS = [
-  ['tablet', 'Tabletka'], ['capsule', 'Kapsula'], ['syrup', 'Sirop'], ['injection', 'Inyeksiya'],
-  ['ointment', 'Malham'], ['drops', 'Tomchi'], ['powder', 'Kukun'], ['solution', 'Eritma'],
-  ['suppository', 'Sham'], ['other', 'Boshqa'],
-];
-export const STORAGE_TYPES = [['room', 'Xona harorati'], ['cold_2_8', 'Sovutgich (2-8 °C)'], ['frozen', 'Muzlatilgan']];
-export const CONTROL_CLASSES = [
-  ['none', "Yo'q"], ['potent', "Kuchli ta'sir etuvchi"], ['psychotropic', 'Psixotrop'],
-  ['narcotic', 'Giyohvand'], ['precursor', 'Prekursor'],
-];
-
-export const emptyPharma = {
-  dosage_form: '', strength: '', pack_qty: '', manufacturer: '', country: '', reg_number: '',
-  reg_valid_until: '', atc_code: '', storage: '', is_rx: false, control_class: 'none',
-  max_retail_price: '', substances: [],
-};
-
-// Serverdagi `pharma` blokidan (yoki null) forma holatiga
-export const pharmaToForm = (ph) => (!ph ? { ...emptyPharma, substances: [] } : {
-  dosage_form: ph.dosage_form || '', strength: ph.strength || '',
-  pack_qty: ph.pack_qty != null ? String(ph.pack_qty) : '',
-  manufacturer: ph.manufacturer || '', country: ph.country || '', reg_number: ph.reg_number || '',
-  reg_valid_until: ph.reg_valid_until || '', atc_code: ph.atc_code || '', storage: ph.storage || '',
-  is_rx: !!ph.is_rx, control_class: ph.control_class || 'none',
-  max_retail_price: ph.max_retail_price != null ? String(Number(ph.max_retail_price)) : '',
-  substances: Array.isArray(ph.substances) ? ph.substances.map(x => ({ id: x.id, name_uz: x.name_uz })) : [],
-});
-
-// Forma holatidan PharmaIn (POST/PUT /products `pharma`) — bo'sh maydonlar null
-export const pharmaToPayload = (f) => {
-  const str = (v) => (String(v ?? '').trim() || null);
-  return {
-    dosage_form: f.dosage_form || null, strength: str(f.strength),
-    pack_qty: f.pack_qty !== '' && f.pack_qty != null ? Number(f.pack_qty) : null,
-    manufacturer: str(f.manufacturer), country: str(f.country), reg_number: str(f.reg_number),
-    reg_valid_until: f.reg_valid_until || null, atc_code: str(f.atc_code), storage: f.storage || null,
-    is_rx: !!f.is_rx, control_class: f.control_class || 'none',
-    max_retail_price: f.max_retail_price !== '' && f.max_retail_price != null ? Number(f.max_retail_price) : null,
-    substance_ids: (f.substances || []).map(x => x.id),
-  };
-};
-
-// Ta'sir etuvchi moddalarni qidirib tanlash (+ yangi modda qo'shish): GET/POST /api/pharmacy/substances
-export function SubstancePicker({ value, onChange, tf, allowCreate = true }) {
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const wrapRef = useRef(null);
-  const term = q.trim();
-
-  useEffect(() => {
-    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const timer = setTimeout(async () => {
-      try {
-        const { data } = await api.get('/pharmacy/substances', { params: { search: term || undefined, limit: 20 }, _suppressToast: true });
-        setResults(Array.isArray(data) ? data : []);
-      } catch { setResults([]); }
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [term, open]);
-
-  const add = (sub) => {
-    if (!(value || []).some(x => x.id === sub.id)) onChange([...(value || []), { id: sub.id, name_uz: sub.name_uz }]);
-    setQ(''); setOpen(false);
-  };
-  const remove = (id) => onChange((value || []).filter(x => x.id !== id));
-
-  const createNew = async () => {
-    if (!term || busy) return;
-    setBusy(true);
-    try {
-      const { data } = await api.post('/pharmacy/substances', { name_uz: term }, { _suppressToast: true });
-      add(data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || tf('pharmaProduct.substanceCreateError', "Moddani qo'shib bo'lmadi"));
-    } finally { setBusy(false); }
-  };
-
-  const exact = results.some(r => (r.name_uz || '').toLowerCase() === term.toLowerCase());
-  const shown = results.filter(r => !(value || []).some(x => x.id === r.id));
-  return (
-    <div ref={wrapRef} className="relative">
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {(value || []).map(x => (
-          <span key={x.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg">
-            {x.name_uz}
-            <button type="button" onClick={() => remove(x.id)} className="text-emerald-600 hover:text-red-500" aria-label="remove">×</button>
-          </span>
-        ))}
-      </div>
-      <input className={inputCls} value={q} placeholder={tf('pharmaProduct.substanceSearch', 'Moddani qidiring (masalan: paratsetamol)')}
-        onChange={e => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
-      {open && (shown.length > 0 || (allowCreate && term && !exact)) && (
-        <div className="absolute z-[200] left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto">
-          {shown.map(r => (
-            <div key={r.id} onClick={() => add(r)} className="px-4 py-2.5 hover:bg-emerald-50 cursor-pointer text-sm text-slate-700 border-b border-slate-50 last:border-0">
-              {r.name_uz}{r.name_lat ? <span className="text-xs text-slate-400"> · {r.name_lat}</span> : null}
-            </div>
-          ))}
-          {allowCreate && term && !exact && (
-            <button type="button" disabled={busy} onClick={createNew}
-              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-50">
-              + {tf('pharmaProduct.addSubstance', "Yangi modda qo'shish")}: {term}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// "Dori ma'lumotlari" bo'limi. onMxikChange berilsa MXIK maydoni (majburiy) ham shu yerda chiqadi.
-export function PharmaSection({ value, onChange, salePrice, mxik, onMxikChange, mxikError }) {
-  const { t } = useLang();
-  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
-  const v = value || emptyPharma;
-  const set = (patch) => onChange({ ...v, ...patch });
-  const over = v.max_retail_price !== '' && salePrice !== '' && salePrice != null && Number(salePrice) > Number(v.max_retail_price);
-  return (
-    <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-5 space-y-4">
-      <div>
-        <h4 className="text-sm font-black text-slate-800">{tf('pharmaProduct.title', "Dori ma'lumotlari")}</h4>
-        <p className="text-[11px] text-slate-500">{tf('pharmaProduct.hint', "Dorixona rejimi: tarkib, ishlab chiqaruvchi, retsept va nazorat")}</p>
-      </div>
-
-      {onMxikChange && (
-        <Field label={tf('pharmaProduct.mxik', 'MXIK kodi')} required hint={tf('pharmaProduct.mxikHint', "Dorixona rejimida MXIK kodi majburiy")}>
-          <input type="text" inputMode="numeric" value={mxik || ''} onChange={e => onMxikChange(e.target.value.replace(/[^0-9]/g, ''))}
-            className={`${inputCls} ${mxikError ? errCls : ''}`} />
-        </Field>
-      )}
-
-      <Field label={tf('pharmaProduct.substances', "Ta'sir etuvchi moddalar")}>
-        <SubstancePicker value={v.substances} onChange={(subs) => set({ substances: subs })} tf={tf} />
-      </Field>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label={tf('pharmaProduct.dosageForm', 'Dori shakli')}>
-          <select className={inputCls} value={v.dosage_form} onChange={e => set({ dosage_form: e.target.value })}>
-            <option value="">—</option>
-            {DOSAGE_FORMS.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.form.${k}`, label)}</option>)}
-          </select>
-        </Field>
-        <Field label={tf('pharmaProduct.strength', 'Doza')}>
-          <input className={inputCls} value={v.strength} maxLength={100} placeholder="500 mg" onChange={e => set({ strength: e.target.value })} />
-        </Field>
-        <Field label={tf('pharmaProduct.packQty', "Qadoqdagi soni")}>
-          <input type="number" min="1" step="1" className={inputCls} value={v.pack_qty} onChange={e => set({ pack_qty: e.target.value })} />
-        </Field>
-        <Field label={tf('pharmaProduct.manufacturer', 'Ishlab chiqaruvchi')}>
-          <input className={inputCls} value={v.manufacturer} maxLength={200} onChange={e => set({ manufacturer: e.target.value })} />
-        </Field>
-        <Field label={tf('pharmaProduct.country', 'Ishlab chiqarilgan mamlakat')}>
-          <input className={inputCls} value={v.country} maxLength={100} onChange={e => set({ country: e.target.value })} />
-        </Field>
-        <Field label={tf('pharmaProduct.regNumber', "Ro'yxat raqami")}>
-          <input className={inputCls} value={v.reg_number} maxLength={100} onChange={e => set({ reg_number: e.target.value })} />
-        </Field>
-        <Field label={tf('pharmaProduct.regValidUntil', "Ro'yxat amal qilish muddati")}>
-          <input type="date" className={inputCls} value={v.reg_valid_until} onChange={e => set({ reg_valid_until: e.target.value })} />
-        </Field>
-        <Field label={tf('pharmaProduct.atc', 'ATX kodi')}>
-          <input className={inputCls} value={v.atc_code} maxLength={20} onChange={e => set({ atc_code: e.target.value })} />
-        </Field>
-        <Field label={tf('pharmaProduct.storage', 'Saqlash sharti')}>
-          <select className={inputCls} value={v.storage} onChange={e => set({ storage: e.target.value })}>
-            <option value="">—</option>
-            {STORAGE_TYPES.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.storageType.${k}`, label)}</option>)}
-          </select>
-        </Field>
-        <Field label={tf('pharmaProduct.controlClass', 'Nazorat toifasi')}>
-          <select className={inputCls} value={v.control_class} onChange={e => set({ control_class: e.target.value })}>
-            {CONTROL_CLASSES.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.control.${k}`, label)}</option>)}
-          </select>
-        </Field>
-        <Field label={tf('pharmaProduct.maxRetailPrice', 'Maksimal chakana narx')}
-          hint={over ? tf('pharmaProduct.maxPriceWarn', "Chakana narx maksimal chakana narxdan yuqori") : undefined}>
-          <input type="number" min="0" step="any" className={`${inputCls} ${over ? errCls : ''}`} value={v.max_retail_price}
-            onChange={e => set({ max_retail_price: e.target.value })} />
-        </Field>
-        <label className="flex items-center gap-2 cursor-pointer select-none self-end pb-3">
-          <input type="checkbox" checked={!!v.is_rx} onChange={e => set({ is_rx: e.target.checked })}
-            className="w-4 h-4 text-emerald-600 rounded border-slate-300 cursor-pointer" />
-          <span className="text-sm font-semibold text-slate-700">{tf('pharmaProduct.isRx', 'Retseptli dori')}</span>
-        </label>
-      </div>
-    </div>
-  );
-}
-
 export default function ProductAddModal({ onClose, onSaved, warehouses = [], defaultWarehouseId = '' }) {
   const { t } = useLang();
-  // D2.2: dorixona rejimida "Dori ma'lumotlari" bo'limi, MXIK majburiy, yagona "Yaroqlilik muddati" yashirin (muddat partiyada)
-  const features = useCompanyFeatures();
-  const pharmacyOn = !!features?.pharmacy;
-  const tf = (key, fallback) => { const s = t(key); return s === key ? fallback : s; };
-  const [pharma, setPharma] = useState({ ...emptyPharma, substances: [] });
-  const [mxikCode, setMxikCode] = useState('');
   // T1.5: boshlang'ich qoldiq yoziladigan ombor (bo'sh — backend filial default omborini tanlaydi)
   const [initialWhId, setInitialWhId] = useState(defaultWarehouseId ? String(defaultWarehouseId) : '');
   const [form, setForm] = useState({ ...emptyForm, barcode: genBarcodeByFormat('ean8') });
@@ -398,8 +192,7 @@ export default function ProductAddModal({ onClose, onSaved, warehouses = [], def
     if (!form.name?.trim())    { setError("Mahsulot nomini kiriting"); return; }
     if (!form.barcode?.trim()) { setError("Barkodni kiriting"); return; }
     if (form.sale_price === '' || form.sale_price === null) { setError("Chakana (sotuv) narxini kiriting"); return; }
-    if (pharmacyOn && !mxikCode.trim()) { setError(tf('pharmaProduct.mxikRequired', "Dorixona rejimida MXIK kodi majburiy")); return; }
-
+    
     const hasConversion = Boolean(form.conversion_source_id && Number(form.conversion_source_id) > 0);
     const effectiveType = hasConversion ? 'sell' : form.product_type;
 
@@ -434,7 +227,7 @@ export default function ProductAddModal({ onClose, onSaved, warehouses = [], def
         initial_stock:    form.initial_stock !== '' ? Number(form.initial_stock) : 0,
         initial_warehouse_id: initialWhId ? Number(initialWhId) : undefined,
         product_type:     effectiveType === 'stock' ? 'simple' : effectiveType,
-        expiry_date:      pharmacyOn ? null : (form.expiry_date || null),
+        expiry_date:      form.expiry_date || null,
         attributes: [
           ...(form.size ? [{ name: "O'lcham", value: form.size }] : []),
           ...(form.color ? [{ name: 'Rang', value: form.color }] : [])
@@ -455,10 +248,6 @@ export default function ProductAddModal({ onClose, onSaved, warehouses = [], def
           source_product_id: Number(form.conversion_source_id),
           ratio: Number(form.conversion_ratio),
         };
-      }
-      if (pharmacyOn) {
-        payload.mxik_code = mxikCode.trim();
-        payload.pharma = pharmaToPayload(pharma);
       }
       const res = await api.post('/products', payload);
       toast.success("Mahsulot qo'shildi");
@@ -570,11 +359,6 @@ export default function ProductAddModal({ onClose, onSaved, warehouses = [], def
                     </div>
                   </div>
                 )}
-                {/* D2.2: Dori ma'lumotlari (faqat dorixona rejimida) */}
-                {pharmacyOn && (
-                  <PharmaSection value={pharma} onChange={setPharma} salePrice={form.sale_price}
-                    mxik={mxikCode} onMxikChange={setMxikCode} mxikError={!!error && !mxikCode.trim()} />
-                )}
                 {/* Maxsus Sozlamalar (Kiyim, Dorixona) */}
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -588,8 +372,7 @@ export default function ProductAddModal({ onClose, onSaved, warehouses = [], def
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Yaroqlilik muddati (dorixona rejimida yashirin: muddat partiyada) */}
-                    {!pharmacyOn && (
+                    {/* Yaroqlilik muddati */}
                     <div>
                       <label className="block text-xs font-semibold text-amber-700 mb-1.5 flex items-center gap-1.5">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -598,7 +381,6 @@ export default function ProductAddModal({ onClose, onSaved, warehouses = [], def
                       <input type="date" className={`${inputCls} border-amber-200 focus:ring-amber-500`}
                         value={form.expiry_date || ''} onChange={e => setForm({ ...form, expiry_date: e.target.value })} />
                     </div>
-                    )}
                     {/* Kiyim do'kon uchun - agar oddiy mahsulot bo'lsa umumiy o'lcham va rang */}
                     {form.product_type !== 'variant' && (
                       <div className="grid grid-cols-2 gap-2">
