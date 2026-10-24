@@ -24,7 +24,13 @@
     "drugForm.batchesLoadError": "Partiyalarni yuklab bo'lmadi",
     "drugForm.batchExpiryRequired": "Partiyaning yaroqlilik muddatini kiriting",
     "drugForm.batchMfgBeforeExpiry": "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak",
-    "drugForm.mfgOptional": "Ishlab chiqarilgan sana (ixtiyoriy)"
+    "drugForm.mfgOptional": "Ishlab chiqarilgan sana (ixtiyoriy)",
+    "drugForm.packTitle": "Qadoq, narx va qoldiq",
+    "drugForm.packHint": "1 quti narxini kiriting — blister va dona narxi, jami qoldiq o'zi hisoblanadi. Qadoqsiz dori uchun sonlarni bo'sh qoldiring",
+    "drugForm.unitPrice": "1 dona narxi",
+    "drugForm.piecesInBox": "Qutidagi dona soni",
+    "drugForm.stockUnits": "Qoldiq (dona soni)",
+    "drugForm.singleLine": "Qadoqsiz"
   },
   "ru": {
     "drugForm.barcodeHint": "Отсканируйте коробку — название и ИКПУ заполнятся сами. Если пусто — создастся автоматически",
@@ -51,7 +57,13 @@
     "drugForm.batchesLoadError": "Не удалось загрузить партии",
     "drugForm.batchExpiryRequired": "Укажите срок годности партии",
     "drugForm.batchMfgBeforeExpiry": "Дата производства должна быть раньше срока годности",
-    "drugForm.mfgOptional": "Дата производства (необязательно)"
+    "drugForm.mfgOptional": "Дата производства (необязательно)",
+    "drugForm.packTitle": "Упаковка, цена и остаток",
+    "drugForm.packHint": "Введите цену 1 коробки — цена блистера и штуки, общий остаток рассчитаются сами. Для лекарств без упаковки оставьте количества пустыми",
+    "drugForm.unitPrice": "Цена 1 штуки",
+    "drugForm.piecesInBox": "Штук в коробке",
+    "drugForm.stockUnits": "Остаток (шт.)",
+    "drugForm.singleLine": "Без упаковки"
   },
   "en": {
     "drugForm.barcodeHint": "Scan the box — name and MXIK fill in automatically. If empty, one is generated",
@@ -78,6 +90,12 @@
     "drugForm.batchesLoadError": "Could not load batches",
     "drugForm.batchExpiryRequired": "Enter the batch expiry date",
     "drugForm.batchMfgBeforeExpiry": "Manufacture date must be before the expiry date",
-    "drugForm.mfgOptional": "Manufacture date (optional)"
+    "drugForm.mfgOptional": "Manufacture date (optional)",
+    "drugForm.packTitle": "Packaging, price and stock",
+    "drugForm.packHint": "Enter the price of 1 box — blister and piece prices and total stock are calculated automatically. Leave counts empty for unpackaged medicines",
+    "drugForm.unitPrice": "Price of 1 piece",
+    "drugForm.piecesInBox": "Pieces per box",
+    "drugForm.stockUnits": "Stock (pcs)",
+    "drugForm.singleLine": "No packaging"
   }
 }

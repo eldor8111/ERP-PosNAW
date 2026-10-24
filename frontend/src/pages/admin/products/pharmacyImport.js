@@ -69,6 +69,22 @@ export const PHARMA_NUM_KEYS = [
   'Qoldiq (katta qadoq)', 'Chakana narxi', 'Tan narxi', 'Ulgurji narxi', 'Qoldiq', 'Min. qoldiq',
 ];
 
+// P.6: Excel sana yacheykalari (raqam + sana formati) -> "YYYY-MM-DD". Yacheyka formatidan (m/d/yy, dd.mm.yyyy ...),
+// kompyuter tili va vaqt mintaqasidan qat'i nazar aniq sana olinadi (yaroqlilik muddati, ishlab chiqarilgan sana).
+// Faqat dorixona importida: XLSX.read({ cellNF: true }) bilan o'qilgan varaqqa qo'llanadi.
+export const isoDateCells = (XLSX, ws) => {
+  const SSF = XLSX && XLSX.SSF;
+  if (!ws || !SSF || typeof SSF.parse_date_code !== 'function' || typeof SSF.is_date !== 'function') return;
+  Object.keys(ws).forEach((addr) => {
+    if (addr[0] === '!') return;
+    const c = ws[addr];
+    if (!c || c.t !== 'n' || !c.z || !SSF.is_date(c.z)) return;
+    const d = SSF.parse_date_code(c.v);
+    if (!d || !d.y) return;
+    c.w = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+  });
+};
+
 export const cleanPharmaNum = (v) => {
   let s = String(v ?? '').replace(/[\s ]/g, '');
   if (s.includes(',') && s.includes('.')) s = s.replace(/,/g, '');          // 100,000.50

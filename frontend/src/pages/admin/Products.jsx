@@ -29,6 +29,7 @@ import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import PharmacyProductModal, { SubstancePicker, CONTROL_CLASSES, DOSAGE_FORMS, emptyPack, packLevels, packPrices, packToUnits, packSummary } from '../../components/PharmacyProductModal';
 import {
   PHARMA_IMPORT_FIELDS, PHARMA_NUM_KEYS, cleanPharmaNum, pharmaMapHeader, pharmaImportPreview, downloadPharmacyTemplate,
+  isoDateCells,
 } from './products/pharmacyImport';
 import useBulkVoice from './products/useBulkVoice';
 import { isScaleUnit } from '../../utils/scale';
@@ -1144,8 +1145,9 @@ export default function Products() {
       try {
         // P.4: dorixonada sanalar (yaroqlilik muddati) YYYY-MM-DD ko'rinishida o'qiladi
         const dateOpt = pharmacyOn ? { dateNF: 'yyyy-mm-dd' } : {};
-        const wb = XLSX.read(e.target.result, { type: 'array', ...dateOpt });
+        const wb = XLSX.read(e.target.result, { type: 'array', ...dateOpt, ...(pharmacyOn ? { cellNF: true } : {}) });
         const ws = wb.Sheets[wb.SheetNames[0]];
+        if (pharmacyOn) isoDateCells(XLSX, ws);   // P.6: sana yacheykalari formatidan qat'i nazar YYYY-MM-DD
         const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, ...dateOpt });
         setImportRows(rows);
         autoMap(rows);

@@ -5789,4 +5789,11 @@ export default {
   "pharmacyImport.f.mfg": "Ishlab chiqarilgan sana (ixtiyoriy)",
   // === P.5 ===
   "drugForm.mfgOptional": "Ishlab chiqarilgan sana (ixtiyoriy)",
+  // === P.5 ===
+  "drugForm.packTitle": "Qadoq, narx va qoldiq",
+  "drugForm.packHint": "1 quti narxini kiriting — blister va dona narxi, jami qoldiq o'zi hisoblanadi. Qadoqsiz dori uchun sonlarni bo'sh qoldiring",
+  "drugForm.unitPrice": "1 dona narxi",
+  "drugForm.piecesInBox": "Qutidagi dona soni",
+  "drugForm.stockUnits": "Qoldiq (dona soni)",
+  "drugForm.singleLine": "Qadoqsiz",
 };

@@ -28,7 +28,6 @@ const fmtNum = (v) => { const n = Number(v); return isNaN(n) ? '0' : n.toLocaleS
 // P.5: ixcham maydonlar — keng oynada uch ustun pastga surmasdan sig'adi
 const inputCls = "w-full px-3 py-2 border border-slate-200 rounded-lg text-[15px] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white";
 const errCls = "border-red-400 ring-1 ring-red-400";
-const packInp = inputCls;
 
 function Field({ label, required, hint, children }) {
   return (
@@ -166,14 +165,6 @@ export const packToUnits = (pack, topPrice, round, mult = 1) => {
   return units;
 };
 
-// Boshlang'ich qoldiq jami dona'da: katta qadoq soni, o'rta qadoq soni va dona soni
-export const packStockTotal = (pack) => {
-  const p = pack || emptyPack;
-  const L = packLevels(p);
-  const n = (v) => Number(v) || 0;
-  return (L.bigQty ? n(p.stock_big) * L.bigRatio : 0) + (L.midQty ? n(p.stock_mid) * L.midRatio : 0) + n(p.stock_unit);
-};
-
 // Tahrirlashda mavjud `units` dan tuzilmani tiklash: katta = eng katta ratio, o'rta = undan kichik.
 // Qo'llab bo'lmaydigan tuzilma (2 tadan ko'p birlik, butun bo'linmaydigan ratio) -> unsupported (units yuborilmaydi, tegilmaydi).
 export const packRestore = (product, round) => {
@@ -264,53 +255,6 @@ export const validatePack = (pack, { tf, unitName = 'dona', otherBarcodes = [], 
 
 const packName = (tf, key, fallback, name) => tf(key, fallback).replace('{name}', name);
 
-// Dorixonada boshlang'ich qoldiq: katta qadoq soni, o'rta qadoq soni, dona soni -> jami dona; seriya va muddat
-export function PackStockFields({ pack, onChange, unitName = 'dona', tf, error }) {
-  const p = pack || emptyPack;
-  const L = packLevels(p);
-  const total = packStockTotal(p);
-  const set = (patch) => onChange({ ...p, ...patch });
-  const num = (key, intOnly) => (e) => set({ [key]: e.target.value.replace(intOnly ? /[^0-9]/g : /[^0-9.]/g, '') });
-  const unitLbl = unitName || 'dona';
-  const needLot = total > 0;
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {L.bigQty > 0 && (
-          <Field label={packName(tf, 'packStruct.stockCount', '{name} soni', String(p.big_name || '').trim() || tf('packStruct.bigDefault', 'katta qadoq'))}>
-            <input type="text" inputMode="numeric" className={packInp} value={p.stock_big} onChange={num('stock_big', true)} placeholder="0" />
-          </Field>
-        )}
-        {L.midQty > 0 && (
-          <Field label={packName(tf, 'packStruct.stockCount', '{name} soni', String(p.mid_name || '').trim() || tf('packStruct.midDefault', "o'rta qadoq"))}>
-            <input type="text" inputMode="numeric" className={packInp} value={p.stock_mid} onChange={num('stock_mid', true)} placeholder="0" />
-          </Field>
-        )}
-        <Field label={L.top ? packName(tf, 'packStruct.stockCount', '{name} soni', unitLbl) : tf('packStruct.stockUnits', "Boshlang'ich qoldiq")}>
-          <input type="text" inputMode="decimal" className={packInp} value={p.stock_unit} onChange={num('stock_unit', false)} placeholder="0" />
-        </Field>
-      </div>
-      {(L.top || total > 0) && (
-        <p className="text-sm font-bold text-emerald-700">{tf('packStruct.total', 'jami')}: {Number(total.toFixed(3))} {unitLbl}</p>
-      )}
-      {/* P.5: faqat yaroqlilik muddati majburiy; seriya va ishlab chiqarilgan sana ixtiyoriy */}
-      {needLot && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-amber-50/60 border border-amber-200 rounded-xl p-3">
-          <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required>
-            <input type="date" className={`${packInp} ${error && !p.expiry ? errCls : ''}`} value={p.expiry} onChange={e => set({ expiry: e.target.value })} />
-          </Field>
-          <Field label={tf('drugForm.lotOptional', 'Seriya raqami (ixtiyoriy)')}>
-            <input className={packInp} value={p.lot} maxLength={100} placeholder="LOT2026A" onChange={e => set({ lot: e.target.value })} />
-          </Field>
-          <Field label={tf('drugForm.mfgOptional', 'Ishlab chiqarilgan sana (ixtiyoriy)')}>
-            <input type="date" className={packInp} value={p.mfg} onChange={e => set({ mfg: e.target.value })} />
-          </Field>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Ta'sir etuvchi moddalarni qidirib tanlash (+ yangi modda qo'shish): GET/POST /api/pharmacy/substances
 export function SubstancePicker({ value, onChange, tf, allowCreate = true }) {
   const [q, setQ] = useState('');
@@ -387,7 +331,7 @@ export function SubstancePicker({ value, onChange, tf, allowCreate = true }) {
   );
 }
 
-// Bo'lim va avto-belgi: komponent TASHQARISIDA (aks holda har renderda qayta yaratilib, kiritish fokusi yo'qoladi)
+// Bo'lim: komponent TASHQARISIDA (aks holda har renderda qayta yaratilib, kiritish fokusi yo'qoladi)
 const Section = ({ n, title, hint, children }) => (
   <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
     <div>
@@ -397,18 +341,16 @@ const Section = ({ n, title, hint, children }) => (
     {children}
   </div>
 );
-const AutoTag = ({ auto, has, onReset, tf }) => (auto
-  ? (has ? <span className="ml-1 text-[10px] font-bold text-emerald-600">{tf('packStruct.auto', 'avto')}</span> : null)
-  : <button type="button" onClick={onReset} className="ml-1 text-[10px] font-bold text-blue-600 hover:underline">{'↺ ' + tf('packStruct.resetAuto', 'avto hisob')}</button>);
 
 
 // ── Oyna holati ───────────────────────────────────────────────────────────────────────────────
-// Mavjud mahsulotdan (yoki bo'sh) boshlang'ich forma holati. pack — qadoq tuzilmasi, bigPrice — "1 katta qadoq" narxi,
-// mode: 'pack' (qadoqli) | 'single' (faqat donalab). cost — qadoq rejimida "1 katta qadoq" uchun, aks holda dona uchun.
+// P.6: "Ko'p mahsulot qo'shish" yashil qatoridagidek: bigPrice — 1 quti narxi, blisters — qutidagi blister soni
+// (bo'sh — blistersiz), pieces — blisterdagi (blister bo'lmasa — qutidagi) dona soni, stockBoxes — quti soni (qoldiq).
+// Ikkala son bo'sh — qadoqsiz dori: narx va qoldiq 1 dona bo'yicha. cost — 1 quti (qadoqsizda 1 dona) tan narxi.
 export const pharmacyFormFromProduct = (product, round) => {
   const base = {
-    name: '', barcode: '', barcode_format: 'ean13', category_id: '', requires_marking: false, mxik: '',
-    mode: 'pack', hasMid: false, bigPrice: '', singlePrice: '', cost: '', wh: '',
+    name: '', barcode: '', category_id: '', requires_marking: false, mxik: '',
+    bigPrice: '', blisters: '', pieces: '', cost: '', stockBoxes: '',
   };
   // P.5: yangi dorida shtrix-kod bo'sh (qutini skanerlash uchun); bo'sh qolsa saqlashda avtomatik yaratiladi
   if (!product) return { form: { ...base }, pack: { ...emptyPack }, pharma: pharmaToForm(null) };
@@ -419,26 +361,18 @@ export const pharmacyFormFromProduct = (product, round) => {
     requires_marking: !!product.requires_marking, mxik: product.mxik_code || '',
   };
   const costUnit = Number(product.cost_price) || 0;
-  if (r.pack.unsupported || !Array.isArray(product.units) || product.units.length === 0) {
-    form.mode = 'single';
-    form.singlePrice = product.sale_price != null ? String(Number(product.sale_price)) : '';
+  const units = Array.isArray(product.units) ? product.units : [];
+  if (r.pack.unsupported || units.length === 0) {
+    form.bigPrice = product.sale_price != null ? String(Number(product.sale_price)) : '';
     form.cost = costUnit ? String(costUnit) : '';
   } else {
-    form.mode = 'pack';
-    form.hasMid = product.units.length === 2;
+    const two = units.length === 2;
+    form.blisters = two ? r.pack.big_qty : '';
+    form.pieces = two ? r.pack.mid_qty : r.pack.big_qty;
     form.bigPrice = r.topPrice;
     form.cost = costUnit ? String(round4(costUnit * r.topRatio)) : '';
   }
   return { form, pack: r.pack, pharma: pharmaToForm(product.pharma) };
-};
-
-// Effektiv tuzilma: donalab rejimida qadoq sonlari e'tiborsiz; "ichida blister bor" belgisisiz o'rta son e'tiborsiz;
-// belgi bor-u, qutidagi blister soni yo'q (tugallanmagan) bo'lsa — tuzilma hali yo'q hisoblanadi
-const effectivePack = (pack, mode, hasMid) => {
-  if (mode === 'single') return { ...pack, big_qty: '', mid_qty: '' };
-  if (!hasMid) return { ...pack, mid_qty: '' };
-  if (!packInt(pack.big_qty)) return { ...pack, big_qty: '', mid_qty: '' };
-  return pack;
 };
 
 export default function PharmacyProductModal({ product = null, onClose, onSaved, warehouses = [], defaultWarehouseId = '' }) {
@@ -488,14 +422,22 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
 
   const setF = (patch) => setForm(f => ({ ...f, ...patch }));
   const setP = (patch) => setPack(p => ({ ...p, ...patch }));
-  const single = form.mode === 'single';
-  const eff = effectivePack(pack, form.mode, form.hasMid);
+  // P.6: blister soni berilsa quti -> blister -> dona, aks holda quti -> dona; ikkalasi bo'sh — qadoqsiz (1 dona)
+  const hasA = String(form.blisters ?? '').trim() !== '';
+  const hasB = String(form.pieces ?? '').trim() !== '';
+  const single = pack.unsupported || (!hasA && !hasB);
+  const incomplete = !single && hasA && !hasB;
+  const eff = {
+    ...pack, mid_auto: true, unit_auto: true,
+    big_qty: single || incomplete ? '' : (hasA ? form.blisters : form.pieces),
+    mid_qty: single || incomplete || !hasA ? '' : form.pieces,
+  };
   const L = packLevels(eff);
   const topPrice = single ? '' : form.bigPrice;
-  const pr = single ? { mid: null, unit: numOrNull(form.singlePrice) } : packPrices(eff, topPrice, round);
-  const stockTotal = isEdit ? 0 : packStockTotal(eff);
+  const pr = single ? { mid: null, unit: numOrNull(form.bigPrice) } : packPrices(eff, topPrice, round);
+  const topRatio = single || !L.top ? 1 : L.topRatio;
+  const stockTotal = isEdit ? 0 : (Number(form.stockBoxes) || 0) * topRatio;
   const bigName = String(pack.big_name || '').trim() || tf('packStruct.bigDefault', 'katta qadoq');
-  const midName = String(pack.mid_name || '').trim() || tf('packStruct.midDefault', "o'rta qadoq");
   const line = single ? '' : packLine(eff, topPrice, round, baseUnit);
   const maxRetail = pharma.max_retail_price;
   const overMax = maxRetail !== '' && pr.unit != null && Number(pr.unit) > Number(maxRetail);
@@ -560,15 +502,12 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
     e.preventDefault();
     if (!form.name.trim()) return fail(tf('pharmacyModal.errName', 'Dori nomini kiriting'));
     if (!form.mxik.trim()) return fail(tf('pharmaProduct.mxikRequired', 'Dorixona rejimida MXIK kodi majburiy'));
-    if (single) {
-      if (!(Number(form.singlePrice) > 0)) return fail(tf('pharmacyModal.errUnitPrice', 'Dona narxini kiriting'));
-    } else {
-      if (!L.top || (form.hasMid && !(L.bigQty && L.midQty)) || (!form.hasMid && !L.bigQty)) {
-        return fail(tf('pharmacyModal.errCounts', "Qadoqdagi sonlarni kiriting (1 dan katta butun son)"));
-      }
-      if (!(Number(form.bigPrice) > 0)) return fail(packName(tf, 'pharmacyModal.errBigPrice', '1 {name} narxini kiriting', bigName));
-      if (pr.unit == null) return fail(tf('pharmacyModal.errUnitPrice', 'Dona narxini kiriting'));
+    if (!(Number(form.bigPrice) > 0)) {
+      return fail(single ? tf('pharmacyModal.errUnitPrice', 'Dona narxini kiriting')
+        : packName(tf, 'pharmacyModal.errBigPrice', '1 {name} narxini kiriting', bigName));
     }
+    if (incomplete || (!single && !L.top)) return fail(tf('pharmacyModal.errCounts', "Qadoqdagi sonlarni kiriting (1 dan katta butun son)"));
+    if (pr.unit == null) return fail(tf('pharmacyModal.errUnitPrice', 'Dona narxini kiriting'));
     const barcode = form.barcode.trim() || genBarcodeByFormat('ean13');
     const pErr = validatePack(eff, { tf, unitName: baseUnit, otherBarcodes: [barcode], stockTotal });
     if (pErr) return fail(pErr);
@@ -579,7 +518,6 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
       }
     }
 
-    const topRatio = single ? 1 : L.topRatio;
     const payload = {
       name: form.name.trim(),
       barcode,
@@ -719,107 +657,85 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
                 </div>
               </Section>
 
-              {/* 2. Qadoq va narx */}
-              <Section n={2} title={tf('pharmacyModal.s2', 'Qadoq va narx')}
-                hint={single ? undefined : tf('pharmacyModal.s2Hint', "Eng katta qadoq narxini kiriting — blister va dona narxi o'zi hisoblanadi")}>
-                {!pack.unsupported && (
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" checked={single} onChange={e => setF({ mode: e.target.checked ? 'single' : 'pack' })}
-                      className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
-                    <span className="text-sm font-semibold text-slate-700">{tf('pharmacyModal.singleOnly', 'Faqat donalab sotiladi (qadoqsiz)')}</span>
-                  </label>
-                )}
+              {/* 2. Qadoq, narx va qoldiq — "Ko'p mahsulot qo'shish" yashil qatoridagi tartibda (P.6) */}
+              <Section n={2} title={tf('drugForm.packTitle', 'Qadoq, narx va qoldiq')}
+                hint={tf('drugForm.packHint', "1 quti narxini kiriting — blister va dona narxi, jami qoldiq o'zi hisoblanadi. Qadoqsiz dori uchun sonlarni bo'sh qoldiring")}>
                 {pack.unsupported && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
                     {tf('packStruct.unsupported', "Bu mahsulotning qadoq tuzilmasi murakkab (2 tadan ko'p birlik): shu oynada o'zgartirilmaydi va saqlanganda tegilmaydi.")}
                   </div>
                 )}
+                <div className="grid grid-cols-2 gap-3 bg-emerald-50/60 border border-emerald-200 rounded-xl p-3">
+                  <Field label={single ? tf('drugForm.unitPrice', '1 dona narxi') : packName(tf, 'pharmacyModal.bigPrice', '1 {name} narxi', bigName)} required>
+                    <input type="text" inputMode="decimal" className={`${inputCls} ${error && !(Number(form.bigPrice) > 0) ? errCls : ''}`} value={form.bigPrice}
+                      placeholder="100000" onChange={e => setF({ bigPrice: e.target.value.replace(/[^0-9.]/g, '') })} />
+                  </Field>
+                  {!pack.unsupported && (
+                    <Field label={tf('packStruct.bulkMidCount', 'Qutidagi blister soni')}>
+                      <input type="text" inputMode="numeric" className={inputCls} value={form.blisters} placeholder="5"
+                        onChange={e => setF({ blisters: e.target.value.replace(/[^0-9]/g, '') })} />
+                    </Field>
+                  )}
+                  {!pack.unsupported && (
+                    <Field label={hasA ? tf('packStruct.bulkUnitCount', 'Blisterdagi dona soni') : tf('drugForm.piecesInBox', 'Qutidagi dona soni')}
+                      required={hasA}>
+                      <input type="text" inputMode="numeric" className={`${inputCls} ${error && incomplete ? errCls : ''}`} value={form.pieces} placeholder="10"
+                        onChange={e => setF({ pieces: e.target.value.replace(/[^0-9]/g, '') })} />
+                    </Field>
+                  )}
+                  {!isEdit && (
+                    <Field label={single ? tf('drugForm.stockUnits', 'Qoldiq (dona soni)') : tf('packStruct.bulkStockBig', 'Quti soni (qoldiq)')}>
+                      <input type="text" inputMode="numeric" className={inputCls} value={form.stockBoxes} placeholder="0"
+                        onChange={e => setF({ stockBoxes: e.target.value.replace(/[^0-9]/g, '') })} />
+                    </Field>
+                  )}
+                  {!isEdit && (
+                    <Field label={tf('packStruct.lot', 'Seriya raqami')}>
+                      <input className={inputCls} value={pack.lot} maxLength={100} placeholder="LOT2026A" onChange={e => setP({ lot: e.target.value })} />
+                    </Field>
+                  )}
+                  {!isEdit && (
+                    <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required={stockTotal > 0}>
+                      <input type="date" className={`${inputCls} ${error && stockTotal > 0 && !pack.expiry ? errCls : ''}`} value={pack.expiry}
+                        onChange={e => setP({ expiry: e.target.value })} />
+                    </Field>
+                  )}
+                  {!isEdit && (
+                    <Field label={tf('drugForm.mfgOptional', 'Ishlab chiqarilgan sana (ixtiyoriy)')}>
+                      <input type="date" className={inputCls} value={pack.mfg} onChange={e => setP({ mfg: e.target.value })} />
+                    </Field>
+                  )}
+                  <Field label={packName(tf, 'pharmacyModal.costPer', '1 {name} tan narxi (ixtiyoriy)', single ? baseUnit : bigName)}>
+                    <input type="text" inputMode="decimal" className={inputCls} value={form.cost}
+                      onChange={e => setF({ cost: e.target.value.replace(/[^0-9.]/g, '') })} />
+                  </Field>
+                </div>
 
-                {single ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label={packName(tf, 'packStruct.price', '{name} narxi', baseUnit)} required>
-                      <input type="text" inputMode="decimal" className={`${inputCls} ${error && !(Number(form.singlePrice) > 0) ? errCls : ''}`} value={form.singlePrice}
-                        placeholder="2000" onChange={e => setF({ singlePrice: e.target.value.replace(/[^0-9.]/g, '') })} />
-                    </Field>
-                    <Field label={packName(tf, 'pharmacyModal.costPer', '1 {name} tan narxi (ixtiyoriy)', baseUnit)}>
-                      <input type="text" inputMode="decimal" className={inputCls} value={form.cost}
-                        onChange={e => setF({ cost: e.target.value.replace(/[^0-9.]/g, '') })} />
-                    </Field>
+                {/* avtomatik hisob: qadoq, blister va dona narxi, jami qoldiq */}
+                {(line || (single && pr.unit != null) || stockTotal > 0) && (
+                  <div className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold break-words">
+                    {single && pr.unit != null ? `${tf('drugForm.singleLine', 'Qadoqsiz')}: 1 ${baseUnit} = ${fmtNum(pr.unit)}` : line}
+                    {stockTotal > 0 && ` · ${tf('packStruct.total', 'jami')}: ${fmtNum(stockTotal)} ${baseUnit}`}
                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label={tf('packStruct.bigName', 'Katta qadoq nomi')}>
-                        <input className={inputCls} value={pack.big_name} maxLength={50} placeholder="quti" onChange={e => setP({ big_name: e.target.value })} />
-                      </Field>
-                      <Field label={packName(tf, 'pharmacyModal.bigPrice', '1 {name} narxi', bigName)} required>
-                        <input type="text" inputMode="decimal" className={`${inputCls} ${error && !(Number(form.bigPrice) > 0) ? errCls : ''}`} value={form.bigPrice}
-                          placeholder="100000" onChange={e => setF({ bigPrice: e.target.value.replace(/[^0-9.]/g, '') })} />
-                      </Field>
-                    </div>
-
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input type="checkbox" checked={form.hasMid}
-                        onChange={e => { setF({ hasMid: e.target.checked }); setP({ big_qty: '', mid_qty: '', mid_auto: true }); }}
-                        className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
-                      <span className="text-sm font-semibold text-slate-700">{tf('pharmacyModal.hasMid', 'Ichida blister/pachka bor')}</span>
-                    </label>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      {form.hasMid && (
-                        <Field label={tf('packStruct.midName', "O'rta qadoq nomi")}>
-                          <input className={inputCls} value={pack.mid_name} maxLength={50} placeholder="blister" onChange={e => setP({ mid_name: e.target.value })} />
-                        </Field>
-                      )}
-                      {form.hasMid && (
-                        <Field label={packName(tf, 'pharmacyModal.midCount', '1 {name} ichida nechta {inner}', bigName).replace('{inner}', midName)} required>
-                          <input type="text" inputMode="numeric" className={inputCls} value={pack.big_qty} placeholder="5"
-                            onChange={e => setP({ big_qty: e.target.value.replace(/[^0-9]/g, '') })} />
-                        </Field>
-                      )}
-                      <Field label={packName(tf, 'pharmacyModal.unitCount', '1 {name} ichida nechta dona', form.hasMid ? midName : bigName)} required>
-                        <input type="text" inputMode="numeric" className={inputCls} placeholder="10"
-                          value={form.hasMid ? pack.mid_qty : pack.big_qty}
-                          onChange={e => setP({ [form.hasMid ? 'mid_qty' : 'big_qty']: e.target.value.replace(/[^0-9]/g, '') })} />
-                      </Field>
-                      <Field label={packName(tf, 'pharmacyModal.costPer', '1 {name} tan narxi (ixtiyoriy)', L.top === 'mid' ? midName : bigName)}>
-                        <input type="text" inputMode="decimal" className={inputCls} value={form.cost}
-                          onChange={e => setF({ cost: e.target.value.replace(/[^0-9.]/g, '') })} />
-                      </Field>
-                    </div>
-
-                    {L.top && (
-                      <div className="grid grid-cols-2 gap-3 bg-emerald-50/60 border border-emerald-200 rounded-xl p-3">
-                        {form.hasMid && L.midQty > 0 && (
-                          <Field label={<>{packName(tf, 'packStruct.price', '{name} narxi', midName)}<AutoTag tf={tf} auto={pack.mid_auto !== false} has={pr.mid != null} onReset={() => setP({ mid_auto: true })} /></>}>
-                            <input type="number" min="0" step="any" className={inputCls}
-                              value={pack.mid_auto === false ? pack.mid_price : (pr.mid ?? '')}
-                              onChange={e => setP({ mid_price: e.target.value, mid_auto: false })} />
-                          </Field>
-                        )}
-                        <Field label={<>{packName(tf, 'packStruct.price', '{name} narxi', baseUnit)}<AutoTag tf={tf} auto={pack.unit_auto !== false} has={pr.unit != null} onReset={() => setP({ unit_auto: true })} /></>}>
-                          <input type="number" min="0" step="any" className={inputCls}
-                            value={pack.unit_auto === false ? pack.unit_price : (pr.unit ?? '')}
-                            onChange={e => setP({ unit_price: e.target.value, unit_auto: false })} />
-                        </Field>
-                      </div>
-                    )}
-                  </>
                 )}
-
                 {overMax && (
                   <p className="text-xs font-semibold text-red-600">{tf('pharmaProduct.maxPriceWarn', 'Chakana narx maksimal chakana narxdan yuqori')}</p>
                 )}
-                {line && (
-                  <div className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold break-words">{line}</div>
+                {!isEdit && warehouses.length > 0 && (
+                  <Field label={tf('pharmacyModal.warehouse', 'Ombor')}>
+                    <select className={inputCls} value={whId} onChange={e => setWhId(e.target.value)}>
+                      <option value="">—</option>
+                      {warehouses.filter(w => w.is_active !== false).map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
+                    </select>
+                  </Field>
                 )}
               </Section>
 
-              {/* 3. Boshlang'ich qoldiq + 4. Batafsil */}
+              {/* 3. Partiyalar (tahrirda) + Batafsil */}
               <div className="space-y-4">
-                <Section n={3}
-                  title={isEdit ? tf('drugForm.batchesTitle', 'Partiyalar: seriya va muddatlar') : tf('pharmacyModal.s3', "Boshlang'ich qoldiq (ixtiyoriy)")}
-                  hint={isEdit ? tf('drugForm.batchesHint', "Qoldiq kirim orqali o'zgaradi. Seriya va sanalarni shu yerda to'g'rilang") : tf('pharmacyModal.s3Hint', 'Hozir omborda bor dori miqdori. Bo\'sh qoldirsangiz — keyin kirim qilasiz')}>
+                {isEdit && (
+                <Section n={3} title={tf('drugForm.batchesTitle', 'Partiyalar: seriya va muddatlar')}
+                  hint={tf('drugForm.batchesHint', "Qoldiq kirim orqali o'zgaradi. Seriya va sanalarni shu yerda to'g'rilang")}>
                   {/* P.5: tahrirlashda partiyalarni to'g'rilash */}
                   {isEdit && (batchNote ? (
                     <p className="text-sm text-slate-500">{batchNote}</p>
@@ -850,26 +766,13 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
                       ))}
                     </div>
                   ))}
-                  {!isEdit && (
-                    <>
-                      {warehouses.length > 0 && (
-                        <Field label={tf('pharmacyModal.warehouse', 'Ombor')}>
-                          <select className={inputCls} value={whId} onChange={e => setWhId(e.target.value)}>
-                            <option value="">—</option>
-                            {warehouses.filter(w => w.is_active !== false).map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
-                          </select>
-                        </Field>
-                      )}
-                      <PackStockFields pack={eff} onChange={(next) => setPack(p => ({ ...p, stock_big: next.stock_big, stock_mid: next.stock_mid, stock_unit: next.stock_unit, lot: next.lot, expiry: next.expiry, mfg: next.mfg }))}
-                        unitName={baseUnit} tf={tf} error={!!error} />
-                    </>
-                  )}
                 </Section>
+                )}
 
                 <div className="bg-white border border-slate-200 rounded-2xl">
                   <button type="button" onClick={() => setShowMore(v => !v)}
                     className="w-full flex items-center justify-between px-4 py-3 text-left">
-                    <span className="text-base md:text-lg font-black text-slate-800"><span className="text-emerald-600">4.</span> {tf('pharmacyModal.details', 'Batafsil')}
+                    <span className="text-base md:text-lg font-black text-slate-800"><span className="text-emerald-600">{isEdit ? 4 : 3}.</span> {tf('pharmacyModal.details', 'Batafsil')}
                       <span className="ml-2 text-xs font-normal text-slate-500">{tf('drugForm.detailsHint', "ishlab chiqaruvchi, ATX va boshqalar")}</span>
                     </span>
                     <span className="text-slate-400 text-xl">{showMore ? '−' : '+'}</span>

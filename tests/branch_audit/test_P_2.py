@@ -97,8 +97,7 @@ def test_pharmacy_modal_pack_price_calc_and_payload():
 
 def test_pharmacy_modal_sections_and_details_block():
     s = _read(PHARM_MODAL)
-    for n in ('s1', 's2', 's3'):
-        assert f"tf('pharmacyModal.{n}'" in s
+    assert "tf('pharmacyModal.s1'" in s and "tf('drugForm.packTitle'" in s     # P.6: qadoq, narx va qoldiq bir bo'limda
     # "Batafsil" bloki sukut bo'yicha yopiq
     assert "const [showMore, setShowMore] = useState(false)" in s
     assert "tf('pharmacyModal.details', 'Batafsil')" in s
@@ -108,11 +107,11 @@ def test_pharmacy_modal_sections_and_details_block():
     # MXIK majburiy: xatoda "Batafsil" o'zi ochiladi
     assert "fail(tf('pharmaProduct.mxikRequired'" in s and "true)" in s
     assert 'setShowMore(true)' in s
-    # qadoq: o'rta qadoq belgisi, "jami", xulosa
-    assert "tf('pharmacyModal.hasMid'" in s and 'packLine(' in s and 'packStockTotal(' in s
-    # Section/AutoTag komponent TASHQARISIDA (fokus yo'qolmasligi uchun)
+    # qadoq: yashil qatordagidek maydonlar, "jami", xulosa (P.6)
+    assert "tf('packStruct.bulkMidCount'" in s and 'packLine(' in s and '(Number(form.stockBoxes) || 0) * topRatio' in s
+    # Section komponent TASHQARISIDA (fokus yo'qolmasligi uchun)
     top = s[:s.index('export default function PharmacyProductModal')]
-    assert 'const Section = ' in top and 'const AutoTag = ' in top
+    assert 'const Section = ' in top
     # retsept, markirovka, kategoriya
     assert "pharmaProduct.isRx" in s and 'pharmacyModal.requiresMarking' in s and "api.get('/categories/all')" in s
 

@@ -205,7 +205,7 @@ def test_modal_wide_three_columns_and_simplified():
     body = s[s.index('export default function PharmacyProductModal'):]
     assert 'max-w-[1500px] h-[96vh]' in body and 'lg:grid-cols-3' in body
     # MXIK birinchi bo'limda (2-bo'limdan oldin), tasnifdan qidirish va shtrix-kod bo'yicha avtomatik
-    assert body.index("tf('pharmaProduct.mxik'") < body.index("tf('pharmacyModal.s2'")
+    assert body.index("tf('pharmaProduct.mxik'") < body.index("tf('drugForm.packTitle'")
     assert "import TasnifSearch, { lookupDrugByBarcode } from './TasnifSearch';" in s
     assert 'const res = await lookupDrugByBarcode(code);' in body and '<TasnifSearch' in body
     assert "if (!product) return { form: { ...base }, pack: { ...emptyPack }, pharma: pharmaToForm(null) };" in s
@@ -214,11 +214,16 @@ def test_modal_wide_three_columns_and_simplified():
     for bad in ('big_barcode', 'mid_barcode', 'reg_valid_until', 'BARCODE_FORMATS.map'):
         assert bad not in body, bad
     # seriya va ishlab chiqarilgan sana ixtiyoriy (yulduzchasiz), yaroqlilik muddati majburiy
-    stock = s[s.index('export function PackStockFields'):s.index('export function SubstancePicker')]
-    assert "set({ mfg: e.target.value })" in stock and "tf('drugForm.mfgOptional'" in stock
-    assert "tf('drugForm.lotOptional'" in stock and "tf('packStruct.expiry', 'Yaroqlilik muddati')} required" in stock
+    # P.6: qadoq, narx va qoldiq — "Ko'p mahsulot qo'shish" yashil qatori tartibida
+    stock = body[body.index("tf('drugForm.packTitle'"):body.index("{/* 3. Partiyalar (tahrirda) + Batafsil */}")]
+    order = [stock.index(k) for k in ("'pharmacyModal.bigPrice'", "tf('packStruct.bulkMidCount'", "tf('packStruct.bulkUnitCount'",
+                                      "tf('packStruct.bulkStockBig'", "tf('packStruct.lot'", "tf('packStruct.expiry'",
+                                      "tf('drugForm.mfgOptional'")]
+    assert order == sorted(order)
+    assert "setP({ mfg: e.target.value })" in stock and "required={stockTotal > 0}" in stock
+    assert 'PackStockFields' not in s and 'AutoTag' not in s and "form.mode" not in s
     assert 'if (pack.mfg) payload.initial_manufacture_date = pack.mfg;' in body
-    v = s[s.index('export const validatePack'):s.index('export function PackStockFields')]
+    v = s[s.index('export const validatePack'):s.index('export function SubstancePicker')]
     assert "packStruct.errLot" not in v                  # seriya ixtiyoriy
     # tahrirda partiyalar: seriya, muddat, ishlab chiqarilgan sana
     assert "api.get('/pharmacy/batches', { params: { product_id: product.id" in body

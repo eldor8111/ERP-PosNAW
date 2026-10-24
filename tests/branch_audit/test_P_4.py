@@ -203,7 +203,8 @@ def test_update_price_only_reprices_existing_structure_and_box_stock(client, db,
     assert created.status_code == 201, created.text
     pid = created.json()['id']
     row = {'Nomi': 'Ibuprofen 200', 'Katta qadoq narxi': '120000', 'Katta qadoq tan narxi': '60000',
-           'Qoldiq (katta qadoq)': '2', 'MXIK': '03004001001000009'}
+           'Qoldiq (katta qadoq)': '2', 'MXIK': '03004001001000009',
+           'Yaroqlilik muddati': FUTURE}   # P.6: dorixonada qoldiq oshishi — muddatli yangi partiya
     body = _import(cl, [row], allow_update='true', warehouse_id=w.id)
     assert body['updated'] == 1, body
     p = db.get(Product, pid)
@@ -307,3 +308,55 @@ def test_i18n_p4_complete_and_merged_once():
         for k in data[lang]:
             n = len(re.findall(r"^\s*['\"]" + re.escape(k) + r"['\"]\s*:", txt, re.M))
             assert n == 1, f'{k} {lang}.js da {n} marta'
+
+# ───────────────────────── P.6: sanalar va mavjud dori qoldig'i ─────────────────────────
+
+def test_date_cell_formats():
+    from app.routers.product_import import _parse_date_cell
+    for raw in ('2027-12-31', '2027/12/31', '2027.12.31', '31.12.2027', '31/12/2027', '31.12.27', '12/31/2027',
+                '31.12.2027 00:00:00', '2027-12', '12.2027'):
+        assert _parse_date_cell(raw).isoformat() == '2027-12-31', raw
+    assert _parse_date_cell('05/06/2027').isoformat() == '2027-06-05'      # ikkalasi <= 12 — kun.oy (O'zbekiston tartibi)
+    with pytest.raises(ValueError):
+        _parse_date_cell('31.13.2027')
+
+
+def test_update_existing_drug_stock_goes_through_batches(client, db, pharm):
+    c, _, w, u = pharm
+    cl = client.login(u)
+    created = cl.post(URL, json={
+        'name': 'Sitramon', 'barcode': '4780000009501', 'sku': 'SKU-P6U', 'unit': 'dona', 'product_type': 'stock',
+        'cost_price': 500, 'sale_price': 1000, 'mxik_code': '03004001001000012',
+        'initial_stock': 20, 'initial_warehouse_id': w.id, 'initial_expiry_date': FUTURE,
+    })
+    assert created.status_code == 201, created.text
+    pid = created.json()['id']
+
+    def level():
+        db.expire_all()
+        return Decimal(str(db.query(StockLevel).filter(StockLevel.product_id == pid, StockLevel.warehouse_id == w.id).one().quantity))
+
+    # oshirish muddatsiz — qoldiq o'zgarmaydi, ogohlantirish
+    body = _import(cl, [{'Nomi': 'Sitramon', 'Qoldiq': '30'}], allow_update='true', warehouse_id=w.id)
+    assert body['updated'] == 1 and any('muddati' in x['warning'] for x in body['warnings']), body
+    assert level() == 20
+    # oshirish muddat, seriya va ishlab chiqarilgan sana bilan — farq (10) yangi partiya bo'lib kiradi
+    body = _import(cl, [{'Nomi': 'Sitramon', 'Qoldiq': '30', 'Yaroqlilik muddati': FUTURE, 'Seriya': 'S-NEW',
+                         'Ishlab chiqarilgan sana': '01.01.2026'}], allow_update='true', warehouse_id=w.id)
+    assert body['updated'] == 1 and body['warnings'] == [], body
+    assert level() == 30
+    new = db.query(Batch).filter(Batch.product_id == pid, Batch.lot_number == 'S-NEW').one()
+    assert Decimal(str(new.quantity)) == 10 and new.manufacture_date.date().isoformat() == '2026-01-01'
+    assert sum(Decimal(str(b.quantity)) for b in db.query(Batch).filter(Batch.product_id == pid).all()) == 30
+    # kamaytirish — inventarizatsiya orqali (import o'zgartirmaydi)
+    body = _import(cl, [{'Nomi': 'Sitramon', 'Qoldiq': '5'}], allow_update='true', warehouse_id=w.id)
+    assert any('Inventarizatsiya' in x['warning'] for x in body['warnings']), body
+    assert level() == 30
+
+
+def test_frontend_reads_excel_dates_as_iso_only_in_pharmacy():
+    s = _read(PRODUCTS_JSX)
+    assert "...(pharmacyOn ? { cellNF: true } : {})" in s and 'if (pharmacyOn) isoDateCells(XLSX, ws);' in s
+    js = _read(PHARM_IMPORT_JS)
+    assert 'export const isoDateCells = (XLSX, ws) =>' in js
+    assert 'SSF.parse_date_code(c.v)' in js and "c.t !== 'n' || !c.z || !SSF.is_date(c.z)" in js

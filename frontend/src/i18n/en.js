@@ -5796,4 +5796,11 @@ export default {
   "pharmacyImport.f.mfg": "Manufacture date (optional)",
   // === P.5 ===
   "drugForm.mfgOptional": "Manufacture date (optional)",
+  // === P.5 ===
+  "drugForm.packTitle": "Packaging, price and stock",
+  "drugForm.packHint": "Enter the price of 1 box — blister and piece prices and total stock are calculated automatically. Leave counts empty for unpackaged medicines",
+  "drugForm.unitPrice": "Price of 1 piece",
+  "drugForm.piecesInBox": "Pieces per box",
+  "drugForm.stockUnits": "Stock (pcs)",
+  "drugForm.singleLine": "No packaging",
 };

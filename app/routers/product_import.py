@@ -222,17 +222,25 @@ def _parse_date_cell(raw):
     if not text:
         return None
     text = text.split("T")[0] if re.match(r"^\d{4}-\d{2}-\d{2}T", text) else text
-    text = text.split(" ")[0] if re.match(r"^\d{4}-\d{2}-\d{2} ", text) else text
+    text = text.split(" ")[0] if re.match(r"^\d{1,4}[./-]\d{1,2}[./-]\d{2,4} ", text) else text   # vaqt qismi
     try:
-        m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", text)
+        m = re.match(r"^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$", text)          # 2027-12-31, 2027.12.31, 2027/12/31
         if m:
             return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        m = re.match(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$", text)
+        # 31.12.2027, 31/12/27; P.6: ikki xonali yil (20YY) va AQSh tartibi (12/31/2027 — ikkinchi son > 12 bo'lsa)
+        m = re.match(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$", text)
         if m:
-            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
-        m = re.match(r"^(\d{1,2})[./-](\d{4})$", text)
+            a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            y = 2000 + y if y < 100 else y
+            day, mo = (b, a) if b > 12 >= a else (a, b)
+            return date(y, mo, day)
+        m = re.match(r"^(\d{1,2})[./-](\d{4})$", text)                         # 12.2027 -> oyning oxirgi kuni
         if m:
             y, mo = int(m.group(2)), int(m.group(1))
+            return date(y, mo, monthrange(y, mo)[1])
+        m = re.match(r"^(\d{4})[./-](\d{1,2})$", text)                         # 2027-12 -> oyning oxirgi kuni
+        if m:
+            y, mo = int(m.group(1)), int(m.group(2))
             return date(y, mo, monthrange(y, mo)[1])
         if re.match(r"^\d{5}(\.\d+)?$", text):
             return date(1899, 12, 30) + timedelta(days=int(float(text)))
@@ -822,6 +830,36 @@ def bulk_import_products(
                             "row": row_num, "name": name or barcode,
                             "warning": "Qoldiq o'zgartirilmadi: korxonada ombor topilmadi",
                         })
+                    elif pharmacy_on:
+                        # P.6: dorixonada qoldiq partiyasiz (muddatsiz) o'zgarmaydi — oshsa farq yangi partiya
+                        # sifatida kirim qilinadi (muddat, seriya, ishlab chiqarilgan sana bilan); kamaytirish — inventarizatsiya
+                        from app.services.batch_allocator import tashkent_today
+                        stock = get_or_create_stock(db, existing.id, row_wh_id, None)
+                        delta = stock_val - Decimal(str(stock.quantity or 0))
+                        if delta > 0:
+                            if pack["expiry"] is None or pack["expiry"] <= tashkent_today():
+                                warnings.append({
+                                    "row": row_num, "name": name or barcode,
+                                    "warning": "Qoldiq o'zgartirilmadi: qo'shiladigan qoldiq uchun yaroqlilik muddati "
+                                               "(bugundan keyingi sana) kerak",
+                                })
+                            else:
+                                receive_stock(
+                                    db, existing.id, delta, current_user.id,
+                                    reason="Excel import", reference_type="product_import", reference_id=None,
+                                    warehouse_id=row_wh_id, purchase_price=existing.cost_price,
+                                    company_id=current_user.company_id,
+                                    expiry_date=datetime.combine(pack["expiry"], datetime.min.time()),
+                                )
+                                if pack["lot"] or pack["mfg"]:
+                                    db.flush()
+                                    _stamp_initial_batch(db, existing.id, row_wh_id, pack["lot"], pack["mfg"])
+                        elif delta < 0:
+                            warnings.append({
+                                "row": row_num, "name": name or barcode,
+                                "warning": "Qoldiq kamaytirilmadi: dorixonada qoldiqni kamaytirish partiyalar bo'yicha "
+                                           "Inventarizatsiya orqali qilinadi",
+                            })
                     else:
                         stock = get_or_create_stock(db, existing.id, row_wh_id, None)
                         qty_before = stock.quantity if stock.quantity is not None else Decimal("0")

@@ -5801,4 +5801,11 @@ export default {
   "pharmacyImport.f.mfg": "Дата производства (необязательно)",
   // === P.5 ===
   "drugForm.mfgOptional": "Дата производства (необязательно)",
+  // === P.5 ===
+  "drugForm.packTitle": "Упаковка, цена и остаток",
+  "drugForm.packHint": "Введите цену 1 коробки — цена блистера и штуки, общий остаток рассчитаются сами. Для лекарств без упаковки оставьте количества пустыми",
+  "drugForm.unitPrice": "Цена 1 штуки",
+  "drugForm.piecesInBox": "Штук в коробке",
+  "drugForm.stockUnits": "Остаток (шт.)",
+  "drugForm.singleLine": "Без упаковки",
 };
