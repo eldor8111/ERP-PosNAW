@@ -52,6 +52,14 @@ class BatchStatusIn(BaseModel):
     reason: str
 
 
+class BatchEditIn(BaseModel):
+    """P.5: partiya seriyasi va sanalarini to'g'rilash (dorini tahrirlash oynasidan). Yuborilmagan maydon o'zgarmaydi;
+    manufacture_date: null — o'chiriladi."""
+    lot_number: Optional[str] = None
+    expiry_date: Optional[date] = None
+    manufacture_date: Optional[date] = None
+
+
 def _company_id(user: User) -> int:
     if not user.company_id:
         raise HTTPException(status_code=400, detail="Korxona aniqlanmadi")
@@ -123,6 +131,7 @@ def list_batches(
             "unit": p_unit,
             "lot_number": b.lot_number,
             "expiry_date": expiry.isoformat() if expiry else None,
+            "manufacture_date": b.manufacture_date.date().isoformat() if b.manufacture_date else None,   # P.5
             "days_left": (expiry - today).days if expiry else None,
             "warehouse_id": b.warehouse_id,
             "warehouse_name": w_name,
@@ -137,6 +146,74 @@ def list_batches(
             "status_changed_by": b.status_changed_by,
         })
     return out
+
+
+def _locked_batch(db: Session, batch_id: int, cid: int, ctx: BranchContext):
+    """Qulflangan partiya va uning filiali; boshqa korxona -> 404, ruxsatsiz filial -> 403."""
+    # Sotuv bilan poygani oldini olish uchun qator qulflanadi; boshqa korxona partiyasi -> 404
+    batch = (
+        db.query(Batch).filter(Batch.id == batch_id, Batch.company_id == cid)
+        .populate_existing().with_for_update().first()
+    )
+    if not batch:
+        raise HTTPException(status_code=404, detail="Partiya topilmadi")
+    branch_id = None
+    if batch.warehouse_id is not None:
+        wh = db.query(Warehouse).filter(Warehouse.id == batch.warehouse_id, Warehouse.company_id == cid).first()
+        branch_id = wh.branch_id if wh else None
+        allowed = ctx.allowed_branch_ids  # None — cheklanmagan
+        if allowed is not None and branch_id not in allowed:
+            raise HTTPException(status_code=403, detail=OTHER_BRANCH)
+        scope_ids = ctx.scope_ids()
+        if scope_ids is not None and branch_id not in scope_ids:
+            raise HTTPException(status_code=403, detail=OTHER_BRANCH)
+    return batch, branch_id
+
+
+@router.put("/{batch_id}")
+def edit_batch(
+    batch_id: int,
+    data: BatchEditIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*STATUS_ROLES)),
+    ctx: BranchContext = Depends(get_branch_context),
+):
+    """P.5: partiyaning seriya raqami, yaroqlilik muddati va ishlab chiqarilgan sanasini to'g'rilash; audit log yoziladi."""
+    cid = _company_id(current_user)
+    batch, branch_id = _locked_batch(db, batch_id, cid, ctx)
+    sent = data.model_fields_set
+    old = {
+        "lot_number": batch.lot_number,
+        "expiry_date": batch.expiry_date.date().isoformat() if batch.expiry_date else None,
+        "manufacture_date": batch.manufacture_date.date().isoformat() if batch.manufacture_date else None,
+    }
+    if "lot_number" in sent and (data.lot_number or "").strip():
+        lot = data.lot_number.strip()
+        if len(lot) > 100:
+            raise HTTPException(status_code=400, detail="Seriya raqami 100 belgidan oshmasligi kerak")
+        batch.lot_number = lot
+    if "expiry_date" in sent:
+        if data.expiry_date is None:
+            raise HTTPException(status_code=400, detail="Yaroqlilik muddatini kiriting")
+        batch.expiry_date = datetime.combine(data.expiry_date, datetime.min.time())
+    if "manufacture_date" in sent:
+        batch.manufacture_date = (datetime.combine(data.manufacture_date, datetime.min.time())
+                                  if data.manufacture_date else None)
+    if batch.manufacture_date and batch.expiry_date and batch.manufacture_date >= batch.expiry_date:
+        raise HTTPException(status_code=400, detail="Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak")
+    new = {
+        "lot_number": batch.lot_number,
+        "expiry_date": batch.expiry_date.date().isoformat() if batch.expiry_date else None,
+        "manufacture_date": batch.manufacture_date.date().isoformat() if batch.manufacture_date else None,
+    }
+    if new != old:
+        db.add(AuditLog(
+            user_id=current_user.id, company_id=cid, branch_id=branch_id,
+            action="BATCH_EDIT", entity_type="batch", entity_id=batch.id,
+            old_values=old, new_values={**new, "product_id": batch.product_id},
+        ))
+    db.commit()
+    return {"batch_id": batch.id, **new}
 
 
 @router.post("/{batch_id}/status")
@@ -156,24 +233,7 @@ def set_batch_status(
     if not reason:
         raise HTTPException(status_code=400, detail="Holatni o'zgartirish sababini kiriting")
 
-    # Sotuv bilan poygani oldini olish uchun qator qulflanadi; boshqa korxona partiyasi -> 404
-    batch = (
-        db.query(Batch).filter(Batch.id == batch_id, Batch.company_id == cid)
-        .populate_existing().with_for_update().first()
-    )
-    if not batch:
-        raise HTTPException(status_code=404, detail="Partiya topilmadi")
-
-    branch_id = None
-    if batch.warehouse_id is not None:
-        wh = db.query(Warehouse).filter(Warehouse.id == batch.warehouse_id, Warehouse.company_id == cid).first()
-        branch_id = wh.branch_id if wh else None
-        allowed = ctx.allowed_branch_ids  # None — cheklanmagan
-        if allowed is not None and branch_id not in allowed:
-            raise HTTPException(status_code=403, detail=OTHER_BRANCH)
-        scope_ids = ctx.scope_ids()
-        if scope_ids is not None and branch_id not in scope_ids:
-            raise HTTPException(status_code=403, detail=OTHER_BRANCH)
+    batch, branch_id = _locked_batch(db, batch_id, cid, ctx)
 
     old_status = _norm(batch.status)
     if old_status == new_status:

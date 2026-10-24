@@ -182,7 +182,7 @@ def test_initial_stock_requires_lot_and_expiry_in_pharmacy(client, db, pharm):
     c, _, w, u = pharm
     cl = client.login(u)
     r = cl.post(URL, json=_body(initial_stock=130, initial_warehouse_id=w.id))
-    assert r.status_code == 400 and 'seriya' in r.json()['detail']
+    assert r.status_code == 400 and 'yaroqlilik muddati' in r.json()['detail']
     r = cl.post(URL, json=_body(initial_stock=130, initial_warehouse_id=w.id, initial_lot_number='L1'))
     assert r.status_code == 400 and 'yaroqlilik muddati' in r.json()['detail']
     past = (tashkent_today() - timedelta(days=1)).isoformat()
@@ -195,6 +195,12 @@ def test_initial_stock_requires_lot_and_expiry_in_pharmacy(client, db, pharm):
     assert db.query(Product).filter(Product.company_id == c.id).count() == 0
     # qoldiqsiz seriya talab qilinmaydi
     assert cl.post(URL, json=_body()).status_code == 201
+    # P.5: seriya ixtiyoriy — bo'sh bo'lsa partiya "initial-<id>" nomini oladi
+    r = cl.post(URL, json=_body(name='Seriyasiz', barcode='4780000009999', initial_stock=10, initial_warehouse_id=w.id,
+                                initial_expiry_date=FUTURE))
+    assert r.status_code == 201, r.text
+    b = db.query(Batch).filter(Batch.product_id == r.json()['id']).one()
+    assert b.lot_number == f"initial-{r.json()['id']}" and str(b.expiry_date)[:10] == FUTURE
 
 
 def test_initial_stock_writes_batch_with_lot_and_dates(client, db, pharm):
@@ -354,7 +360,8 @@ def test_import_stock_requires_lot_and_expiry_with_row_number(client, db, pharm)
     assert body['created'] == 2, body
     errs = {e['row']: e['error'] for e in body['errors']}
     assert set(errs) == {2, 3, 4, 5}
-    assert 'Seriya' in errs[2] and 'Yaroqlilik' in errs[3] and 'bugundan keyin' in errs[4] and 'sana' in errs[5]
+    # P.5: seriya ixtiyoriy — A1 (seriya ham, muddat ham yo'q) muddat uchun rad etiladi
+    assert 'Yaroqlilik' in errs[2] and 'Yaroqlilik' in errs[3] and 'bugundan keyin' in errs[4] and 'sana' in errs[5]
     assert db.query(Product).filter(Product.company_id == c.id, Product.name.in_(['A1', 'A2', 'A3', 'A4'])).count() == 0
 
 
@@ -363,17 +370,24 @@ def test_import_pack_errors_per_row(client, db, pharm):
     rows = [
         _imp_row('B1', '4780000003001', **{"O'rta qadoq nomi": 'pachka'}),                       # dona soni yo'q
         _imp_row('B2', '4780000003002', **{'Katta qadoq nomi': 'quti', "Katta qadoqdagi o'rta qadoq soni": 1}),
-        _imp_row('B3', '4780000003003', **{'Katta qadoq narxi': 1000}),                          # nom yo'q
+        # P.4: faqat narx (qadoq ustunlarisiz) — qadoqsiz dori, narx 1 dona uchun
+        _imp_row('B3', '4780000003003', **{'Katta qadoq narxi': 1000}),
+        # P.4: o'rta qadoq nomi bo'sh — sukut bo'yicha "blister"
         _imp_row('B4', '4780000003004', **{'Katta qadoq nomi': 'quti', 'Katta qadoq narxi': 1000,
-                                           "Katta qadoqdagi o'rta qadoq soni": 2, "O'rta qadoqdagi dona soni": 5}),  # o'rta nomi yo'q
+                                           "Katta qadoqdagi o'rta qadoq soni": 2, "O'rta qadoqdagi dona soni": 5}),
         _imp_row('B5', '4780000003005', **{'Katta qadoq nomi': 'quti', 'Katta qadoq narxi': 1000,
                                            "Katta qadoqdagi o'rta qadoq soni": 10}),             # OK
+        _imp_row('B6', '4780000003006', **{"O'rta qadoq nomi": 'pachka', "O'rta qadoqdagi dona soni": 10,
+                                           'Katta qadoq narxi': 1000}),                         # qutidagi soni yo'q
     ]
     for i, r in enumerate(rows):
         r['__row_index'] = i + 2
     body = _import(client.login(u), rows, warehouse_id=w.id).json()
-    assert body['created'] == 1, body
-    assert {e['row'] for e in body['errors']} == {2, 3, 4, 5}
+    assert body['created'] == 3, body
+    assert {e['row'] for e in body['errors']} == {2, 3, 7}
+    b3 = _prod(db, c, 'B3')
+    assert Decimal(str(b3.sale_price)) == 1000 and _unit_rows(db, b3.id) == []
+    assert [(x.name, int(x.ratio)) for x in _unit_rows(db, _prod(db, c, 'B4').id)] == [('blister', 5), ('quti', 10)]
 
 
 def test_import_update_syncs_units(client, db, pharm):

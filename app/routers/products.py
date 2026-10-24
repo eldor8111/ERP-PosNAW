@@ -253,9 +253,8 @@ def _initial_batch_dates(data, pharmacy_on: bool) -> dict:
 
 
 def _validate_initial_lot(data) -> None:
-    """P.1: dorixonada boshlang'ich qoldiq bo'lsa seriya va yaroqlilik muddati (bugundan keyin) majburiy."""
-    if not (data.initial_lot_number or "").strip():
-        raise HTTPException(status_code=400, detail="Dorixona rejimida boshlang'ich qoldiq uchun seriya (partiya) raqami majburiy")
+    """P.1: dorixonada boshlang'ich qoldiq bo'lsa yaroqlilik muddati (bugundan keyin) majburiy.
+    P.5: seriya raqami ixtiyoriy (bo'sh bo'lsa partiya `initial-<id>` nomini oladi)."""
     if data.initial_expiry_date is None:
         raise HTTPException(status_code=400, detail="Dorixona rejimida boshlang'ich qoldiq uchun yaroqlilik muddati majburiy")
     from app.services.batch_allocator import tashkent_today
@@ -908,7 +907,7 @@ def create_product(
                         product_id=product.id,
                         variant_id=child.id,
                         warehouse_id=initial_warehouse_id,
-                        lot_number=(data.initial_lot_number.strip() if pharmacy_on else f"initial-variant-{child.id}"),
+                        lot_number=(((data.initial_lot_number or "").strip() or f"initial-variant-{child.id}") if pharmacy_on else f"initial-variant-{child.id}"),
                         initial_quantity=variant_stock_qty,
                         quantity=variant_stock_qty,
                         purchase_price=child.cost_price or product.cost_price or 0,
@@ -925,7 +924,7 @@ def create_product(
             db.add(Batch(
                 product_id=product.id,
                 warehouse_id=initial_warehouse_id,
-                lot_number=(data.initial_lot_number.strip() if pharmacy_on else f"initial-{product.id}"),
+                lot_number=(((data.initial_lot_number or "").strip() or f"initial-{product.id}") if pharmacy_on else f"initial-{product.id}"),
                 initial_quantity=initial_stock,
                 quantity=initial_stock,
                 purchase_price=product.cost_price or 0,

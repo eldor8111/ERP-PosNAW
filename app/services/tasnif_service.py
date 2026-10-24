@@ -27,6 +27,16 @@ async def search_mxik_by_barcode(barcode: str, lang: str = "uz") -> Optional[dic
     return next((item for item in items if item.get("internationalCode") == barcode), None)
 
 
+def tasnif_search_sync(text: str, size: int = 20, lang: str = "uz", timeout: float = 8.0) -> list:
+    """P.5: tasnif.soliq.uz ochiq qidiruvi (dori nomi yoki shtrix-kod) — sinxron: sync endpoint'lar threadpool'da
+    ishlaydi, event loop bloklanmaydi. Tarmoq xatosida istisno ko'taradi (chaqiruvchi 502 qaytaradi)."""
+    params = {"lang": lang, "search": text, "page": 0, "size": size}
+    with httpx.Client(timeout=timeout) as client:
+        resp = client.get(TASNIF_SEARCH_URL, params=params)
+        resp.raise_for_status()
+        return resp.json().get("data") or []
+
+
 async def fetch_mxik_public(mxik_code: str, lang: str = "uz") -> Optional[dict]:
     """
     tasnif.soliq.uz ochiq (auth/terminal_id talab qilmaydigan) API'si.

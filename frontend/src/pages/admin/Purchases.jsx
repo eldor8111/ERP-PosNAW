@@ -719,11 +719,11 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       return;
     }
     if (poItems.some(i => !(Number(i.qty_ordered) > 0))) { setErr(t('purchase.qtyMustBePositive')); return; }
-    // D1.3: dorixona — qabul qilinadigan xaridda har bir qatorda seriya va yaroqlilik muddati majburiy
+    // D1.3: dorixona — qabul qilinadigan xaridda har bir qatorda yaroqlilik muddati majburiy (P.5: seriya ixtiyoriy)
     if (pharmacy && status === 'received') {
-      const bad = poItems.filter(i => !String(i.lot_number || '').trim() || !i.expiry_date);
+      const bad = poItems.filter(i => !i.expiry_date);
       if (bad.length > 0) {
-        setErr(`"${bad.map(i => i.product_name).join(', ')}": ${t('purchase.phLotRequired')} / ${t('purchase.phExpiryRequired')}`);
+        setErr(`"${bad.map(i => i.product_name).join(', ')}": ${t('purchase.phExpiryRequired')}`);
         return;
       }
     }
@@ -1160,7 +1160,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                           <div className="flex flex-col items-center gap-1">
                             {pharmacy && (
                               <input value={it.lot_number || ''} onChange={e => updFn(i, 'lot_number', e.target.value)}
-                                placeholder={`${t('purchase.lotNumber')} *`}
+                                placeholder={t('purchase.lotNumber')}
                                 className="w-34 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             )}
                             <input type="date" value={it.expiry_date || ''}
@@ -1545,7 +1545,7 @@ function KirimlarTab() {
     let rows;
     const extra = {};
     if (pharmacy) {
-      // D1.3: har bir seriya uchun raqam va yaroqlilik muddati majburiy; muddati o'tgan rad etiladi
+      // D1.3: har bir seriya uchun yaroqlilik muddati majburiy (P.5: seriya raqami ixtiyoriy); muddati o'tgan rad etiladi
       rows = [];
       const nowD = new Date();
       const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
@@ -1555,13 +1555,12 @@ function KirimlarTab() {
         const rem = Number(i.qty_ordered) - Number(i.qty_received);
         if (lots.reduce((a, l) => a + Number(l.qty), 0) > rem + 1e-9) { toast.error(`${i.product_name}: ${t('purchase.phLotsExceed')}`); return; }
         for (const l of lots) {
-          if (!String(l.lot || '').trim()) { toast.error(`${i.product_name}: ${t('purchase.phLotRequired')}`); return; }
           if (!l.exp) { toast.error(`${i.product_name}: ${t('purchase.phExpiryRequired')}`); return; }
           if (l.exp < today) { toast.error(`${i.product_name}: ${t('purchase.phExpiryPast')}`); return; }
         }
         rows.push({
           po_item_id: i.id,
-          lots: lots.map(l => ({ lot_number: String(l.lot).trim(), expiry_date: l.exp, manufacture_date: l.mfg || null, qty: Number(l.qty) })),
+          lots: lots.map(l => ({ lot_number: String(l.lot || '').trim() || null, expiry_date: l.exp, manufacture_date: l.mfg || null, qty: Number(l.qty) })),
           ...((i._codes || []).length ? { marking_codes: i._codes.map(c => c.raw) } : {}),
         });
       }
@@ -1827,7 +1826,7 @@ function KirimlarTab() {
                     <th className="text-left px-3 py-2 text-xs text-slate-500 font-semibold">{t('admin.dict.product')}</th>
                     <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.remaining')}</th>
                     <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.receiveQty')}</th>
-                    <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.lotNumber')} <span className="text-red-500">*</span></th>
+                    <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.lotNumber')}</th>
                     <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.phMfgDate')}</th>
                     <th className="text-center px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.expiryDateShort')} <span className="text-red-500">*</span></th>
                     <th className="text-right px-3 py-2 text-xs text-slate-500 font-semibold">{t('purchase.phSalePrice')}</th>

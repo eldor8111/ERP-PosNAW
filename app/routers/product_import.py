@@ -54,8 +54,12 @@ STATUS_MAP = {
 # ── D2.2: dorixona rejimidagi qo'shimcha ustunlar (faqat modul yoqilgan korxonada o'qiladi) ──
 PHARMA_COLUMNS = (
     "Modda", "Doza", "Shakl", "Qadoqdagi soni", "Ishlab chiqaruvchi", "Mamlakat",
-    "Ro'yxat raqami", "Retseptli", "Nazorat toifasi",
+    "Ro'yxat raqami", "Retseptli", "Nazorat toifasi", "ATX kodi",
 )
+# P.4: dorixona importi — MXIK, eng katta qadoq bo'yicha tan narxi va qoldiq (faqat modul yoqilgan korxonada o'qiladi)
+PHARMA_EXTRA_COLUMNS = ("MXIK", "Katta qadoq tan narxi", "Qoldiq (katta qadoq)")
+DEFAULT_BIG_NAME = "quti"
+DEFAULT_MID_NAME = "blister"
 
 _DOSAGE_FORM_ALIASES = {
     "tablet": "tablet", "tabletka": "tablet", "tabletki": "tablet", "таблетка": "tablet", "таблетки": "tablet",
@@ -85,7 +89,7 @@ PACK_COLUMNS = (
     "Katta qadoq nomi", "Katta qadoq narxi", "Katta qadoqdagi o'rta qadoq soni",
     "O'rta qadoq nomi", "O'rta qadoqdagi dona soni",
 )
-LOT_COLUMNS = ("Seriya", "Yaroqlilik muddati")
+LOT_COLUMNS = ("Seriya", "Yaroqlilik muddati", "Ishlab chiqarilgan sana")   # P.5: ishlab chiqarilgan sana ixtiyoriy
 
 
 def _cell(row: dict, key: str) -> str:
@@ -146,6 +150,12 @@ def _parse_pharma_row(row: dict):
         if key is None:
             return None, [], f"Nazorat toifasi noto'g'ri: {ctrl}"
         fields["control_class"] = key
+
+    atc = _cell(row, "ATX kodi").replace(" ", "").upper()
+    if atc:
+        if len(atc) > 20:
+            return None, [], "ATX kodi 20 belgidan oshmasligi kerak"
+        fields["atc_code"] = atc
 
     seen: set = set()
     for part in _cell(row, "Modda").replace(";", ",").split(","):
@@ -233,20 +243,31 @@ def _parse_date_cell(raw):
 
 def _parse_pack_row(row: dict, price_round):
     """P.1: qatordagi qadoq va seriya ustunlarini tekshiradi.
-    Qaytaradi: {"units": [..] | None, "unit_price": Decimal | None, "lot": str | None, "expiry": date | None}, xato_matni.
-    units — products._clean_units natijasi (None = qadoq ustunlari to'ldirilmagan, tegilmaydi).
+    Qaytaradi: {"units": [..] | None, "unit_price": Decimal | None, "lot": str | None, "expiry": date | None,
+    "big_price": Decimal | None, "top_ratio": int | None}, xato_matni.
+    units — products._clean_units natijasi (None = qadoq ustunlari to'ldirilmagan, tegilmaydi); top_ratio — eng katta nisbat.
     Hisob: o'rta nisbat = dona soni; katta nisbat = o'rta soni x dona soni; o'rta narx = katta narx / o'rtalar soni;
-    dona narxi = o'rta narx / donalar soni (o'rta qadoq bo'lmasa: katta narx / katta qadoqdagi dona soni)."""
+    dona narxi = o'rta narx / donalar soni (o'rta qadoq bo'lmasa: katta narx / katta qadoqdagi dona soni).
+    P.4: son berilib qadoq nomi bo'sh bo'lsa — "quti" / "blister"; faqat "Katta qadoq narxi" berilsa (qadoq sonlari va
+    nomlarisiz) — qadoqsiz dori: narx 1 dona uchun (mavjud mahsulotda — uning qadog'i bo'yicha, `_reprice_existing`)."""
     from fastapi import HTTPException
     from app.routers.products import _clean_units
     from app.schemas.product import ProductUnitIn
-    res = {"units": None, "unit_price": None, "lot": None, "expiry": None}
+    res = {"units": None, "unit_price": None, "lot": None, "expiry": None, "big_price": None, "top_ratio": None,
+           "mfg": None}
     try:
         lot = _cell(row, "Seriya")
         if len(lot) > 100:
             return res, "Seriya 100 belgidan oshmasligi kerak"
         res["lot"] = lot or None
         res["expiry"] = _parse_date_cell(row.get("Yaroqlilik muddati")) if _cell(row, "Yaroqlilik muddati") else None
+        if _cell(row, "Ishlab chiqarilgan sana"):   # P.5: ixtiyoriy
+            try:
+                res["mfg"] = _parse_date_cell(row.get("Ishlab chiqarilgan sana"))
+            except ValueError:
+                return res, f"Ishlab chiqarilgan sana noto'g'ri: {_cell(row, 'Ishlab chiqarilgan sana')}"
+            if res["expiry"] is not None and res["mfg"] >= res["expiry"]:
+                return res, "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"
 
         big_name = " ".join(_cell(row, "Katta qadoq nomi").split())
         mid_name = " ".join(_cell(row, "O'rta qadoq nomi").split())
@@ -255,8 +276,15 @@ def _parse_pack_row(row: dict, price_round):
         pcs = _int_cell(row, "O'rta qadoqdagi dona soni")
         if big_price is not None and big_price < 0:
             return res, "Katta qadoq narxi manfiy bo'lishi mumkin emas"
-        if not (big_name or mid_name or big_price is not None or mid_cnt or pcs):
+        res["big_price"] = big_price
+        if not (big_name or mid_name or mid_cnt or pcs):
+            if big_price is not None:
+                res["unit_price"] = big_price   # qadoqsiz: narx 1 dona uchun
             return res, None
+        if not mid_name and mid_cnt and pcs:
+            mid_name = DEFAULT_MID_NAME
+        if not big_name and ((mid_name and mid_cnt) or (not mid_name and (mid_cnt or pcs))):
+            big_name = DEFAULT_BIG_NAME
 
         units: list = []
         unit_price = None
@@ -273,8 +301,8 @@ def _parse_pack_row(row: dict, price_round):
                     mid_price = _divide_price(big_price, mid_cnt, price_round)
                     mid_unit["sale_price"] = mid_price
                     unit_price = _divide_price(mid_price, pcs, price_round)
-            elif big_price is not None or mid_cnt:
-                return res, "Katta qadoq nomi kiritilmagan"
+            elif big_price is not None:
+                return res, "Katta qadoqdagi o'rta qadoq soni kiritilmagan"
         else:
             if not big_name:
                 return res, "Katta qadoq nomi kiritilmagan"
@@ -288,6 +316,7 @@ def _parse_pack_row(row: dict, price_round):
                 unit_price = _divide_price(big_price, count, price_round)
         res["units"] = _clean_units([ProductUnitIn(**u) for u in units])
         res["unit_price"] = unit_price
+        res["top_ratio"] = res["units"][-1]["ratio"] if res["units"] else None
     except ValueError as e:
         return res, str(e)
     except HTTPException as e:
@@ -295,16 +324,91 @@ def _parse_pack_row(row: dict, price_round):
     return res, None
 
 
-def _stamp_initial_batch(db: Session, product_id: int, warehouse_id, lot: str, manufacture=None) -> None:
-    """P.1: receive_stock yaratgan boshlang'ich Batch'ga seriya raqamini yozadi (receive_stock lot qabul qilmaydi)."""
+def _parse_pharmacy_extra(row: dict):
+    """P.4: MXIK (faqat raqam, <= 20), eng katta qadoq tan narxi va qoldig'i (>= 0). (natija, xato_matni)."""
+    res = {"mxik": None, "box_cost": None, "box_stock": None}
+    raw = _cell(row, "MXIK")
+    mxik = raw.replace(" ", "")
+    if mxik:
+        if not mxik.isdigit() or len(mxik) > 20:
+            return res, f"MXIK kodi noto'g'ri (faqat raqam, Excel'da ustunni 'Matn' formatiga o'tkazing): {raw}"
+        res["mxik"] = mxik
+    try:
+        res["box_cost"] = _num_cell(row, "Katta qadoq tan narxi")
+        res["box_stock"] = _num_cell(row, "Qoldiq (katta qadoq)")
+    except ValueError as e:
+        return res, str(e)
+    if res["box_cost"] is not None and res["box_cost"] < 0:
+        return res, "Katta qadoq tan narxi manfiy bo'lishi mumkin emas"
+    if res["box_stock"] is not None and res["box_stock"] < 0:
+        return res, "Qoldiq manfiy bo'lishi mumkin emas"
+    return res, None
+
+
+def _per_unit(total: Decimal, ratio) -> Decimal:
+    """P.4: eng katta qadoq tan narxi -> 1 dona tan narxi (4 xonagacha)."""
+    return (Decimal(total) / Decimal(int(ratio or 1))).quantize(Decimal("0.0001"))
+
+
+def _existing_units(db: Session, company_id, product_id: int) -> list:
+    """P.4: mahsulotning mavjud qadoq birliklari (ratio o'sish tartibida) `_clean_units` ko'rinishida."""
+    from app.models.product_units import ProductUnit
+    return [{"name": u.name, "ratio": int(u.ratio), "sale_price": u.sale_price, "barcode": u.barcode}
+            for u in db.query(ProductUnit).filter(
+                ProductUnit.company_id == company_id, ProductUnit.product_id == product_id,
+            ).order_by(ProductUnit.ratio).all()]
+
+
+def _reprice_existing(ex_units: list, big_price: Decimal, step):
+    """P.4: mavjud tuzilma (quti yoki quti + blister) saqlanib, yangi katta qadoq narxidan blister va dona narxi
+    qayta hisoblanadi: (units, unit_price). Murakkab tuzilmada (None, None) — narxlar tegilmaydi."""
+    big = ex_units[-1]
+    if len(ex_units) == 1:
+        return [{**big, "sale_price": big_price}], _divide_price(big_price, big["ratio"], step)
+    mid = ex_units[0]
+    if len(ex_units) == 2 and big["ratio"] % mid["ratio"] == 0:
+        mid_price = _divide_price(big_price, big["ratio"] // mid["ratio"], step)
+        return ([{**mid, "sale_price": mid_price}, {**big, "sale_price": big_price}],
+                _divide_price(mid_price, mid["ratio"], step))
+    return None, None
+
+
+def _catalog_mxik_map(db: Session, rows: List[dict]) -> dict:
+    """P.4: MXIK ustuni bo'sh qatorlar uchun shtrix-kod -> MXIK (mahalliy tovarlar katalogi, bitta so'rov to'plami).
+    Katalog ishlamasa import to'xtamaydi (savepoint)."""
+    from app.models.tovarlar_catalog import TovarlarCatalog
+    codes = sorted({str(r.get("Barkod") or "").strip() for r in rows
+                    if str(r.get("Barkod") or "").strip() and not _cell(r, "MXIK")})
+    out: dict = {}
+    if not codes:
+        return out
+    sp = db.begin_nested()
+    try:
+        for i in range(0, len(codes), 1000):
+            for bc, code in db.query(TovarlarCatalog.barcode, TovarlarCatalog.mxik_code).filter(
+                TovarlarCatalog.barcode.in_(codes[i:i + 1000])
+            ).all():
+                if code and len(str(code)) <= 20:
+                    out[bc] = str(code)
+        sp.commit()
+    except Exception:
+        sp.rollback()
+    return out
+
+
+def _stamp_initial_batch(db: Session, product_id: int, warehouse_id, lot, manufacture=None) -> None:
+    """P.1: receive_stock yaratgan boshlang'ich Batch'ga seriya raqamini (P.5: va ishlab chiqarilgan sanani) yozadi
+    (receive_stock ularni qabul qilmaydi). Seriya bo'sh bo'lsa avtomatik nomi qoladi."""
     from app.models.batch import Batch
     batch = db.query(Batch).filter(
         Batch.product_id == product_id, Batch.warehouse_id == warehouse_id,
     ).order_by(Batch.id.desc()).first()
     if batch is not None:
-        batch.lot_number = lot[:100]
+        if lot:
+            batch.lot_number = lot[:100]
         if manufacture is not None:
-            batch.manufacture_date = manufacture
+            batch.manufacture_date = (datetime.combine(manufacture, datetime.min.time())
+                                      if not isinstance(manufacture, datetime) else manufacture)
 
 
 class _SubstanceResolver:
@@ -542,6 +646,7 @@ def bulk_import_products(
     from app.services.pharmacy import pharmacy_context
     pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
     substance_resolver = _SubstanceResolver(db, current_user.company_id) if pharmacy_on else None
+    catalog_mxik = _catalog_mxik_map(db, rows) if pharmacy_on else {}   # P.4
 
     # ── Bazadagi BARCHA (o'chirilmagan) mahsulotlarni yuklash ──────────
     all_products = db.query(Product).filter(
@@ -601,9 +706,13 @@ def bulk_import_products(
                 continue
 
         # P.1: qadoq tuzilmasi va seriya/muddat (faqat dorixona rejimida) - xato bo'lsa faqat shu qator xato
-        pack = {"units": None, "unit_price": None, "lot": None, "expiry": None}
+        pack = {"units": None, "unit_price": None, "lot": None, "expiry": None, "big_price": None, "top_ratio": None,
+                "mfg": None}
+        extra = {"mxik": None, "box_cost": None, "box_stock": None}
         if pharmacy_on:
             pack, pack_err = _parse_pack_row(row, _ph_settings.get("price_round"))
+            if not pack_err:
+                extra, pack_err = _parse_pharmacy_extra(row)   # P.4
             if pack_err:
                 errors.append({"row": row_num, "name": name or barcode, "error": pack_err})
                 continue
@@ -670,6 +779,23 @@ def bulk_import_products(
                 except Exception:
                     errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati noto'g'ri: {raw}"})
                     continue
+
+            if pharmacy_on:
+                # P.4: qadoq ustunlari bo'sh, faqat narx berilgan — mavjud tuzilma bo'yicha qayta hisob
+                ex_units = []
+                if pack["units"] is None:
+                    ex_units = _existing_units(db, current_user.company_id, existing.id)
+                    if ex_units and pack["big_price"] is not None:
+                        pack["units"], pack["unit_price"] = _reprice_existing(
+                            ex_units, pack["big_price"], _ph_settings.get("price_round"))
+                top = (pack["units"][-1]["ratio"] if pack["units"] else None) \
+                    or (ex_units[-1]["ratio"] if ex_units else 1)
+                if extra["box_cost"] is not None and not _cell(row, "Tan narxi"):
+                    existing.cost_price = _per_unit(extra["box_cost"], top)
+                if extra["box_stock"] is not None and not _cell(row, "Qoldiq"):
+                    stock_val = extra["box_stock"] * top
+                if extra["mxik"]:
+                    existing.mxik_code = extra["mxik"]
 
             # P.1: katta qadoq narxidan hisoblangan dona narxi (qo'lda "Chakana narxi" berilmagan bo'lsa)
             if pack["unit_price"] is not None and not _cell(row, "Chakana narxi"):
@@ -773,6 +899,13 @@ def bulk_import_products(
             errors.append({"row": row_num, "name": name, "error": "Narx/qoldiq qiymatlari noto'g'ri"})
             continue
 
+        if pharmacy_on:
+            # P.4: tan narxi va qoldiq eng katta qadoq (quti) bo'yicha berilgan bo'lsa — donaga o'tkaziladi
+            top = pack["top_ratio"] or 1
+            if extra["box_cost"] is not None and not _cell(row, "Tan narxi"):
+                cost_price = _per_unit(extra["box_cost"], top)
+            if extra["box_stock"] is not None and not _cell(row, "Qoldiq"):
+                initial_stock = extra["box_stock"] * top
         if initial_stock < 0:
             errors.append({"row": row_num, "name": name, "error": "Qoldiq manfiy bo'lishi mumkin emas"})
             continue
@@ -780,13 +913,9 @@ def bulk_import_products(
             # P.1: qo'lda chakana narx yo'q bo'lsa — katta qadoq narxidan hisoblangan dona narxi
             if not sale_price and pack["unit_price"] is not None:
                 sale_price = pack["unit_price"]
-            # P.1: dorixonada qoldiq bo'lsa seriya va yaroqlilik muddati (bugundan keyin) majburiy
+            # P.1: dorixonada qoldiq bo'lsa yaroqlilik muddati (bugundan keyin) majburiy; P.5: seriya ixtiyoriy
             if initial_stock > 0:
                 from app.services.batch_allocator import tashkent_today
-                if not pack["lot"]:
-                    errors.append({"row": row_num, "name": name,
-                                   "error": "Qoldiq uchun Seriya majburiy (dorixona rejimi)"})
-                    continue
                 if pack["expiry"] is None:
                     errors.append({"row": row_num, "name": name,
                                    "error": "Qoldiq uchun Yaroqlilik muddati majburiy (dorixona rejimi)"})
@@ -847,6 +976,10 @@ def bulk_import_products(
                 sale_currency=sale_cur,
                 wholesale_currency=wholesale_cur,
             )
+            # P.4: dorixonada MXIK — ustundan, bo'lmasa shtrix-kod bo'yicha mahalliy katalogdan
+            mxik_final = (extra["mxik"] or catalog_mxik.get(str(row.get("Barkod") or "").strip())) if pharmacy_on else None
+            if mxik_final:
+                product.mxik_code = mxik_final
             # T3.12: kg/g mahsulotga tarozi PLU kodi avtomatik beriladi
             _assign_plu(db, current_user.company_id, product)
             db.add(product)
@@ -861,9 +994,9 @@ def bulk_import_products(
                     expiry_date=(datetime.combine(pack["expiry"], datetime.min.time())
                                  if pharmacy_on and pack["expiry"] else None),
                 )
-                if pharmacy_on and pack["lot"]:
+                if pharmacy_on and (pack["lot"] or pack["mfg"]):
                     db.flush()
-                    _stamp_initial_batch(db, product.id, row_wh_id, pack["lot"])   # P.1: seriya raqami
+                    _stamp_initial_batch(db, product.id, row_wh_id, pack["lot"], pack["mfg"])   # P.1/P.5
             if pharmacy_on and (pharma_fields or pharma_names):
                 _apply_pharma(db, substance_resolver, current_user.company_id, product.id,
                               pharma_fields or {}, pharma_names)
@@ -882,6 +1015,11 @@ def bulk_import_products(
             barcode_map[barcode] = product
             sku_map[sku_final]   = product
             created += 1
+            if pharmacy_on and not mxik_final:
+                warnings.append({
+                    "row": row_num, "name": name,
+                    "warning": "MXIK kodi topilmadi — chek uchun kerak: \"MXIK sinxronlash\" yoki mahsulot kartochkasida to'ldiring",
+                })
 
         except Exception as exc:
             sp.rollback()  # Product va StockLevel avtomatik session dan o'chiriladi

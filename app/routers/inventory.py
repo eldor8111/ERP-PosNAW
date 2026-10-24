@@ -979,8 +979,7 @@ def receive_goods(
             if pname is None:
                 raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi: {item.product_id}")
             label = f"{n}-qator '{pname}'"
-            if not (item.lot_number or "").strip():
-                raise HTTPException(status_code=400, detail=f"{label}: seriya raqami majburiy (dorixona rejimi)")
+            # P.5: seriya ixtiyoriy (bo'sh bo'lsa partiya "manual" nomini oladi); yaroqlilik muddati majburiy
             if item.expiry_date is None:
                 raise HTTPException(status_code=400, detail=f"{label}: yaroqlilik muddati majburiy (dorixona rejimi)")
             if item.expiry_date < today:
@@ -1030,7 +1029,7 @@ def receive_goods(
             unit_uzs = Decimal(str(product.cost_price or 0)) * rate
         new_batch = Batch(
             product_id=product.id, variant_id=item.variant_id, warehouse_id=warehouse.id,
-            lot_number=item.lot_number or (f"manual-{supplier.id}" if supplier else "manual"),
+            lot_number=(item.lot_number or "").strip() or (f"manual-{supplier.id}" if supplier else "manual"),
             expiry_date=dt.combine(item.expiry_date, dt.min.time()) if item.expiry_date else None,
             manufacture_date=dt.combine(item.manufacture_date, dt.min.time()) if (pharm_on and item.manufacture_date) else None,
             initial_quantity=item.quantity, quantity=item.quantity, purchase_price=unit_uzs,

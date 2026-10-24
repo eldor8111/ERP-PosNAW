@@ -332,24 +332,30 @@ def test_products_page_edit_form_filters_columns_and_import():
 
 
 def test_import_columns_and_template_in_frontend_match_backend():
-    from app.routers.product_import import FIELD_MAP, LOT_COLUMNS, PACK_COLUMNS, PHARMA_COLUMNS
+    from app.routers.product_import import (FIELD_MAP, LOT_COLUMNS, PACK_COLUMNS, PHARMA_COLUMNS,
+                                            PHARMA_EXTRA_COLUMNS)
     s = _read(PRODUCTS_JSX)
-    m = re.search(r"\.\.\.\(pharmacyOn \? \[(.*?)\] : \[\]\),\s*\{ key: '__SKIP__'", s, re.S)
-    assert m, 'IMPORT_FIELDS dori ustunlari topilmadi'
-    keys = re.findall(r"key: (?:'([^']*)'|\"([^\"]*)\")", m.group(1))
-    keys = [a or b for a, b in keys]
-    # P.1/P.2: dori ustunlariga qadoq tuzilmasi ustunlari (PACK_COLUMNS, LOT_COLUMNS) ham qo'shilgan
-    assert keys == list(PHARMA_COLUMNS) + list(PACK_COLUMNS) + list(LOT_COLUMNS)
+    # P.4: dorixonada alohida ro'yxat (pharmacyImport.js); oddiy korxona ro'yxatida dori ustunlari yo'q
+    assert 'const IMPORT_FIELDS = pharmacyOn ? [' in s
+    pharm = _read('frontend/src/pages/admin/products/pharmacyImport.js')
+    block = pharm[pharm.index('export const PHARMA_IMPORT_FIELDS = ['):pharm.index('];', pharm.index('export const PHARMA_IMPORT_FIELDS'))]
+    keys = [a or b for a, b in re.findall(r"^\s*\[(?:'((?:[^'\\]|\\.)*)'|\"([^\"]*)\")", block, re.M)]
+    backend = set(PHARMA_COLUMNS) | set(PACK_COLUMNS) | set(LOT_COLUMNS) | set(PHARMA_EXTRA_COLUMNS)
+    assert backend <= set(keys), sorted(backend - set(keys))
+    assert set(keys) <= backend | set(FIELD_MAP), sorted(set(keys) - backend - set(FIELD_MAP))
+    plain = s[s.index('] : [', s.index('const IMPORT_FIELDS = pharmacyOn ? [')):]
+    plain = plain[:plain.index('];')]
+    for col in backend:
+        assert f"'{col}'" not in plain and f'"{col}"' not in plain, col
     # dori ustunlari mavjud FIELD_MAP kalitlari bilan to'qnashmaydi
-    assert not (set(PHARMA_COLUMNS) | set(PACK_COLUMNS) | set(LOT_COLUMNS)) & set(FIELD_MAP)
-    # shablon: dorixona rejimida qo'shimcha ustunlar bor, oddiy shablon o'zgarmagan
-    t = re.search(r"const downloadTemplate = async \(\) => \{(.*?)saveAs\(", s, re.S)
+    assert not backend & set(FIELD_MAP)
+    # shablon: dorixonada alohida dorilar shabloni, oddiy shablon o'zgarmagan
+    t = re.search(r"const downloadTemplate = async \(\) => \{(.*?)saveAs\(new Blob", s, re.S)
     assert t
     body = t.group(1)
-    assert 'pharmacyOn ? {' in body
-    for col in list(PHARMA_COLUMNS) + list(PACK_COLUMNS) + list(LOT_COLUMNS):
-        assert (f"'{col}'" in body) or (f'"{col}"' in body), col
+    assert 'if (pharmacyOn) { downloadPharmacyTemplate(XLSX, saveAs); return; }' in body
     assert "'Nomi': 'Coca-Cola 0.5L'" in body and "'Ombor': ''   // T4.5" in body
+    assert 'Paratsetamol' not in body
 
 
 def test_i18n_pending_keys_complete_and_consistent():

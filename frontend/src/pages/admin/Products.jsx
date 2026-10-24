@@ -26,7 +26,10 @@ import {
 } from './products/SharedComponents';
 import SizeMatrixModal from './products/SizeMatrixModal';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
-import PharmacyProductModal, { SubstancePicker, CONTROL_CLASSES, emptyPack, packLevels, packPrices, packToUnits, packSummary } from '../../components/PharmacyProductModal';
+import PharmacyProductModal, { SubstancePicker, CONTROL_CLASSES, DOSAGE_FORMS, emptyPack, packLevels, packPrices, packToUnits, packSummary } from '../../components/PharmacyProductModal';
+import {
+  PHARMA_IMPORT_FIELDS, PHARMA_NUM_KEYS, cleanPharmaNum, pharmaMapHeader, pharmaImportPreview, downloadPharmacyTemplate,
+} from './products/pharmacyImport';
 import useBulkVoice from './products/useBulkVoice';
 import { isScaleUnit } from '../../utils/scale';
 import { buildShtrixM, buildTma, buildRongta } from '../../utils/scaleExport';
@@ -1000,7 +1003,12 @@ export default function Products() {
   };
 
   /* ────────────────────── Excel Import (Advanced) ─────────────────────── */
-  const IMPORT_FIELDS = [
+  // P.4: dorixona rejimida dorilar uchun alohida ustunlar ro'yxati (pharmacyImport.js); oddiy korxonada avvalgi ro'yxat
+  const IMPORT_FIELDS = pharmacyOn ? [
+    { key: '', label: t('product.selectOption') },
+    ...PHARMA_IMPORT_FIELDS.map(([key, tkey, fallback]) => ({ key, label: tf(tkey, fallback) })),
+    { key: '__SKIP__', label: t('product.importFieldSkip') },
+  ] : [
     { key: '', label: t('product.selectOption') },
     { key: 'Nomi', label: t('product.importFieldName') },
     { key: 'Barkod', label: t('product.importFieldBarcode') },
@@ -1016,26 +1024,6 @@ export default function Products() {
     { key: 'Brand', label: t('product.importFieldBrand') },
     { key: 'Kategoriya', label: t('product.importFieldCategoryName') },
     { key: 'Ombor', label: t('product.importFieldWarehouse') },   // T4.5: qator bo'yicha ombor (nom)
-    // D2.2: dori ustunlari (faqat dorixona rejimida; kalitlar product_import.py PHARMA_COLUMNS bilan bir xil)
-    ...(pharmacyOn ? [
-      { key: 'Modda', label: tf('pharmaProduct.import.substance', "Modda (vergul bilan bir nechta)") },
-      { key: 'Doza', label: tf('pharmaProduct.import.strength', 'Doza') },
-      { key: 'Shakl', label: tf('pharmaProduct.import.dosageForm', 'Dori shakli') },
-      { key: 'Qadoqdagi soni', label: tf('pharmaProduct.import.packQty', 'Qadoqdagi soni') },
-      { key: 'Ishlab chiqaruvchi', label: tf('pharmaProduct.import.manufacturer', 'Ishlab chiqaruvchi') },
-      { key: 'Mamlakat', label: tf('pharmaProduct.import.country', 'Mamlakat') },
-      { key: "Ro'yxat raqami", label: tf('pharmaProduct.import.regNumber', "Ro'yxat raqami") },
-      { key: 'Retseptli', label: tf('pharmaProduct.import.isRx', "Retseptli (ha/yo'q)") },
-      { key: 'Nazorat toifasi', label: tf('pharmaProduct.import.controlClass', 'Nazorat toifasi') },
-      // P.2: qadoq tuzilmasi va boshlang'ich qoldiq seriyasi (kalitlar server ustunlari bilan bir xil)
-      { key: 'Katta qadoq nomi', label: tf('packStruct.import.bigName', 'Katta qadoq nomi') },
-      { key: 'Katta qadoq narxi', label: tf('packStruct.import.bigPrice', 'Katta qadoq narxi') },
-      { key: "Katta qadoqdagi o'rta qadoq soni", label: tf('packStruct.import.bigQty', "Katta qadoqdagi o'rta qadoq soni") },
-      { key: "O'rta qadoq nomi", label: tf('packStruct.import.midName', "O'rta qadoq nomi") },
-      { key: "O'rta qadoqdagi dona soni", label: tf('packStruct.import.midQty', "O'rta qadoqdagi dona soni") },
-      { key: 'Seriya', label: tf('packStruct.import.lot', 'Seriya') },
-      { key: 'Yaroqlilik muddati', label: tf('packStruct.import.expiry', 'Yaroqlilik muddati') },
-    ] : []),
     { key: '__SKIP__', label: t('product.importFieldSkip') },
   ];
 
@@ -1075,8 +1063,10 @@ export default function Products() {
       Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
         if (fieldKey && fieldKey !== '__SKIP__') {
           let val = row[excelCol];
-          // Narx ustunlari bo'lsa - tozalab yuboramiz
-          if (PRICE_FIELD_KEYS.includes(fieldKey)) {
+          // Narx ustunlari bo'lsa - tozalab yuboramiz (P.4: dorixonada barcha sonli ustunlar, "100,000" ham)
+          if (pharmacyOn && PHARMA_NUM_KEYS.includes(fieldKey)) {
+            val = cleanPharmaNum(val);
+          } else if (PRICE_FIELD_KEYS.includes(fieldKey)) {
             val = String(val || "").replace(/\s/g, '').replace(',', '.').replace(/[^0-9.]/g, '');
           }
           obj[fieldKey] = val;
@@ -1127,12 +1117,20 @@ export default function Products() {
     if (!rows.length) return;
     const cols = Object.keys(rows[0]);
     const map = {};
-    // P.2: qadoq ustunlari avval qidiriladi ("Katta qadoq nomi" sarlavhasi "Nomi" ga tushib ketmasin)
-    const packKeys = ["Katta qadoq nomi", 'Katta qadoq narxi', "Katta qadoqdagi o'rta qadoq soni", "O'rta qadoq nomi", "O'rta qadoqdagi dona soni", 'Seriya', 'Yaroqlilik muddati'];
-    const ordered = [...IMPORT_FIELDS.filter(f => packKeys.includes(f.key)), ...IMPORT_FIELDS.filter(f => !packKeys.includes(f.key))];
+    if (pharmacyOn) {
+      // P.4: dorixonada sarlavhalar o'zbekcha/ruscha taxalluslar bo'yicha aniq tanildi; noaniqlari bo'sh (o'zi tanlaydi)
+      const used = new Set();
+      cols.forEach(col => {
+        const key = pharmaMapHeader(col, IMPORT_FIELDS);
+        map[col] = key && !used.has(key) ? key : '';
+        if (key) used.add(key);
+      });
+      setColMap(map);
+      return;
+    }
     cols.forEach(col => {
       const lc = col.trim().toLowerCase();
-      const found = ordered.find(f => f.label.toLowerCase().includes(lc) || f.key.toLowerCase() === lc || lc.includes(f.key.toLowerCase() || '__NEVER__'));
+      const found = IMPORT_FIELDS.find(f => f.label.toLowerCase().includes(lc) || f.key.toLowerCase() === lc || lc.includes(f.key.toLowerCase() || '__NEVER__'));
       map[col] = found?.key && found.key !== '__SKIP__' ? found.key : '';
     });
     setColMap(map);
@@ -1144,9 +1142,11 @@ export default function Products() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: 'array' });
+        // P.4: dorixonada sanalar (yaroqlilik muddati) YYYY-MM-DD ko'rinishida o'qiladi
+        const dateOpt = pharmacyOn ? { dateNF: 'yyyy-mm-dd' } : {};
+        const wb = XLSX.read(e.target.result, { type: 'array', ...dateOpt });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, ...dateOpt });
         setImportRows(rows);
         autoMap(rows);
       } catch {
@@ -1158,19 +1158,9 @@ export default function Products() {
 
   const downloadTemplate = async () => {
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
-    const ws = XLSX.utils.json_to_sheet([pharmacyOn ? {
-      // D2.2: dorixona shabloni — qo'shimcha dori ustunlari
-      'Nomi': 'Paratsetamol 500 mg', 'SKU': '', 'Kod': 'PR-001', 'Barkod': '12345678',
-      "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
-      'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol',
-      'Ombor': '',
-      'Modda': 'Paratsetamol, Kofein', 'Doza': '500 mg', 'Shakl': 'tablet', 'Qadoqdagi soni': 20,
-      'Ishlab chiqaruvchi': 'Nika Pharm', 'Mamlakat': "O'zbekiston", "Ro'yxat raqami": 'DV/M 01234/01/24',
-      'Retseptli': "yo'q", 'Nazorat toifasi': 'none',
-      'Katta qadoq nomi': 'quti', 'Katta qadoq narxi': 100000, "Katta qadoqdagi o'rta qadoq soni": 5,
-      "O'rta qadoq nomi": 'blister', "O'rta qadoqdagi dona soni": 10,
-      'Seriya': 'LOT2026A', 'Yaroqlilik muddati': '2027-12-31',
-    } : {
+    // P.4: dorixonada — dorilar shabloni (namunalar + yo'riqnoma varag'i)
+    if (pharmacyOn) { downloadPharmacyTemplate(XLSX, saveAs); return; }
+    const ws = XLSX.utils.json_to_sheet([{
       'Nomi': 'Coca-Cola 0.5L', 'SKU': '', 'Kod': 'CL-001', 'Barkod': '12345678',
       "O'lchov": 'dona', 'Tan narxi': 5000, 'Chakana narxi': 8000,
       'Ulgurji narxi': 7000, 'Qoldiq': 100, 'Min. qoldiq': 10, 'Holat': 'Faol',
@@ -1263,7 +1253,8 @@ export default function Products() {
   const bulkBarcodeTimersRef = useRef(new Map()); // key -> timerId
 
   // P.2: dorixona rejimida qator qadoq maydonlari (pk_*): katta qadoq narxi, katta qadoqdagi o'rta soni, o'rtadagi dona soni,
-  // seriya, muddat, katta qadoq soni. Nomlar standart: quti / blister. Maydonlar emptyBulkRow da yo'q — faqat dorixonada qo'shiladi.
+  // seriya, muddat, katta qadoq soni (P.5: + dori shakli pk_form, ishlab chiqarilgan sana pk_mfg). Nomlar standart: quti / blister.
+  // Maydonlar emptyBulkRow da yo'q — faqat dorixonada qo'shiladi.
   const bulkRowPack = (row) => ({ ...emptyPack, big_qty: row.pk_big_qty ?? '', mid_qty: row.pk_mid_qty ?? '' });
   const updatePkField = (key, field, value) =>
     setBulkRows(rows => rows.map(r => {
@@ -1393,16 +1384,21 @@ export default function Products() {
     for (const row of validRows) {
       try {
         const [primary, ...extras] = row.barcodes.filter(b => b.trim());
-        // P.2: dorixonada qoldiq > 0 bo'lsa seriya va yaroqlilik muddati majburiy; qadoq tuzilmasi `units` bilan yuboriladi
+        // P.2: dorixonada qoldiq > 0 bo'lsa yaroqlilik muddati majburiy (P.5: seriya va ishlab chiqarilgan sana ixtiyoriy);
+        // qadoq tuzilmasi `units` bilan yuboriladi
         const rowPk = pharmacyOn ? bulkRowPack(row) : null;
         const rowL = rowPk ? packLevels(rowPk) : null;
         if (pharmacyOn && Number(row.initial_stock) > 0) {
-          if (!(row.pk_lot || '').trim() || !row.pk_expiry) {
-            errors.push({ name: row.name, error: tf('packStruct.errLotExpiry', "Boshlang'ich qoldiq uchun seriya va yaroqlilik muddatini kiriting") });
+          if (!row.pk_expiry) {
+            errors.push({ name: row.name, error: tf('packStruct.errExpiry', "Boshlang'ich qoldiq uchun yaroqlilik muddatini kiriting") });
             continue;
           }
           if (row.pk_expiry <= new Date().toISOString().slice(0, 10)) {
             errors.push({ name: row.name, error: tf('packStruct.errExpiryPast', "Yaroqlilik muddati bugundan keyin bo'lishi kerak") });
+            continue;
+          }
+          if (row.pk_mfg && row.pk_mfg >= row.pk_expiry) {
+            errors.push({ name: row.name, error: tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak") });
             continue;
           }
         }
@@ -1431,7 +1427,12 @@ export default function Products() {
           status: row.status || 'active',
           price_currency_id: row.sale_price_cur ? Number(row.sale_price_cur) : null,
           ...(pharmacyOn && rowUnitPrice != null ? { units: packToUnits(rowPk, row.pk_price, packRound, 1) } : {}),
-          ...(pharmacyOn && Number(row.initial_stock) > 0 ? { initial_lot_number: row.pk_lot.trim(), initial_expiry_date: row.pk_expiry } : {}),
+          ...(pharmacyOn && Number(row.initial_stock) > 0 ? {
+            initial_expiry_date: row.pk_expiry,
+            ...((row.pk_lot || '').trim() ? { initial_lot_number: row.pk_lot.trim() } : {}),
+            ...(row.pk_mfg ? { initial_manufacture_date: row.pk_mfg } : {}),
+          } : {}),
+          ...(pharmacyOn && row.pk_form ? { pharma: { dosage_form: row.pk_form } } : {}),   // P.5: dori shakli
         });
         created++;
       } catch (err) {
@@ -1683,7 +1684,7 @@ export default function Products() {
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
-                  {t('product.import')}
+                  {pharmacyOn ? tf('pharmacyImport.button', 'Dori import') : t('product.import')}
                 </button>
                 <button
                   onClick={async () => {
@@ -4593,7 +4594,7 @@ export default function Products() {
                           </svg>
                         </button>
                       </div>
-                      {/* P.2: qadoq tuzilmasi va qoldiq seriyasi (faqat dorixona rejimida) */}
+                      {/* P.2: qadoq tuzilmasi va qoldiq seriyasi (faqat dorixona rejimida); P.5: + dori shakli, ishlab chiqarilgan sana */}
                       {pharmacyOn && (() => {
                         const rpk = bulkRowPack(row);
                         const rL = packLevels(rpk);
@@ -4602,7 +4603,7 @@ export default function Products() {
                         const pkInp = "h-8 lg:h-10 px-2 border border-emerald-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-white";
                         const lbl = "block text-[10px] font-bold text-emerald-700 uppercase mb-0.5 truncate";
                         return (
-                          <div className="mt-2 ml-[34px] grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 bg-emerald-50/60 border border-emerald-200 rounded-lg p-2">
+                          <div className="mt-2 ml-[34px] grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-2 bg-emerald-50/60 border border-emerald-200 rounded-lg p-2">
                             <div>
                               <label className={lbl}>{tf('packStruct.bulkBigPrice', '1 quti narxi')}</label>
                               <input type="text" inputMode="decimal" className={pkInp} value={fmtPrice(row.pk_price ?? '')}
@@ -4624,14 +4625,26 @@ export default function Products() {
                                 onChange={e => updatePkField(row._key, 'pk_stock_big', e.target.value.replace(/[^0-9]/g, ''))} placeholder="0" />
                             </div>
                             <div>
-                              <label className={lbl}>{tf('packStruct.lot', 'Seriya raqami')}{needLot && <span className="text-red-500"> *</span>}</label>
-                              <input className={`${pkInp} ${needLot && !(row.pk_lot || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`} value={row.pk_lot ?? ''}
+                              <label className={lbl}>{tf('packStruct.lot', 'Seriya raqami')}</label>
+                              <input className={pkInp} value={row.pk_lot ?? ''}
                                 onChange={e => updatePkField(row._key, 'pk_lot', e.target.value)} />
                             </div>
                             <div>
                               <label className={lbl}>{tf('packStruct.expiry', 'Yaroqlilik muddati')}{needLot && <span className="text-red-500"> *</span>}</label>
                               <input type="date" className={`${pkInp} ${needLot && !row.pk_expiry ? 'border-amber-400 bg-amber-50' : ''}`} value={row.pk_expiry ?? ''}
                                 onChange={e => updatePkField(row._key, 'pk_expiry', e.target.value)} />
+                            </div>
+                            <div>
+                              <label className={lbl}>{tf('pharmaProduct.dosageForm', 'Dori shakli')}</label>
+                              <select className={pkInp} value={row.pk_form ?? ''} onChange={e => updatePkField(row._key, 'pk_form', e.target.value)}>
+                                <option value="">—</option>
+                                {DOSAGE_FORMS.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.form.${k}`, label)}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className={lbl}>{tf('drugForm.mfgOptional', 'Ishlab chiqarilgan sana (ixtiyoriy)')}</label>
+                              <input type="date" className={pkInp} value={row.pk_mfg ?? ''}
+                                onChange={e => updatePkField(row._key, 'pk_mfg', e.target.value)} />
                             </div>
                             <div className="text-[11px] text-emerald-800 font-semibold self-end pb-1.5">
                               {rPr ? (
@@ -4681,7 +4694,7 @@ export default function Products() {
               <button onClick={() => resetImport()} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
-              <h2 className="text-xl font-bold text-slate-800">{t('product.importFromExcelTitle')}</h2>
+              <h2 className="text-xl font-bold text-slate-800">{pharmacyOn ? tf('pharmacyImport.title', 'Dorilarni Exceldan import qilish') : t('product.importFromExcelTitle')}</h2>
               {importFile && <span className="text-sm text-slate-400 font-medium">{importFile.name}</span>}
             </div>
             <div className="flex items-center gap-2 xl:gap-3">
@@ -4803,6 +4816,16 @@ export default function Products() {
                   <span className="text-base text-slate-700 font-medium group-hover:text-blue-600 transition-colors">{t('product.allowUpdateLabel')}</span>
                 </label>
               </div>
+              {/* P.4: dorixonada qisqa yo'riqnoma */}
+              {pharmacyOn && (
+                <div className="mt-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-900 space-y-0.5">
+                  <p className="font-bold">{tf('pharmacyImport.hintTitle', "Dorilar importi qanday ishlaydi")}</p>
+                  <p>• {tf('pharmacyImport.hint1', "Narx, tan narxi va qoldiq — 1 quti bo'yicha. Blister va dona narxi o'zi hisoblanadi.")}</p>
+                  <p>• {tf('pharmacyImport.hint2', "Qadoqsiz dori (sirop) uchun blister va dona sonini bo'sh qoldiring — narx 1 dona uchun bo'ladi.")}</p>
+                  <p>• {tf('pharmacyImport.hint3', "Qoldiq bo'lsa yaroqlilik muddati majburiy (seriya ixtiyoriy). MXIK bo'sh bo'lsa shtrix-kod bo'yicha katalogdan olinadi.")}</p>
+                  <p>• {tf('pharmacyImport.hint4', "\"Shablon\" tugmasi — namunali fayl va yo'riqnoma. Ruscha sarlavhalar ham tanildi (Наименование, Штрихкод, ИКПУ, Серия...).")}</p>
+                </div>
+              )}
               {/* T4.5: qoldiq faqat tanlangan (yoki "Ombor" ustunidagi) omborga yoziladi */}
               {Object.values(colMap).includes('Qoldiq') && (
                 <p className="mt-2 text-xs font-semibold text-blue-600">
@@ -4851,6 +4874,11 @@ export default function Products() {
                     <thead>
                       <tr className="bg-slate-100">
                         <th className="px-3 py-2.5 text-left font-bold text-slate-500 border-b border-slate-200 w-12 text-sm">#</th>
+                        {pharmacyOn && (
+                          <th className="px-3 py-2.5 text-left font-bold text-emerald-700 border-b border-slate-200 min-w-[260px] text-sm">
+                            {tf('pharmacyImport.previewCol', 'Hisob (tekshiring)')}
+                          </th>
+                        )}
                         {excelCols.map(col => {
                           const mappedField = colMap[col] || '';
                           const isPriceField = PRICE_FIELD_KEYS.includes(mappedField);
@@ -4903,6 +4931,7 @@ export default function Products() {
                       {/* Row 2: Excel column names (original headers) */}
                       <tr className="bg-slate-700 text-white">
                         <th className="px-3 py-2.5 text-left text-sm font-bold">№</th>
+                        {pharmacyOn && <th className="px-3 py-2.5" />}
                         {excelCols.map(col => (
                           <th key={col} className="px-3 py-2.5 text-left text-sm font-semibold whitespace-nowrap">{col}</th>
                         ))}
@@ -4930,6 +4959,26 @@ export default function Products() {
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                               </td>
+                              {/* P.4: dorixonada qator hisobi (ko'rinish uchun; asl hisob serverda) */}
+                              {pharmacyOn && (() => {
+                                const m = {};
+                                Object.entries(colMap).forEach(([c, k]) => { if (k && k !== '__SKIP__') m[k] = row[c]; });
+                                const pv = pharmaImportPreview(m, Number(features?.pharmacy_settings?.price_round) || 0, fmt);
+                                const W = {
+                                  qty: tf('pharmacyImport.wQty', "son noto'g'ri"),
+                                  price: tf('pharmacyImport.wPrice', "narx yo'q"),
+                                  lot: tf('pharmacyImport.wLot', 'yaroqlilik muddati kerak'),
+                                  mxik: tf('pharmacyImport.wMxik', "MXIK yo'q (katalogdan qidiriladi)"),
+                                };
+                                return (
+                                  <td className="px-3 py-2 text-xs align-top min-w-[260px]">
+                                    {pv.line && <div className="font-semibold text-emerald-800">{pv.line}</div>}
+                                    {pv.warnings.map(w => (
+                                      <div key={w} className={w === 'mxik' ? 'text-slate-400' : 'text-amber-600 font-semibold'}>⚠ {W[w]}</div>
+                                    ))}
+                                  </td>
+                                );
+                              })()}
                               {excelCols.map(col => (
                                 <td key={col} className={`p-0 border-x border-slate-50 min-w-[150px] ${!allowUpdate ? 'bg-slate-50/30' : ''}`}>
                                   <input

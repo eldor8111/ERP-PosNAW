@@ -401,12 +401,11 @@ def _plan_sale_price(db: Session, product: Product, item: POItem, settings: dict
 
 
 def _check_pharmacy_lots(label: str, lots: list, settings: dict, today, warnings: List[str]) -> None:
-    """Dorixona: seriya va yaroqlilik majburiy; muddati o'tgan rad etiladi; qolgan muddat kam bo'lsa ogohlantirish."""
+    """Dorixona: yaroqlilik muddati majburiy (P.5: seriya ixtiyoriy — bo'sh bo'lsa partiya avtomatik nom oladi);
+    muddati o'tgan rad etiladi; qolgan muddat kam bo'lsa ogohlantirish."""
     min_pct = _d(settings.get("min_shelf_life_pct"))
     for j, (lot, expiry, manufacture, _qty) in enumerate(lots, 1):
         where = f"{label} ({j}-seriya)" if len(lots) > 1 else label
-        if not (lot or "").strip():
-            raise HTTPException(status_code=400, detail=f"{where}: seriya raqami majburiy (dorixona rejimi)")
         if expiry is None:
             raise HTTPException(status_code=400, detail=f"{where}: yaroqlilik muddati majburiy (dorixona rejimi)")
         exp_d = expiry.date() if isinstance(expiry, datetime) else expiry
@@ -453,7 +452,7 @@ def _receive_item(db: Session, po: PurchaseOrder, item: POItem, qty: Decimal, us
     for lot_no, lot_expiry, lot_manufacture, lot_qty in lots:
         db.add(Batch(
             product_id=item.product_id, variant_id=item.variant_id, warehouse_id=po.warehouse_id,
-            lot_number=lot_no or f"PO-{po.number}",
+            lot_number=(lot_no or "").strip() or f"PO-{po.number}",   # P.5: bo'sh/probelli seriya — avtomatik nom
             manufacture_date=_to_datetime(lot_manufacture),
             expiry_date=_to_datetime(lot_expiry) or item.expiry_date,  # qabulda berilmasa — xarid qatoridagi muddat
             initial_quantity=lot_qty, quantity=lot_qty, purchase_price=item.unit_cost,

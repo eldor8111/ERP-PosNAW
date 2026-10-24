@@ -3,6 +3,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { useLang } from '../context/LangContext';
 import useCompanyFeatures from '../hooks/useCompanyFeatures';
+import TasnifSearch, { lookupDrugByBarcode } from './TasnifSearch';
 
 // ── P.2: "Dori qo'shish" / "Dorini tahrirlash" oynasi (faqat dorixona rejimida) ───────────────────
 // Oddiy mahsulot formasidan (ProductAddModal) alohida: dori ma'lumotlari, qadoq tuzilmasi, narx hisobi va
@@ -15,27 +16,28 @@ const BARCODE_FORMATS = [
   { value: 'upca',  label: 'UPC-A',  len: 12 },
   { value: 'free',  label: 'Erkin',  len: null },
 ];
-const genBarcodeByFormat = (fmtVal) => {
+export const genBarcodeByFormat = (fmtVal) => {
   const f = BARCODE_FORMATS.find(x => x.value === fmtVal) || BARCODE_FORMATS[0];
   if (!f.len) return genBarcode();
   const min = Math.pow(10, f.len - 1);
   return String(Math.floor(min + Math.random() * (9 * Math.pow(10, f.len - 1))));
 };
-const genSku = () => 'SKU-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+export const genSku = () => 'SKU-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 const fmtNum = (v) => { const n = Number(v); return isNaN(n) ? '0' : n.toLocaleString('ru-RU'); };
 
-const inputCls = "w-full px-4 py-3 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white";
+// P.5: ixcham maydonlar — keng oynada uch ustun pastga surmasdan sig'adi
+const inputCls = "w-full px-3 py-2 border border-slate-200 rounded-lg text-[15px] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white";
 const errCls = "border-red-400 ring-1 ring-red-400";
 const packInp = inputCls;
 
 function Field({ label, required, hint, children }) {
   return (
-    <div>
-      <label className="block text-sm font-bold text-slate-700 mb-1.5">
+    <div className="min-w-0">
+      <label className="block text-sm font-bold text-slate-700 mb-1">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       {children}
-      {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
     </div>
   );
 }
@@ -252,9 +254,9 @@ export const validatePack = (pack, { tf, unitName = 'dona', otherBarcodes = [], 
     if (seen.has(c)) return tf('packStruct.errBarcode', "Qadoq shtrix-kodlari takrorlanmasligi kerak");
     seen.add(c);
   }
-  if (stockTotal > 0) {
-    if (!String(p.lot || '').trim()) return tf('packStruct.errLot', "Boshlang'ich qoldiq uchun seriya raqamini kiriting");
+  if (stockTotal > 0) {   // P.5: seriya ixtiyoriy, yaroqlilik muddati majburiy
     if (!p.expiry) return tf('packStruct.errExpiry', "Boshlang'ich qoldiq uchun yaroqlilik muddatini kiriting");
+    if (p.mfg && p.mfg >= p.expiry) return tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak");
     if (p.expiry <= new Date().toISOString().slice(0, 10)) return tf('packStruct.errExpiryPast', "Yaroqlilik muddati bugundan keyin bo'lishi kerak");
   }
   return '';
@@ -291,15 +293,16 @@ export function PackStockFields({ pack, onChange, unitName = 'dona', tf, error }
       {(L.top || total > 0) && (
         <p className="text-sm font-bold text-emerald-700">{tf('packStruct.total', 'jami')}: {Number(total.toFixed(3))} {unitLbl}</p>
       )}
+      {/* P.5: faqat yaroqlilik muddati majburiy; seriya va ishlab chiqarilgan sana ixtiyoriy */}
       {needLot && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-amber-50/60 border border-amber-200 rounded-xl p-3">
-          <Field label={tf('packStruct.lot', 'Seriya raqami')} required hint={tf('pharmacyModal.lotHint', 'Qadoqda yozilgan, masalan: LOT2026A')}>
-            <input className={`${packInp} ${error && !String(p.lot || '').trim() ? errCls : ''}`} value={p.lot} maxLength={100} onChange={e => set({ lot: e.target.value })} />
-          </Field>
-          <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required hint={tf('pharmacyModal.expiryHint', 'Qadoqda "EXP" yoki "Yaroqlilik muddati" deb yozilgan')}>
+          <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required>
             <input type="date" className={`${packInp} ${error && !p.expiry ? errCls : ''}`} value={p.expiry} onChange={e => set({ expiry: e.target.value })} />
           </Field>
-          <Field label={tf('packStruct.mfg', 'Ishlab chiqarilgan sana')}>
+          <Field label={tf('drugForm.lotOptional', 'Seriya raqami (ixtiyoriy)')}>
+            <input className={packInp} value={p.lot} maxLength={100} placeholder="LOT2026A" onChange={e => set({ lot: e.target.value })} />
+          </Field>
+          <Field label={tf('drugForm.mfgOptional', 'Ishlab chiqarilgan sana (ixtiyoriy)')}>
             <input type="date" className={packInp} value={p.mfg} onChange={e => set({ mfg: e.target.value })} />
           </Field>
         </div>
@@ -386,7 +389,7 @@ export function SubstancePicker({ value, onChange, tf, allowCreate = true }) {
 
 // Bo'lim va avto-belgi: komponent TASHQARISIDA (aks holda har renderda qayta yaratilib, kiritish fokusi yo'qoladi)
 const Section = ({ n, title, hint, children }) => (
-  <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 space-y-4">
+  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
     <div>
       <h4 className="text-base md:text-lg font-black text-slate-800"><span className="text-emerald-600">{n}.</span> {title}</h4>
       {hint && <p className="text-xs text-slate-500 mt-0.5">{hint}</p>}
@@ -407,7 +410,8 @@ export const pharmacyFormFromProduct = (product, round) => {
     name: '', barcode: '', barcode_format: 'ean13', category_id: '', requires_marking: false, mxik: '',
     mode: 'pack', hasMid: false, bigPrice: '', singlePrice: '', cost: '', wh: '',
   };
-  if (!product) return { form: { ...base, barcode: genBarcodeByFormat('ean13') }, pack: { ...emptyPack }, pharma: pharmaToForm(null) };
+  // P.5: yangi dorida shtrix-kod bo'sh (qutini skanerlash uchun); bo'sh qolsa saqlashda avtomatik yaratiladi
+  if (!product) return { form: { ...base }, pack: { ...emptyPack }, pharma: pharmaToForm(null) };
   const r = packRestore(product, round);
   const form = {
     ...base,
@@ -451,14 +455,36 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
   const [pharma, setPharma] = useState(init.pharma);
   const [whId, setWhId] = useState(defaultWarehouseId ? String(defaultWarehouseId) : '');
   const [showMore, setShowMore] = useState(false);
+  const [showTasnif, setShowTasnif] = useState(false);
+  const [bcInfo, setBcInfo] = useState(null);   // P.5: shtrix-kod holati { status, text }
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const bodyRef = useRef(null);
+  const bcTimer = useRef(null);
+  const lookupSeq = useRef(0);
+
+  // P.5: tahrirlashda partiyalar (seriya, yaroqlilik muddati, ishlab chiqarilgan sana) — shu oynada to'g'rilanadi
+  const [batches, setBatches] = useState([]);
+  const [batchNote, setBatchNote] = useState('');
 
   useEffect(() => {
     api.get('/categories/all').then(r => setCategories(Array.isArray(r.data) ? r.data : [])).catch(() => {});
-  }, []);
+    if (isEdit) {
+      api.get('/pharmacy/batches', { params: { product_id: product.id, limit: 200 }, _suppressToast: true })
+        .then(({ data }) => setBatches((Array.isArray(data) ? data : []).map(b => {
+          const v = { lot_number: b.lot_number || '', expiry_date: b.expiry_date || '', manufacture_date: b.manufacture_date || '' };
+          return { ...b, ...v, _orig: v };
+        })))
+        .catch(e => setBatchNote(e.response?.status === 403
+          ? tf('drugForm.batchesNoAccess', "Partiyalarni ko'rishga ruxsat yo'q")
+          : tf('drugForm.batchesLoadError', "Partiyalarni yuklab bo'lmadi")));
+    }
+    return () => clearTimeout(bcTimer.current);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setB = (id, patch) => setBatches(bs => bs.map(b => (b.batch_id === id ? { ...b, ...patch } : b)));
+  const dirtyBatches = batches.filter(b => ['lot_number', 'expiry_date', 'manufacture_date'].some(k => b[k] !== b._orig[k]));
 
   const setF = (patch) => setForm(f => ({ ...f, ...patch }));
   const setP = (patch) => setPack(p => ({ ...p, ...patch }));
@@ -474,6 +500,56 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
   const maxRetail = pharma.max_retail_price;
   const overMax = maxRetail !== '' && pr.unit != null && Number(pr.unit) > Number(maxRetail);
 
+  // P.5: tasnif/katalogdan topilgan dori. explicit — foydalanuvchi ro'yxatdan tanladi (nom va MXIK almashtiriladi),
+  // aks holda (shtrix-kod skanerlandi) faqat bo'sh maydonlar to'ldiriladi
+  const applyDrug = (d, explicit) => {
+    setForm(f => ({
+      ...f,
+      name: explicit || !f.name.trim() ? (d.name || f.name) : f.name,
+      mxik: explicit || !f.mxik.trim() ? (d.mxik_code || f.mxik) : f.mxik,
+      barcode: f.barcode.trim() ? f.barcode : (d.barcode || ''),
+    }));
+    setPharma(p => ({
+      ...p,
+      atc_code: p.atc_code || d.atc_code || '',
+      manufacturer: p.manufacturer || d.manufacturer || '',
+      dosage_form: p.dosage_form || d.dosage_form || '',
+      strength: p.strength || d.strength || '',
+      substances: (p.substances || []).length ? p.substances : (d.substances || []),
+    }));
+  };
+
+  // Shtrix-kod: bazada bormi? Yo'q bo'lsa — katalog/tasnifdan nom va MXIK
+  const checkBarcode = async (raw) => {
+    const code = String(raw || '').trim();
+    if (code.length < 8 || (isEdit && code === String(product.barcode || ''))) return;
+    const seq = ++lookupSeq.current;
+    setBcInfo({ status: 'checking' });
+    try {
+      const { data } = await api.get(`/products/barcode/${encodeURIComponent(code)}`, { _suppressToast: true });
+      if (seq !== lookupSeq.current) return;
+      if (data && (!isEdit || data.id !== product.id)) { setBcInfo({ status: 'exists', text: data.name }); return; }
+    } catch { /* bazada yo'q — yangi dori */ }
+    const res = await lookupDrugByBarcode(code);
+    if (seq !== lookupSeq.current) return;
+    if (res.status === 'found') {
+      applyDrug(res.drug, false);
+      setBcInfo({ status: 'found', text: res.drug.name });
+    } else if (res.status === 'notfound') {
+      setBcInfo({ status: 'notfound' });
+      setShowTasnif(true);
+    } else {
+      setBcInfo({ status: 'error', text: res.message });
+    }
+  };
+
+  const onBarcodeInput = (value) => {
+    setF({ barcode: value });
+    setBcInfo(null);
+    clearTimeout(bcTimer.current);
+    if (value.trim().length >= 8) bcTimer.current = setTimeout(() => checkBarcode(value), 500);
+  };
+
   const fail = (msg, openMore = false) => {
     setError(msg);
     if (openMore) setShowMore(true);
@@ -483,8 +559,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return fail(tf('pharmacyModal.errName', 'Dori nomini kiriting'));
-    if (!form.barcode.trim()) return fail(tf('pharmacyModal.errBarcode', 'Shtrix-kodni kiriting'));
-    if (!form.mxik.trim()) return fail(tf('pharmaProduct.mxikRequired', 'Dorixona rejimida MXIK kodi majburiy'), true);
+    if (!form.mxik.trim()) return fail(tf('pharmaProduct.mxikRequired', 'Dorixona rejimida MXIK kodi majburiy'));
     if (single) {
       if (!(Number(form.singlePrice) > 0)) return fail(tf('pharmacyModal.errUnitPrice', 'Dona narxini kiriting'));
     } else {
@@ -494,13 +569,20 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
       if (!(Number(form.bigPrice) > 0)) return fail(packName(tf, 'pharmacyModal.errBigPrice', '1 {name} narxini kiriting', bigName));
       if (pr.unit == null) return fail(tf('pharmacyModal.errUnitPrice', 'Dona narxini kiriting'));
     }
-    const pErr = validatePack(eff, { tf, unitName: baseUnit, otherBarcodes: [form.barcode], stockTotal });
+    const barcode = form.barcode.trim() || genBarcodeByFormat('ean13');
+    const pErr = validatePack(eff, { tf, unitName: baseUnit, otherBarcodes: [barcode], stockTotal });
     if (pErr) return fail(pErr);
+    for (const b of dirtyBatches) {
+      if (!b.expiry_date) return fail(tf('drugForm.batchExpiryRequired', 'Partiyaning yaroqlilik muddatini kiriting'));
+      if (b.manufacture_date && b.manufacture_date >= b.expiry_date) {
+        return fail(tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"));
+      }
+    }
 
     const topRatio = single ? 1 : L.topRatio;
     const payload = {
       name: form.name.trim(),
-      barcode: form.barcode.trim(),
+      barcode,
       category_id: form.category_id ? Number(form.category_id) : null,
       cost_price: round4((Number(form.cost) || 0) / topRatio),
       sale_price: round4(pr.unit ?? 0),
@@ -517,15 +599,23 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
       if (stockTotal > 0) {
         payload.initial_stock = stockTotal;
         payload.initial_warehouse_id = whId ? Number(whId) : undefined;
-        payload.initial_lot_number = pack.lot.trim();
         payload.initial_expiry_date = pack.expiry;
-        if (pack.mfg) payload.initial_manufacture_date = pack.mfg;
+        if (pack.lot.trim()) payload.initial_lot_number = pack.lot.trim();   // P.5: seriya ixtiyoriy
+        if (pack.mfg) payload.initial_manufacture_date = pack.mfg;           // P.5: ixtiyoriy
       }
     }
 
     setSaving(true); setError('');
     try {
       const res = isEdit ? await api.put(`/products/${product.id}`, payload) : await api.post('/products', payload);
+      // P.5: o'zgargan partiyalar (faqat o'zgargan maydonlar yuboriladi)
+      for (const b of dirtyBatches) {
+        const body = {};
+        if (b.lot_number !== b._orig.lot_number) body.lot_number = b.lot_number;
+        if (b.expiry_date !== b._orig.expiry_date) body.expiry_date = b.expiry_date;
+        if (b.manufacture_date !== b._orig.manufacture_date) body.manufacture_date = b.manufacture_date || null;
+        await api.put(`/pharmacy/batches/${b.batch_id}`, body, { _suppressToast: true });
+      }
       toast.success(isEdit ? tf('pharmacyModal.updated', 'Dori yangilandi') : tf('pharmacyModal.created', "Dori qo'shildi"));
       onSaved?.(res.data);
       onClose();
@@ -535,10 +625,23 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
     } finally { setSaving(false); }
   };
 
+  const BC_STYLE = {
+    checking: 'text-slate-500', exists: 'text-red-600', found: 'text-emerald-700', picked: 'text-emerald-700',
+    notfound: 'text-amber-700', error: 'text-red-600',
+  };
+  const bcText = !bcInfo ? '' : ({
+    checking: tf('drugForm.bcChecking', 'Tekshirilmoqda...'),
+    exists: `${tf('drugForm.bcExists', 'Bu shtrix-kod bazada bor')}: ${bcInfo.text || ''}`,
+    found: `✓ ${tf('drugForm.bcFound', "Topildi — nomi va MXIK to'ldirildi")}`,
+    picked: `✓ ${tf('drugForm.bcPicked', "Tasnifdan tanlandi — nomi va MXIK to'ldirildi")}`,
+    notfound: tf('drugForm.bcNotFound', "Bu shtrix-kod tasnifda yo'q — dori nomi bo'yicha toping"),
+    error: `${tf('drugForm.bcError', "Tasnif bilan bog'lanib bo'lmadi")} ${bcInfo.text || ''}`,
+  })[bcInfo.status];
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 md:p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[96vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-slate-200 bg-white rounded-t-2xl shrink-0">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 md:p-3 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-[1500px] h-[96vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-slate-200 bg-white rounded-t-2xl shrink-0">
           <h3 className="text-lg md:text-xl font-bold text-slate-800">
             {isEdit ? tf('pharmacyModal.titleEdit', 'Dorini tahrirlash') : tf('pharmacyModal.titleAdd', "Dori qo'shish")}
           </h3>
@@ -548,253 +651,277 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
         </div>
 
         <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
-          <div ref={bodyRef} className="overflow-y-auto flex-1 p-3 md:p-5 space-y-4">
+          <div ref={bodyRef} className="overflow-y-auto flex-1 p-3 md:p-4">
             {error && (
-              <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{error}</div>
+              <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm font-semibold rounded-xl">{error}</div>
             )}
 
-            {/* 1. Asosiy */}
-            <Section n={1} title={tf('pharmacyModal.s1', 'Asosiy')}>
-              <Field label={tf('pharmacyModal.name', 'Dori nomi')} required hint={tf('pharmacyModal.nameHint', 'Masalan: Paratsetamol 500 mg')}>
-                <input className={`${inputCls} ${error && !form.name.trim() ? errCls : ''}`} value={form.name} maxLength={255}
-                  onChange={e => setF({ name: e.target.value })} autoFocus={!isEdit} />
-              </Field>
-              <Field label={tf('pharmacyModal.barcode', 'Shtrix-kod')} required hint={tf('pharmacyModal.barcodeHint', 'Skaner bilan o\'qing yoki "Yaratish" tugmasini bosing')}>
-                <div className="flex gap-2">
-                  <input className={`${inputCls} font-mono ${error && !form.barcode.trim() ? errCls : ''}`} value={form.barcode}
-                    onChange={e => setF({ barcode: e.target.value })} />
-                  {!isEdit && (
-                    <select className="px-2 border border-slate-200 rounded-xl text-sm bg-white" value={form.barcode_format}
-                      onChange={e => setF({ barcode_format: e.target.value, barcode: genBarcodeByFormat(e.target.value) })}>
-                      {BARCODE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                    </select>
-                  )}
-                  <button type="button" onClick={() => setF({ barcode: genBarcodeByFormat(form.barcode_format) })}
-                    className="px-4 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-sm font-bold whitespace-nowrap">
-                    {tf('pharmacyModal.generate', 'Yaratish')}
-                  </button>
-                </div>
-              </Field>
-              <Field label={tf('pharmaProduct.substances', "Ta'sir etuvchi moddalar")} hint={tf('pharmacyModal.substanceHint', 'Masalan: paratsetamol. Topilmasa — yangisini qo\'shing')}>
-                <SubstancePicker value={pharma.substances} onChange={(subs) => setPharma(p => ({ ...p, substances: subs }))} tf={tf} />
-              </Field>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label={tf('pharmaProduct.dosageForm', 'Dori shakli')}>
-                  <select className={inputCls} value={pharma.dosage_form} onChange={e => setPharma(p => ({ ...p, dosage_form: e.target.value }))}>
-                    <option value="">—</option>
-                    {DOSAGE_FORMS.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.form.${k}`, label)}</option>)}
-                  </select>
-                </Field>
-                <Field label={tf('pharmaProduct.strength', 'Doza')} hint={tf('pharmacyModal.strengthHint', 'Masalan: 500 mg')}>
-                  <input className={inputCls} value={pharma.strength} maxLength={100} placeholder="500 mg" onChange={e => setPharma(p => ({ ...p, strength: e.target.value }))} />
-                </Field>
-                <Field label={tf('pharmacyModal.category', 'Kategoriya (ixtiyoriy)')}>
-                  <select className={inputCls} value={form.category_id} onChange={e => setF({ category_id: e.target.value })}>
-                    <option value="">—</option>
-                    {categories.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-                  </select>
-                </Field>
-                <label className="flex items-center gap-3 cursor-pointer select-none self-end pb-3">
-                  <input type="checkbox" checked={!!pharma.is_rx} onChange={e => setPharma(p => ({ ...p, is_rx: e.target.checked }))}
-                    className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
-                  <span className="text-base font-bold text-slate-700">{tf('pharmaProduct.isRx', 'Retseptli dori')}</span>
-                </label>
-              </div>
-            </Section>
-
-            {/* 2. Qadoq va narx */}
-            <Section n={2} title={tf('pharmacyModal.s2', 'Qadoq va narx')}
-              hint={single ? undefined : tf('pharmacyModal.s2Hint', "Eng katta qadoq narxini kiriting — blister va dona narxi o'zi hisoblanadi")}>
-              {!pack.unsupported && (
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input type="checkbox" checked={single} onChange={e => setF({ mode: e.target.checked ? 'single' : 'pack' })}
-                    className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
-                  <span className="text-sm font-semibold text-slate-700">{tf('pharmacyModal.singleOnly', 'Faqat donalab sotiladi (qadoqsiz)')}</span>
-                </label>
-              )}
-              {pack.unsupported && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
-                  {tf('packStruct.unsupported', "Bu mahsulotning qadoq tuzilmasi murakkab (2 tadan ko'p birlik): shu oynada o'zgartirilmaydi va saqlanganda tegilmaydi.")}
-                </div>
-              )}
-
-              {single ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={packName(tf, 'packStruct.price', '{name} narxi', baseUnit)} required hint={tf('pharmacyModal.unitPriceHint', 'Masalan: 2 000')}>
-                    <input type="text" inputMode="decimal" className={`${inputCls} ${error && !(Number(form.singlePrice) > 0) ? errCls : ''}`} value={form.singlePrice}
-                      onChange={e => setF({ singlePrice: e.target.value.replace(/[^0-9.]/g, '') })} />
-                  </Field>
-                  <Field label={packName(tf, 'pharmacyModal.costPer', '1 {name} tan narxi (ixtiyoriy)', baseUnit)}>
-                    <input type="text" inputMode="decimal" className={inputCls} value={form.cost}
-                      onChange={e => setF({ cost: e.target.value.replace(/[^0-9.]/g, '') })} />
-                  </Field>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label={tf('packStruct.bigName', 'Katta qadoq nomi')} hint={tf('pharmacyModal.bigNameHint', 'Masalan: quti')}>
-                      <input className={inputCls} value={pack.big_name} maxLength={50} placeholder="quti" onChange={e => setP({ big_name: e.target.value })} />
-                    </Field>
-                    <Field label={packName(tf, 'pharmacyModal.bigPrice', '1 {name} narxi', bigName)} required hint={tf('pharmacyModal.bigPriceHint', 'Masalan: 100 000')}>
-                      <input type="text" inputMode="decimal" className={`${inputCls} ${error && !(Number(form.bigPrice) > 0) ? errCls : ''}`} value={form.bigPrice}
-                        onChange={e => setF({ bigPrice: e.target.value.replace(/[^0-9.]/g, '') })} />
-                    </Field>
+            {/* P.5: keng oyna — uch ustun: 1. Asosiy | 2. Qadoq va narx | 3. Qoldiq + Batafsil */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+              {/* 1. Asosiy */}
+              <Section n={1} title={tf('pharmacyModal.s1', 'Asosiy')}>
+                <Field label={tf('pharmacyModal.barcode', 'Shtrix-kod')}
+                  hint={tf('drugForm.barcodeHint', "Qutini skanerlang — nomi va MXIK o'zi to'ladi. Bo'sh qolsa avtomatik yaratiladi")}>
+                  <div className="flex gap-2">
+                    <input className={`${inputCls} font-mono`} value={form.barcode} autoFocus={!isEdit}
+                      onChange={e => onBarcodeInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(bcTimer.current); checkBarcode(form.barcode); } }} />
+                    <button type="button" onClick={() => { setF({ barcode: genBarcodeByFormat('ean13') }); setBcInfo(null); }}
+                      className="px-3 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-sm font-bold whitespace-nowrap">
+                      {tf('pharmacyModal.generate', 'Yaratish')}
+                    </button>
                   </div>
-
-                  <label className="flex items-center gap-3 cursor-pointer select-none">
-                    <input type="checkbox" checked={form.hasMid}
-                      onChange={e => { setF({ hasMid: e.target.checked }); setP({ big_qty: '', mid_qty: '', mid_auto: true }); }}
-                      className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
-                    <span className="text-sm font-semibold text-slate-700">{tf('pharmacyModal.hasMid', 'Ichida blister/pachka bor')}</span>
-                  </label>
-
-                  {form.hasMid && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Field label={tf('packStruct.midName', "O'rta qadoq nomi")} hint={tf('pharmacyModal.midNameHint', 'Masalan: blister')}>
-                        <input className={inputCls} value={pack.mid_name} maxLength={50} placeholder="blister" onChange={e => setP({ mid_name: e.target.value })} />
-                      </Field>
-                      <Field label={packName(tf, 'pharmacyModal.midCount', '1 {name} ichida nechta {inner}', bigName).replace('{inner}', midName)} required hint={tf('pharmacyModal.midCountHint', 'Masalan: 5')}>
-                        <input type="text" inputMode="numeric" className={inputCls} value={pack.big_qty} placeholder="5"
-                          onChange={e => setP({ big_qty: e.target.value.replace(/[^0-9]/g, '') })} />
-                      </Field>
-                    </div>
-                  )}
-
-                  <Field label={packName(tf, 'pharmacyModal.unitCount', '1 {name} ichida nechta dona', form.hasMid ? midName : bigName)} required
-                    hint={tf('pharmacyModal.unitCountHint', 'Masalan: 10')}>
-                    <input type="text" inputMode="numeric" className={inputCls} placeholder="10"
-                      value={form.hasMid ? pack.mid_qty : pack.big_qty}
-                      onChange={e => setP({ [form.hasMid ? 'mid_qty' : 'big_qty']: e.target.value.replace(/[^0-9]/g, '') })} />
+                  {bcText && <p className={`text-xs font-semibold mt-1 ${BC_STYLE[bcInfo.status]}`}>{bcText}</p>}
+                </Field>
+                <Field label={tf('pharmacyModal.name', 'Dori nomi')} required>
+                  <input className={`${inputCls} ${error && !form.name.trim() ? errCls : ''}`} value={form.name} maxLength={255}
+                    placeholder={tf('pharmacyModal.nameHint', 'Masalan: Paratsetamol 500 mg')}
+                    onChange={e => setF({ name: e.target.value })} />
+                </Field>
+                <Field label={tf('pharmaProduct.mxik', 'MXIK kodi')} required>
+                  <div className="flex gap-2">
+                    <input type="text" inputMode="numeric" value={form.mxik} onChange={e => setF({ mxik: e.target.value.replace(/[^0-9]/g, '') })}
+                      className={`${inputCls} font-mono ${error && !form.mxik.trim() ? errCls : ''}`} />
+                    <button type="button" onClick={() => setShowTasnif(v => !v)}
+                      className="px-3 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-sm font-bold whitespace-nowrap">
+                      {tf('drugForm.findTasnif', 'Tasnifdan topish')}
+                    </button>
+                  </div>
+                </Field>
+                {showTasnif && (
+                  <TasnifSearch initialQuery={form.name} tf={tf} onClose={() => setShowTasnif(false)}
+                    onPick={(d) => { applyDrug(d, true); setShowTasnif(false); setBcInfo({ status: 'picked' }); }} />
+                )}
+                <Field label={tf('pharmaProduct.substances', "Ta'sir etuvchi moddalar")}>
+                  <SubstancePicker value={pharma.substances} onChange={(subs) => setPharma(p => ({ ...p, substances: subs }))} tf={tf} />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label={tf('pharmaProduct.dosageForm', 'Dori shakli')}>
+                    <select className={inputCls} value={pharma.dosage_form} onChange={e => setPharma(p => ({ ...p, dosage_form: e.target.value }))}>
+                      <option value="">—</option>
+                      {DOSAGE_FORMS.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.form.${k}`, label)}</option>)}
+                    </select>
                   </Field>
+                  <Field label={tf('pharmaProduct.strength', 'Doza')}>
+                    <input className={inputCls} value={pharma.strength} maxLength={100} placeholder="500 mg" onChange={e => setPharma(p => ({ ...p, strength: e.target.value }))} />
+                  </Field>
+                  <Field label={tf('pharmacyModal.category', 'Kategoriya (ixtiyoriy)')}>
+                    <select className={inputCls} value={form.category_id} onChange={e => setF({ category_id: e.target.value })}>
+                      <option value="">—</option>
+                      {categories.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                    </select>
+                  </Field>
+                  <label className="flex items-center gap-2 cursor-pointer select-none self-end pb-2">
+                    <input type="checkbox" checked={!!pharma.is_rx} onChange={e => setPharma(p => ({ ...p, is_rx: e.target.checked }))}
+                      className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
+                    <span className="text-sm font-bold text-slate-700">{tf('pharmaProduct.isRx', 'Retseptli dori')}</span>
+                  </label>
+                </div>
+              </Section>
 
-                  {L.top && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-emerald-50/60 border border-emerald-200 rounded-xl p-3">
-                      {form.hasMid && L.midQty > 0 && (
-                        <Field label={<>{packName(tf, 'packStruct.price', '{name} narxi', midName)}<AutoTag tf={tf} auto={pack.mid_auto !== false} has={pr.mid != null} onReset={() => setP({ mid_auto: true })} /></>}>
-                          <input type="number" min="0" step="any" className={inputCls}
-                            value={pack.mid_auto === false ? pack.mid_price : (pr.mid ?? '')}
-                            onChange={e => setP({ mid_price: e.target.value, mid_auto: false })} />
-                        </Field>
-                      )}
-                      <Field label={<>{packName(tf, 'packStruct.price', '{name} narxi', baseUnit)}<AutoTag tf={tf} auto={pack.unit_auto !== false} has={pr.unit != null} onReset={() => setP({ unit_auto: true })} /></>}
-                        hint={tf('pharmacyModal.autoHint', "Avtomatik hisoblanadi, kerak bo'lsa o'zgartiring")}>
-                        <input type="number" min="0" step="any" className={inputCls}
-                          value={pack.unit_auto === false ? pack.unit_price : (pr.unit ?? '')}
-                          onChange={e => setP({ unit_price: e.target.value, unit_auto: false })} />
-                      </Field>
-                    </div>
-                  )}
+              {/* 2. Qadoq va narx */}
+              <Section n={2} title={tf('pharmacyModal.s2', 'Qadoq va narx')}
+                hint={single ? undefined : tf('pharmacyModal.s2Hint', "Eng katta qadoq narxini kiriting — blister va dona narxi o'zi hisoblanadi")}>
+                {!pack.unsupported && (
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={single} onChange={e => setF({ mode: e.target.checked ? 'single' : 'pack' })}
+                      className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
+                    <span className="text-sm font-semibold text-slate-700">{tf('pharmacyModal.singleOnly', 'Faqat donalab sotiladi (qadoqsiz)')}</span>
+                  </label>
+                )}
+                {pack.unsupported && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                    {tf('packStruct.unsupported', "Bu mahsulotning qadoq tuzilmasi murakkab (2 tadan ko'p birlik): shu oynada o'zgartirilmaydi va saqlanganda tegilmaydi.")}
+                  </div>
+                )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label={packName(tf, 'pharmacyModal.costPer', '1 {name} tan narxi (ixtiyoriy)', L.top === 'mid' ? midName : bigName)}
-                      hint={tf('pharmacyModal.costHint', "Saqlashda donaga bo'linadi")}>
+                {single ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label={packName(tf, 'packStruct.price', '{name} narxi', baseUnit)} required>
+                      <input type="text" inputMode="decimal" className={`${inputCls} ${error && !(Number(form.singlePrice) > 0) ? errCls : ''}`} value={form.singlePrice}
+                        placeholder="2000" onChange={e => setF({ singlePrice: e.target.value.replace(/[^0-9.]/g, '') })} />
+                    </Field>
+                    <Field label={packName(tf, 'pharmacyModal.costPer', '1 {name} tan narxi (ixtiyoriy)', baseUnit)}>
                       <input type="text" inputMode="decimal" className={inputCls} value={form.cost}
                         onChange={e => setF({ cost: e.target.value.replace(/[^0-9.]/g, '') })} />
                     </Field>
-                    {L.bigQty > 0 && (
-                      <Field label={packName(tf, 'pharmacyModal.packBarcode', '{name} shtrix-kodi (ixtiyoriy)', bigName)}>
-                        <input className={`${inputCls} font-mono`} value={pack.big_barcode} maxLength={100} onChange={e => setP({ big_barcode: e.target.value })} />
-                      </Field>
-                    )}
-                    {form.hasMid && L.midQty > 0 && (
-                      <Field label={packName(tf, 'pharmacyModal.packBarcode', '{name} shtrix-kodi (ixtiyoriy)', midName)}>
-                        <input className={`${inputCls} font-mono`} value={pack.mid_barcode} maxLength={100} onChange={e => setP({ mid_barcode: e.target.value })} />
-                      </Field>
-                    )}
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label={tf('packStruct.bigName', 'Katta qadoq nomi')}>
+                        <input className={inputCls} value={pack.big_name} maxLength={50} placeholder="quti" onChange={e => setP({ big_name: e.target.value })} />
+                      </Field>
+                      <Field label={packName(tf, 'pharmacyModal.bigPrice', '1 {name} narxi', bigName)} required>
+                        <input type="text" inputMode="decimal" className={`${inputCls} ${error && !(Number(form.bigPrice) > 0) ? errCls : ''}`} value={form.bigPrice}
+                          placeholder="100000" onChange={e => setF({ bigPrice: e.target.value.replace(/[^0-9.]/g, '') })} />
+                      </Field>
+                    </div>
 
-                </>
-              )}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={form.hasMid}
+                        onChange={e => { setF({ hasMid: e.target.checked }); setP({ big_qty: '', mid_qty: '', mid_auto: true }); }}
+                        className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
+                      <span className="text-sm font-semibold text-slate-700">{tf('pharmacyModal.hasMid', 'Ichida blister/pachka bor')}</span>
+                    </label>
 
-              {overMax && (
-                <p className="text-xs font-semibold text-red-600">{tf('pharmaProduct.maxPriceWarn', 'Chakana narx maksimal chakana narxdan yuqori')}</p>
-              )}
-              {line && (
-                <div className="px-4 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold break-words">{line}</div>
-              )}
-            </Section>
+                    <div className="grid grid-cols-2 gap-3">
+                      {form.hasMid && (
+                        <Field label={tf('packStruct.midName', "O'rta qadoq nomi")}>
+                          <input className={inputCls} value={pack.mid_name} maxLength={50} placeholder="blister" onChange={e => setP({ mid_name: e.target.value })} />
+                        </Field>
+                      )}
+                      {form.hasMid && (
+                        <Field label={packName(tf, 'pharmacyModal.midCount', '1 {name} ichida nechta {inner}', bigName).replace('{inner}', midName)} required>
+                          <input type="text" inputMode="numeric" className={inputCls} value={pack.big_qty} placeholder="5"
+                            onChange={e => setP({ big_qty: e.target.value.replace(/[^0-9]/g, '') })} />
+                        </Field>
+                      )}
+                      <Field label={packName(tf, 'pharmacyModal.unitCount', '1 {name} ichida nechta dona', form.hasMid ? midName : bigName)} required>
+                        <input type="text" inputMode="numeric" className={inputCls} placeholder="10"
+                          value={form.hasMid ? pack.mid_qty : pack.big_qty}
+                          onChange={e => setP({ [form.hasMid ? 'mid_qty' : 'big_qty']: e.target.value.replace(/[^0-9]/g, '') })} />
+                      </Field>
+                      <Field label={packName(tf, 'pharmacyModal.costPer', '1 {name} tan narxi (ixtiyoriy)', L.top === 'mid' ? midName : bigName)}>
+                        <input type="text" inputMode="decimal" className={inputCls} value={form.cost}
+                          onChange={e => setF({ cost: e.target.value.replace(/[^0-9.]/g, '') })} />
+                      </Field>
+                    </div>
 
-            {/* 3. Boshlang'ich qoldiq */}
-            <Section n={3} title={tf('pharmacyModal.s3', "Boshlang'ich qoldiq (ixtiyoriy)")}
-              hint={isEdit ? tf('pharmacyModal.stockEditHint', "Qoldiq kirim (xarid) orqali o'zgartiriladi") : tf('pharmacyModal.s3Hint', 'Hozir omborda bor dori miqdori. Bo\'sh qoldirsangiz — keyin kirim qilasiz')}>
-              {!isEdit && (
-                <>
-                  {warehouses.length > 0 && (
-                    <Field label={tf('pharmacyModal.warehouse', 'Ombor')}>
-                      <select className={inputCls} value={whId} onChange={e => setWhId(e.target.value)}>
-                        <option value="">—</option>
-                        {warehouses.filter(w => w.is_active !== false).map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
-                      </select>
-                    </Field>
+                    {L.top && (
+                      <div className="grid grid-cols-2 gap-3 bg-emerald-50/60 border border-emerald-200 rounded-xl p-3">
+                        {form.hasMid && L.midQty > 0 && (
+                          <Field label={<>{packName(tf, 'packStruct.price', '{name} narxi', midName)}<AutoTag tf={tf} auto={pack.mid_auto !== false} has={pr.mid != null} onReset={() => setP({ mid_auto: true })} /></>}>
+                            <input type="number" min="0" step="any" className={inputCls}
+                              value={pack.mid_auto === false ? pack.mid_price : (pr.mid ?? '')}
+                              onChange={e => setP({ mid_price: e.target.value, mid_auto: false })} />
+                          </Field>
+                        )}
+                        <Field label={<>{packName(tf, 'packStruct.price', '{name} narxi', baseUnit)}<AutoTag tf={tf} auto={pack.unit_auto !== false} has={pr.unit != null} onReset={() => setP({ unit_auto: true })} /></>}>
+                          <input type="number" min="0" step="any" className={inputCls}
+                            value={pack.unit_auto === false ? pack.unit_price : (pr.unit ?? '')}
+                            onChange={e => setP({ unit_price: e.target.value, unit_auto: false })} />
+                        </Field>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {overMax && (
+                  <p className="text-xs font-semibold text-red-600">{tf('pharmaProduct.maxPriceWarn', 'Chakana narx maksimal chakana narxdan yuqori')}</p>
+                )}
+                {line && (
+                  <div className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold break-words">{line}</div>
+                )}
+              </Section>
+
+              {/* 3. Boshlang'ich qoldiq + 4. Batafsil */}
+              <div className="space-y-4">
+                <Section n={3}
+                  title={isEdit ? tf('drugForm.batchesTitle', 'Partiyalar: seriya va muddatlar') : tf('pharmacyModal.s3', "Boshlang'ich qoldiq (ixtiyoriy)")}
+                  hint={isEdit ? tf('drugForm.batchesHint', "Qoldiq kirim orqali o'zgaradi. Seriya va sanalarni shu yerda to'g'rilang") : tf('pharmacyModal.s3Hint', 'Hozir omborda bor dori miqdori. Bo\'sh qoldirsangiz — keyin kirim qilasiz')}>
+                  {/* P.5: tahrirlashda partiyalarni to'g'rilash */}
+                  {isEdit && (batchNote ? (
+                    <p className="text-sm text-slate-500">{batchNote}</p>
+                  ) : batches.length === 0 ? (
+                    <p className="text-sm text-slate-500">{tf('drugForm.noBatches', "Hozir qoldiq yo'q — kirim qilinganda partiyalar shu yerda ko'rinadi")}</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[48vh] overflow-y-auto pr-1">
+                      {batches.map(b => (
+                        <div key={b.batch_id} className={`border rounded-xl p-3 space-y-2 ${dirtyBatches.includes(b) ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-200'}`}>
+                          <div className="flex justify-between gap-2 text-xs font-semibold text-slate-600">
+                            <span className="truncate">{b.warehouse_name || '—'}</span>
+                            <span className="whitespace-nowrap">{tf('drugForm.batchQty', 'qoldiq')}: {fmtNum(b.quantity)} {baseUnit}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <Field label={tf('packStruct.lot', 'Seriya raqami')}>
+                              <input className={inputCls} value={b.lot_number} maxLength={100} onChange={e => setB(b.batch_id, { lot_number: e.target.value })} />
+                            </Field>
+                            <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required>
+                              <input type="date" className={`${inputCls} ${!b.expiry_date ? errCls : ''}`} value={b.expiry_date}
+                                onChange={e => setB(b.batch_id, { expiry_date: e.target.value })} />
+                            </Field>
+                            <Field label={tf('packStruct.mfg', 'Ishlab chiqarilgan sana')}>
+                              <input type="date" className={inputCls} value={b.manufacture_date}
+                                onChange={e => setB(b.batch_id, { manufacture_date: e.target.value })} />
+                            </Field>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {!isEdit && (
+                    <>
+                      {warehouses.length > 0 && (
+                        <Field label={tf('pharmacyModal.warehouse', 'Ombor')}>
+                          <select className={inputCls} value={whId} onChange={e => setWhId(e.target.value)}>
+                            <option value="">—</option>
+                            {warehouses.filter(w => w.is_active !== false).map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
+                          </select>
+                        </Field>
+                      )}
+                      <PackStockFields pack={eff} onChange={(next) => setPack(p => ({ ...p, stock_big: next.stock_big, stock_mid: next.stock_mid, stock_unit: next.stock_unit, lot: next.lot, expiry: next.expiry, mfg: next.mfg }))}
+                        unitName={baseUnit} tf={tf} error={!!error} />
+                    </>
                   )}
-                  <PackStockFields pack={eff} onChange={(next) => setPack(p => ({ ...p, stock_big: next.stock_big, stock_mid: next.stock_mid, stock_unit: next.stock_unit, lot: next.lot, expiry: next.expiry, mfg: next.mfg }))}
-                    unitName={baseUnit} tf={tf} error={!!error} />
-                </>
-              )}
-            </Section>
+                </Section>
 
-            {/* 4. Qo'shimcha (yig'ilgan) */}
-            <div className="bg-white border border-slate-200 rounded-2xl">
-              <button type="button" onClick={() => setShowMore(v => !v)}
-                className="w-full flex items-center justify-between px-4 md:px-5 py-4 text-left">
-                <span className="text-base md:text-lg font-black text-slate-800"><span className="text-emerald-600">4.</span> {tf('pharmacyModal.details', 'Batafsil')}
-                  <span className="ml-2 text-xs font-normal text-slate-500">{tf('pharmacyModal.detailsHint', "ishlab chiqaruvchi, ATX, MXIK va boshqalar")}</span>
-                </span>
-                <span className="text-slate-400 text-xl">{showMore ? '−' : '+'}</span>
-              </button>
-              {showMore && (
-                <div className="px-4 md:px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={tf('pharmaProduct.mxik', 'MXIK kodi')} required hint={tf('pharmaProduct.mxikHint', 'Dorixona rejimida MXIK kodi majburiy')}>
-                    <input type="text" inputMode="numeric" value={form.mxik} onChange={e => setF({ mxik: e.target.value.replace(/[^0-9]/g, '') })}
-                      className={`${inputCls} ${error && !form.mxik.trim() ? errCls : ''}`} />
-                  </Field>
-                  <Field label={tf('pharmaProduct.manufacturer', 'Ishlab chiqaruvchi')}>
-                    <input className={inputCls} value={pharma.manufacturer} maxLength={200} onChange={e => setPharma(p => ({ ...p, manufacturer: e.target.value }))} />
-                  </Field>
-                  <Field label={tf('pharmaProduct.country', 'Ishlab chiqarilgan mamlakat')}>
-                    <input className={inputCls} value={pharma.country} maxLength={100} onChange={e => setPharma(p => ({ ...p, country: e.target.value }))} />
-                  </Field>
-                  <Field label={tf('pharmaProduct.regNumber', "Ro'yxat raqami")}>
-                    <input className={inputCls} value={pharma.reg_number} maxLength={100} onChange={e => setPharma(p => ({ ...p, reg_number: e.target.value }))} />
-                  </Field>
-                  <Field label={tf('pharmaProduct.regValidUntil', "Ro'yxat amal qilish muddati")}>
-                    <input type="date" className={inputCls} value={pharma.reg_valid_until} onChange={e => setPharma(p => ({ ...p, reg_valid_until: e.target.value }))} />
-                  </Field>
-                  <Field label={tf('pharmaProduct.atc', 'ATX kodi')} hint={tf('pharmacyModal.atcHint', "JSST xalqaro tasnif kodi, yo'riqnomada yoziladi")}>
-                    <input className={inputCls} value={pharma.atc_code} maxLength={20} placeholder={tf('pharmacyModal.atcPlaceholder', 'masalan N02BE01')}
-                      onChange={e => setPharma(p => ({ ...p, atc_code: e.target.value }))} />
-                  </Field>
-                  <Field label={tf('pharmaProduct.storage', 'Saqlash sharti')}>
-                    <select className={inputCls} value={pharma.storage} onChange={e => setPharma(p => ({ ...p, storage: e.target.value }))}>
-                      <option value="">—</option>
-                      {STORAGE_TYPES.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.storageType.${k}`, label)}</option>)}
-                    </select>
-                  </Field>
-                  <Field label={tf('pharmaProduct.controlClass', 'Nazorat toifasi')}>
-                    <select className={inputCls} value={pharma.control_class} onChange={e => setPharma(p => ({ ...p, control_class: e.target.value }))}>
-                      {CONTROL_CLASSES.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.control.${k}`, label)}</option>)}
-                    </select>
-                  </Field>
-                  <Field label={tf('pharmaProduct.maxRetailPrice', 'Maksimal chakana narx')} hint={tf('pharmacyModal.maxRetailHint', '1 dona uchun')}>
-                    <input type="number" min="0" step="any" className={`${inputCls} ${overMax ? errCls : ''}`} value={pharma.max_retail_price}
-                      onChange={e => setPharma(p => ({ ...p, max_retail_price: e.target.value }))} />
-                  </Field>
-                  <label className="flex items-center gap-3 cursor-pointer select-none self-end pb-3">
-                    <input type="checkbox" checked={!!form.requires_marking} onChange={e => setF({ requires_marking: e.target.checked })}
-                      className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
-                    <span className="text-base font-bold text-slate-700">{tf('pharmacyModal.requiresMarking', 'Markirovka talab qilinadi')}</span>
-                  </label>
+                <div className="bg-white border border-slate-200 rounded-2xl">
+                  <button type="button" onClick={() => setShowMore(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left">
+                    <span className="text-base md:text-lg font-black text-slate-800"><span className="text-emerald-600">4.</span> {tf('pharmacyModal.details', 'Batafsil')}
+                      <span className="ml-2 text-xs font-normal text-slate-500">{tf('drugForm.detailsHint', "ishlab chiqaruvchi, ATX va boshqalar")}</span>
+                    </span>
+                    <span className="text-slate-400 text-xl">{showMore ? '−' : '+'}</span>
+                  </button>
+                  {showMore && (
+                    <div className="px-4 pb-4 grid grid-cols-2 gap-3">
+                      <Field label={tf('pharmaProduct.manufacturer', 'Ishlab chiqaruvchi')}>
+                        <input className={inputCls} value={pharma.manufacturer} maxLength={200} onChange={e => setPharma(p => ({ ...p, manufacturer: e.target.value }))} />
+                      </Field>
+                      <Field label={tf('pharmaProduct.country', 'Ishlab chiqarilgan mamlakat')}>
+                        <input className={inputCls} value={pharma.country} maxLength={100} onChange={e => setPharma(p => ({ ...p, country: e.target.value }))} />
+                      </Field>
+                      <Field label={tf('pharmaProduct.atc', 'ATX kodi')} hint={tf('pharmacyModal.atcHint', "JSST xalqaro tasnif kodi, yo'riqnomada yoziladi")}>
+                        <input className={inputCls} value={pharma.atc_code} maxLength={20} placeholder={tf('pharmacyModal.atcPlaceholder', 'masalan N02BE01')}
+                          onChange={e => setPharma(p => ({ ...p, atc_code: e.target.value }))} />
+                      </Field>
+                      <Field label={tf('pharmaProduct.regNumber', "Ro'yxat raqami")}>
+                        <input className={inputCls} value={pharma.reg_number} maxLength={100} onChange={e => setPharma(p => ({ ...p, reg_number: e.target.value }))} />
+                      </Field>
+                      <Field label={tf('pharmaProduct.storage', 'Saqlash sharti')}>
+                        <select className={inputCls} value={pharma.storage} onChange={e => setPharma(p => ({ ...p, storage: e.target.value }))}>
+                          <option value="">—</option>
+                          {STORAGE_TYPES.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.storageType.${k}`, label)}</option>)}
+                        </select>
+                      </Field>
+                      <Field label={tf('pharmaProduct.controlClass', 'Nazorat toifasi')}>
+                        <select className={inputCls} value={pharma.control_class} onChange={e => setPharma(p => ({ ...p, control_class: e.target.value }))}>
+                          {CONTROL_CLASSES.map(([k, label]) => <option key={k} value={k}>{tf(`pharmaProduct.control.${k}`, label)}</option>)}
+                        </select>
+                      </Field>
+                      <Field label={tf('pharmaProduct.maxRetailPrice', 'Maksimal chakana narx')} hint={tf('pharmacyModal.maxRetailHint', '1 dona uchun')}>
+                        <input type="number" min="0" step="any" className={`${inputCls} ${overMax ? errCls : ''}`} value={pharma.max_retail_price}
+                          onChange={e => setPharma(p => ({ ...p, max_retail_price: e.target.value }))} />
+                      </Field>
+                      <label className="flex items-center gap-2 cursor-pointer select-none self-end pb-2">
+                        <input type="checkbox" checked={!!form.requires_marking} onChange={e => setF({ requires_marking: e.target.checked })}
+                          className="w-5 h-5 text-emerald-600 rounded border-slate-300 cursor-pointer" />
+                        <span className="text-sm font-bold text-slate-700">{tf('pharmacyModal.requiresMarking', 'Markirovka talab qilinadi')}</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
-          <div className="flex gap-3 px-4 md:px-6 py-4 border-t border-slate-200 bg-white rounded-b-2xl shrink-0">
-            <button type="button" onClick={onClose} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50">
+          <div className="flex gap-3 px-4 md:px-6 py-3 border-t border-slate-200 bg-white rounded-b-2xl shrink-0">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50">
               {tf('pharmacyModal.cancel', 'Bekor qilish')}
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-base">
+              className="flex-1 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-base">
               {saving ? tf('pharmacyModal.saving', 'Saqlanmoqda...') : (isEdit ? tf('pharmacyModal.save', 'Saqlash') : tf('pharmacyModal.add', "Dorini qo'shish"))}
             </button>
           </div>

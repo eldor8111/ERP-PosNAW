@@ -77,7 +77,7 @@ def test_pharmacy_modal_pack_price_calc_and_payload():
     assert 'Math.ceil(x * 100 - 1e-6) / 100' in block             # round = 0 bo'lsa 2 xonali
     # saqlash: shartnoma maydonlari
     for token in ('payload.units =', 'payload.initial_stock = stockTotal', 'payload.initial_lot_number = pack.lot.trim()',
-                  'payload.initial_expiry_date = pack.expiry', 'payload.initial_manufacture_date = pack.mfg',
+                  'payload.initial_expiry_date = pack.expiry',
                   'payload.initial_warehouse_id', "payload.product_type = 'stock'", "payload.unit = 'dona'",
                   'pharma: pharmaToPayload(pharma)', 'requires_marking: !!form.requires_marking',
                   'mxik_code: form.mxik.trim()', 'cost_price: round4((Number(form.cost) || 0) / topRatio)',
@@ -183,15 +183,15 @@ def test_products_page_two_buttons_in_pharmacy_mode_and_single_in_plain():
 def test_products_page_list_pack_summary_and_bulk_columns():
     s = _read(PRODUCTS_JSX)
     assert 'pharmacyOn && Array.isArray(p.units) && p.units.length > 0' in s and 'packSummary(p.units, p.unit)' in s
-    # "Ko'p mahsulot qo'shish": dorixonada qo'shimcha ustunlar
+    # "Ko'p mahsulot qo'shish": dorixonada qo'shimcha ustunlar (yashil qator)
     bulk = s[s.index('P.2: qadoq tuzilmasi va qoldiq seriyasi (faqat dorixona rejimida)'):]
     bulk = bulk[:bulk.index('})()}')]
     for token in ('pk_price', 'pk_big_qty', 'pk_mid_qty', 'pk_stock_big', 'pk_lot', 'pk_expiry'):
         assert token in bulk, token
     assert s.count('{pharmacyOn && (() => {') >= 1
-    # saqlash: units + seriya/muddat faqat dorixonada, qoldiq quti sonidan donaga aylantiriladi
+    # saqlash: units + muddat faqat dorixonada, qoldiq quti sonidan donaga aylantiriladi (P.5: seriya ixtiyoriy)
     assert "...(pharmacyOn && rowUnitPrice != null ? { units: packToUnits(" in s
-    assert "initial_lot_number: row.pk_lot.trim(), initial_expiry_date: row.pk_expiry" in s
+    assert "initial_expiry_date: row.pk_expiry," in s and "{ initial_lot_number: row.pk_lot.trim() }" in s
     assert 'Number(nr.pk_stock_big) * L.topRatio' in s
 
 
@@ -278,9 +278,13 @@ def test_modal_payload_requires_lot_and_expiry_with_stock(client, db, mk):
     c, _, _, u = mk.tenant()
     _pharmacy_on(db, c)
     bad = _modal_payload()
-    bad.pop('initial_lot_number')
+    bad.pop('initial_expiry_date')
     r = client.login(u).post(URL, json=bad)
     assert r.status_code == 400, r.text
+    # P.5: seriya ixtiyoriy
+    ok = _modal_payload(barcode='4780000000002')
+    ok.pop('initial_lot_number')
+    assert client.login(u).post(URL, json=ok).status_code == 201
 
 
 def test_plain_company_ignores_units_regression(client, db, mk):

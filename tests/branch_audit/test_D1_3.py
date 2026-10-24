@@ -140,19 +140,20 @@ def test_regular_company_manual_receive_unchanged(client, db, world):
 # ─── 2. Dorixona: seriya va muddat majburiy ───
 
 def test_pharmacy_receive_requires_lot_and_expiry(client, db, world):
+    # P.5: yaroqlilik muddati majburiy, seriya ixtiyoriy (bo'sh bo'lsa partiya "PO-<raqam>" nomini oladi)
     w = world
     p = _product(db, w['ph'])
     po = _create_po(client, w['padmin'], w['pw'], w['psup'], p).json()
     iid = po['items'][0]['id']
-    r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 100, 'expiry_date': _iso(300)}])
-    assert r.status_code == 400
-    assert '1-qator' in r.json()['detail'] and p.name in r.json()['detail'] and 'seriya' in r.json()['detail']
     r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 100, 'lot_number': 'S1'}])
     assert r.status_code == 400 and 'muddat' in r.json()['detail']
+    assert '1-qator' in r.json()['detail'] and p.name in r.json()['detail']
+    assert _batches(db, p) == []           # hech narsa yozilmadi
     r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 100, 'lot_number': '  ',
                                                   'expiry_date': _iso(300)}])
-    assert r.status_code == 400
-    assert _batches(db, p) == []           # hech narsa yozilmadi
+    assert r.status_code == 200, r.text
+    lots = [b.lot_number for b in _batches(db, p)]
+    assert len(lots) == 1 and lots[0].startswith('PO-')
 
 
 def test_pharmacy_rejects_past_expiry_but_accepts_today(client, db, world):
@@ -463,7 +464,7 @@ def test_manual_receive_pharmacy_requires_lot_and_expiry(client, db, world):
     cl = client.login(w['padmin'])
     base = {'warehouse_id': w['pw'].id}
     r = cl.post('/api/inventory/receive', json={**base, 'items': [{'product_id': p.id, 'quantity': 5}]})
-    assert r.status_code == 400 and '1-qator' in r.json()['detail'] and 'seriya' in r.json()['detail']
+    assert r.status_code == 400 and '1-qator' in r.json()['detail'] and 'muddat' in r.json()['detail']
     r = cl.post('/api/inventory/receive', json={**base, 'items': [
         {'product_id': p.id, 'quantity': 5, 'lot_number': 'M1', 'expiry_date': _iso(-3)[:10]}]})
     assert r.status_code == 400 and "o'tgan" in r.json()['detail']
@@ -477,6 +478,11 @@ def test_manual_receive_pharmacy_requires_lot_and_expiry(client, db, world):
     assert r.status_code == 200, r.text
     assert r.json()['warnings'] == []
     assert [(b.lot_number, b.quantity) for b in _batches(db, p)] == [('M1', 5), ('M2', 7)]
+    # P.5: seriya ixtiyoriy — bo'sh bo'lsa partiya "manual" nomini oladi
+    r = cl.post('/api/inventory/receive', json={**base, 'items': [
+        {'product_id': p.id, 'quantity': 3, 'expiry_date': _iso(300)[:10]}]})
+    assert r.status_code == 200, r.text
+    assert [b.lot_number for b in _batches(db, p)][-1].startswith('manual')
 
 
 def test_manual_receive_second_row_error_names_row(client, db, world):
@@ -540,6 +546,8 @@ def test_frontend_i18n_keys_in_pending_file():
     assert set(data['uz']) == set(data['ru']) == set(data['en']) and data['uz']
     jsx = (ROOT / 'frontend' / 'src' / 'pages' / 'admin' / 'Purchases.jsx').read_text(encoding='utf-8')
     for key in data['uz']:
+        if key == 'purchase.phLotRequired':   # P.5: seriya ixtiyoriy — kalit endi ishlatilmaydi
+            continue
         assert key in jsx, key
 
 
