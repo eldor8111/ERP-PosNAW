@@ -379,13 +379,15 @@ def _export_row(p):
                  for u in p.get('units') or [] if float(u['ratio']) > 1])
     simple = len(us) == 1 or (len(us) == 2 and (us[1][0] / us[0][0]).is_integer())
     mx = p.get('mxik_code') or ''
+    nb = p.get('nearest_batch') or {}
+    tail = [nb.get('lot_number') or '', nb.get('expiry_date') or '', nb.get('manufacture_date') or '']
     if not simple:
-        return [mx, float(p.get('sale_price') or 0), '', '', round(qty, 3)]
+        return [mx, float(p.get('sale_price') or 0), '', '', round(qty, 3)] + tail
     big = us[-1]
     box = float(big[1]) if big[1] is not None else float(p.get('sale_price') or 0) * big[0]
     if len(us) == 2:
-        return [mx, box, big[0] / us[0][0], us[0][0], round(qty / big[0], 3)]
-    return [mx, box, '', big[0], round(qty / big[0], 3)]
+        return [mx, box, big[0] / us[0][0], us[0][0], round(qty / big[0], 3)] + tail
+    return [mx, box, '', big[0], round(qty / big[0], 3)] + tail
 
 
 def test_export_columns_roundtrip_with_import(client, db, pharm):
@@ -396,15 +398,15 @@ def test_export_columns_roundtrip_with_import(client, db, pharm):
     items = cl.get('/api/products/paginated', params={'limit': 100}).json()['items']
     by = {it['name']: it for it in items}
     para, sirop = by['Paratsetamol 500 mg'], by['Ambroksol sirop 100 ml']
-    assert _export_row(para) == ['', 100000.0, 5.0, 10.0, 3.0]          # 150 dona = 3 quti
-    assert _export_row(sirop) == ['', 25000.0, '', '', 10.0]              # qadoqsiz — donada
+    assert _export_row(para) == ['', 100000.0, 5.0, 10.0, 3.0, 'LOT2026A', FUTURE, '2025-12-01']   # 150 dona = 3 quti
+    assert _export_row(sirop) == ['', 25000.0, '', '', 10.0, sirop['nearest_batch']['lot_number'], FUTURE, '']
     assert para['pharma']['dosage_form'] == 'tablet'
     # JS funksiya va sarlavhalar import shablonidagidek
     js = _read(PHARM_IMPORT_JS)
     blk = js[js.index('export const PHARMA_EXPORT_HEADERS = ['):js.index('];', js.index('export const PHARMA_EXPORT_HEADERS'))]
     ex_headers = re.findall(r"'([^']*)'", blk)
     assert ex_headers == ['MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni',
-                          'Quti soni (qoldiq)', 'Dori shakli']
+                          'Quti soni (qoldiq)', 'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana']
     idx = _alias_index()
     assert all(idx.get(_norm(h)) for h in ex_headers)                      # qayta import qilinganda tanilad
     assert "return us.length === 2" in js and 'r3(qty / big.ratio)' in js
@@ -412,7 +414,61 @@ def test_export_columns_roundtrip_with_import(client, db, pharm):
 
 def test_export_columns_only_in_pharmacy_mode():
     s = _read(PRODUCTS_JSX)
-    blk = s[s.index('// P.6: dorixonada oxiriga MXIK va qadoq ustunlari'):s.index("ws['!ref'] = `A1:${lastCol}")]
+    blk = s[s.index('// P.6/P.8: dorixonada oxiriga MXIK, qadoq, seriya va sanalar'):s.index("ws['!ref'] = `A1:${lastCol}")]
     assert 'if (pharmacyOn) {' in blk and 'pharmaExportRow(p, formLabel)' in blk
-    assert "let lastCol = 'U';" in blk and "lastCol = 'AA';" in blk
+    assert "let lastCol = 'U';" in blk and "lastCol = 'AD';" in blk
     assert "...(pharmacyOn ? [{ wch: 20 }" in s
+
+
+# ───────────────────────── P.8: sanalar — avval sanasiz kiritilganlar va qoldiqsiz qatorlar ─────────────────────────
+
+def test_reimport_fills_dates_on_batches_without_expiry(client, db, pharm):
+    c, _, w, u = pharm
+    cl = client.login(u)
+    # avval sanasiz kiritilgan qoldiq (masalan, modul yoqilishidan oldin): muddatsiz partiya
+    p = Product(name='Eski dori', barcode='4780000009601', sku='SKU-P8-1', company_id=c.id,
+                cost_price=Decimal('500'), sale_price=Decimal('1000'))
+    db.add(p)
+    db.flush()
+    db.add(StockLevel(product_id=p.id, warehouse_id=w.id, quantity=Decimal('40')))
+    db.add(Batch(product_id=p.id, warehouse_id=w.id, quantity=Decimal('40'), initial_quantity=Decimal('40'),
+                 purchase_price=Decimal('500'), company_id=c.id, lot_number='manual'))
+    db.flush()
+    body = _import(cl, [{'Nomi': 'Eski dori', 'Yaroqlilik muddati': FUTURE, 'Ishlab chiqarilgan sana': '01.02.2026',
+                         'Seriya': 'S-OLD'}], allow_update='true', warehouse_id=w.id)
+    assert body['updated'] == 1, body
+    db.expire_all()
+    b = db.query(Batch).filter(Batch.product_id == p.id).one()
+    assert str(b.expiry_date)[:10] == FUTURE and b.manufacture_date.date().isoformat() == '2026-02-01'
+    assert b.lot_number == 'S-OLD' and Decimal(str(b.quantity)) == 40         # qoldiq o'zgarmadi
+    # muddati bor partiyaga boshqa muddat yozilmaydi
+    other = (tashkent_today() + timedelta(days=700)).isoformat()
+    _import(cl, [{'Nomi': 'Eski dori', 'Yaroqlilik muddati': other}], allow_update='true', warehouse_id=w.id)
+    db.expire_all()
+    assert str(db.query(Batch).filter(Batch.product_id == p.id).one().expiry_date)[:10] == FUTURE
+
+
+def test_dates_without_stock_warn(client, db, pharm):
+    c, _, w, u = pharm
+    body = _import(client.login(u), [{'Nomi': 'Qoldiqsiz', 'Barkod': '4780000009602', 'Katta qadoq narxi': '1000',
+                                      'Yaroqlilik muddati': FUTURE}], warehouse_id=w.id)
+    assert body['created'] == 1 and any('Qoldiq kiritilmagan' in x['warning'] for x in body['warnings']), body
+
+
+def test_paginated_returns_nearest_batch_for_export(client, db, pharm):
+    c, _, w, u = pharm
+    cl = client.login(u)
+    _import(cl, [{'Nomi': 'Partiyali', 'Barkod': '4780000009603', 'Katta qadoq narxi': '1000', 'Qoldiq': '5',
+                  'Seriya': 'NB-1', 'Yaroqlilik muddati': FUTURE, 'Ishlab chiqarilgan sana': '2026-03-01'}],
+            warehouse_id=w.id)
+    items = cl.get('/api/products/paginated', params={'limit': 100}).json()['items']
+    it = next(x for x in items if x['name'] == 'Partiyali')
+    assert it['nearest_batch'] == {'lot_number': 'NB-1', 'expiry_date': FUTURE, 'manufacture_date': '2026-03-01'}
+
+
+def test_paginated_plain_company_has_no_batch_field(client, db, mk):
+    c, _, w, u = mk.tenant()
+    client.login(u).post(IMPORT_URL, json=[{'Nomi': 'Oddiy P8', 'Barkod': '4780000009604', 'Qoldiq': '3'}],
+                         params={'warehouse_id': w.id})
+    items = client.login(u).get('/api/products/paginated', params={'limit': 100}).json()['items']
+    assert 'nearest_batch' not in next(x for x in items if x['name'] == 'Oddiy P8')

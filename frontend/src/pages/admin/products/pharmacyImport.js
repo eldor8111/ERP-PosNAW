@@ -243,23 +243,26 @@ export const downloadPharmacyTemplate = (XLSX, saveAs) => {
 // ── P.6: Excel'ga yuklab olish (faqat dorixonada) — mavjud jadval oxiriga qo'shiladigan ustunlar ───────
 // Sarlavhalar import shablonidagidek: yuklab olingan faylni tahrirlab qayta import qilish mumkin.
 export const PHARMA_EXPORT_HEADERS = [
-  'MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni', 'Quti soni (qoldiq)', 'Dori shakli',
+  'MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni', 'Quti soni (qoldiq)',
+  'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana',   // P.8: eng yaqin muddatli partiya
 ];
 
-// Mahsulot (ro'yxat javobi: units, stock_quantity, pharma) -> [MXIK, quti narxi, blister soni, dona soni, quti soni, shakl]
+// Mahsulot (ro'yxat javobi: units, stock_quantity, pharma, nearest_batch) -> PHARMA_EXPORT_HEADERS tartibidagi qiymatlar.
 // Qadoqsiz (yoki murakkab tuzilmali) dori: narx va qoldiq 1 dona bo'yicha, sonlar bo'sh — importdagi qoida bilan bir xil.
 export const pharmaExportRow = (p, formLabel) => {
   const qty = Number(p.stock_quantity || 0);
   const r3 = (x) => Math.round(x * 1000) / 1000;
   const form = p.pharma?.dosage_form ? formLabel(p.pharma.dosage_form) : '';
+  const nb = p.nearest_batch || {};
+  const tail = [nb.lot_number || '', nb.expiry_date || '', form, nb.manufacture_date || ''];
   const us = (Array.isArray(p.units) ? p.units : [])
     .map(u => ({ ratio: Number(u.ratio), price: u.sale_price != null ? u.sale_price : u.price }))
     .filter(u => u.ratio > 1).sort((a, b) => a.ratio - b.ratio);
   const simple = us.length === 1 || (us.length === 2 && Number.isInteger(us[1].ratio / us[0].ratio));
-  if (!simple) return [p.mxik_code || '', Number(p.sale_price || 0), '', '', r3(qty), form];
+  if (!simple) return [p.mxik_code || '', Number(p.sale_price || 0), '', '', r3(qty), ...tail];
   const big = us[us.length - 1];
   const boxPrice = big.price != null ? Number(big.price) : Number(p.sale_price || 0) * big.ratio;
   return us.length === 2
-    ? [p.mxik_code || '', boxPrice, big.ratio / us[0].ratio, us[0].ratio, r3(qty / big.ratio), form]
-    : [p.mxik_code || '', boxPrice, '', big.ratio, r3(qty / big.ratio), form];
+    ? [p.mxik_code || '', boxPrice, big.ratio / us[0].ratio, us[0].ratio, r3(qty / big.ratio), ...tail]
+    : [p.mxik_code || '', boxPrice, '', big.ratio, r3(qty / big.ratio), ...tail];
 };

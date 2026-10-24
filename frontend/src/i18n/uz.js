@@ -5796,4 +5796,11 @@ export default {
   "drugForm.piecesInBox": "Qutidagi dona soni",
   "drugForm.stockUnits": "Qoldiq (dona soni)",
   "drugForm.singleLine": "Qadoqsiz",
+  // === P.7 ===
+  "pos.unitPickTitle": "Qanday sotiladi?",
+  "pos.unitPickHint": "↑ ↓ — tanlash · Enter — savatga · Esc — bekor",
+  "pos.noWholeBox": "Butun quti yo'q",
+  "pos.expiryDaysLeft": "{n} kun qoldi",
+  "pos.expiredTitle": "Omborda muddati o'tgan partiya bor — sotilmaydi",
+  "pos.expiredShort": "Muddati o'tgan",
 };

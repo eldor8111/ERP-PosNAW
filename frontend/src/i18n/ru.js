@@ -5808,4 +5808,11 @@ export default {
   "drugForm.piecesInBox": "Штук в коробке",
   "drugForm.stockUnits": "Остаток (шт.)",
   "drugForm.singleLine": "Без упаковки",
+  // === P.7 ===
+  "pos.unitPickTitle": "Как продавать?",
+  "pos.unitPickHint": "↑ ↓ — выбор · Enter — в корзину · Esc — отмена",
+  "pos.noWholeBox": "Нет целой коробки",
+  "pos.expiryDaysLeft": "Осталось дней: {n}",
+  "pos.expiredTitle": "На складе есть просроченная партия — не продаётся",
+  "pos.expiredShort": "Просрочено",
 };

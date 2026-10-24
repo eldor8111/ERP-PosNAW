@@ -332,6 +332,27 @@ def _parse_pack_row(row: dict, price_round):
     return res, None
 
 
+def _fill_missing_batch_dates(db: Session, product_id: int, pack: dict) -> int:
+    """P.8: mavjud dorining qoldig'i bor, muddati yo'q (avval sanasiz kiritilgan) partiyalariga Excel'dagi yaroqlilik
+    muddati, ishlab chiqarilgan sana va seriya yoziladi. Muddati bor partiyalarga tegilmaydi — faqat muddati aynan
+    Excel'dagidek bo'lsa, bo'sh ishlab chiqarilgan sanasi to'ldiriladi. Yangilangan partiyalar soni."""
+    from app.models.batch import Batch
+    n = 0
+    for b in db.query(Batch).filter(Batch.product_id == product_id, Batch.quantity > 0).all():
+        exp_d = b.expiry_date.date() if b.expiry_date is not None else None
+        if exp_d is None and pack["expiry"] is not None:
+            b.expiry_date = datetime.combine(pack["expiry"], datetime.min.time())
+            if pack["lot"]:
+                b.lot_number = pack["lot"][:100]
+            if pack["mfg"] is not None and b.manufacture_date is None:
+                b.manufacture_date = datetime.combine(pack["mfg"], datetime.min.time())
+            n += 1
+        elif exp_d is not None and exp_d == pack["expiry"] and pack["mfg"] is not None and b.manufacture_date is None:
+            b.manufacture_date = datetime.combine(pack["mfg"], datetime.min.time())
+            n += 1
+    return n
+
+
 def _parse_pharmacy_extra(row: dict):
     """P.4: MXIK (faqat raqam, <= 20), eng katta qadoq tan narxi va qoldig'i (>= 0). (natija, xato_matni)."""
     res = {"mxik": None, "box_cost": None, "box_stock": None}
@@ -813,6 +834,8 @@ def bulk_import_products(
             db.add(existing)
             sp = db.begin_nested()
             try:
+                if pharmacy_on and pack["expiry"] is not None:
+                    _fill_missing_batch_dates(db, existing.id, pack)   # P.8: avval sanasiz kiritilgan partiyalar
                 if stock_val is not None:
                     # Qoldiq faqat tanlangan ombor qatoriga (product, variant=NULL, warehouse)
                     # ADJUST harakati bilan yoziladi; variantli / sell / service — o'zgarmaydi
@@ -962,6 +985,13 @@ def bulk_import_products(
                     errors.append({"row": row_num, "name": name,
                                    "error": "Yaroqlilik muddati bugundan keyingi sana bo'lishi kerak"})
                     continue
+        if pharmacy_on and initial_stock <= 0 and (pack["expiry"] is not None or pack["mfg"] is not None):
+            # P.8: sanalar partiyada saqlanadi — qoldiqsiz qatorda saqlanmaydi (ogohlantirish)
+            warnings.append({
+                "row": row_num, "name": name,
+                "warning": "Qoldiq kiritilmagan — yaroqlilik muddati va ishlab chiqarilgan sana partiya bilan saqlanadi: "
+                           "\"Quti soni (qoldiq)\" ni kiriting yoki keyin kirim qiling",
+            })
         if initial_stock > 0 and row_wh_id is None:
             errors.append({"row": row_num, "name": name, "error": "Ombor aniqlanmadi — omborni tanlang, qoldiqli mahsulotni yuklab bo'lmaydi"})
             continue

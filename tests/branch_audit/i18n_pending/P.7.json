@@ -1,0 +1,26 @@
+{
+  "uz": {
+    "pos.unitPickTitle": "Qanday sotiladi?",
+    "pos.unitPickHint": "↑ ↓ — tanlash · Enter — savatga · Esc — bekor",
+    "pos.noWholeBox": "Butun quti yo'q",
+    "pos.expiryDaysLeft": "{n} kun qoldi",
+    "pos.expiredTitle": "Omborda muddati o'tgan partiya bor — sotilmaydi",
+    "pos.expiredShort": "Muddati o'tgan"
+  },
+  "ru": {
+    "pos.unitPickTitle": "Как продавать?",
+    "pos.unitPickHint": "↑ ↓ — выбор · Enter — в корзину · Esc — отмена",
+    "pos.noWholeBox": "Нет целой коробки",
+    "pos.expiryDaysLeft": "Осталось дней: {n}",
+    "pos.expiredTitle": "На складе есть просроченная партия — не продаётся",
+    "pos.expiredShort": "Просрочено"
+  },
+  "en": {
+    "pos.unitPickTitle": "How to sell?",
+    "pos.unitPickHint": "↑ ↓ — select · Enter — add to cart · Esc — cancel",
+    "pos.noWholeBox": "No whole box",
+    "pos.expiryDaysLeft": "{n} days left",
+    "pos.expiredTitle": "Expired batch in stock — not for sale",
+    "pos.expiredShort": "Expired"
+  }
+}

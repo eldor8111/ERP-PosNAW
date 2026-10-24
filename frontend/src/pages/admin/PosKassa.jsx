@@ -77,6 +77,7 @@ const navigate = useNavigate();
   const [rxData, setRxData] = useState({});            // { [product_id]: { mode, number, issued_at, doctor, clinic, patient, blank_type } }
   const [rxReason, setRxReason] = useState('');        // retseptsiz sotish sababi (rx_mode=warn)
   const [analogModal, setAnalogModal] = useState(null); // { product_id, name, loading, items, auto }
+  const [unitPick, setUnitPick] = useState(null);     // P.7: { p, qty, sel } — quti / blister / dona tanlash
   const [saleError, setSaleError] = useState(null);    // { message, boxFix? } — server 400 xatosi (muddat, quti, markirovka...)
   const [rejectedModal, setRejectedModal] = useState(false);
   const [rejectedTick, setRejectedTick] = useState(0);
@@ -305,12 +306,122 @@ const navigate = useNavigate();
     } catch { return null; }
   };
 
+  // Skanerlangan kodni qayta ishlash (global skaner tinglovchisi va P.7 birlik tanlash oynasi chaqiradi)
+  const handleScannedCode = (code) => {
+    // Tarozi barkodi (T3.12): PLU bo'yicha — eksport fayllari bilan bir xil plu_code
+    const scale = parseScaleBarcode(code);
+    if (scale) {
+      const scaleProduct = findScaleProduct(products, scale.plu);
+      if (scaleProduct) {
+        addToCart(scaleProduct, scale.weightKg);
+        return;
+      }
+    }
+
+    const p = products.find(x =>
+      x.barcode === code ||
+      x.sku === code ||
+      (Array.isArray(x.extra_barcodes) && x.extra_barcodes.includes(code))
+    );
+    if (p) {
+      pickOrAdd(p);   // P.7: dorixonada quti / blister / dona tanlanadi
+      return;
+    }
+
+    // D2.6: birlik (quti/blister) shtrix-kodi — mahsulot ham, birlik ham o'zi tanlanadi
+    if (pharmacy) {
+      const up = products.find(x => Array.isArray(x.units) && x.units.some(u => u.barcode && u.barcode === code));
+      if (up) {
+        addToCart(up, undefined, up.units.find(u => u.barcode === code));
+        return;
+      }
+    }
+
+    // Lokal ro'yxatda topilmadi
+    const handleNotFound = () => {
+      // Oddiy mahsulot barkodiga to'g'ri kelmadi — uzun kod bo'lsa (Data Matrix
+      // markirovka kodlari odatda 20+ belgi), savatdagi kodi to'liq bo'lmagan
+      // markirovkali qatorga biriktiramiz, aks holda yangi mahsulot modalini ochamiz.
+      if (code.length >= 20) {
+        const pendingIdx = findPendingMarkingIdx();
+        if (pendingIdx >= 0) {
+          addMarkingCode(pendingIdx, code);
+          return;
+        }
+        toast.error(t('pos.markingScannedNoProduct'));
+        return;
+      }
+
+      // Topilmadi — yangi mahsulot qo'shish modalini och
+      const openNewProduct = () => {
+        setNewProd({ name:'', barcode: code, sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
+        setShowNewProduct(true);
+      };
+      // T2.12: tartib — tarozi mahsulot -> oddiy mahsulot -> mijoz kartasi -> yangi mahsulot
+      const afterLocalMiss = () => {
+        if (/^\d{6,19}$/.test(code)) {
+          findCustomerByCard(code).then(cust => {
+            if (cust) {
+              pickCustomer(cust.id, cust);
+              toast.success(tf('pos.cardCustomerFound', 'Mijoz topildi: {name}', { name: cust.name }));
+            } else {
+              openNewProduct();
+            }
+          });
+          return;
+        }
+        openNewProduct();
+      };
+      // T3.11: lokal ro'yxatda yo'q (ro'yxatga sig'magan tovar) — onlayn bo'lsa serverdan shtrix-kod bo'yicha;
+      // faqat 404 bo'lsa "yangi mahsulot" modali (dublikat mahsulot yaratilmasin)
+      if (isOnline) {
+        api.get('/products/barcode/' + encodeURIComponent(code))
+          .then(r => {
+            if (r.data && r.data.id != null) pickOrAdd(r.data);
+            else afterLocalMiss();
+          })
+          .catch(err => {
+            if (err.response?.status === 404) afterLocalMiss();
+            else toast.error(err.response?.data?.detail || err.message || t('common.error'));
+          });
+        return;
+      }
+      afterLocalMiss();
+    };
+    // D2.6: dorixona — ro'yxatga sig'magan birlik shtrix-kodi serverdan (pos-list scanned_unit_id)
+    if (pharmacy && isOnline && !scale) {
+      api.get('/products/pos-list', {
+        params: { search: code, limit: 5, ...posPriceParams(warehouseId, posBranchId) },
+        _silent: true, _suppressToast: true,
+      }).then(r => {
+        const rows = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+        const hit = rows.find(x => x.scanned_unit_id != null);
+        if (hit) addToCart(hit, undefined, (hit.units || []).find(u => u.id === hit.scanned_unit_id));
+        else handleNotFound();
+      }).catch(() => handleNotFound());
+      return;
+    }
+    // Tarozi PLU si lokal ro'yxatda yo'q (masalan, ro'yxatga sig'magan tovar): serverdan PLU bo'yicha
+    if (scale && isOnline) {
+      api.get('/products/barcode/' + String(scale.plu).padStart(5, '0'))
+        .then(r => {
+          if (r.data && r.data.id != null) addToCart(r.data, scale.weightKg);
+          else handleNotFound();
+        })
+        .catch(() => handleNotFound());
+      return;
+    }
+    handleNotFound();
+  };
+  const scanRef = useRef(null);
+  scanRef.current = handleScannedCode;
+
   // Global Skaner Listener
   useEffect(() => {
     let buf = '';
     let lastTime = Date.now();
     const handleKeyDown = (e) => {
-      if (showCheckout || showNewProduct || rxModal || analogModal || saleError || rejectedModal) return;
+      if (showCheckout || showNewProduct || rxModal || analogModal || saleError || rejectedModal || unitPick) return;
       const isInput = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
       const now = Date.now();
       if (now - lastTime > 200) buf = '';
@@ -324,110 +435,7 @@ const navigate = useNavigate();
            e.stopPropagation();
            if (isInput) { e.target.blur(); e.target.value = ''; e.target.dispatchEvent(new Event('input', { bubbles: true })); }
 
-           // Tarozi barkodi (T3.12): PLU bo'yicha — eksport fayllari bilan bir xil plu_code
-           const scale = parseScaleBarcode(code);
-           if (scale) {
-             const scaleProduct = findScaleProduct(products, scale.plu);
-             if (scaleProduct) {
-               addToCart(scaleProduct, scale.weightKg);
-               return;
-             }
-           }
-
-           const p = products.find(x =>
-             x.barcode === code ||
-             x.sku === code ||
-             (Array.isArray(x.extra_barcodes) && x.extra_barcodes.includes(code))
-           );
-           if (p) {
-             addToCart(p);
-             return;
-           }
-
-           // D2.6: birlik (quti/blister) shtrix-kodi — mahsulot ham, birlik ham o'zi tanlanadi
-           if (pharmacy) {
-             const up = products.find(x => Array.isArray(x.units) && x.units.some(u => u.barcode && u.barcode === code));
-             if (up) {
-               addToCart(up, undefined, up.units.find(u => u.barcode === code));
-               return;
-             }
-           }
-
-           // Lokal ro'yxatda topilmadi
-           const handleNotFound = () => {
-             // Oddiy mahsulot barkodiga to'g'ri kelmadi — uzun kod bo'lsa (Data Matrix
-             // markirovka kodlari odatda 20+ belgi), savatdagi kodi to'liq bo'lmagan
-             // markirovkali qatorga biriktiramiz, aks holda yangi mahsulot modalini ochamiz.
-             if (code.length >= 20) {
-               const pendingIdx = findPendingMarkingIdx();
-               if (pendingIdx >= 0) {
-                 addMarkingCode(pendingIdx, code);
-                 return;
-               }
-               toast.error(t('pos.markingScannedNoProduct'));
-               return;
-             }
-
-             // Topilmadi — yangi mahsulot qo'shish modalini och
-             const openNewProduct = () => {
-               setNewProd({ name:'', barcode: code, sale_price:'', cost_price:'', unit:'dona', category_id:'', stock_quantity:'0' });
-               setShowNewProduct(true);
-             };
-             // T2.12: tartib — tarozi mahsulot -> oddiy mahsulot -> mijoz kartasi -> yangi mahsulot
-             const afterLocalMiss = () => {
-               if (/^\d{6,19}$/.test(code)) {
-                 findCustomerByCard(code).then(cust => {
-                   if (cust) {
-                     pickCustomer(cust.id, cust);
-                     toast.success(tf('pos.cardCustomerFound', 'Mijoz topildi: {name}', { name: cust.name }));
-                   } else {
-                     openNewProduct();
-                   }
-                 });
-                 return;
-               }
-               openNewProduct();
-             };
-             // T3.11: lokal ro'yxatda yo'q (ro'yxatga sig'magan tovar) — onlayn bo'lsa serverdan shtrix-kod bo'yicha;
-             // faqat 404 bo'lsa "yangi mahsulot" modali (dublikat mahsulot yaratilmasin)
-             if (isOnline) {
-               api.get('/products/barcode/' + encodeURIComponent(code))
-                 .then(r => {
-                   if (r.data && r.data.id != null) addToCart(r.data);
-                   else afterLocalMiss();
-                 })
-                 .catch(err => {
-                   if (err.response?.status === 404) afterLocalMiss();
-                   else toast.error(err.response?.data?.detail || err.message || t('common.error'));
-                 });
-               return;
-             }
-             afterLocalMiss();
-           };
-           // D2.6: dorixona — ro'yxatga sig'magan birlik shtrix-kodi serverdan (pos-list scanned_unit_id)
-           if (pharmacy && isOnline && !scale) {
-             api.get('/products/pos-list', {
-               params: { search: code, limit: 5, ...posPriceParams(warehouseId, posBranchId) },
-               _silent: true, _suppressToast: true,
-             }).then(r => {
-               const rows = Array.isArray(r.data) ? r.data : (r.data?.items || []);
-               const hit = rows.find(x => x.scanned_unit_id != null);
-               if (hit) addToCart(hit, undefined, (hit.units || []).find(u => u.id === hit.scanned_unit_id));
-               else handleNotFound();
-             }).catch(() => handleNotFound());
-             return;
-           }
-           // Tarozi PLU si lokal ro'yxatda yo'q (masalan, ro'yxatga sig'magan tovar): serverdan PLU bo'yicha
-           if (scale && isOnline) {
-             api.get('/products/barcode/' + String(scale.plu).padStart(5, '0'))
-               .then(r => {
-                 if (r.data && r.data.id != null) addToCart(r.data, scale.weightKg);
-                 else handleNotFound();
-               })
-               .catch(() => handleNotFound());
-             return;
-           }
-           handleNotFound();
+           scanRef.current(code);
          }
          return;
       }
@@ -435,7 +443,7 @@ const navigate = useNavigate();
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [products, cart, showCheckout, showNewProduct, customers, isOnline, pharmacy, warehouseId, posBranchId, rxModal, analogModal, saleError, rejectedModal]);
+  }, [products, cart, showCheckout, showNewProduct, customers, isOnline, pharmacy, warehouseId, posBranchId, rxModal, analogModal, saleError, rejectedModal, unitPick]);
 
   // Yangi mahsulotni bazaga saqlash va savatga qo'shish
   const saveNewProduct = async () => {
@@ -496,6 +504,7 @@ const navigate = useNavigate();
     return {
       nearest_expiry: p.nearest_expiry || null,
       expiry_warn: !!p.expiry_warn,
+      expired_qty: Number(p.expired_qty) || 0,   // P.7
       is_rx: !!p.is_rx,
       control_class: p.control_class || 'none',
       units: Array.isArray(p.units) ? p.units : [],
@@ -555,6 +564,123 @@ const navigate = useNavigate();
         ...pharmaCartFields(p, unit),
       }, ...prev];
     });
+  };
+
+  // P.7: dorixona — shtrix-kod skanerlanganda (yoki kartochka bosilganda) quti / blister / dona tanlanadi
+  const unitOptions = (p) => {
+    const base = priceFor(p);
+    const us = (Array.isArray(p.units) ? p.units : [])
+      .filter(u => (Number(u.ratio) || 1) !== 1)
+      .map(u => (u.price == null && u.sale_price != null ? { ...u, price: u.sale_price } : u))
+      .sort((a, b) => Number(b.ratio) - Number(a.ratio));
+    const noWholeBox = p.pack_ratio != null && p.full_boxes != null && Number(p.full_boxes) < 1;
+    return [
+      ...us.map(u => ({
+        unit: u, name: u.name, ratio: Number(u.ratio), price: unitLinePrice(base, p.sale_price, u),
+        disabled: noWholeBox && Number(u.ratio) >= Number(p.pack_ratio),
+      })),
+      { unit: null, name: p.unit || 'dona', ratio: 1, price: base, disabled: false },
+    ];
+  };
+  // Oyna faqat quti VA blister (2 ta qadoq birligi) bo'lgan dorida; donalab yoki blistersiz dori — avvalgidek savatga
+  const pickOrAdd = (p, qty) => {
+    const opts = pharmacy ? unitOptions(p) : [];
+    if (opts.length < 3) { addToCart(p, qty); return; }
+    setUnitPick({ p, qty, sel: Math.max(0, opts.findIndex(o => !o.disabled)) });
+  };
+  const confirmUnitPick = (i) => {
+    if (!unitPick) return;
+    const o = unitOptions(unitPick.p)[i != null ? i : unitPick.sel];
+    if (!o || o.disabled) return;
+    addToCart(unitPick.p, unitPick.qty, o.unit);
+    setUnitPick(null);
+  };
+  const moveUnitPick = (d) => setUnitPick(u => {
+    if (!u) return u;
+    const opts = unitOptions(u.p);
+    let s = u.sel;
+    for (let k = 0; k < opts.length; k++) { s = (s + d + opts.length) % opts.length; if (!opts[s].disabled) break; }
+    return { ...u, sel: s };
+  });
+  // Oyna ochiq: ↑/↓ tanlash, Enter — savatga, Esc — bekor. Skaner kodi (tez belgilar + Enter) tanlov bo'lib ketmaydi:
+  // joriy tanlov qo'shiladi va yangi kod odatdagidek qayta ishlanadi
+  useEffect(() => {
+    if (!unitPick) return undefined;
+    let buf = '';
+    let last = 0;
+    const onKey = (e) => {
+      const now = Date.now();
+      const fast = now - last < 60;
+      last = now;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setUnitPick(null); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault(); e.stopPropagation();
+        moveUnitPick(e.key === 'ArrowDown' ? 1 : -1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault(); e.stopPropagation();
+        const code = buf;
+        buf = '';
+        confirmUnitPick();
+        if (code.length >= 3) setTimeout(() => scanRef.current && scanRef.current(code), 0);
+        return;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault(); e.stopPropagation();
+        buf = fast ? buf + e.key : e.key;
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitPick]);
+
+  // P.7: yaroqlilik muddati rangi — yashil (ko'p vaqt bor), sariq (yaqinlashmoqda), qizil (kam qoldi);
+  // omborda muddati o'tgan qoldiq bo'lsa — qizil miltillaydi. Chegara: sozlamadagi expiry_warn_days (qizil), x3 (sariq)
+  const expiryDays = (iso) => {
+    if (!iso) return null;
+    const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+    const t0 = new Date();
+    t0.setHours(0, 0, 0, 0);
+    return Math.round((new Date(y, m - 1, d) - t0) / 86400000);
+  };
+  const expiryLevel = (days) => {
+    if (days == null) return null;
+    const red = Math.max(1, Number(features?.pharmacy_settings?.expiry_warn_days) || 30);
+    if (days < 0) return 'expired';
+    if (days <= red) return 'red';
+    if (days <= red * 3) return 'yellow';
+    return 'green';
+  };
+  const EXPIRY_CLS = {
+    green: 'bg-emerald-100 text-emerald-700 border border-emerald-300',
+    yellow: 'bg-amber-100 text-amber-800 border border-amber-300',
+    red: 'bg-red-100 text-red-700 border border-red-400',
+    expired: 'bg-red-600 text-white border border-red-700 animate-pulse',
+  };
+  const expiryBadges = (it, size = 'sm') => {
+    const cls = size === 'lg' ? 'px-2 py-0.5 rounded text-xs font-bold'
+      : size === 'md' ? 'px-1.5 rounded text-[10px] font-bold' : 'px-1 rounded text-[9px] font-bold';
+    const days = expiryDays(it.nearest_expiry);
+    const lvl = expiryLevel(days);
+    const expiredQty = Number(it.expired_qty) || 0;
+    return (
+      <>
+        {lvl && (
+          <span className={`${cls} ${EXPIRY_CLS[lvl]}`} data-expiry-level={lvl}
+            title={tf('pos.expiryDaysLeft', '{n} kun qoldi', { n: days })}>
+            {lvl === 'red' || lvl === 'expired' ? '⚠ ' : ''}{fmtExpiry(it.nearest_expiry)}
+          </span>
+        )}
+        {expiredQty > 0 && (
+          <span className={`${cls} ${EXPIRY_CLS.expired}`} data-expiry-level="expired"
+            title={tf('pos.expiredTitle', "Omborda muddati o'tgan partiya bor — sotilmaydi")}>
+            {tf('pos.expiredShort', "Muddati o'tgan")}: {fmt(expiredQty)}
+          </span>
+        )}
+      </>
+    );
   };
 
   // Markirovka (Data Matrix) kod skanerlash — savat qatoriga kod qo'shish/o'chirish
@@ -1267,14 +1393,7 @@ const navigate = useNavigate();
                   <div className="font-black text-slate-800 text-[10px] leading-tight line-clamp-2 leading-none">{item.product_name}</div>
                   {pharmacy && (
                     <div className="flex flex-wrap items-center gap-1 mt-0.5" data-testid="pharmacy-cart-extras">
-                      {item.nearest_expiry && (
-                        <span
-                          className={`px-1 rounded text-[9px] font-bold ${item.expiry_warn ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 text-slate-500'}`}
-                          title={item.expiry_warn ? tf('pos.expiryWarnTitle', "Muddati yaqin — eng yaqin yaroqlilik muddati") : tf('pos.expiryNearest', 'Eng yaqin muddat')}
-                        >
-                          {item.expiry_warn ? '⚠ ' : ''}{tf('pos.expiryShort', 'Muddat')}: {fmtExpiry(item.nearest_expiry)}
-                        </span>
-                      )}
+                      {expiryBadges(item, 'sm')}
                       {isControlled(item) ? (
                         <button type="button" onClick={() => setRxModal({})} title={tf('pos.rxOpen', "Retsept ma'lumotlari")}
                           className="px-1 rounded text-[9px] font-bold bg-red-100 text-red-700 hover:bg-red-200">{tf('pos.rxControlled', 'Nazoratda')}</button>
@@ -1450,7 +1569,7 @@ const navigate = useNavigate();
                     if (p.product_type === 'parent') {
                       setVariantParent(p);
                     } else {
-                      addToCart(p);
+                      pickOrAdd(p);   // P.7: dorixonada quti / blister / dona tanlanadi
                     }
                   }}
                   className="bg-white rounded-2xl border-2 border-transparent hover:border-blue-500 p-4 shadow-sm hover:shadow-xl transition-all text-left flex flex-col active:scale-95 relative overflow-hidden group h-[160px]">
@@ -1463,11 +1582,7 @@ const navigate = useNavigate();
                   <h3 className="font-extrabold text-slate-800 text-base leading-tight mb-auto z-10 line-clamp-3">{p.name}</h3>
                   {pharmacy && (
                     <div className="z-10 flex flex-wrap items-center gap-1 mt-1" data-testid="pharmacy-card-extras">
-                      {p.nearest_expiry && (
-                        <span className={`px-1.5 rounded text-[10px] font-bold ${p.expiry_warn ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 text-slate-500'}`}>
-                          {p.expiry_warn ? '⚠ ' : ''}{fmtExpiry(p.nearest_expiry)}
-                        </span>
-                      )}
+                      {expiryBadges(p, 'md')}
                       {(p.control_class && p.control_class !== 'none') ? (
                         <span className="px-1.5 rounded text-[10px] font-bold bg-red-100 text-red-700">{tf('pos.rxControlled', 'Nazoratda')}</span>
                       ) : p.is_rx ? (
@@ -1512,6 +1627,44 @@ const navigate = useNavigate();
       </div>
 
       {/* ── D2.6: RETSEPT OYNASI (faqat dorixona rejimi) ── */}
+      {/* P.7: quti / blister / dona tanlash (faqat dorixonada) */}
+      {pharmacy && unitPick && (() => {
+        const opts = unitOptions(unitPick.p);
+        return (
+          <div className="fixed inset-0 z-[120] bg-black/50 flex items-center justify-center p-4" onClick={() => setUnitPick(null)}
+            data-testid="pharmacy-unit-pick">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-3" onClick={e => e.stopPropagation()}>
+              <div>
+                <div className="text-xs font-bold text-slate-400 uppercase">{tf('pos.unitPickTitle', 'Qanday sotiladi?')}</div>
+                <div className="text-lg font-black text-slate-800 leading-tight">{unitPick.p.name}</div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  {expiryBadges(unitPick.p, 'lg')}
+                  {unitPick.p.stock_display && (
+                    <span className="text-xs font-bold text-slate-500">{t('pos.stockLabel')} {unitPick.p.stock_display}</span>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                {opts.map((o, i) => (
+                  <button key={o.unit ? o.unit.id : 'base'} type="button" disabled={o.disabled}
+                    onClick={() => confirmUnitPick(i)}
+                    onMouseEnter={() => { if (!o.disabled) setUnitPick(u => (u ? { ...u, sel: i } : u)); }}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-left transition-colors ${i === unitPick.sel ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'} ${o.disabled ? 'opacity-40 cursor-not-allowed' : 'hover:border-blue-400'}`}>
+                    <span>
+                      <span className="block text-base font-black text-slate-800">1 {o.name}</span>
+                      {o.ratio > 1 && <span className="block text-xs font-semibold text-slate-500">{fmt(o.ratio)} {unitPick.p.unit || 'dona'}</span>}
+                      {o.disabled && <span className="block text-xs font-semibold text-red-600">{tf('pos.noWholeBox', "Butun quti yo'q")}</span>}
+                    </span>
+                    <span className="text-xl font-black text-blue-700">{fmt(o.price)}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 text-center">{tf('pos.unitPickHint', '↑ ↓ — tanlash · Enter — savatga · Esc — bekor')}</p>
+            </div>
+          </div>
+        );
+      })()}
+
       {pharmacy && rxModal && (() => {
         const rxItems = rxProductsOf(cart).filter((it, i, arr) => arr.findIndex(x => x.product_id === it.product_id) === i);
         const anyNoRx = rxItems.some(it => !isControlled(it) && rxMode !== 'block' && (rxData[it.product_id]?.mode === 'norx'));
@@ -1630,11 +1783,7 @@ const navigate = useNavigate();
                       <span className={a.in_stock ? 'text-emerald-600' : 'text-red-500'}>
                         {a.in_stock ? `${tf('pos.stockLabel', 'Qoldiq')}: ${fmt(a.valid_quantity)}` : t('pos.zeroStock')}
                       </span>
-                      {a.nearest_expiry && (
-                        <span className={`px-1 rounded ${a.expiry_warn ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                          {a.expiry_warn ? '⚠ ' : ''}{fmtExpiry(a.nearest_expiry)}
-                        </span>
-                      )}
+                      {expiryBadges(a, 'sm')}
                       {a.is_rx && <span className="px-1 rounded bg-violet-100 text-violet-700">Rx</span>}
                       {[a.dosage_form, a.strength, a.manufacturer].filter(Boolean).length > 0 && (
                         <span className="text-slate-400">{[a.dosage_form, a.strength, a.manufacturer].filter(Boolean).join(' · ')}</span>

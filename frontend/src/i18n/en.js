@@ -5803,4 +5803,11 @@ export default {
   "drugForm.piecesInBox": "Pieces per box",
   "drugForm.stockUnits": "Stock (pcs)",
   "drugForm.singleLine": "No packaging",
+  // === P.7 ===
+  "pos.unitPickTitle": "How to sell?",
+  "pos.unitPickHint": "↑ ↓ — select · Enter — add to cart · Esc — cancel",
+  "pos.noWholeBox": "No whole box",
+  "pos.expiryDaysLeft": "{n} days left",
+  "pos.expiredTitle": "Expired batch in stock — not for sale",
+  "pos.expiredShort": "Expired",
 };

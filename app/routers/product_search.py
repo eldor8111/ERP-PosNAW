@@ -4,7 +4,7 @@ Katta hajmli qidiruv logikasi products.py dan ajratilgan.
 """
 import json
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
@@ -83,11 +83,12 @@ def product_search_filter(search: str, company_id: int, pharmacy: bool):
 
 def _pharmacy_pos_extras(db: Session, product_ids, wh_ids, settings: dict) -> dict:
     """Dorixona rejimida POS qatorlari uchun qo'shimcha maydonlar — butun sahifa uchun 3 ta so'rov.
-    -> {product_id: {substances, is_rx, control_class, nearest_expiry, expiry_warn}}"""
+    -> {product_id: {substances, is_rx, control_class, nearest_expiry, expiry_warn, expired_qty}}
+    P.7: expired_qty — shu omborlardagi muddati o'tgan (sotilmaydigan) partiyalar qoldig'i (kassada qizil miltillaydi)."""
     ids = list(product_ids)
     out = {
         pid: {"substances": [], "is_rx": False, "control_class": "none",
-              "nearest_expiry": None, "expiry_warn": False}
+              "nearest_expiry": None, "expiry_warn": False, "expired_qty": 0.0}
         for pid in ids
     }
     if not ids:
@@ -110,6 +111,15 @@ def _pharmacy_pos_extras(db: Session, product_ids, wh_ids, settings: dict) -> di
     for pid, d in nearest.items():
         out[pid]["nearest_expiry"] = d.isoformat()
         out[pid]["expiry_warn"] = d <= warn_until
+    if wh_ids:
+        today_start = datetime.combine(tashkent_today(), datetime.min.time())
+        for pid, qty in (
+            db.query(Batch.product_id, func.sum(Batch.quantity))
+            .filter(Batch.product_id.in_(ids), Batch.warehouse_id.in_(list(wh_ids)), Batch.quantity > 0,
+                    Batch.expiry_date.isnot(None), Batch.expiry_date < today_start)
+            .group_by(Batch.product_id)
+        ):
+            out[pid]["expired_qty"] = float(qty or 0)
     return out
 
 
@@ -716,6 +726,23 @@ def list_products_paginated(
         for it in items:
             _po = _pm.get(it["id"])
             it["pharma"] = _po.model_dump() if _po is not None else None
+        # P.8: eng yaqin muddatli partiya (seriya, yaroqlilik muddati, ishlab chiqarilgan sana) — Excel'ga yuklab olish
+        # uchun; bitta so'rov (N+1 yo'q), qoldig'i bor partiyalar, muddatsizlari oxirida
+        _nb: dict = {}
+        if _wh_for_loose:
+            for pid, lot, exp, mfg in (
+                db.query(Batch.product_id, Batch.lot_number, Batch.expiry_date, Batch.manufacture_date)
+                .filter(Batch.product_id.in_([it["id"] for it in items]), Batch.quantity > 0,
+                        Batch.warehouse_id.in_(list(_wh_for_loose)))
+                .order_by(Batch.product_id, Batch.expiry_date.is_(None), Batch.expiry_date, Batch.id)
+            ):
+                _nb.setdefault(pid, {
+                    "lot_number": lot,
+                    "expiry_date": (exp.date() if hasattr(exp, "date") else exp).isoformat() if exp else None,
+                    "manufacture_date": (mfg.date() if hasattr(mfg, "date") else mfg).isoformat() if mfg else None,
+                })
+        for it in items:
+            it["nearest_batch"] = _nb.get(it["id"])
 
     return {
         "items": items,

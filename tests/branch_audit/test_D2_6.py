@@ -87,7 +87,10 @@ def test_expiry_badge_and_warning_in_cart_row():
     for src in (POS, ULG):
         assert "nearest_expiry" in src and "expiry_warn" in src
         assert "fmtExpiry(" in src
-    assert "bg-amber-100 text-amber-700" in POS      # sariq belgi (expiry_warn)
+    # P.7: kassada muddat rangi — yashil / sariq / qizil, muddati o'tgan qoldiq qizil miltillaydi
+    for cls in ("bg-emerald-100 text-emerald-700", "bg-amber-100 text-amber-800", "bg-red-100 text-red-700",
+                "bg-red-600 text-white border border-red-700 animate-pulse"):
+        assert cls in POS, cls
     assert "bg-amber-100 text-amber-700" in ULG
 
 
