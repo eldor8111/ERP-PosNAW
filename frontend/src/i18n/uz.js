@@ -5778,7 +5778,7 @@ export default {
   "tasnif.hint": "Tanlang — nomi, MXIK, ATX, ishlab chiqaruvchi o'zi to'ladi",
   // === P.5 ===
   "drugForm.batchesTitle": "Partiyalar: seriya va muddatlar",
-  "drugForm.batchesHint": "Qoldiq kirim orqali o'zgaradi. Seriya va sanalarni shu yerda to'g'rilang",
+  "drugForm.batchesHint": "Qoldiq, seriya va sanalarni shu yerda to'g'rilang. Yangi qoldiq — «Qoldiq qo'shish»",
   "drugForm.noBatches": "Hozir qoldiq yo'q — kirim qilinganda partiyalar shu yerda ko'rinadi",
   "drugForm.batchQty": "qoldiq",
   "drugForm.batchesNoAccess": "Partiyalarni ko'rishga ruxsat yo'q",
@@ -5803,4 +5803,11 @@ export default {
   "pos.expiryDaysLeft": "{n} kun qoldi",
   "pos.expiredTitle": "Omborda muddati o'tgan partiya bor — sotilmaydi",
   "pos.expiredShort": "Muddati o'tgan",
+  // === P.9 ===
+  "drugForm.batchQtyLabel": "Qoldiq ({unit})",
+  "drugForm.batchQtyInvalid": "Partiya qoldig'i 0 yoki undan katta son bo'lishi kerak",
+  "drugForm.newStockTitle": "Yangi qoldiq qo'shish",
+  "drugForm.newStockButton": "Qoldiq qo'shish",
+  "drugForm.newStockWarehouse": "Qoldiq qo'shish uchun omborni tanlang",
+  "drugForm.newStockNote": "Dorini tahrirlash oynasidan qoldiq qo'shildi",
 };

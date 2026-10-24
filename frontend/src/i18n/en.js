@@ -5785,7 +5785,7 @@ export default {
   "tasnif.hint": "Pick one — name, MXIK, ATC and manufacturer fill in automatically",
   // === P.5 ===
   "drugForm.batchesTitle": "Batches: lot and dates",
-  "drugForm.batchesHint": "Stock changes through receiving. Fix lot numbers and dates here",
+  "drugForm.batchesHint": "Fix stock, lot numbers and dates here. New stock — \"Add stock\"",
   "drugForm.noBatches": "No stock yet — batches will appear here after receiving",
   "drugForm.batchQty": "stock",
   "drugForm.batchesNoAccess": "No permission to view batches",
@@ -5810,4 +5810,11 @@ export default {
   "pos.expiryDaysLeft": "{n} days left",
   "pos.expiredTitle": "Expired batch in stock — not for sale",
   "pos.expiredShort": "Expired",
+  // === P.9 ===
+  "drugForm.batchQtyLabel": "Stock ({unit})",
+  "drugForm.batchQtyInvalid": "Batch stock must be a number 0 or greater",
+  "drugForm.newStockTitle": "Add stock",
+  "drugForm.newStockButton": "Add stock",
+  "drugForm.newStockWarehouse": "Choose a warehouse to add stock",
+  "drugForm.newStockNote": "Stock added from the medicine edit window",
 };

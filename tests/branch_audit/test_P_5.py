@@ -174,7 +174,9 @@ def test_batch_edit_lot_and_dates_with_audit(client, db, pharm):
     r = cl.put(f"/api/pharmacy/batches/{b['batch_id']}",
                json={'lot_number': 'LOT-77', 'expiry_date': new_exp, 'manufacture_date': mfg})
     assert r.status_code == 200, r.text
-    assert r.json() == {'batch_id': b['batch_id'], 'lot_number': 'LOT-77', 'expiry_date': new_exp, 'manufacture_date': mfg}
+    assert r.json() == {'batch_id': b['batch_id'], 'lot_number': 'LOT-77', 'expiry_date': new_exp, 'manufacture_date': mfg,
+                        'quantity': r.json()['quantity']}
+    assert float(r.json()['quantity']) == 10
     row = cl.get('/api/pharmacy/batches', params={'product_id': pid}).json()[0]
     assert (row['lot_number'], row['expiry_date'], row['manufacture_date']) == ('LOT-77', new_exp, mfg)
     log = db.query(AuditLog).filter(AuditLog.action == 'BATCH_EDIT', AuditLog.entity_id == b['batch_id']).one()
@@ -255,7 +257,10 @@ def test_i18n_p5_complete_and_merged_once():
     assert set(data['uz']) == set(data['ru']) == set(data['en'])
     src = _read(MODAL) + _read(TASNIF_JSX) + _read(PRODUCTS)
     used = set(re.findall(r"tf\('((?:drugForm|tasnif)\.[A-Za-z0-9_.]+)'", src))
-    assert used and used <= set(data['uz']), sorted(used - set(data['uz']))
+    # P.9 kalitlari (qoldiqni tahrirlash) o'z faylida
+    with open(os.path.join(ROOT, 'tests/branch_audit/i18n_pending/P.9.json'), encoding='utf-8') as f:
+        p9 = set(json.load(f)['uz'])
+    assert used and used <= set(data['uz']) | p9, sorted(used - set(data['uz']) - p9)
     for lang in ('uz', 'ru', 'en'):
         txt = _read(f'frontend/src/i18n/{lang}.js')
         for k in data[lang]:

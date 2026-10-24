@@ -6,6 +6,7 @@ ajratilmaydi (`batch_allocator.batch_active_filter`), lekin ta'minotchiga qaytar
 Holat o'zgarishi AuditLog ("BATCH_STATUS") ga yoziladi; sabab majburiy.
 """
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -41,6 +42,8 @@ STATUS_ROLES = (
     UserRole.super_admin, UserRole.admin, UserRole.director, UserRole.manager, UserRole.warehouse,
 )
 
+QTY_ROLES = (UserRole.super_admin, UserRole.admin, UserRole.director, UserRole.manager)   # P.9: qoldiqni tuzatish
+
 STATUSES = ("active", "quarantine", "defect", "recalled")
 STATUS_FILTER_PATTERN = "^(active|quarantine|defect|recalled)$"
 OTHER_BRANCH = "Bu filial ma'lumotiga ruxsat yo'q"
@@ -58,6 +61,8 @@ class BatchEditIn(BaseModel):
     lot_number: Optional[str] = None
     expiry_date: Optional[date] = None
     manufacture_date: Optional[date] = None
+    # P.9: partiya qoldig'ini tuzatish (asosiy birlikda, >= 0): ombor qoldig'i ham farqqa o'zgaradi, ADJUST harakati
+    quantity: Optional[Decimal] = None
 
 
 def _company_id(user: User) -> int:
@@ -201,10 +206,38 @@ def edit_batch(
                                   if data.manufacture_date else None)
     if batch.manufacture_date and batch.expiry_date and batch.manufacture_date >= batch.expiry_date:
         raise HTTPException(status_code=400, detail="Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak")
+    old["quantity"] = str(batch.quantity or 0)
+    if "quantity" in sent and data.quantity is not None:
+        # P.9: qoldiqni tuzatish — umumiy /inventory/adjust dagidek faqat admin/direktor/menejer
+        if current_user.role not in QTY_ROLES:
+            raise HTTPException(status_code=403, detail="Qoldiqni o'zgartirishga ruxsat yo'q")
+        new_qty = Decimal(str(data.quantity))
+        if not new_qty.is_finite() or new_qty < 0:
+            raise HTTPException(status_code=400, detail="Qoldiq manfiy bo'lishi mumkin emas")
+        delta = new_qty - Decimal(str(batch.quantity or 0))
+        if delta != 0:
+            if batch.warehouse_id is None:
+                raise HTTPException(status_code=400, detail="Partiya omborga bog'lanmagan — qoldiqni Inventarizatsiya orqali tuzating")
+            from app.models.inventory import MovementType, StockMovement
+            from app.services.inventory_service import get_or_create_stock
+            stock = get_or_create_stock(db, batch.product_id, batch.warehouse_id, batch.variant_id)
+            level_before = Decimal(str(stock.quantity or 0))
+            level_after = max(Decimal("0"), level_before + delta)
+            stock.quantity = level_after
+            batch.quantity = new_qty
+            if new_qty > Decimal(str(batch.initial_quantity or 0)):
+                batch.initial_quantity = new_qty
+            db.add(StockMovement(
+                product_id=batch.product_id, variant_id=batch.variant_id, warehouse_id=batch.warehouse_id,
+                type=MovementType.ADJUST, qty_before=level_before, qty_after=level_after, quantity=abs(delta),
+                reference_type="batch_edit", reference_id=batch.id, user_id=current_user.id,
+                reason=f"Partiya qoldig'i tuzatildi ({batch.lot_number or batch.id})",
+            ))
     new = {
         "lot_number": batch.lot_number,
         "expiry_date": batch.expiry_date.date().isoformat() if batch.expiry_date else None,
         "manufacture_date": batch.manufacture_date.date().isoformat() if batch.manufacture_date else None,
+        "quantity": str(batch.quantity or 0),
     }
     if new != old:
         db.add(AuditLog(

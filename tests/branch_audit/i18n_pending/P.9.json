@@ -1,0 +1,26 @@
+{
+  "uz": {
+    "drugForm.batchQtyLabel": "Qoldiq ({unit})",
+    "drugForm.batchQtyInvalid": "Partiya qoldig'i 0 yoki undan katta son bo'lishi kerak",
+    "drugForm.newStockTitle": "Yangi qoldiq qo'shish",
+    "drugForm.newStockButton": "Qoldiq qo'shish",
+    "drugForm.newStockWarehouse": "Qoldiq qo'shish uchun omborni tanlang",
+    "drugForm.newStockNote": "Dorini tahrirlash oynasidan qoldiq qo'shildi"
+  },
+  "ru": {
+    "drugForm.batchQtyLabel": "Остаток ({unit})",
+    "drugForm.batchQtyInvalid": "Остаток партии должен быть числом 0 или больше",
+    "drugForm.newStockTitle": "Добавить остаток",
+    "drugForm.newStockButton": "Добавить остаток",
+    "drugForm.newStockWarehouse": "Выберите склад для добавления остатка",
+    "drugForm.newStockNote": "Остаток добавлен из окна редактирования лекарства"
+  },
+  "en": {
+    "drugForm.batchQtyLabel": "Stock ({unit})",
+    "drugForm.batchQtyInvalid": "Batch stock must be a number 0 or greater",
+    "drugForm.newStockTitle": "Add stock",
+    "drugForm.newStockButton": "Add stock",
+    "drugForm.newStockWarehouse": "Choose a warehouse to add stock",
+    "drugForm.newStockNote": "Stock added from the medicine edit window"
+  }
+}

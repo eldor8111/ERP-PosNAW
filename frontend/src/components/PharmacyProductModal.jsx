@@ -401,13 +401,19 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
   // P.5: tahrirlashda partiyalar (seriya, yaroqlilik muddati, ishlab chiqarilgan sana) — shu oynada to'g'rilanadi
   const [batches, setBatches] = useState([]);
   const [batchNote, setBatchNote] = useState('');
+  // P.9: tahrirda yangi qoldiq qo'shish (qo'lda kirim kabi yangi partiya)
+  const [newStock, setNewStock] = useState({ open: false, wh: '', boxes: '', lot: '', expiry: '', mfg: '' });
+  const setNS = (patch) => setNewStock(n => ({ ...n, ...patch }));
 
   useEffect(() => {
     api.get('/categories/all').then(r => setCategories(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     if (isEdit) {
       api.get('/pharmacy/batches', { params: { product_id: product.id, limit: 200 }, _suppressToast: true })
         .then(({ data }) => setBatches((Array.isArray(data) ? data : []).map(b => {
-          const v = { lot_number: b.lot_number || '', expiry_date: b.expiry_date || '', manufacture_date: b.manufacture_date || '' };
+          const v = {
+            lot_number: b.lot_number || '', expiry_date: b.expiry_date || '', manufacture_date: b.manufacture_date || '',
+            quantity: String(Number(b.quantity || 0)),   // P.9
+          };
           return { ...b, ...v, _orig: v };
         })))
         .catch(e => setBatchNote(e.response?.status === 403
@@ -418,7 +424,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const setB = (id, patch) => setBatches(bs => bs.map(b => (b.batch_id === id ? { ...b, ...patch } : b)));
-  const dirtyBatches = batches.filter(b => ['lot_number', 'expiry_date', 'manufacture_date'].some(k => b[k] !== b._orig[k]));
+  const dirtyBatches = batches.filter(b => ['lot_number', 'expiry_date', 'manufacture_date', 'quantity'].some(k => b[k] !== b._orig[k]));
 
   const setF = (patch) => setForm(f => ({ ...f, ...patch }));
   const setP = (patch) => setPack(p => ({ ...p, ...patch }));
@@ -512,10 +518,22 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
     const pErr = validatePack(eff, { tf, unitName: baseUnit, otherBarcodes: [barcode], stockTotal });
     if (pErr) return fail(pErr);
     for (const b of dirtyBatches) {
+      if (b.quantity === '' || !(Number(b.quantity) >= 0)) return fail(tf('drugForm.batchQtyInvalid', "Partiya qoldig'i 0 yoki undan katta son bo'lishi kerak"));
       if (!b.expiry_date) return fail(tf('drugForm.batchExpiryRequired', 'Partiyaning yaroqlilik muddatini kiriting'));
       if (b.manufacture_date && b.manufacture_date >= b.expiry_date) {
         return fail(tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"));
       }
+    }
+
+    // P.9: tahrirda yangi qoldiq (quti soni -> dona); muddat majburiy, ombor bir nechta bo'lsa tanlanadi
+    const activeWh = warehouses.filter(w => w.is_active !== false);
+    const addQty = isEdit && newStock.open ? (Number(newStock.boxes) || 0) * topRatio : 0;
+    const addWh = newStock.wh || (activeWh.length === 1 ? String(activeWh[0].id) : '');
+    if (addQty > 0) {
+      if (!addWh) return fail(tf('drugForm.newStockWarehouse', "Qoldiq qo'shish uchun omborni tanlang"));
+      if (!newStock.expiry) return fail(tf('packStruct.errExpiry', "Boshlang'ich qoldiq uchun yaroqlilik muddatini kiriting"));
+      if (newStock.expiry <= new Date().toISOString().slice(0, 10)) return fail(tf('packStruct.errExpiryPast', "Yaroqlilik muddati bugundan keyin bo'lishi kerak"));
+      if (newStock.mfg && newStock.mfg >= newStock.expiry) return fail(tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"));
     }
 
     const payload = {
@@ -552,7 +570,23 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
         if (b.lot_number !== b._orig.lot_number) body.lot_number = b.lot_number;
         if (b.expiry_date !== b._orig.expiry_date) body.expiry_date = b.expiry_date;
         if (b.manufacture_date !== b._orig.manufacture_date) body.manufacture_date = b.manufacture_date || null;
+        if (b.quantity !== b._orig.quantity) body.quantity = Number(b.quantity);   // P.9: qoldiqni tuzatish
         await api.put(`/pharmacy/batches/${b.batch_id}`, body, { _suppressToast: true });
+      }
+      // P.9: yangi qoldiq — qo'lda kirim (yangi partiya: muddat, seriya, ishlab chiqarilgan sana)
+      if (addQty > 0) {
+        const unitCost = round4((Number(form.cost) || 0) / topRatio);
+        await api.post('/inventory/receive', {
+          warehouse_id: Number(addWh),
+          note: tf('drugForm.newStockNote', "Dorini tahrirlash oynasidan qoldiq qo'shildi"),
+          items: [{
+            product_id: product.id, quantity: addQty,
+            ...(unitCost > 0 ? { purchase_price: unitCost } : {}),
+            expiry_date: newStock.expiry,
+            ...(newStock.lot.trim() ? { lot_number: newStock.lot.trim() } : {}),
+            ...(newStock.mfg ? { manufacture_date: newStock.mfg } : {}),
+          }],
+        }, { _suppressToast: true });
       }
       toast.success(isEdit ? tf('pharmacyModal.updated', 'Dori yangilandi') : tf('pharmacyModal.created', "Dori qo'shildi"));
       onSaved?.(res.data);
@@ -735,7 +769,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
               <div className="space-y-4">
                 {isEdit && (
                 <Section n={3} title={tf('drugForm.batchesTitle', 'Partiyalar: seriya va muddatlar')}
-                  hint={tf('drugForm.batchesHint', "Qoldiq kirim orqali o'zgaradi. Seriya va sanalarni shu yerda to'g'rilang")}>
+                  hint={tf('drugForm.batchesHint', "Qoldiq, seriya va sanalarni shu yerda to'g'rilang. Yangi qoldiq — «Qoldiq qo'shish»")}>
                   {/* P.5: tahrirlashda partiyalarni to'g'rilash */}
                   {isEdit && (batchNote ? (
                     <p className="text-sm text-slate-500">{batchNote}</p>
@@ -749,7 +783,12 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
                             <span className="truncate">{b.warehouse_name || '—'}</span>
                             <span className="whitespace-nowrap">{tf('drugForm.batchQty', 'qoldiq')}: {fmtNum(b.quantity)} {baseUnit}</span>
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
+                            <Field label={tf('drugForm.batchQtyLabel', 'Qoldiq ({unit})').replace('{unit}', baseUnit)}
+                              hint={topRatio > 1 && Number(b.quantity) > 0 ? `≈ ${fmtNum(Math.round(Number(b.quantity) / topRatio * 100) / 100)} ${bigName}` : undefined}>
+                              <input type="text" inputMode="decimal" className={inputCls} value={b.quantity}
+                                onChange={e => setB(b.batch_id, { quantity: e.target.value.replace(/[^0-9.]/g, '') })} />
+                            </Field>
                             <Field label={tf('packStruct.lot', 'Seriya raqami')}>
                               <input className={inputCls} value={b.lot_number} maxLength={100} onChange={e => setB(b.batch_id, { lot_number: e.target.value })} />
                             </Field>
@@ -766,6 +805,48 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
                       ))}
                     </div>
                   ))}
+                  {/* P.9: tahrirda yangi qoldiq qo'shish */}
+                  {isEdit && !batchNote && (
+                    newStock.open ? (
+                      <div className="border border-emerald-300 bg-emerald-50/60 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-black text-emerald-800">{tf('drugForm.newStockTitle', "Yangi qoldiq qo'shish")}</span>
+                          <button type="button" onClick={() => setNS({ open: false, boxes: '' })} className="text-slate-400 hover:text-slate-700 text-lg" aria-label="close">×</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {warehouses.filter(w => w.is_active !== false).length > 1 && (
+                            <Field label={tf('pharmacyModal.warehouse', 'Ombor')} required>
+                              <select className={inputCls} value={newStock.wh} onChange={e => setNS({ wh: e.target.value })}>
+                                <option value="">—</option>
+                                {warehouses.filter(w => w.is_active !== false).map(w => <option key={w.id} value={String(w.id)}>{w.name}</option>)}
+                              </select>
+                            </Field>
+                          )}
+                          <Field label={single ? tf('drugForm.stockUnits', 'Qoldiq (dona soni)') : tf('packStruct.bulkStockBig', 'Quti soni (qoldiq)')} required>
+                            <input type="text" inputMode="numeric" className={inputCls} value={newStock.boxes} placeholder="0"
+                              onChange={e => setNS({ boxes: e.target.value.replace(/[^0-9]/g, '') })} />
+                          </Field>
+                          <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required>
+                            <input type="date" className={inputCls} value={newStock.expiry} onChange={e => setNS({ expiry: e.target.value })} />
+                          </Field>
+                          <Field label={tf('packStruct.lot', 'Seriya raqami')}>
+                            <input className={inputCls} value={newStock.lot} maxLength={100} placeholder="LOT2026A" onChange={e => setNS({ lot: e.target.value })} />
+                          </Field>
+                          <Field label={tf('drugForm.mfgOptional', 'Ishlab chiqarilgan sana (ixtiyoriy)')}>
+                            <input type="date" className={inputCls} value={newStock.mfg} onChange={e => setNS({ mfg: e.target.value })} />
+                          </Field>
+                        </div>
+                        {Number(newStock.boxes) > 0 && (
+                          <p className="text-sm font-bold text-emerald-700">{tf('packStruct.total', 'jami')}: {fmtNum((Number(newStock.boxes) || 0) * topRatio)} {baseUnit}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setNS({ open: true })}
+                        className="w-full h-10 rounded-xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50 text-emerald-700 text-sm font-bold">
+                        + {tf('drugForm.newStockButton', "Qoldiq qo'shish")}
+                      </button>
+                    )
+                  )}
                 </Section>
                 )}
 

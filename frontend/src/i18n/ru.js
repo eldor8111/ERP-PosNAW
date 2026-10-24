@@ -5790,7 +5790,7 @@ export default {
   "tasnif.hint": "Выберите — название, ИКПУ, АТХ, производитель заполнятся сами",
   // === P.5 ===
   "drugForm.batchesTitle": "Партии: серия и сроки",
-  "drugForm.batchesHint": "Остаток меняется через приход. Серию и даты можно исправить здесь",
+  "drugForm.batchesHint": "Остаток, серию и даты можно исправить здесь. Новый остаток — «Добавить остаток»",
   "drugForm.noBatches": "Сейчас остатка нет — партии появятся здесь после прихода",
   "drugForm.batchQty": "остаток",
   "drugForm.batchesNoAccess": "Нет доступа к просмотру партий",
@@ -5815,4 +5815,11 @@ export default {
   "pos.expiryDaysLeft": "Осталось дней: {n}",
   "pos.expiredTitle": "На складе есть просроченная партия — не продаётся",
   "pos.expiredShort": "Просрочено",
+  // === P.9 ===
+  "drugForm.batchQtyLabel": "Остаток ({unit})",
+  "drugForm.batchQtyInvalid": "Остаток партии должен быть числом 0 или больше",
+  "drugForm.newStockTitle": "Добавить остаток",
+  "drugForm.newStockButton": "Добавить остаток",
+  "drugForm.newStockWarehouse": "Выберите склад для добавления остатка",
+  "drugForm.newStockNote": "Остаток добавлен из окна редактирования лекарства",
 };
