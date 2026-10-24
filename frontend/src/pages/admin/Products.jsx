@@ -29,7 +29,7 @@ import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import PharmacyProductModal, { SubstancePicker, CONTROL_CLASSES, DOSAGE_FORMS, emptyPack, packLevels, packPrices, packToUnits, packSummary } from '../../components/PharmacyProductModal';
 import {
   PHARMA_IMPORT_FIELDS, PHARMA_NUM_KEYS, cleanPharmaNum, pharmaMapHeader, pharmaImportPreview, downloadPharmacyTemplate,
-  isoDateCells,
+  isoDateCells, PHARMA_EXPORT_HEADERS, pharmaExportRow,
 } from './products/pharmacyImport';
 import useBulkVoice from './products/useBulkVoice';
 import { isScaleUnit } from '../../utils/scale';
@@ -1783,8 +1783,25 @@ export default function Products() {
                       });
                     });
 
+                    // P.6: dorixonada oxiriga MXIK va qadoq ustunlari (V..AA), sarlavhalar import shablonidagidek
+                    let lastCol = 'U';
+                    if (pharmacyOn) {
+                      const pCols = ['V', 'W', 'X', 'Y', 'Z', 'AA'];
+                      const formLabel = (k) => (DOSAGE_FORMS.find(([key]) => key === k) || [k, k])[1];
+                      PHARMA_EXPORT_HEADERS.forEach((h, j) => { cell(`${pCols[j]}1`, h, hdr1); cell(`${pCols[j]}2`, h, hdr2); });
+                      allProducts.forEach((p, i) => {
+                        const rowBg = i % 2 === 0 ? { fill: { fgColor: { rgb: 'FAFBFF' } } } : {};
+                        pharmaExportRow(p, formLabel).forEach((v, j) => {
+                          const isNum = typeof v === 'number';
+                          // MXIK — matn (Excel 17 xonali kodni buzmasin)
+                          ws[`${pCols[j]}${i + 3}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : {}) } };
+                        });
+                      });
+                      lastCol = 'AA';
+                    }
+
                     // Set sheet range
-                    ws['!ref'] = `A1:U${allProducts.length + 2}`;
+                    ws['!ref'] = `A1:${lastCol}${allProducts.length + 2}`;
 
                     // Column widths
                     ws['!cols'] = [
@@ -1792,7 +1809,8 @@ export default function Products() {
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
-                      { wch: 7 }, { wch: 14 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 5 }
+                      { wch: 7 }, { wch: 14 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 5 },
+                      ...(pharmacyOn ? [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }] : []),
                     ];
                     // Freeze top 2 rows
                     ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activeCell: 'C3', sqref: 'C3' };

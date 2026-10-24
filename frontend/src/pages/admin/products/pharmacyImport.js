@@ -30,19 +30,20 @@ export const PHARMA_IMPORT_FIELDS = [
   ['Nomi', 'pharmacyImport.f.name', 'Dori nomi'],
   ['Barkod', 'pharmacyImport.f.barcode', 'Shtrix-kod'],
   ['MXIK', 'pharmacyImport.f.mxik', 'MXIK kodi'],
-  ['Modda', 'pharmacyImport.f.substance', "Ta'sir etuvchi modda (vergul bilan)"],
+  // P.6: "Ko'p mahsulot qo'shish" yashil qatoridagi nomlar va tartib
+  ['Katta qadoq narxi', 'pharmacyImport.f.bigPrice', '1 quti narxi'],
+  ["Katta qadoqdagi o'rta qadoq soni", 'pharmacyImport.f.midCount', 'Qutidagi blister soni'],
+  ["O'rta qadoqdagi dona soni", 'pharmacyImport.f.unitCount', 'Blisterdagi dona soni'],
+  ['Qoldiq (katta qadoq)', 'pharmacyImport.f.bigStock', 'Quti soni (qoldiq)'],
+  ['Seriya', 'pharmacyImport.f.lot', 'Seriya'],
+  ['Yaroqlilik muddati', 'pharmacyImport.f.expiry', 'Yaroqlilik muddati'],
   ['Shakl', 'pharmacyImport.f.form', 'Dori shakli'],
+  ['Ishlab chiqarilgan sana', 'pharmacyImport.f.mfg', 'Ishlab chiqarilgan sana (ixtiyoriy)'],
+  ['Katta qadoq tan narxi', 'pharmacyImport.f.bigCost', '1 quti tan narxi'],
+  ['Modda', 'pharmacyImport.f.substance', "Ta'sir etuvchi modda (vergul bilan)"],
   ['Doza', 'pharmacyImport.f.strength', 'Doza'],
   ['Ishlab chiqaruvchi', 'pharmacyImport.f.manufacturer', 'Ishlab chiqaruvchi'],
   ['Retseptli', 'pharmacyImport.f.rx', "Retseptli (ha/yo'q)"],
-  ['Katta qadoq narxi', 'pharmacyImport.f.bigPrice', '1 quti narxi'],
-  ["Katta qadoqdagi o'rta qadoq soni", 'pharmacyImport.f.midCount', 'Qutidagi blister soni'],
-  ["O'rta qadoqdagi dona soni", 'pharmacyImport.f.unitCount', 'Dona soni (blisterda yoki qutida)'],
-  ['Katta qadoq tan narxi', 'pharmacyImport.f.bigCost', '1 quti tan narxi'],
-  ['Qoldiq (katta qadoq)', 'pharmacyImport.f.bigStock', 'Qoldiq (quti soni)'],
-  ['Seriya', 'pharmacyImport.f.lot', 'Seriya'],
-  ['Yaroqlilik muddati', 'pharmacyImport.f.expiry', 'Yaroqlilik muddati'],
-  ['Ishlab chiqarilgan sana', 'pharmacyImport.f.mfg', 'Ishlab chiqarilgan sana (ixtiyoriy)'],
   ['Kategoriya', 'pharmacyImport.f.category', 'Kategoriya'],
   ['Ombor', 'pharmacyImport.f.warehouse', 'Ombor'],
   ['Mamlakat', 'pharmacyImport.f.country', 'Mamlakat'],
@@ -111,10 +112,12 @@ const ALIASES = {
   "Katta qadoqdagi o'rta qadoq soni": ['qutidagi blister soni', "katta qadoqdagi o'rta qadoq soni", 'blister soni',
     'блистеров в упаковке', 'кол-во блистеров'],
   "O'rta qadoqdagi dona soni": ['dona soni', 'dona soni (blisterda yoki qutida)', 'blisterdagi dona soni',
+    '1 blisterdagi dona soni',
     "o'rta qadoqdagi dona soni", 'qutidagi dona soni', 'штук в блистере', 'штук в упаковке', 'шт. в упаковке'],
   'Katta qadoq tan narxi': ['1 quti tan narxi', 'quti tan narxi', 'tan narxi (1 quti)', 'katta qadoq tan narxi',
     'kelish narxi', 'закупочная цена', 'цена закупки', 'цена прихода', 'себестоимость'],
-  'Qoldiq (katta qadoq)': ['qoldiq (quti soni)', 'qoldiq (quti)', 'quti soni', 'qoldiq (katta qadoq)', 'miqdori', 'soni',
+  'Qoldiq (katta qadoq)': ['quti soni (qoldiq)', 'qoldiq (quti soni)', 'qoldiq (quti)', 'quti soni', 'qoldiq (katta qadoq)',
+    'miqdori', 'soni',
     'количество', 'кол-во', 'остаток'],
   'Seriya': ['seriya', 'seriya raqami', 'серия', 'партия', 'lot'],
   'Yaroqlilik muddati': ['yaroqlilik muddati', 'muddati', 'amal qilish muddati', 'срок годности', 'годен до', 'exp', 'expiry'],
@@ -193,16 +196,18 @@ export const pharmaImportPreview = (m, round, fmtNum) => {
 
 // Dorixona shabloni: "Dorilar" (namunalar) + "Yo'riqnoma"
 export const PHARMA_TEMPLATE_HEADERS = [
-  'Dori nomi', 'Shtrix-kod', 'MXIK kodi', "Ta'sir etuvchi modda", 'Dori shakli', 'Doza', 'Ishlab chiqaruvchi',
-  "Retseptli (ha/yo'q)", '1 quti narxi', 'Qutidagi blister soni', 'Dona soni', '1 quti tan narxi', 'Qoldiq (quti soni)',
-  'Seriya', 'Yaroqlilik muddati', 'Ishlab chiqarilgan sana', 'Kategoriya', 'Mamlakat', "Ro'yxat raqami", 'ATX kodi',
+  'Dori nomi', 'Shtrix-kod', 'MXIK kodi',
+  '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni', 'Quti soni (qoldiq)',
+  'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana',
+  '1 quti tan narxi', "Ta'sir etuvchi modda", 'Doza', 'Ishlab chiqaruvchi', "Retseptli (ha/yo'q)",
+  'Kategoriya', 'Mamlakat', "Ro'yxat raqami", 'ATX kodi',
 ];
 
 const TEMPLATE_ROWS = [
-  ['Paratsetamol 500 mg', '4780012345678', '', 'Paratsetamol', 'tabletka', '500 mg', 'Nika Pharm', "yo'q",
-    100000, 5, 10, 70000, 3, 'LOT2026A', '2027-12-31', '2025-12-01', 'Dorilar', "O'zbekiston", '', 'N02BE01'],
-  ['Ambroksol sirop 100 ml', '4780012345685', '', 'Ambroksol', 'sirop', '15 mg/5 ml', '', "yo'q",
-    25000, '', '', 18000, 10, '', '2027-06-30', '', 'Dorilar', '', '', ''],
+  ['Paratsetamol 500 mg', '4780012345678', '', 100000, 5, 10, 3, 'LOT2026A', '2027-12-31', 'tabletka', '2025-12-01',
+    70000, 'Paratsetamol', '500 mg', 'Nika Pharm', "yo'q", 'Dorilar', "O'zbekiston", '', 'N02BE01'],
+  ['Ambroksol sirop 100 ml', '4780012345685', '', 25000, '', '', 10, '', '2027-06-30', 'sirop', '',
+    18000, 'Ambroksol', '15 mg/5 ml', '', "yo'q", 'Dorilar', '', '', ''],
 ];
 
 const GUIDE = [
@@ -215,9 +220,9 @@ const GUIDE = [
   ["Retseptli (ha/yo'q)", "yo'q", "ha yoki yo'q"],
   ['1 quti narxi', 'ha', "Eng katta qadoq narxi. Blister va dona narxi o'zi hisoblanadi"],
   ['Qutidagi blister soni', "yo'q", "Blister bo'lmasa bo'sh qoldiring"],
-  ['Dona soni', "yo'q", "Blister bo'lsa — 1 blisterdagi, bo'lmasa — 1 qutidagi dona soni. Qadoqsiz dori (sirop) uchun bo'sh: narx 1 dona uchun"],
+  ['Blisterdagi dona soni', "yo'q", "Blister bo'lsa — 1 blisterdagi, bo'lmasa — 1 qutidagi dona soni. Qadoqsiz dori (sirop) uchun bo'sh: narx 1 dona uchun"],
   ['1 quti tan narxi', "yo'q", "Kelish narxi; donaga bo'linib saqlanadi"],
-  ['Qoldiq (quti soni)', "yo'q", "Hozir omborda nechta quti bor. Donaga o'zi aylantiriladi"],
+  ['Quti soni (qoldiq)', "yo'q", "Hozir omborda nechta quti bor. Donaga o'zi aylantiriladi"],
   ['Seriya', "yo'q", 'Qadoqda yozilgan seriya (LOT), ixtiyoriy'],
   ['Yaroqlilik muddati', 'qoldiq bo\'lsa', 'YYYY-MM-DD yoki DD.MM.YYYY yoki MM.YYYY'],
   ['Ishlab chiqarilgan sana', "yo'q", 'Ixtiyoriy; yaroqlilik muddatidan oldin bo\'lishi kerak'],
@@ -233,4 +238,28 @@ export const downloadPharmacyTemplate = (XLSX, saveAs) => {
   XLSX.utils.book_append_sheet(wb, ws, 'Dorilar');
   XLSX.utils.book_append_sheet(wb, guide, "Yo'riqnoma");
   saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), 'dorilar_shablon.xlsx');
+};
+
+// ── P.6: Excel'ga yuklab olish (faqat dorixonada) — mavjud jadval oxiriga qo'shiladigan ustunlar ───────
+// Sarlavhalar import shablonidagidek: yuklab olingan faylni tahrirlab qayta import qilish mumkin.
+export const PHARMA_EXPORT_HEADERS = [
+  'MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni', 'Quti soni (qoldiq)', 'Dori shakli',
+];
+
+// Mahsulot (ro'yxat javobi: units, stock_quantity, pharma) -> [MXIK, quti narxi, blister soni, dona soni, quti soni, shakl]
+// Qadoqsiz (yoki murakkab tuzilmali) dori: narx va qoldiq 1 dona bo'yicha, sonlar bo'sh — importdagi qoida bilan bir xil.
+export const pharmaExportRow = (p, formLabel) => {
+  const qty = Number(p.stock_quantity || 0);
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+  const form = p.pharma?.dosage_form ? formLabel(p.pharma.dosage_form) : '';
+  const us = (Array.isArray(p.units) ? p.units : [])
+    .map(u => ({ ratio: Number(u.ratio), price: u.sale_price != null ? u.sale_price : u.price }))
+    .filter(u => u.ratio > 1).sort((a, b) => a.ratio - b.ratio);
+  const simple = us.length === 1 || (us.length === 2 && Number.isInteger(us[1].ratio / us[0].ratio));
+  if (!simple) return [p.mxik_code || '', Number(p.sale_price || 0), '', '', r3(qty), form];
+  const big = us[us.length - 1];
+  const boxPrice = big.price != null ? Number(big.price) : Number(p.sale_price || 0) * big.ratio;
+  return us.length === 2
+    ? [p.mxik_code || '', boxPrice, big.ratio / us[0].ratio, us[0].ratio, r3(qty / big.ratio), form]
+    : [p.mxik_code || '', boxPrice, '', big.ratio, r3(qty / big.ratio), form];
 };

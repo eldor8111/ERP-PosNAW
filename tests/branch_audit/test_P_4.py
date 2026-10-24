@@ -122,10 +122,11 @@ def _template_rows():
     idx = _alias_index()
     headers = _template_headers()
     values = [
-        ['Paratsetamol 500 mg', '4780012345678', '', 'Paratsetamol', 'tabletka', '500 mg', 'Nika Pharm', "yo'q",
-         '100 000', '5', '10', '70000', '3', 'LOT2026A', FUTURE, '01.12.2025', 'Dorilar', "O'zbekiston", '', 'N02BE01'],
-        ['Ambroksol sirop 100 ml', '4780012345685', '', 'Ambroksol', 'sirop', '15 mg/5 ml', '', "yo'q",
-         '25000', '', '', '18000', '10', '', FUTURE, '', 'Dorilar', '', '', ''],
+        # P.6: "Ko'p mahsulot qo'shish" tartibi — quti narxi, blister soni, dona soni, quti soni, seriya, muddat, shakl, sana
+        ['Paratsetamol 500 mg', '4780012345678', '', '100 000', '5', '10', '3', 'LOT2026A', FUTURE, 'tabletka', '01.12.2025',
+         '70000', 'Paratsetamol', '500 mg', 'Nika Pharm', "yo'q", 'Dorilar', "O'zbekiston", '', 'N02BE01'],
+        ['Ambroksol sirop 100 ml', '4780012345685', '', '25000', '', '', '10', '', FUTURE, 'sirop', '',
+         '18000', 'Ambroksol', '15 mg/5 ml', '', "yo'q", 'Dorilar', '', '', ''],
     ]
     return [{idx[_norm(h)]: v for h, v in zip(headers, vals) if v != ''} for vals in values]
 
@@ -360,3 +361,58 @@ def test_frontend_reads_excel_dates_as_iso_only_in_pharmacy():
     js = _read(PHARM_IMPORT_JS)
     assert 'export const isoDateCells = (XLSX, ws) =>' in js
     assert 'SSF.parse_date_code(c.v)' in js and "c.t !== 'n' || !c.z || !SSF.is_date(c.z)" in js
+
+
+# ───────────────────────── P.6: shablon tartibi va Excel'ga yuklab olish ─────────────────────────
+
+def test_template_order_matches_bulk_add_strip():
+    headers = _template_headers()
+    assert headers[3:11] == ['1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni', 'Quti soni (qoldiq)',
+                             'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana']
+    assert headers[2] == 'MXIK kodi'
+
+
+def _export_row(p):
+    """pharmaExportRow ning Python nusxasi."""
+    qty = float(p.get('stock_quantity') or 0)
+    us = sorted([(float(u['ratio']), u.get('sale_price') if u.get('sale_price') is not None else u.get('price'))
+                 for u in p.get('units') or [] if float(u['ratio']) > 1])
+    simple = len(us) == 1 or (len(us) == 2 and (us[1][0] / us[0][0]).is_integer())
+    mx = p.get('mxik_code') or ''
+    if not simple:
+        return [mx, float(p.get('sale_price') or 0), '', '', round(qty, 3)]
+    big = us[-1]
+    box = float(big[1]) if big[1] is not None else float(p.get('sale_price') or 0) * big[0]
+    if len(us) == 2:
+        return [mx, box, big[0] / us[0][0], us[0][0], round(qty / big[0], 3)]
+    return [mx, box, '', big[0], round(qty / big[0], 3)]
+
+
+def test_export_columns_roundtrip_with_import(client, db, pharm):
+    c, _, w, u = pharm
+    cl = client.login(u)
+    body = _import(cl, [dict(r) for r in _template_rows()], warehouse_id=w.id)
+    assert body['created'] == 2, body
+    items = cl.get('/api/products/paginated', params={'limit': 100}).json()['items']
+    by = {it['name']: it for it in items}
+    para, sirop = by['Paratsetamol 500 mg'], by['Ambroksol sirop 100 ml']
+    assert _export_row(para) == ['', 100000.0, 5.0, 10.0, 3.0]          # 150 dona = 3 quti
+    assert _export_row(sirop) == ['', 25000.0, '', '', 10.0]              # qadoqsiz — donada
+    assert para['pharma']['dosage_form'] == 'tablet'
+    # JS funksiya va sarlavhalar import shablonidagidek
+    js = _read(PHARM_IMPORT_JS)
+    blk = js[js.index('export const PHARMA_EXPORT_HEADERS = ['):js.index('];', js.index('export const PHARMA_EXPORT_HEADERS'))]
+    ex_headers = re.findall(r"'([^']*)'", blk)
+    assert ex_headers == ['MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni',
+                          'Quti soni (qoldiq)', 'Dori shakli']
+    idx = _alias_index()
+    assert all(idx.get(_norm(h)) for h in ex_headers)                      # qayta import qilinganda tanilad
+    assert "return us.length === 2" in js and 'r3(qty / big.ratio)' in js
+
+
+def test_export_columns_only_in_pharmacy_mode():
+    s = _read(PRODUCTS_JSX)
+    blk = s[s.index('// P.6: dorixonada oxiriga MXIK va qadoq ustunlari'):s.index("ws['!ref'] = `A1:${lastCol}")]
+    assert 'if (pharmacyOn) {' in blk and 'pharmaExportRow(p, formLabel)' in blk
+    assert "let lastCol = 'U';" in blk and "lastCol = 'AA';" in blk
+    assert "...(pharmacyOn ? [{ wch: 20 }" in s
