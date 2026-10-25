@@ -1110,8 +1110,8 @@ export default function UlgurjiSotuv() {
 
   // ── Bitta sotuvni PDF formatida yuklab olish (Namuna asosida) ────────────
   const downloadSalePdf = async (s) => {
+    const toastId = toast.loading("PDF tayyorlanmoqda...");
     try {
-      const toastId = toast.loading("PDF tayyorlanmoqda...");
       const res = await api.get(`/sales/${s.id}/pdf`, { responseType: 'blob' });
       let cust = s.customer_name || s.contractor_name || 'Mijoz';
       let datePart = (s.created_at || '').replace(/[- :]/g, '_').slice(0, 19);
@@ -1133,8 +1133,10 @@ export default function UlgurjiSotuv() {
       toast.dismiss(toastId);
       toast.success("PDF muvaffaqiyatli yuklab olindi");
     } catch (err) {
-      console.error('PDF download error:', err);
-      toast.error("PDF yuklab olishda xatolik yuz berdi");
+      toast.dismiss(toastId);
+      console.warn('Backend PDF endpoint error, falling back to Nakladnoy template:', err);
+      printSale(s, 'nak');
+      toast.success("Nakladnoy chop etish / PDF saqlash oynasi ochildi");
     }
   };
 
@@ -4371,8 +4373,11 @@ function SaleDetailContent({ saleId }) {
               a.click();
               a.remove();
               window.URL.revokeObjectURL(url);
-              toast.success("PDF yuklab olindi");
-            }).catch(() => toast.error("PDF yuklab olishda xatolik"));
+              toast.success("PDF muvaffaqiyatli yuklab olindi");
+            }).catch(() => {
+              printSale(data, 'nak');
+              toast.success("Nakladnoy chop etish / PDF saqlash oynasi ochildi");
+            });
           }}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs"
         >

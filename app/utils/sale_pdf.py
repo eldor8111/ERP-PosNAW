@@ -4,24 +4,34 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fpdf import FPDF
 
+_LOCAL_FONT = os.path.join(os.path.dirname(__file__), "DejaVuSans.ttf")
+
+try:
+    import barcode
+    _BARCODE_FONT = os.path.join(os.path.dirname(barcode.__file__), "fonts", "DejaVuSansMono.ttf")
+except Exception:
+    _BARCODE_FONT = ""
+
 _FONT_REGULAR_CANDIDATES = [
-    "C:/Windows/Fonts/arial.ttf",
-    "C:/Windows/Fonts/segoeui.ttf",
-    "C:/Windows/Fonts/tahoma.ttf",
+    _LOCAL_FONT,
+    _BARCODE_FONT,
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-    os.path.join(os.path.dirname(__file__), "DejaVuSans.ttf"),
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/segoeui.ttf",
+    "C:/Windows/Fonts/tahoma.ttf",
 ]
 
 _FONT_BOLD_CANDIDATES = [
-    "C:/Windows/Fonts/arialbd.ttf",
-    "C:/Windows/Fonts/segoeuib.ttf",
-    "C:/Windows/Fonts/tahomabd.ttf",
+    _LOCAL_FONT,
+    _BARCODE_FONT,
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-    os.path.join(os.path.dirname(__file__), "DejaVuSans-Bold.ttf"),
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/segoeuib.ttf",
+    "C:/Windows/Fonts/tahomabd.ttf",
 ]
 
 def _first_existing(paths: List[str]) -> Optional[str]:
