@@ -161,6 +161,60 @@ def _substances_by_names(sub_index: dict, raw: str) -> list:
     return out
 
 
+_PACK_RE = re.compile(r"№\s*(\d+)")
+_MARKS_RE = re.compile(r"[®™©]")
+_PARENS_RE = re.compile(r"\([^()]*\)")
+
+
+def _top_level_head(text: str) -> str:
+    """Qavs ichida bo'lmagan birinchi vergulgacha: 'BREND (ООО "X", Россия), Таблеткалар' -> 'BREND (ООО "X", Россия)'."""
+    depth = 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            return text[:i]
+    return text
+
+
+def _nice_case(text: str) -> str:
+    """Faqat katta harfli so'zlar (4+ harf) bosh harf bilan: ЦИПРОФЛОКСАЦИН-АДЖИО -> Ципрофлоксацин-Аджио.
+    Qisqa (АЦЦ, НО-ШПА), aralash registrli va raqamli qismlar o'zgarmaydi."""
+    return re.sub(r"[^\W\d_]+", lambda m: m.group(0)[0] + m.group(0)[1:].lower()
+                  if len(m.group(0)) >= 4 and m.group(0).isupper() else m.group(0), text)
+
+
+def short_drug_name(name, brand=None, attribute=None):
+    """Tasnif nomidan qisqa tovar nomi: brend + doza + qadoqdagi soni.
+    'Ципрофлоксацин - J01MA02: ЦИПРОФЛОКСАЦИН-АДЖИО (Agio Pharmaceuticals), Таблеткалар, плёнка билан қопланган
+    500 мг блистерлар №100(10x10)' -> 'Ципрофлоксацин-Аджио 500 мг №100'.
+    Brend ajratilmasa (nom tasnif dori ko'rinishida emas) — None: to'liq nom ishlatiladi."""
+    full = " ".join(str(name or "").split())
+    base = (brand or "").strip()
+    if not base and ":" in full:
+        base = _top_level_head(full.split(":", 1)[1])
+    base = " ".join(_PARENS_RE.sub(" ", _MARKS_RE.sub("", base)).split()).strip(" -–—:;,")
+    if not base:
+        return None
+    out = _nice_case(base)
+    st = _STRENGTH_RE.search(attribute or "") or _STRENGTH_RE.search(full)
+    if st:
+        dose = " ".join(st.group(1).split())
+        num = re.match(r"[\d.,]+", dose).group(0)
+        if dose.replace(" ", "").casefold() in out.replace(" ", "").casefold():
+            pass
+        elif re.search(rf"(?<![\d.,]){re.escape(num)}$", out):   # 'АЦЦ 200' + '200 мг' -> 'АЦЦ 200 мг'
+            out += dose[len(num):]
+        else:
+            out += " " + dose
+    pk = _PACK_RE.search(attribute or "") or _PACK_RE.search(full)
+    if pk and f"№{pk.group(1)}" not in out.replace(" ", ""):
+        out += f" №{pk.group(1)}"
+    return out[:200]
+
+
 def _drug_out(sub_index: dict, *, name, mxik_code, barcode, brand=None, attribute=None, mnn=None,
               source="tasnif") -> dict:
     name = " ".join(str(name or "").split())
@@ -172,6 +226,7 @@ def _drug_out(sub_index: dict, *, name, mxik_code, barcode, brand=None, attribut
     strength = _STRENGTH_RE.search(attribute or "") or _STRENGTH_RE.search(name)
     return {
         "name": name,
+        "short_name": short_drug_name(name, brand, attribute),   # kassa va ro'yxat uchun qisqa nom
         "mxik_code": str(mxik_code or "").strip() or None,
         "barcode": str(barcode or "").strip() or None,
         "atc_code": atc.group(1) if atc else None,

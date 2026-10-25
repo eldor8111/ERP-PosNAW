@@ -69,9 +69,11 @@ def get_by_barcode(
             if unit_pkg:
                 parent_code = unit_pkg.code
 
+    from app.routers.pharmacy_catalog import short_drug_name
     return {
         "mxik_code":      item.mxik_code,
         "mxik_name":      item.mxik_name,
+        "short_name":     short_drug_name(item.mxik_name, attribute=item.attribute_name),   # dori: brend + doza + soni
         "unit_name":      item.unit_name,
         "group_name":     item.group_name,
         "attribute_name": item.attribute_name,

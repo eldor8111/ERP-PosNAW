@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 
 // ── P.5: tasnif.soliq.uz dan dori topish (faqat dorixona rejimidagi oynalarda) ──────────────────────
-// Javob: { name, mxik_code, barcode, atc_code, manufacturer, dosage_form, strength, substance_name, substances[] }
+// Javob: { name, short_name, mxik_code, barcode, atc_code, manufacturer, dosage_form, strength, substance_name, substances[] }
+// short_name — kassa uchun qisqa nom (brend + doza + soni), name — tasnifning to'liq rasmiy nomi
 
 // Shtrix-kod bo'yicha: { status: 'found', drug } | { status: 'notfound' } | { status: 'error', message }
 export const lookupDrugByBarcode = async (code) => {
@@ -62,7 +63,8 @@ export default function TasnifSearch({ initialQuery = '', onPick, onClose, tf })
           {items.map((d, i) => (
             <button type="button" key={`${d.mxik_code}-${d.barcode || i}`} onClick={() => onPick(d)}
               className="w-full text-left px-3 py-2 hover:bg-emerald-50">
-              <div className="text-sm font-semibold text-slate-800">{d.name}</div>
+              <div className="text-sm font-semibold text-slate-800">{d.short_name || d.name}</div>
+              {d.short_name && d.short_name !== d.name && <div className="text-[11px] text-slate-400 leading-snug">{d.name}</div>}
               <div className="text-xs text-slate-500">
                 MXIK {d.mxik_code}{d.barcode ? ` · ${d.barcode}` : ''}{d.atc_code ? ` · ATX ${d.atc_code}` : ''}
               </div>
