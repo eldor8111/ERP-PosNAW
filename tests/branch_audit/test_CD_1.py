@@ -717,12 +717,16 @@ def test_pieces_with_opened_box_code_keep_status(client, db, w, boxed):
 
 def test_without_unit_id_old_rule_stays(client, db, w, boxed):
     p = boxed["p"]
+    # P.11: qadoqli dorini dona qilib sotish — qutidan bo'lib sotish: ochilgan quti kodi (1 ta) ixtiyoriy, sotilmaydi
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_price": 1000,
                                                     "marking_codes": [_code("B1")]}])
-    assert r.status_code == 400 and "2 ta kod" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    assert _mrow(db, w["pc"], _code("B1")).status == "in_stock"
+    # kodlar soni miqdorga teng — eski qoida (eski kassalar): kodlar sotiladi
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_price": 1000,
                                                     "marking_codes": [_code("B1"), _code("B2")]}])
     assert r.status_code == 200, r.text
+    assert {_mrow(db, w["pc"], _code("B1")).status, _mrow(db, w["pc"], _code("B2")).status} == {"sold"}
 
 
 def test_partial_return_of_box_sale_returns_box_codes(client, db, w, boxed):

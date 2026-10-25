@@ -28,7 +28,7 @@ from app.services.sale_helpers import (
 from app.services.batch_allocator import assert_pharmacy_sellable, deduct_sale_item, tashkent_today
 from app.services.pharmacy import pharmacy_context
 from app.services.sale_stock import is_return_linked, restore_sale_batches, restore_sale_stock
-from app.services.sale_create import _resolve_marking_codes, _prepare_prescriptions, _is_open_box_line
+from app.services.sale_create import _resolve_marking_codes, _prepare_prescriptions, _is_open_box_line, _marking_unit_ctx
 from app.services.sale_stock import resolve_sale_unit  # CD.1: tahrirda qadoq birligi (dorixona)
 from app.models.product_units import SaleItemUnit
 from app.models.prescription import SalePrescription
@@ -133,7 +133,17 @@ def _confirm_rx_and_marking(db: Session, sale: Sale, data, ph_ctx, items) -> tup
         codes = [c for c in (it.marking_codes or []) if c and str(c).strip()]
         prod = it.product
         if prod is not None and prod.requires_marking and ph_ctx[0]:
-            if db.query(SaleItemUnit.id).filter(SaleItemUnit.sale_item_id == it.id).first() is None                     and len(codes) != int(it.quantity):
+            no_unit = db.query(SaleItemUnit.id).filter(SaleItemUnit.sale_item_id == it.id).first() is None
+            # P.11: qadoqli dorini dona qilib sotish — qutidan bo'lib sotish: kod ixtiyoriy (ko'pi bilan 1 ta,
+            # holati o'zgarmaydi), sotuv yaratishdagi qoida bilan bir xil
+            if no_unit and _marking_unit_ctx(db, sale.company_id, prod, None, ph_ctx, codes, it.quantity) is not None:
+                if len(codes) > 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"'{prod.name}' — qutidan bo'lib sotishda faqat ochilgan quti kodini (1 ta) yuborish mumkin",
+                    )
+                codes = []
+            elif no_unit and len(codes) != int(it.quantity):
                 raise HTTPException(
                     status_code=400,
                     detail=(f"'{prod.name}' — markirovka talab qilinadi. "
@@ -470,8 +480,10 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
 
             # Sotuv "completed" ga o'tayotgan bo'lsa markirovka to'liq skanerlanganini
             # tekshiramiz — pending (qoralama) holatda hali majburiy emas.
+            _mark_ctx = _marking_unit_ctx(db, current_user.company_id, product, _unit_ctx, _ph_ctx,   # P.11
+                                          getattr(item_d, "marking_codes", None), item_d.quantity)
             if final_status != SaleStatus.pending:
-                marking_codes = _resolve_marking_codes(product, item_d, _unit_ctx)
+                marking_codes = _resolve_marking_codes(product, item_d, _mark_ctx)
             else:
                 marking_codes = [c for c in (getattr(item_d, "marking_codes", None) or []) if c and c.strip()]
 
@@ -504,7 +516,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 "source_product": source,
                 "unit_ctx": _unit_ctx,
                 "unit_level_price": _unit_level_price,
-                "marking_open_box": _is_open_box_line(_unit_ctx) and bool(product.requires_marking),
+                "marking_open_box": _is_open_box_line(_mark_ctx) and bool(product.requires_marking),   # CD.1, P.11
             })
             total_amount += (subtotal * item_exchange_rate)
 

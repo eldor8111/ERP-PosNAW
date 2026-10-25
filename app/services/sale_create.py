@@ -35,7 +35,7 @@ from app.services.batch_allocator import (
     assert_pharmacy_sellable, pharmacy_applies,
 )
 from app.services.pharmacy import pharmacy_context
-from app.services.sale_stock import resolve_sale_unit, allocate_unit_batches  # D2.4: quti/blister/dona
+from app.services.sale_stock import resolve_sale_unit, allocate_unit_batches, list_product_units  # D2.4: quti/blister/dona
 from app.models.product_units import SaleItemUnit
 from app.services.warehouse_resolver import resolve_warehouse
 from app.services.promotion_service import load_sale_pricing_context
@@ -46,6 +46,21 @@ from app.services.tenant_guards import NO_BRANCH_COMPANY
 def _is_open_box_line(unit_ctx) -> bool:
     """CD.1: dorixona, qatorda `unit_id` bor va butun quti sotuvi emas (dona/blister) — qutidan bo'lib sotish."""
     return unit_ctx is not None and not unit_ctx["whole_boxes"]
+
+
+def _marking_unit_ctx(db: Session, company_id: int, product: Product, unit_ctx, pharmacy_ctx, codes=None, quantity=None):
+    """P.11 (dorixona): markirovka tekshiruvi uchun qator konteksti. Qadoqli (quti/blister birligi bor) markirovkali
+    dorini dona qilib (`unit_id` siz) sotish ham qutidan bo'lib sotish — kod ixtiyoriy, ko'pi bilan ochilgan quti kodi.
+    Kodlar soni miqdorga teng yuborilsa — eski qoida (har birlik uchun kod, kodlar sotiladi), eski kassalar uchun.
+    Modul o'chiq korxonada, qadoqsiz dorida yoki `unit_id` li qatorda — `unit_ctx` o'zgarishsiz."""
+    if unit_ctx is not None or not product.requires_marking or not (pharmacy_ctx and pharmacy_ctx[0]):
+        return unit_ctx
+    n_codes = len([c for c in (codes or []) if c and str(c).strip()])
+    if quantity is not None and n_codes and n_codes == int(quantity):
+        return unit_ctx
+    if any(Decimal(str(u.ratio)) > 1 for u in list_product_units(db, product.id, company_id)):
+        return {"whole_boxes": False}
+    return unit_ctx
 
 
 def _resolve_marking_codes(product: Product, item_data, unit_ctx=None) -> list:
@@ -463,7 +478,12 @@ def create_sale(
             if not source_product:
                 conversion = None
 
-        marking_codes = _resolve_marking_codes(product, item_data, _unit_ctx)
+        # P.11 (dorixona): qadoqli markirovkali dorini dona qilib sotish — qutidan bo'lib sotish (kod ixtiyoriy)
+        if _unit_ctx is None and product.requires_marking and _ph_ctx is None:
+            _ph_ctx = pharmacy_context(db, current_user.company_id)
+        _mark_ctx = _marking_unit_ctx(db, current_user.company_id, product, _unit_ctx, _ph_ctx,
+                                      getattr(item_data, "marking_codes", None), item_data.quantity)
+        marking_codes = _resolve_marking_codes(product, item_data, _mark_ctx)
 
         sale_items_data.append({
             "product": product,
@@ -483,7 +503,7 @@ def create_sale(
             "promotion_discount": _promo_disc,
             "unit_ctx": _unit_ctx,
             "unit_level_price": _unit_level_price,
-            "marking_open_box": _is_open_box_line(_unit_ctx) and bool(product.requires_marking),   # CD.1
+            "marking_open_box": _is_open_box_line(_mark_ctx) and bool(product.requires_marking),   # CD.1, P.11
         })
         
         # Jami sotuv summasi doim UZS (asosiy valyuta) da yig'iladi
