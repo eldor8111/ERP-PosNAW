@@ -17,6 +17,7 @@ import ShiftOpenModal from '../../components/ShiftOpenModal';
 import ShiftCloseModal from '../../components/ShiftCloseModal';
 import { registerReceipt, fiscalizeAndPrint } from '../../api/hippoLocal';
 import { parseScaleBarcode, findScaleProduct } from '../../utils/scale';
+import { GS, parseGs1Scan, gtinVariants, productMatchesGtin, createGsDetector } from '../../utils/gs1';
 import { useApprovalFlow, ApprovalModal } from './Approvals'; // T4.6: menejer tasdig'i
 
 
@@ -306,8 +307,55 @@ const navigate = useNavigate();
     } catch { return null; }
   };
 
+  // D2.6: dorixona — QR (Data Matrix) kodi: dori GTIN bo'yicha topiladi (lokal ro'yxat, pos-list, shtrix-kod).
+  // Seriyali kod (markirovka): bitta kod = bitta quti (omborda butun quti bo'lsa), kod shu qatorga yoziladi
+  const addByGs1 = async (gs1) => {
+    let p = products.find(x => productMatchesGtin(x, gs1.gtin)) || null;
+    if (!p && isOnline) {
+      for (const c of gtinVariants(gs1.gtin)) {
+        try {
+          const r = await api.get('/products/pos-list', {
+            params: { search: c, limit: 5, ...posPriceParams(warehouseId, posBranchId) },
+            _silent: true, _suppressToast: true,
+          });
+          const rows = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+          p = rows.find(x => productMatchesGtin(x, gs1.gtin)) || null;
+        } catch { /* shtrix-kod bo'yicha urinamiz */ }
+        if (!p) {
+          try {
+            const r = await api.get('/products/barcode/' + encodeURIComponent(c), { _silent: true, _suppressToast: true });
+            if (r.data && r.data.id != null) p = r.data;
+          } catch { /* keyingi variant */ }
+        }
+        if (p) break;
+      }
+    }
+    if (!p) {
+      // Tovar topilmadi: kodi to'liq bo'lmagan markirovkali qator bo'lsa kod unga yoziladi (avvalgidek)
+      const pendingIdx = gs1.serial ? findPendingMarkingIdx() : -1;
+      if (pendingIdx >= 0) { addMarkingCode(pendingIdx, gs1.code); return; }
+      toast.error(t('pos.markingScannedNoProduct'));
+      return;
+    }
+    if (!gs1.serial) { pickOrAdd(p); return; }
+    if (cart.some(x => (x.marking_codes || []).includes(gs1.code))) { toast.error(t('pos.markingCodeAlreadyScanned')); return; }
+    const box = (Array.isArray(p.units) ? p.units : [])
+      .filter(u => (Number(u.ratio) || 1) > 1).sort((a, b) => Number(b.ratio) - Number(a.ratio))[0] || null;
+    const unit = box && !(p.pack_ratio != null && p.full_boxes != null && Number(p.full_boxes) < 1) ? box : null;
+    const same = (x) => x.product_id === p.id && (x.unit_id || null) === (unit ? unit.id : null);
+    const open = (x) => same(x) && (x.marking_codes || []).length < x.qty_ordered;
+    if (!cart.some(open)) addToCart(p, 1, unit);
+    setCart(prev => {
+      const idx = prev.findIndex(open);
+      return idx < 0 ? prev : prev.map((x, i) => (i === idx ? { ...x, marking_codes: [...(x.marking_codes || []), gs1.code] } : x));
+    });
+  };
+
   // Skanerlangan kodni qayta ishlash (global skaner tinglovchisi va P.7 birlik tanlash oynasi chaqiradi)
   const handleScannedCode = (code) => {
+    const gs1 = pharmacy ? parseGs1Scan(code) : null;
+    if (gs1) { addByGs1(gs1); return; }
+
     // Tarozi barkodi (T3.12): PLU bo'yicha — eksport fayllari bilan bir xil plu_code
     const scale = parseScaleBarcode(code);
     if (scale) {
@@ -417,11 +465,16 @@ const navigate = useNavigate();
   scanRef.current = handleScannedCode;
 
   // Global Skaner Listener
+  const gsKeyRef = useRef(createGsDetector());
   useEffect(() => {
     let buf = '';
     let lastTime = Date.now();
     const handleKeyDown = (e) => {
       if (showCheckout || showNewProduct || rxModal || analogModal || saleError || rejectedModal || unitPick) return;
+      // Dorixona: Data Matrix ajratgichi (GS) buferda saqlanadi, Alt+raqamlar kodga yozilmaydi
+      const gsAct = pharmacy ? gsKeyRef.current(e) : null;
+      if (gsAct === 'gs') { buf += GS; lastTime = Date.now(); return; }
+      if (gsAct === 'skip' || e.type === 'keyup') return;
       const isInput = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
       const now = Date.now();
       if (now - lastTime > 200) buf = '';
@@ -442,7 +495,8 @@ const navigate = useNavigate();
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) buf += e.key;
     };
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyDown, true);
+    return () => { window.removeEventListener('keydown', handleKeyDown, true); window.removeEventListener('keyup', handleKeyDown, true); };
   }, [products, cart, showCheckout, showNewProduct, customers, isOnline, pharmacy, warehouseId, posBranchId, rxModal, analogModal, saleError, rejectedModal, unitPick]);
 
   // Yangi mahsulotni bazaga saqlash va savatga qo'shish

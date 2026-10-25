@@ -9,6 +9,7 @@ import { useActiveShift } from '../../hooks/useActiveShift';
 import ShiftOpenModal from '../../components/ShiftOpenModal';
 import ShiftCloseModal from '../../components/ShiftCloseModal';
 import { matchesSearch } from '../../utils/translit';
+import { GS, parseGs1Scan, gtinVariants, productMatchesGtin, createGsDetector } from '../../utils/gs1';
 import ProductAddModal from '../../components/ProductAddModal';
 import PartialReturnModal from './PartialReturnModal';
 import { getDebtEntries, hasAnyDebt } from '../../utils/debt';
@@ -1495,7 +1496,7 @@ export default function UlgurjiSotuv() {
       return;
     }
     const currentCustId = custIdRef.current;
-    if (!currentCustId) {
+    if (!currentCustId && !pharmaRef.current.pharmacy) {   // dorixonada mijoz ixtiyoriy
       toast.error(t('sale.mustSelectCustomer'));
       return;
     }
@@ -1730,7 +1731,7 @@ export default function UlgurjiSotuv() {
   };
 
   const addFormToCart = () => {
-    if (!custId) return toast.error(t('sale.mustSelectCustomer'));
+    if (!custId && !pharmacy) return toast.error(t('sale.mustSelectCustomer'));
     if (!formProduct) return toast.error(t('wholesale.productNotSelected'));
     const price = parseFloat(formPrice) || 0;
     const qty = parseFloat(formQty) || 1;
@@ -1776,11 +1777,54 @@ export default function UlgurjiSotuv() {
   customersRef.current = customers;
   setCustIdRef.current = setCustId;
   addToCartRef.current = addToCart;
+
+  // D2.6: dorixona — QR (Data Matrix) kodi skanerlandi: dori GTIN bo'yicha topiladi (pos-list, shtrix-kod).
+  // Seriyali kod (markirovka): bitta kod = bitta quti (omborda butun quti bo'lsa), kod shu qatorga yoziladi
+  const addByGs1 = async (gs1) => {
+    let prod = null;
+    for (const code of gtinVariants(gs1.gtin)) {
+      try {
+        const pr = await api.get('/products/pos-list', {
+          params: { search: code, limit: 5, warehouse_id: pharmaRef.current.warehouseId || undefined },
+          _silent: true, _suppressToast: true,
+        });
+        const rows = Array.isArray(pr.data) ? pr.data : (pr.data?.items || []);
+        prod = rows.find(x => productMatchesGtin(x, gs1.gtin)) || null;
+      } catch { /* shtrix-kod bo'yicha urinamiz */ }
+      if (!prod) {
+        try {
+          const r = await api.get(`/products/barcode/${encodeURIComponent(code)}`, { _silent: true, _suppressToast: true });
+          if (r.data?.id) prod = r.data;
+        } catch { /* keyingi variant */ }
+      }
+      if (prod) break;
+    }
+    if (!prod) { toast.error(t('wholesale.productNotFoundCode', { code: gs1.gtin })); return; }
+    if (!gs1.serial) { addToCartRef.current(prod); return; }
+    if (cartRef.current.some(it => (it.marking_codes || []).includes(gs1.code))) { toast.error(t('wholesale.markingCodeAlreadyScanned')); return; }
+    const box = (Array.isArray(prod.units) ? prod.units : [])
+      .filter(u => (Number(u.ratio) || 1) > 1).sort((a, b) => Number(b.ratio) - Number(a.ratio))[0] || null;
+    const unit = box && !(prod.pack_ratio != null && prod.full_boxes != null && Number(prod.full_boxes) < 1) ? box : null;
+    const same = (it) => it.product_id === prod.id && (it.unit_id || null) === (unit ? unit.id : null);
+    const open = (it) => same(it) && (it.marking_codes || []).length < it.qty;
+    if (!cartRef.current.some(open)) addToCartRef.current({ ...prod, _scanUnit: unit });
+    setCart(prev => {
+      const idx = prev.findIndex(open);
+      return idx < 0 ? prev : prev.map((it, i) => (i === idx ? { ...it, marking_codes: [...(it.marking_codes || []), gs1.code] } : it));
+    });
+  };
+  const addByGs1Ref = useRef(null);
+  addByGs1Ref.current = addByGs1;
   pharmaRef.current = { pharmacy, warehouseId };
 
   // Global barcode scanner
   useEffect(() => {
+    const gsKey = createGsDetector();
     const handle = (e) => {
+      // Dorixona: Data Matrix ajratgichi (GS) buferda saqlanadi, Alt+raqamlar kodga yozilmaydi
+      const gsAct = pharmaRef.current.pharmacy ? gsKey(e) : null;
+      if (gsAct === 'gs') { scanBufRef.current += GS; return; }
+      if (gsAct === 'skip' || e.type === 'keyup') return;
       const now = Date.now(); const gap = now - scanTimeRef.current; scanTimeRef.current = now;
       // Raqam maydonlari (miqdor, narx, jami summa, chegirma, to'lov) — tez yozilgan raqam + Enter
       // skaner deb ushlanib, maydon tozalanib qolmasin
@@ -1797,6 +1841,9 @@ export default function UlgurjiSotuv() {
 
         const cust = customersRef.current.find(c => c.phone && (c.phone === buf || c.phone.replace(/\D/g, '') === buf.replace(/\D/g, '')));
         if (cust) { setCustIdRef.current(String(cust.id)); toast.success(t('wholesale.customerSelected', { name: cust.name })); return; }
+
+        const gs1 = pharmaRef.current.pharmacy ? parseGs1Scan(buf) : null;
+        if (gs1) { addByGs1Ref.current(gs1); return; }
 
         let searchCode = buf;
         let weightQty = 1;
@@ -1870,7 +1917,8 @@ export default function UlgurjiSotuv() {
       }
     };
     window.addEventListener('keydown', handle, true);
-    return () => window.removeEventListener('keydown', handle, true);
+    window.addEventListener('keyup', handle, true);
+    return () => { window.removeEventListener('keydown', handle, true); window.removeEventListener('keyup', handle, true); };
   }, []);
 
   const itemNet = useCallback((it) => {
@@ -1904,7 +1952,8 @@ export default function UlgurjiSotuv() {
 
   const submitSale = async (overridePayType, pPaid = 0, pCash = 0, pCard = 0) => {
     if (!cart.length) return toast.error(t('sale.emptyCart'));
-    if (!custId) return toast.error(t('wholesale.customerNotSelectedFull'));
+    // Dorixonada mijozsiz sotiladi, lekin qarzga emas (server ham qarz uchun mijoz talab qiladi)
+    if (!custId && (!pharmacy || pPaid + 0.01 < total)) return toast.error(t(pharmacy ? 'wholesale.selectCustomerForDebtSale' : 'wholesale.customerNotSelectedFull'));
     const incompleteMarking = cart.find(it => it.requires_marking && (it.marking_codes || []).length < it.qty);
     if (incompleteMarking) {
       toast.error(t('wholesale.markingIncomplete', { name: incompleteMarking.name, done: (incompleteMarking.marking_codes || []).length, qty: incompleteMarking.qty }));
@@ -2183,7 +2232,7 @@ export default function UlgurjiSotuv() {
   const handlePay = async () => {
     if (!cart.length) return toast.error(t('sale.emptyCart'));
     if (!hasShift) { setShowShiftModal(true); return; }
-    if (!custId) return toast.error(t('wholesale.customerNotSelectedFull'));
+    if (!custId && (!pharmacy || debt > 0)) return toast.error(t(pharmacy ? 'wholesale.selectCustomerForDebtSale' : 'wholesale.customerNotSelectedFull'));
     if (debt > 0 && !debtDate && showDebtDate) return toast.error(t('wholesale.enterDebtDueDate'));
     if (debt > 0 && !showDebtDate) { setShowDebtDate(true); return; }
     const totalPaidUZS = getPaidUZS(payments); // Haqiqiy to'langan hamma pulni so'mdagi qiymati
@@ -2234,7 +2283,7 @@ export default function UlgurjiSotuv() {
 
   const openPayModal = () => {
     if (!cart.length) return;
-    if (!custId) return toast.error(t('wholesale.customerNotSelected'));
+    if (!custId && !pharmacy) return toast.error(t('wholesale.customerNotSelected'));
     if (!hasShift) { setShowShiftModal(true); return; }
     if (pharmacy && rxProductsOf(cart).length && validateRx(cart, rxData, rxReason, rxMode)) {
       setRxModal({ proceed: true });
@@ -2585,9 +2634,9 @@ export default function UlgurjiSotuv() {
                 {/* Mijoz */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t('sale.customer')} *</label>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{t('sale.customer')}{pharmacy ? '' : ' *'}</label>
                     <div className="flex items-center gap-1.5">
-                      {!custId && <span className="text-xs text-red-400 font-semibold">{t('common.notSelected')}</span>}
+                      {!custId && !pharmacy && <span className="text-xs text-red-400 font-semibold">{t('common.notSelected')}</span>}
                       <button onClick={() => custSearchRef.current?.openForm()}
                         className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold border border-blue-200 transition-colors">
                         <span className="text-sm leading-none">+</span> {t('common.new')}
@@ -2638,10 +2687,10 @@ export default function UlgurjiSotuv() {
                     </div>
                   </div>
 
-                  <ProductSearch customerPriceType={isWholesaleMode ? 'wholesale' : 'sale'} disabled={!custId} ref={prodSearchRef} onSelect={selectFormProduct} placeholder={t('wholesale.productSearchPlaceholder')} onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
+                  <ProductSearch customerPriceType={isWholesaleMode ? 'wholesale' : 'sale'} disabled={!custId && !pharmacy} ref={prodSearchRef} onSelect={selectFormProduct} placeholder={t('wholesale.productSearchPlaceholder')} onOpenAdd={() => setShowProdAddModal(true)} warehouseId={warehouseId} />
 
-                  {/* Mijoz tanlanmagan ogohlantirish */}
-                  {!custId && (
+                  {/* Mijoz tanlanmagan ogohlantirish (dorixonada mijoz ixtiyoriy) */}
+                  {!custId && !pharmacy && (
                     <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
                       <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                       <span className="text-xs font-semibold text-amber-700">{t('wholesale.selectCustomerFirstToAddProduct')}</span>
@@ -3140,9 +3189,9 @@ export default function UlgurjiSotuv() {
                 <button onClick={openPayModal}
                   disabled={cart.length === 0 || saving}
                   className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg font-black text-xs shadow-sm transition-all disabled:opacity-40
-                    ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
+                    ${!custId && !pharmacy && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
                   <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-3.5 h-3.5" />
-                  <span>{!custId && cart.length > 0 ? t('sale.selectCustomer') : editingSale ? t('common.update') : t('sale.checkout')}</span>
+                  <span>{!custId && !pharmacy && cart.length > 0 ? t('sale.selectCustomer') : editingSale ? t('common.update') : t('sale.checkout')}</span>
                   {cart.length > 0 && <span className="font-black">{fmt(total)} s</span>}
                 </button>
               </div>
@@ -3183,9 +3232,9 @@ export default function UlgurjiSotuv() {
               <button onClick={openPayModal}
                 disabled={cart.length === 0 || saving}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-black text-xs md:text-sm shadow-sm transition-all disabled:opacity-40
-                  ${!custId && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
+                  ${!custId && !pharmacy && cart.length > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
                 <Ic d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" cls="w-3.5 h-3.5" />
-                <span>{!custId && cart.length > 0 ? t('sale.selectCustomer') : editingSale ? t('common.update') : t('sale.checkout')}</span>
+                <span>{!custId && !pharmacy && cart.length > 0 ? t('sale.selectCustomer') : editingSale ? t('common.update') : t('sale.checkout')}</span>
               </button>
             </div>
           </div>
