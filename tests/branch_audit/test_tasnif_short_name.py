@@ -57,3 +57,53 @@ def test_frontend_uses_short_name():
     with open(os.path.join(ROOT, 'frontend/src/components/TasnifSearch.jsx'), encoding='utf-8') as f:
         search = f.read()
     assert 'd.short_name || d.name' in modal and 'd.short_name || d.name' in search
+
+
+# ── Avval qo'shilganlar: "MXIK-kodlarni sinxronizatsiya qilish" nomlarni qisqartiradi (faqat dorixona) ──
+
+CIPRO = ("Ципрофлоксацин - J01MA02: ЦИПРОФЛОКСАЦИН-АДЖИО (Agio Pharmaceuticals), Таблеткалар, плёнка билан "
+         "қопланган 500 мг блистерлар №100(10x10)")
+PARA_A = "Парацетамол - N02BE01: ПАРАЦЕТАМОЛ (Nika Pharm), Таблеткалар 500 мг №10"
+PARA_B = "Парацетамол - N02BE01: ПАРАЦЕТАМОЛ (Фармстандарт), Таблеткалар 500 мг №10"
+
+
+def _prod(db, company, name, n):
+    from app.models.product import Product
+    p = Product(name=name, sku=f"SK-{company.id}-{n}", barcode=f"99{company.id:04d}{n:06d}", company_id=company.id)
+    db.add(p)
+    db.flush()
+    return p
+
+
+@pytest.fixture
+def no_tasnif(monkeypatch):
+    """Sinxronizatsiyaning tashqi tasnif so'rovi o'rniga: shtrix-kod topilmadi (tarmoqqa chiqilmaydi)."""
+    async def not_found(barcode):
+        return None
+    monkeypatch.setattr('app.services.tasnif_service.search_mxik_by_barcode', not_found)
+
+
+def test_mxik_sync_shortens_old_tasnif_names_in_pharmacy(client, db, pharm, no_tasnif):
+    c, _, _, u = pharm
+    cipro, pa, pb = _prod(db, c, CIPRO, 1), _prod(db, c, PARA_A, 2), _prod(db, c, PARA_B, 3)
+    manual = _prod(db, c, "Vitamin C: 500 mg, apelsin", 4)          # qo'lda yozilgan (ATX kod yo'q) — tegilmaydi
+    db.commit()
+    r = client.login(u).post('/api/products/mxik-sync-bulk')
+    assert r.status_code == 200, r.text
+    assert r.json()["renamed"] == 3
+    for p in (cipro, pa, pb, manual):
+        db.refresh(p)
+    assert cipro.name == "Ципрофлоксацин-Аджио 500 мг №100"
+    assert {pa.name, pb.name} == {"Парацетамол 500 мг №10 (Nika Pharm)", "Парацетамол 500 мг №10 (Фармстандарт)"}
+    assert manual.name == "Vitamin C: 500 mg, apelsin"
+    assert client.login(u).post('/api/products/mxik-sync-bulk').json()["renamed"] == 0   # qayta: o'zgarish yo'q
+
+
+def test_mxik_sync_does_not_rename_in_regular_company(client, db, mk, no_tasnif):
+    c, _, _, u = mk.tenant()
+    p = _prod(db, c, CIPRO, 1)
+    db.commit()
+    r = client.login(u).post('/api/products/mxik-sync-bulk')
+    assert r.status_code == 200 and r.json()["renamed"] == 0
+    db.refresh(p)
+    assert p.name == CIPRO

@@ -3981,6 +3981,7 @@ export default {
   'product.mxikStatusError': 'Tasnif vaqtinchalik ishlamayapti',
   'product.mxikStatusUnknown': 'Noma\'lum — hali tekshirilmagan',
   'product.mxikSyncDoneMsg': 'MXIK sinxronizatsiya tugadi: {active} faol, {disabled} topilmadi, {error} xatolik (jami {total})',
+  'product.mxikSyncRenamed': '{n} ta dori nomi qisqartirildi.',
   'product.mxikSyncError': 'MXIK sinxronizatsiyasida xatolik yuz berdi',
   'product.nameBarcodeOrSkuRequired': 'Mahsulot nomi, Barkod yoki SKU',
   'product.nameColumnRequired': 'Mahsulot nomi',

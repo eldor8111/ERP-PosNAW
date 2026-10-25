@@ -1443,6 +1443,11 @@ async def mxik_sync_bulk(
 
         product.mxik_synced_at = now
 
+    # Dorixona: avval tasnifdan qo'shilgan dorilarning uzun rasmiy nomi qisqa nomga (brend + doza + soni)
+    from app.routers.pharmacy_catalog import shorten_tasnif_names
+    from app.services.pharmacy import pharmacy_context
+    summary["renamed"] = shorten_tasnif_names(db, current_user.company_id) if pharmacy_context(db, current_user.company_id)[0] else 0
+
     db.commit()
     return summary
 

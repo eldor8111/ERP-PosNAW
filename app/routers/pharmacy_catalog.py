@@ -5,6 +5,7 @@ korxona o'z moddalarini qo'shishi, tahrirlashi va o'chirishi mumkin. Boshqa korx
 Barcha endpoint'lar faqat dorixona moduli yoqilgan korxonada ishlaydi.
 """
 import re
+from collections import Counter
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -213,6 +214,44 @@ def short_drug_name(name, brand=None, attribute=None):
     if pk and f"№{pk.group(1)}" not in out.replace(" ", ""):
         out += f" №{pk.group(1)}"
     return out[:200]
+
+
+def is_tasnif_full_name(name) -> bool:
+    """Tasnifning rasmiy dori nomi ko'rinishi: '<modda> - <ATX kod>: <BREND> (...), ...' (qo'lda yozilgan nom emas)."""
+    head = str(name or "").split(":", 1)
+    return len(head) == 2 and bool(_ATC_RE.search(head[0].upper().translate(_CYR_TO_LAT)))
+
+
+def _manufacturer_of(name) -> Optional[str]:
+    """Tasnif nomidagi brend oxiridagi qavs: '...: BREND (Agio Pharmaceuticals), ...' -> 'Agio Pharmaceuticals'."""
+    full = " ".join(str(name or "").split())
+    if ":" not in full:
+        return None
+    m = re.search(r"\(([^()]+)\)\s*$", _top_level_head(full.split(":", 1)[1]).strip())
+    return m.group(1).strip() if m else None
+
+
+def shorten_tasnif_names(db: Session, company_id: int) -> int:
+    """Avval qo'shilgan dorilar: tasnifdan kelgan uzun rasmiy nom qisqa nomga (short_drug_name) almashtiriladi.
+    Qo'lda yozilgan nomga tegilmaydi. Bir xil qisqa nom bir nechta dorida bo'lsa (yoki boshqa dorining nomi shunday
+    bo'lsa) — oxiriga ishlab chiqaruvchi qo'shiladi. O'zgartirilgan nomlar soni qaytadi (commit qilmaydi)."""
+    from app.models.product import Product
+    rows = db.query(Product).filter(Product.company_id == company_id, Product.is_deleted == False).all()   # noqa: E712
+    plan = {}
+    for p in rows:
+        if is_tasnif_full_name(p.name):
+            short = short_drug_name(p.name)
+            if short and short != p.name:
+                plan[p.id] = (p, short)
+    used = Counter(s.casefold() for _, s in plan.values())
+    others = {(p.name or "").casefold() for p in rows if p.id not in plan}
+    for p, short in plan.values():
+        if used[short.casefold()] > 1 or short.casefold() in others:
+            maker = _manufacturer_of(p.name)
+            if maker:
+                short = f"{short} ({maker})"
+        p.name = short[:200]
+    return len(plan)
 
 
 def _drug_out(sub_index: dict, *, name, mxik_code, barcode, brand=None, attribute=None, mnn=None,
