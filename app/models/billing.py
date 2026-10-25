@@ -89,6 +89,7 @@ class CompanyPackage(Base):
     ends_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     is_trial = Column(Boolean, default=False)
+    auto_renew = Column(Boolean, default=False, server_default="false")
     purchased_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

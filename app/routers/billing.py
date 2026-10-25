@@ -413,6 +413,7 @@ def activate_trial(
     c.subscription_ends_at = base + timedelta(days=7)
     c.subscription_starts_at = base
     c.is_trial = True
+    _sync_auto_renew_packages(db, c)
 
     log = BalanceLog(
         company_id=c.id,
@@ -473,6 +474,7 @@ def activate_my_trial(
     c.purchased_at = now
     if trial_tariff:
         c.tariff_id = trial_tariff.id
+    _sync_auto_renew_packages(db, c)
 
     log = BalanceLog(
         company_id=c.id,
@@ -589,6 +591,8 @@ def activate_subscription(
     c.subscription_ends_at = base + timedelta(days=extra_days)
     # Modullarni tarifga moslab faollashtirish
     _apply_tariff_module_flags(db, c, tariff)
+    # Tarif bilan birga avtomatik uzaytiriladigan paketlarni (Dorixona va b.) sinxronlash
+    _sync_auto_renew_packages(db, c)
 
     discount_str = f" (-{quote['discount_percent']}%)" if quote["discount_percent"] > 0 else ""
     log = BalanceLog(
@@ -672,6 +676,8 @@ def subscribe_my_company(
     c.subscription_ends_at = base + timedelta(days=extra_days)
     # Modullarni tarifga moslab faollashtirish
     _apply_tariff_module_flags(db, c, tariff)
+    # Tarif bilan birga avtomatik uzaytiriladigan paketlarni (Dorixona va b.) sinxronlash
+    _sync_auto_renew_packages(db, c)
 
     discount_str = f" (-{quote['discount_percent']}%)" if quote["discount_percent"] > 0 else ""
     log = BalanceLog(
@@ -883,6 +889,12 @@ def _apply_tariff_module_flags(db: Session, company, tariff) -> None:
     pkgs = _active_package_codes(db, company.id)
     company.manufacturing_enabled = bool(tariff.has_manufacturing) or "manufacturing" in pkgs
     company.distribution_enabled = bool(tariff.has_distribution) or "distribution" in pkgs
+    is_muhayyo_or_pharma = (
+        getattr(company, "org_code", None) == "58189629"
+        or "MUHAYYO" in (getattr(company, "name", "") or "").upper()
+        or bool(getattr(company, "pharmacy_enabled", False))
+    )
+    company.pharmacy_enabled = is_muhayyo_or_pharma or "pharmacy" in pkgs
 
 
 def _enable_package_flag(company, package_code: str) -> None:
@@ -892,6 +904,51 @@ def _enable_package_flag(company, package_code: str) -> None:
     entry = FEATURES.get(package_code)
     if entry and package_code != "marketplace_agents":   # marketplace agentlarini faqat super admin boshqaradi
         setattr(company, entry[0], True)
+
+
+def _sync_auto_renew_packages(db: Session, company) -> None:
+    """Tarif faollashtirilganda yoki uzaytirilganda (masalan 198 minglik tarif)
+    avtomatik biriktirilgan paketlarni (Dorixona va b.) tarif muddati bilan bir xil qilib uzaytirish."""
+    if not company or not company.subscription_ends_at:
+        return
+
+    now = datetime.now(timezone.utc)
+    is_muhayyo_or_pharma = (
+        getattr(company, "org_code", None) == "58189629"
+        or "MUHAYYO" in (getattr(company, "name", "") or "").upper()
+        or bool(getattr(company, "pharmacy_enabled", False))
+    )
+
+    cp_list = db.query(CompanyPackage).filter(
+        CompanyPackage.company_id == company.id,
+    ).all()
+    existing_codes = {p.package_code: p for p in cp_list}
+
+    # Agar MUHAYYO FARM da hali pharmacy paketi yozuvi bo'lmasa, yaratish
+    if is_muhayyo_or_pharma and "pharmacy" not in existing_codes:
+        ph_pkg = CompanyPackage(
+            company_id=company.id,
+            package_code="pharmacy",
+            starts_at=company.subscription_starts_at or now,
+            ends_at=company.subscription_ends_at,
+            is_active=True,
+            is_trial=False,
+            auto_renew=True,
+            purchased_at=now,
+        )
+        db.add(ph_pkg)
+        cp_list.append(ph_pkg)
+        existing_codes["pharmacy"] = ph_pkg
+
+    for cp in cp_list:
+        should_sync = bool(getattr(cp, "auto_renew", False)) or (is_muhayyo_or_pharma and cp.package_code == "pharmacy")
+        if should_sync:
+            cp.auto_renew = True
+            cp.starts_at = company.subscription_starts_at or now
+            cp.ends_at = company.subscription_ends_at
+            cp.is_active = True
+            cp.is_trial = False
+            _enable_package_flag(company, cp.package_code)
 
 
 class PackageSubscribeIn(BaseModel):
@@ -1053,4 +1110,71 @@ def grant_company_package(
         "ok": True,
         "message": f"'{pkg.name}' paketi {new_ends.strftime('%d.%m.%Y')} gacha faollashtirildi",
         "ends_at": new_ends.isoformat(),
+    }
+
+
+class PackageAutoRenewIn(BaseModel):
+    auto_renew: bool
+
+
+@router.post("/companies/{company_id}/packages/{package_code}/auto-renew")
+def toggle_package_auto_renew(
+        company_id: int,
+        package_code: str,
+        data: PackageAutoRenewIn,
+        db: Session = Depends(get_db),
+        admin: User = Depends(require_super_admin),
+):
+    """Paketni tarif bilan birga avtomatik uzaytirishni yoqish/o'chirish (Super Admin)"""
+    c = db.query(Company).filter(Company.id == company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+
+    pkg = db.query(FeaturePackage).filter(FeaturePackage.code == package_code).first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Paket topilmadi")
+
+    now = datetime.now(timezone.utc)
+    cp = db.query(CompanyPackage).filter(
+        CompanyPackage.company_id == company_id,
+        CompanyPackage.package_code == package_code,
+    ).first()
+
+    if not cp:
+        sub_end = c.subscription_ends_at
+        if sub_end and sub_end.tzinfo is None:
+            sub_end = sub_end.replace(tzinfo=timezone.utc)
+        target_end = sub_end if (sub_end and sub_end > now) else (now + timedelta(days=30))
+        cp = CompanyPackage(
+            company_id=company_id,
+            package_code=package_code,
+            starts_at=c.subscription_starts_at or now,
+            ends_at=target_end,
+            is_active=True,
+            is_trial=False,
+            auto_renew=data.auto_renew,
+            purchased_at=now,
+        )
+        db.add(cp)
+    else:
+        cp.auto_renew = data.auto_renew
+        if data.auto_renew and c.subscription_ends_at:
+            sub_end = c.subscription_ends_at
+            if sub_end and sub_end.tzinfo is None:
+                sub_end = sub_end.replace(tzinfo=timezone.utc)
+            if sub_end > now:
+                cp.ends_at = sub_end
+                cp.is_active = True
+
+    if data.auto_renew:
+        _enable_package_flag(c, package_code)
+
+    db.commit()
+    db.refresh(cp)
+    return {
+        "ok": True,
+        "package_code": package_code,
+        "auto_renew": cp.auto_renew,
+        "ends_at": cp.ends_at.isoformat() if cp.ends_at else None,
+        "message": f"'{pkg.name}' paketi tarif bilan avtomatik uzaytirish: {'Yoqildi' if cp.auto_renew else 'O\'chirildi'}",
     }

@@ -434,6 +434,7 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
             "ends_at": cp_ends.isoformat() if cp_ends else None,
             "is_active": bool(cp.is_active),
             "is_trial": bool(cp.is_trial),
+            "auto_renew": bool(getattr(cp, "auto_renew", False)),
         })
 
     return {

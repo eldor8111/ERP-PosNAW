@@ -401,6 +401,8 @@ def _run_auto_migrations(engine):
         );""",
         "CREATE INDEX IF NOT EXISTS ix_company_packages_company ON company_packages(company_id);",
         "CREATE INDEX IF NOT EXISTS ix_company_packages_code ON company_packages(package_code);",
+        "ALTER TABLE company_packages ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN NOT NULL DEFAULT FALSE;",
+        "UPDATE company_packages SET auto_renew = TRUE WHERE package_code = 'pharmacy' AND company_id IN (SELECT id FROM companies WHERE org_code = '58189629' OR name ILIKE '%MUHAYYO%' OR pharmacy_enabled = TRUE);",
         "ALTER TABLE customers ADD COLUMN IF NOT EXISTS receipt_format VARCHAR(20) DEFAULT NULL;",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS receipt_format VARCHAR(20) DEFAULT 'text';",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS tg_protect_content BOOLEAN DEFAULT FALSE;",

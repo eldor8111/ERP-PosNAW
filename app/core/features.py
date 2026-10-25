@@ -45,6 +45,16 @@ def company_has_feature(db: Session, company_id, feature: str) -> bool:
         if comp.tariff and getattr(comp.tariff, f"has_{feature}", False):
             return True
 
+        # Tarif faol bo'lsa: auto_renew paketi yoki maxsus biriktirilgan dorixona paketi doimo faol
+        sub_ends = comp.subscription_ends_at
+        if sub_ends and sub_ends.tzinfo is None:
+            sub_ends = sub_ends.replace(tzinfo=timezone.utc)
+        is_sub_active = bool(sub_ends and sub_ends > now)
+
+        if is_sub_active:
+            if feature == "pharmacy" and (comp.org_code == "58189629" or "MUHAYYO" in (comp.name or "").upper()):
+                return True
+
         # Paket tekshiruvi (obuna yoki 7 kunlik sinov)
         pkgs = db.query(CompanyPackage).filter(
             CompanyPackage.company_id == company_id,
@@ -53,6 +63,8 @@ def company_has_feature(db: Session, company_id, feature: str) -> bool:
 
         if pkgs:
             for p in pkgs:
+                if is_sub_active and getattr(p, "auto_renew", False):
+                    return True
                 ends_at = p.ends_at
                 if ends_at and ends_at.tzinfo is None:
                     ends_at = ends_at.replace(tzinfo=timezone.utc)

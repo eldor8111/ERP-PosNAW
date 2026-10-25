@@ -836,23 +836,41 @@ function DrawerPackagesPanel({ companyId }) {
           const cp = cpMap[p.code];
           const now = new Date();
           const ends = cp?.ends_at ? new Date(cp.ends_at) : null;
-          const isActive = cp?.is_active && ends && ends > now;
-          const daysLeft = isActive ? Math.max(0, Math.ceil((ends - now) / 86400000)) : 0;
+          const isAutoRenew = Boolean(cp?.auto_renew || (p.code === 'pharmacy' && (detail.org_code === '58189629' || detail.name?.toUpperCase().includes('MUHAYYO') || detail.pharmacy_enabled)));
+          const isActive = (cp?.is_active && ends && ends > now) || (isAutoRenew && detail.subscription_active);
+          const daysLeft = isActive ? (ends ? Math.max(0, Math.ceil((ends - now) / 86400000)) : detail.days_left || 0) : 0;
           return {
             ...p,
             cp,
             isActive,
             daysLeft,
-            ends_at: cp?.ends_at || null,
+            autoRenew: isAutoRenew,
+            ends_at: cp?.ends_at || (isAutoRenew ? detail.subscription_ends_at : null),
           };
         }));
       }).catch(() => {
-        setPackages((pkgRes.data || []).map(p => ({ ...p, cp: null, isActive: false, daysLeft: 0, ends_at: null })));
+        setPackages((pkgRes.data || []).map(p => ({ ...p, cp: null, isActive: false, daysLeft: 0, ends_at: null, autoRenew: false })));
       }).finally(() => setLoading(false));
     }).catch(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, [companyId]);
+
+  const [togglingCode, setTogglingCode] = useState(null);
+
+  const toggleAutoRenew = async (pkg) => {
+    setTogglingCode(pkg.code);
+    try {
+      const nextVal = !pkg.autoRenew;
+      const res = await api.post(`/billing/companies/${companyId}/packages/${pkg.code}/auto-renew`, { auto_renew: nextVal });
+      toast.success(res.data?.message || (nextVal ? "Tarif bilan avtomatik uzaytirish yoqildi" : "Avto-uzaytirish o'chirildi"));
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Xatolik yuz berdi');
+    } finally {
+      setTogglingCode(null);
+    }
+  };
 
   const handleGrant = async () => {
     if (!grantPkg) return;
@@ -899,7 +917,7 @@ function DrawerPackagesPanel({ companyId }) {
       <div className="flex items-center justify-between">
         <div>
           <h4 className="font-bold text-slate-800 text-sm">Pullik paketlar</h4>
-          <p className="text-xs text-slate-400 mt-0.5">Kompaniyaga paketlarni berish yoki uzaytirish</p>
+          <p className="text-xs text-slate-400 mt-0.5">Kompaniyaga paketlarni berish, avto-uzaytirish yoki uzaytirish</p>
         </div>
       </div>
 
@@ -909,38 +927,63 @@ function DrawerPackagesPanel({ companyId }) {
           const clr = PKG_COLORS[pkg.code] || { bg: 'from-slate-50 to-slate-100', border: 'border-slate-200', icon: 'bg-slate-100 text-slate-600', active: 'bg-slate-400' };
           const iconPath = PKG_ICONS[pkg.code] || 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4';
           return (
-            <div key={pkg.code} className={`bg-gradient-to-br ${clr.bg} border ${clr.border} rounded-2xl p-4`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl ${clr.icon} flex items-center justify-center shrink-0`}>
-                  <Ic d={iconPath} cls="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-800 text-sm">{pkg.name}</span>
-                    <span className="text-xs font-bold text-slate-400">
-                      {fmtMon(pkg.price_per_month)} so'm/oy
-                    </span>
+            <div key={pkg.code} className={`bg-gradient-to-br ${clr.bg} border ${clr.border} rounded-2xl p-4 transition-all hover:shadow-xs`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${clr.icon} flex items-center justify-center shrink-0`}>
+                    <Ic d={iconPath} cls="w-5 h-5" />
                   </div>
-                  {pkg.isActive ? (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${clr.active}`} />
-                      <span className="text-xs font-semibold text-emerald-700">
-                        Faol — {fmtDt(pkg.ends_at)} gacha ({pkg.daysLeft} kun qoldi)
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-800 text-sm">{pkg.name}</span>
+                      <span className="text-xs font-bold text-slate-400">
+                        {fmtMon(pkg.price_per_month)} so'm/oy
                       </span>
+                      {pkg.autoRenew && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          ⚡ Tarifga kiritilgan (Avto-faollashadi)
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                      <span className="text-xs text-slate-400">Faol emas</span>
-                    </div>
-                  )}
+                    {pkg.isActive ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${clr.active}`} />
+                        <span className="text-xs font-semibold text-emerald-700">
+                          Faol — {fmtDt(pkg.ends_at)} gacha ({pkg.daysLeft} kun qoldi)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        <span className="text-xs text-slate-400">Faol emas</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => { setGrantPkg(pkg); setGrantDays(30); setGrantTrial(false); setGrantNote(''); }}
-                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl shadow-xs transition-all shrink-0"
-                >
-                  {pkg.isActive ? 'Uzaytirish' : 'Berish'}
-                </button>
+
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  <button
+                    type="button"
+                    disabled={togglingCode === pkg.code}
+                    onClick={() => toggleAutoRenew(pkg)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs ${
+                      pkg.autoRenew
+                        ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                    title="Tarif to'langanda bu paket ham avtomatik uzaytiriladi"
+                  >
+                    <Ic d="M13 10V3L4 14h7v7l9-11h-7z" cls="w-3.5 h-3.5" />
+                    {pkg.autoRenew ? 'Avto-uzaytirish: Faol' : 'Tarifga ulash'}
+                  </button>
+
+                  <button
+                    onClick={() => { setGrantPkg(pkg); setGrantDays(30); setGrantTrial(false); setGrantNote(''); }}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl shadow-xs transition-all"
+                  >
+                    {pkg.isActive ? 'Uzaytirish' : 'Berish'}
+                  </button>
+                </div>
               </div>
             </div>
           );
