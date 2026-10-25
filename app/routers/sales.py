@@ -683,6 +683,80 @@ def list_sales(
     return items
 
 
+@router.get("/export/pdf")
+def export_sales_pdf(
+        cashier_id: Optional[int] = Query(None),
+        branch_id: Optional[int] = Query(None),
+        customer_id: Optional[int] = Query(None),
+        date_from: Optional[date] = Query(None),
+        date_to: Optional[date] = Query(None),
+        date_today: Optional[bool] = Query(None),
+        status: Optional[SaleStatus] = Query(None),
+        search: Optional[str] = Query(None),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
+        ctx: BranchContext = Depends(get_branch_context),
+):
+    from app.utils.sale_pdf import generate_sales_list_pdf_bytes
+
+    q = (
+        db.query(Sale)
+        .options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency), joinedload(Sale.branch))
+        .filter(Sale.company_id == current_user.company_id)
+    )
+
+    if ctx.needs_assignment:
+        sales = []
+    else:
+        q = apply_branch_scope(q, ctx, Sale.branch_id, explicit_branch_id=branch_id)
+        if cashier_id:
+            q = q.filter(Sale.cashier_id == cashier_id)
+        if customer_id:
+            q = q.filter(Sale.customer_id == customer_id)
+        if date_today:
+            today_d = date.today()
+            q = q.filter(Sale.created_at >= datetime.combine(today_d, datetime.min.time()))
+        if date_from:
+            q = q.filter(Sale.created_at >= datetime.combine(date_from, datetime.min.time()))
+        if date_to:
+            q = q.filter(Sale.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+        if status:
+            q = q.filter(Sale.status == status)
+        else:
+            q = q.filter(Sale.status != SaleStatus.refunded)
+        if search:
+            CustomerQ = aliased(Customer, name='customer_q')
+            q = q.outerjoin(CustomerQ, Sale.customer_id == CustomerQ.id)
+            q = q.filter(
+                or_(
+                    Sale.number.ilike(f"%{search}%"),
+                    CustomerQ.name.ilike(f"%{search}%"),
+                )
+            )
+        sales = q.order_by(Sale.created_at.desc()).limit(1000).all()
+
+    company_name = getattr(current_user, "company", None) and getattr(current_user.company, "name", "")
+    if not company_name:
+        company_name = "E-Code ERP"
+
+    pdf_bytes = generate_sales_list_pdf_bytes(
+        sales=sales,
+        date_from=str(date_from) if date_from else "",
+        date_to=str(date_to) if date_to else "",
+        company_name=company_name,
+    )
+    filename = f"Sotuvlar_hisoboti_{date_from or 'barcha'}_{date_to or ''}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
 @router.get("/{sale_id}", response_model=SaleOut)
 def get_sale(
         sale_id: int,

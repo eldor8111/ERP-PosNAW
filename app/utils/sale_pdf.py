@@ -352,3 +352,220 @@ def generate_sale_pdf_bytes(sale: Any, company: Any = None) -> bytes:
     pdf.cell(57, 5, pdf.u(f"Итого: {fmt_money(total_amount)} {curr_code}"), 0, 1, "R")
 
     return bytes(pdf.output())
+
+
+def generate_sales_list_pdf_bytes(
+    sales: List[Any],
+    date_from: Optional[str] = "",
+    date_to: Optional[str] = "",
+    company_name: str = "E-Code ERP",
+) -> bytes:
+    """
+    Generates an A4 Landscape PDF report of sales list.
+    """
+    pdf = SalePDF(orientation="L", unit="mm", format="A4")
+    pdf.setup_fonts()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_margins(10, 10, 10)
+    pdf.add_page()
+    fn = pdf.font_family_name
+
+    # Header
+    pdf.set_font(fn, "B", 14)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(180, 8, pdf.u(f"{company_name} — Sotuvlar hisoboti"), 0, 0, "L")
+    pdf.set_font(fn, "", 8)
+    pdf.set_text_color(100, 116, 139)
+    now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+    pdf.cell(97, 8, pdf.u(f"Chop etilgan: {now_str}"), 0, 1, "R")
+
+    # Subtitle
+    pdf.set_font(fn, "", 9)
+    pdf.set_text_color(71, 85, 105)
+    period_str = f"Sana oralig'i: {date_from or 'Barcha'} dan {date_to or 'Hozirgacha'} gacha | Jami: {len(sales)} ta sotuv"
+    pdf.cell(0, 5, pdf.u(period_str), 0, 1, "L")
+    pdf.ln(3)
+
+    # Calculate totals
+    sum_total = 0.0
+    sum_paid = 0.0
+    sum_debt = 0.0
+    for s in sales:
+        t_amt = float(getattr(s, "total_amount", 0) or 0)
+        p_amt = float(getattr(s, "paid_amount", 0) or 0)
+        d_amt = max(0.0, t_amt - p_amt)
+        sum_total += t_amt
+        sum_paid += p_amt
+        sum_debt += d_amt
+
+    # KPI summary cards (4 cards across 277mm)
+    card_w = 66
+    y_card = pdf.get_y()
+    card_h = 13
+
+    cards = [
+        ("JAMI SOTUVLAR", f"{len(sales)} ta", (15, 23, 42)),
+        ("UMUMIY SUMMA", f"{fmt_money(sum_total)} so'm", (37, 99, 235)),
+        ("JAMI TO'LANGAN", f"{fmt_money(sum_paid)} so'm", (5, 150, 105)),
+        ("JAMI QARZ", f"{fmt_money(sum_debt)} so'm", (220, 38, 38)),
+    ]
+
+    for idx, (label, val, color) in enumerate(cards):
+        x_pos = 10 + idx * (card_w + 4.3)
+        pdf.set_xy(x_pos, y_card)
+        pdf.set_fill_color(248, 250, 252)
+        pdf.set_draw_color(226, 232, 240)
+        pdf.rect(x_pos, y_card, card_w, card_h, style="DF")
+        pdf.set_xy(x_pos + 2, y_card + 1.5)
+        pdf.set_font(fn, "B", 7)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(card_w - 4, 4, pdf.u(label), 0, 1, "L")
+        pdf.set_xy(x_pos + 2, y_card + 5.5)
+        pdf.set_font(fn, "B", 10)
+        pdf.set_text_color(*color)
+        pdf.cell(card_w - 4, 6, pdf.u(val), 0, 1, "L")
+
+    pdf.set_xy(10, y_card + card_h + 4)
+
+    # Table columns (total = 277mm)
+    cols = [
+        ("№", 10, "C"),
+        ("Raqam", 24, "C"),
+        ("Mijoz", 60, "L"),
+        ("Jami summa", 32, "R"),
+        ("To'langan", 30, "R"),
+        ("Qarz", 30, "R"),
+        ("To'lov turi", 26, "C"),
+        ("Holati", 25, "C"),
+        ("Sana", 40, "C"),
+    ]
+
+    # Draw table header
+    pdf.set_fill_color(241, 245, 249)
+    pdf.set_draw_color(203, 213, 225)
+    pdf.set_text_color(71, 85, 105)
+    pdf.set_font(fn, "B", 8)
+    for title, width, align in cols:
+        pdf.cell(width, 7, pdf.u(title), 1, 0, align, fill=True)
+    pdf.ln(7)
+
+    # Table rows
+    pdf.set_draw_color(226, 232, 240)
+    for idx, s in enumerate(sales, 1):
+        if pdf.get_y() > 190:
+            pdf.add_page()
+            pdf.set_fill_color(241, 245, 249)
+            pdf.set_draw_color(203, 213, 225)
+            pdf.set_text_color(71, 85, 105)
+            pdf.set_font(fn, "B", 8)
+            for title, width, align in cols:
+                pdf.cell(width, 7, pdf.u(title), 1, 0, align, fill=True)
+            pdf.ln(7)
+            pdf.set_draw_color(226, 232, 240)
+
+        t_amt = float(getattr(s, "total_amount", 0) or 0)
+        p_amt = float(getattr(s, "paid_amount", 0) or 0)
+        d_amt = max(0.0, t_amt - p_amt)
+
+        cust_name = ""
+        if getattr(s, "customer", None):
+            cust_name = getattr(s.customer, "name", "") or ""
+        elif getattr(s, "customer_name", None):
+            cust_name = str(s.customer_name)
+        if not cust_name:
+            cust_name = "—"
+        if pdf.get_string_width(pdf.u(cust_name)) > 57:
+            while cust_name and pdf.get_string_width(pdf.u(cust_name + "..")) > 57:
+                cust_name = cust_name[:-1]
+            cust_name += ".."
+
+        s_num = str(getattr(s, "number", "") or f"#{getattr(s, 'id', '')}")
+
+        pt = str(getattr(s, "payment_type", "") or "—")
+        pt_map = {
+            "cash": "Naqd",
+            "card": "Karta",
+            "transfer": "O'tkazma",
+            "credit": "Nasiya / Qarz",
+            "mixed": "Aralash",
+        }
+        pt_str = pt_map.get(pt.lower(), pt)
+
+        st = str(getattr(s, "status", "") or "completed").lower()
+        st_map = {
+            "completed": "Bajarildi",
+            "pending": "Kutilmoqda",
+            "cancelled": "Bekor",
+            "refunded": "Qaytarildi",
+        }
+        st_str = st_map.get(st, st)
+
+        dt = getattr(s, "created_at", None)
+        if isinstance(dt, datetime):
+            d_str = dt.strftime("%d.%m.%Y %H:%M")
+        elif dt:
+            d_str = str(dt).replace("T", " ")[:16]
+        else:
+            d_str = "—"
+
+        row_fill = (idx % 2 == 0)
+        if row_fill:
+            pdf.set_fill_color(248, 250, 252)
+        else:
+            pdf.set_fill_color(255, 255, 255)
+
+        row_h = 6
+
+        pdf.set_font(fn, "", 8)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(10, row_h, str(idx), 1, 0, "C", fill=row_fill)
+
+        pdf.set_font(fn, "B", 8)
+        pdf.set_text_color(29, 78, 216)
+        pdf.cell(24, row_h, pdf.u(s_num), 1, 0, "C", fill=row_fill)
+
+        pdf.set_font(fn, "", 8)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(60, row_h, pdf.u(cust_name), 1, 0, "L", fill=row_fill)
+
+        pdf.set_font(fn, "B", 8)
+        pdf.set_text_color(15, 23, 42)
+        pdf.cell(32, row_h, fmt_money(t_amt), 1, 0, "R", fill=row_fill)
+
+        pdf.set_font(fn, "", 8)
+        pdf.set_text_color(5, 150, 105)
+        pdf.cell(30, row_h, fmt_money(p_amt), 1, 0, "R", fill=row_fill)
+
+        if d_amt > 0:
+            pdf.set_font(fn, "B", 8)
+            pdf.set_text_color(220, 38, 38)
+            pdf.cell(30, row_h, fmt_money(d_amt), 1, 0, "R", fill=row_fill)
+        else:
+            pdf.set_font(fn, "", 8)
+            pdf.set_text_color(148, 163, 184)
+            pdf.cell(30, row_h, "—", 1, 0, "R", fill=row_fill)
+
+        pdf.set_text_color(71, 85, 105)
+        pdf.cell(26, row_h, pdf.u(pt_str), 1, 0, "C", fill=row_fill)
+
+        pdf.cell(25, row_h, pdf.u(st_str), 1, 0, "C", fill=row_fill)
+
+        pdf.set_font(fn, "", 7.5)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(40, row_h, pdf.u(d_str), 1, 1, "C", fill=row_fill)
+
+    # Footer total row
+    pdf.set_fill_color(241, 245, 249)
+    pdf.set_font(fn, "B", 8.5)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(94, 7, pdf.u("JAMI:"), 1, 0, "R", fill=True)
+    pdf.set_text_color(37, 99, 235)
+    pdf.cell(32, 7, fmt_money(sum_total), 1, 0, "R", fill=True)
+    pdf.set_text_color(5, 150, 105)
+    pdf.cell(30, 7, fmt_money(sum_paid), 1, 0, "R", fill=True)
+    pdf.set_text_color(220, 38, 38)
+    pdf.cell(30, 7, fmt_money(sum_debt), 1, 0, "R", fill=True)
+    pdf.cell(91, 7, "", 1, 1, "C", fill=True)
+
+    return bytes(pdf.output())
+
