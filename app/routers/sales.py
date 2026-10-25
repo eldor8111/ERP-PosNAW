@@ -703,6 +703,31 @@ def get_sale(
     return out
 
 
+@router.get("/{sale_id}/pdf")
+def get_sale_pdf(
+        sale_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
+):
+    from app.utils.sale_pdf import generate_sale_pdf_bytes, get_sale_pdf_filename
+
+    sale = _load_sale(db, sale_id, current_user)
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sotuv topilmadi")
+
+    pdf_bytes = generate_sale_pdf_bytes(sale)
+    filename = get_sale_pdf_filename(sale)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
 @router.patch("/{sale_id}/fiscal", response_model=SaleOut)
 def update_sale_fiscal(
         sale_id: int,

@@ -1094,16 +1094,48 @@ export default function UlgurjiSotuv() {
       const tpl = size === 'nak' ? 'nak' : size === '58' ? '58' : '80';
       const rSettings = getReceiptSettings();
       const cfgRaw = tpl === 'nak' ? (rSettings.nak || {}) : (rSettings['r' + tpl] || {});
-      // Company ma'lumotlari fallback: istalgan shablonda kiritilgan bo'lsa ham ishlaydi
       const _r58 = rSettings.r58 || {};
       const _r80 = rSettings.r80 || {};
       const _rN = rSettings.nak || {};
       const _CF = ['company', 'address', 'phone', 'inn', 'logo', 'logo_size', 'footer'];
-      const _mrgd = {};
-      for (const f of _CF) { _mrgd[f] = cfgRaw[f] || _r58[f] || _r80[f] || _rN[f] || ''; }
-      const tmplCfg = { ...cfgRaw, ..._mrgd };
+      const tmplCfg = { ...cfgRaw };
+      for (const f of _CF) {
+        if (tmplCfg[f] === undefined) {
+          tmplCfg[f] = _r58[f] !== undefined ? _r58[f] : (_r80[f] !== undefined ? _r80[f] : (_rN[f] || ''));
+        }
+      }
       printReceiptHtml(buildReceiptHtml(data, tpl, tmplCfg));
     } catch (err) { console.error('Print error:', err); toast.error(t('wholesale.printError')); }
+  };
+
+  // ── Bitta sotuvni PDF formatida yuklab olish (Namuna asosida) ────────────
+  const downloadSalePdf = async (s) => {
+    try {
+      const toastId = toast.loading("PDF tayyorlanmoqda...");
+      const res = await api.get(`/sales/${s.id}/pdf`, { responseType: 'blob' });
+      let cust = s.customer_name || s.contractor_name || 'Mijoz';
+      let datePart = (s.created_at || '').replace(/[- :]/g, '_').slice(0, 19);
+      let filename = `Sotuv_${cust.replace(/[^\w\s-]/g, '').trim().replace(/[-\s]+/g, '_')}_${datePart}.pdf`;
+      const cd = res.headers && (res.headers['content-disposition'] || res.headers['Content-Disposition']);
+      if (cd && cd.includes('filename=')) {
+        const match = cd.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.dismiss(toastId);
+      toast.success("PDF muvaffaqiyatli yuklab olindi");
+    } catch (err) {
+      console.error('PDF download error:', err);
+      toast.error("PDF yuklab olishda xatolik yuz berdi");
+    }
   };
 
   // ── Sotuvlar ro'yxatini Excel (.xlsx) formatida eksport qilish ──────────
@@ -3280,6 +3312,11 @@ export default function UlgurjiSotuv() {
                                   {opt.label}
                                 </button>
                               ))}
+                              <button onClick={() => { downloadSalePdf(s); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-rose-50 hover:text-rose-700 flex items-center gap-2.5">
+                                <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                PDF yuklab olish
+                              </button>
                               <button onClick={() => { exportSingleSaleToExcel(s); setOpenMenuId(null); }}
                                 className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2.5">
                                 <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -3734,6 +3771,16 @@ export default function UlgurjiSotuv() {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${STATUS_META[selectedSale.status]?.c || 'bg-white/20 text-white'}`}>{STATUS_META[selectedSale.status]?.lKey ? t(STATUS_META[selectedSale.status].lKey) : ''}</span>
+                <button onClick={() => downloadSalePdf(selectedSale)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  PDF
+                </button>
+                <button onClick={() => exportSingleSaleToExcel(selectedSale)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  Excel
+                </button>
                 <button onClick={() => { openAssignCustomerModal(selectedSale); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -4309,6 +4356,29 @@ function SaleDetailContent({ saleId }) {
             <span className="text-slate-500">{r.l}</span><span className={r.c}>{r.v}</span>
           </div>
         ))}
+      </div>
+      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+        <button
+          onClick={() => {
+            api.get(`/sales/${data.id}/pdf`, { responseType: 'blob' }).then(res => {
+              const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+              const a = document.createElement('a');
+              a.href = url;
+              let cust = data.customer_name || data.contractor_name || 'Mijoz';
+              let datePart = (data.created_at || '').replace(/[- :]/g, '_').slice(0, 19);
+              a.download = `Sotuv_${cust.replace(/[^\w\s-]/g, '').trim().replace(/[-\s]+/g, '_')}_${datePart}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(url);
+              toast.success("PDF yuklab olindi");
+            }).catch(() => toast.error("PDF yuklab olishda xatolik"));
+          }}
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs"
+        >
+          <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          PDF yuklab olish
+        </button>
       </div>
     </div>
   );

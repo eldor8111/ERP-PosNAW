@@ -2034,8 +2034,8 @@ function NakladnoyFields({ cfg, upd }) {
 function ReceiptTab() {
   const { t } = useLang();
   const { user } = useAuth();
-  // Chek shablonlarini faqat admin/direktor saqlaydi (backend boshqa rollarga 403 qaytaradi)
-  const canSaveReceipt = ['admin', 'director'].includes(user?.role);
+  // Chek shablonlarini faqat admin/direktor/super_admin saqlaydi
+  const canSaveReceipt = ['admin', 'director', 'super_admin'].includes(user?.role);
   const [loading, setLoading] = useState(true);
   const [sub, setSub] = useState('58');
   const [cfg58, setCfg58] = useState({ ...defaultReceiptCfg });
@@ -2059,7 +2059,6 @@ function ReceiptTab() {
         if (r80) stored.r80 = r80;
         if (nak) stored.nak = nak;
         if (Object.keys(stored).length) {
-          // ✅ company_id bilan saqlash
           saveReceiptSettings(stored);
         }
       })
@@ -2072,19 +2071,21 @@ function ReceiptTab() {
   const updNak = (k, v) => setCfgNak(p => ({ ...p, [k]: v }));
 
   const handleSave = () => {
-    // Company ma'lumotlarini barcha shablonlarga sinxronlaymiz:
-    // Foydalanuvchi istalgan shablonda phone/address/company/inn kiritsа —
-    // barcha shablonlarga avtomatik nusxa ko'chiriladi.
+    // Joriy faol shablondagi umumiy ma'lumotlarni asos qilib olamiz:
+    const activeCfg = sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak;
     const COMPANY_FIELDS = ['company', 'address', 'phone', 'inn', 'logo', 'logo_size', 'footer'];
-    const activeCompany = {};
+
+    const synced58 = { ...cfg58 };
+    const synced80 = { ...cfg80 };
+    const syncedNak = { ...cfgNak };
+
     for (const field of COMPANY_FIELDS) {
-      activeCompany[field] =
-        (sub === '58' ? cfg58 : sub === '80' ? cfg80 : cfgNak)[field] ||
-        cfg58[field] || cfg80[field] || cfgNak[field] || '';
+      if (activeCfg[field] !== undefined) {
+        synced58[field] = activeCfg[field];
+        synced80[field] = activeCfg[field];
+        syncedNak[field] = activeCfg[field];
+      }
     }
-    const synced58 = { ...cfg58, ...activeCompany };
-    const synced80 = { ...cfg80, ...activeCompany };
-    const syncedNak = { ...cfgNak, ...activeCompany };
 
     api.put('/companies/me/receipt_templates', {
       receipt_templates: { r58: synced58, r80: synced80, nak: syncedNak }
@@ -2094,6 +2095,7 @@ function ReceiptTab() {
       setCfgNak(syncedNak);
       saveReceiptSettings({ r58: synced58, r80: synced80, nak: syncedNak });
       setSaved(true);
+      toast.success(t('settings.receipt.saveSuccess') || "Chek sozlamalari muvaffaqiyatli saqlandi!");
       setTimeout(() => setSaved(false), 2500);
     }).catch(e => toast.error(e.response?.data?.detail || t('settings.receipt.saveError')));
   };

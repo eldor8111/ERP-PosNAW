@@ -316,7 +316,7 @@ def get_my_receipt_templates(
 def update_my_receipt_templates(
     data: ReceiptTemplatesUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director))
+    current_user: User = Depends(require_roles(UserRole.super_admin, UserRole.admin, UserRole.director))
 ):
     if not current_user.company_id:
         raise HTTPException(status_code=400, detail="Kompaniyangiz topilmadi")
