@@ -552,6 +552,7 @@ def inventory_summary(
 
 # ─── Kam qoldiq ogohlantirish ─────────────────────────────────────────────────
 
+@router.get("/low-stock")
 @router.get("/stock-alert")
 def stock_alert(
     branch_id: Optional[int] = Query(None, description="Faqat shu filial omborlari"),

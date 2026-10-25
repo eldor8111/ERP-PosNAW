@@ -560,9 +560,14 @@ export default function AdminLayout() {
   const refreshLowStock = useCallback(() => {
     if (!ROLE_GROUPS.WAREHOUSE_ACCESS.includes(user?.role)) return;
     api
-      .get('/reports/low-stock', { _suppressToast: true })
-      .then((r) => setLowStockCount((r.data || []).length))
-      .catch(() => {});
+      .get('/inventory/low-stock-count', { _suppressToast: true })
+      .then((r) => setLowStockCount(r.data?.count ?? 0))
+      .catch(() => {
+        api
+          .get('/reports/low-stock', { _suppressToast: true })
+          .then((r) => setLowStockCount((r.data || []).length))
+          .catch(() => {});
+      });
   }, [user?.role]);
 
   const refreshApprovals = useCallback(() => {
