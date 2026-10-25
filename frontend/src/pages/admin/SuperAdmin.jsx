@@ -21,6 +21,19 @@ import {
   Check,
   X,
   AlertTriangle,
+  TrendingUp,
+  Activity,
+  CreditCard,
+  Wallet,
+  Clock,
+  Calendar,
+  Pill,
+  RefreshCw,
+  Download,
+  MapPin,
+  FlaskConical,
+  ChevronRight,
+  ShieldAlert,
 } from 'lucide-react';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
@@ -1546,29 +1559,41 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
         {/* 6 Grid KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Card 1: Korxonalar */}
-          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-blue-50/70 to-indigo-50/30 border border-blue-100 hover:shadow-xs transition-all">
-            <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-1 flex items-center justify-between">
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-blue-50/70 to-indigo-50/30 border border-blue-100/90 hover:shadow-xs transition-all">
+            <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-1.5 flex items-center justify-between">
               <span>Korxonalar</span>
-              <span className="text-xs">🏢</span>
+              <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700">
+                <Building2 className="w-3.5 h-3.5" />
+              </div>
             </div>
             <div className="text-xl font-black text-blue-900 leading-tight">
               {overview?.companies ?? '—'} <span className="text-xs font-semibold text-slate-400">ta</span>
             </div>
-            <div className="text-[10px] text-blue-600/80 font-semibold mt-1 truncate">
-              🟢 {overview?.active_subscriptions ?? 0} faol · ⏳ {overview?.trial_subscriptions ?? 0} trial
+            <div className="text-[10px] text-slate-500 font-semibold mt-1.5 flex items-center gap-1.5 truncate">
+              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {overview?.active_subscriptions ?? 0} faol
+              </span>
+              <span className="text-slate-300">·</span>
+              <span className="inline-flex items-center gap-1 text-sky-700 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                {overview?.trial_subscriptions ?? 0} sinov
+              </span>
             </div>
           </div>
 
           {/* Card 2: MRR */}
-          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-emerald-50/70 to-teal-50/30 border border-emerald-200 hover:shadow-xs transition-all ring-1 ring-emerald-400/20">
-            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-1 flex items-center justify-between">
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-emerald-50/70 to-teal-50/30 border border-emerald-200/90 hover:shadow-xs transition-all ring-1 ring-emerald-400/20">
+            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-1.5 flex items-center justify-between">
               <span>MRR (Oylik tushum)</span>
-              <span className="text-xs">💰</span>
+              <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
+                <TrendingUp className="w-3.5 h-3.5" />
+              </div>
             </div>
             <div className="text-lg font-black text-emerald-900 leading-tight truncate">
               {overview ? `${fmtMoney(overview.mrr)}` : '—'} <span className="text-xs font-semibold text-emerald-600">s</span>
             </div>
-            <div className="text-[10px] text-emerald-700 font-semibold mt-1 truncate">
+            <div className="text-[10px] text-emerald-700 font-semibold mt-1.5 truncate">
               ARR: {overview ? `${fmtMoney(overview.arr || 0)} s` : '—'}
             </div>
           </div>
@@ -1580,56 +1605,65 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
               overview?.expiring_soon_count > 0 ? 'ring-2 ring-amber-400/30' : ''
             }`}
           >
-            <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1 flex items-center justify-between">
+            <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1.5 flex items-center justify-between">
               <span>7 kunda tugaydi</span>
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
+                <AlertTriangle className="w-3.5 h-3.5" />
+              </div>
             </div>
             <div className="text-xl font-black text-amber-900 leading-tight">
               {overview?.expiring_soon_count ?? 0} <span className="text-xs font-semibold text-amber-700">ta</span>
             </div>
-            <div className="text-[10px] text-amber-700 font-semibold mt-1 truncate">
-              🔴 {overview?.expired_subscriptions ?? 0} ta muddati o'tgan
+            <div className="text-[10px] text-rose-600 font-semibold mt-1.5 flex items-center gap-1 truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              <span>{overview?.expired_subscriptions ?? 0} ta muddati o'tgan</span>
             </div>
           </div>
 
           {/* Card 4: Faollik (7 kun) */}
-          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-violet-50/70 to-purple-50/30 border border-violet-100 hover:shadow-xs transition-all">
-            <div className="text-[10px] font-black uppercase tracking-wider text-violet-700 mb-1 flex items-center justify-between">
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-violet-50/70 to-purple-50/30 border border-violet-100/90 hover:shadow-xs transition-all">
+            <div className="text-[10px] font-black uppercase tracking-wider text-violet-700 mb-1.5 flex items-center justify-between">
               <span>Faollik (7 kun)</span>
-              <span className="text-xs">⚡</span>
+              <div className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center text-violet-700">
+                <Activity className="w-3.5 h-3.5" />
+              </div>
             </div>
             <div className="text-xl font-black text-violet-900 leading-tight">
               {overview?.active_companies_7d ?? 0} <span className="text-xs font-semibold text-violet-500">ta</span>
             </div>
-            <div className="text-[10px] text-violet-600 font-semibold mt-1 truncate">
+            <div className="text-[10px] text-violet-600 font-semibold mt-1.5 truncate">
               Filial: {overview?.branches ?? 0} · Xodim: {overview?.users ?? 0}
             </div>
           </div>
 
           {/* Card 5: Bugungi Obuna Tushumi */}
-          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-sky-50/70 to-blue-50/30 border border-sky-100 hover:shadow-xs transition-all">
-            <div className="text-[10px] font-black uppercase tracking-wider text-sky-700 mb-1 flex items-center justify-between">
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-sky-50/70 to-blue-50/30 border border-sky-100/90 hover:shadow-xs transition-all">
+            <div className="text-[10px] font-black uppercase tracking-wider text-sky-700 mb-1.5 flex items-center justify-between">
               <span>Bugun tushum</span>
-              <span className="text-xs">🧾</span>
+              <div className="w-6 h-6 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700">
+                <CreditCard className="w-3.5 h-3.5" />
+              </div>
             </div>
             <div className="text-lg font-black text-sky-900 leading-tight truncate">
               {overview ? `${fmtMoney(overview.today_sub_revenue)}` : '—'} <span className="text-xs font-semibold text-sky-600">s</span>
             </div>
-            <div className="text-[10px] text-sky-600 font-semibold mt-1 truncate">
+            <div className="text-[10px] text-sky-600 font-semibold mt-1.5 truncate">
               {overview?.today_subscriptions ?? 0} ta yangi obuna
             </div>
           </div>
 
           {/* Card 6: Mijozlar Savdo Hajmi */}
           <div className="rounded-2xl p-3.5 bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200 hover:shadow-xs transition-all">
-            <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 flex items-center justify-between">
               <span>Mijozlar savdosi</span>
-              <span className="text-xs">🛍️</span>
+              <div className="w-6 h-6 rounded-lg bg-slate-200/80 flex items-center justify-center text-slate-600">
+                <BarChart3 className="w-3.5 h-3.5" />
+              </div>
             </div>
             <div className="text-base font-black text-slate-800 leading-tight truncate" title={`${fmtMoney(overview?.total_revenue)} so'm`}>
               {overview ? `${fmtMoney(overview.total_revenue)}` : '—'} <span className="text-[10px] font-semibold text-slate-400">s</span>
             </div>
-            <div className="text-[10px] text-slate-500 font-semibold mt-1 truncate">
+            <div className="text-[10px] text-slate-500 font-semibold mt-1.5 truncate">
               {overview?.sales?.toLocaleString() ?? 0} ta operatsiya
             </div>
           </div>
@@ -1888,21 +1922,32 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                             {/* Company Name & Details */}
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
+                                  c.is_test 
+                                    ? 'bg-gradient-to-br from-purple-600 to-indigo-700 text-white ring-2 ring-purple-200'
+                                    : 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white'
+                                }`}>
                                   {c.name?.[0]?.toUpperCase()}
                                 </div>
                                 <div className="min-w-0">
                                   <div className="font-bold text-slate-900 truncate flex items-center gap-1.5">
                                     <span>{c.name}</span>
-                                    {c.phone && <span className="text-[10px] text-slate-400 font-normal">({c.phone})</span>}
+                                    {c.phone && <span className="text-[11px] text-slate-400 font-normal">({c.phone})</span>}
                                   </div>
                                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                     <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.2 rounded-md text-[10px] border border-blue-100">
                                       {c.code || '—'}
                                     </span>
+                                    {c.is_test && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                                        <FlaskConical className="w-2.5 h-2.5" />
+                                        Test hisob
+                                      </span>
+                                    )}
                                     {c.region && (
-                                      <span className="text-[10px] text-slate-400 truncate">
-                                        📍 {c.region}
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 truncate">
+                                        <MapPin className="w-2.5 h-2.5 text-slate-400" />
+                                        {c.region}
                                       </span>
                                     )}
                                   </div>
@@ -1934,7 +1979,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                             <td className="px-4 py-3">
                               {c.subscription_status === 'active' && (
                                 <div>
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                     Faol ({c.days_left} kun qoldi)
                                   </span>
@@ -1945,9 +1990,9 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                               )}
                               {c.subscription_status === 'expiring_soon' && (
                                 <div>
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                    ⚠️ {c.days_left} kun qoldi!
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 animate-pulse">
+                                    <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                    {c.days_left} kun qoldi!
                                   </span>
                                   <div className="text-[10px] text-amber-700 font-semibold mt-0.5">
                                     {c.subscription_ends_at?.slice(0, 10)} gacha
@@ -1956,8 +2001,8 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                               )}
                               {c.subscription_status === 'expired' && (
                                 <div>
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                                     Muddati tugagan
                                   </span>
                                   <div className="text-[10px] text-slate-400 mt-0.5">
@@ -1967,8 +2012,9 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                               )}
                               {c.subscription_status === 'trial' && (
                                 <div>
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">
-                                    ⏳ Sinov ({c.days_left} kun)
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                    <Clock className="w-2.5 h-2.5 text-sky-600" />
+                                    Sinov ({c.days_left} kun)
                                   </span>
                                 </div>
                               )}
@@ -1979,29 +2025,33 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
                             {/* Active Modules Badges */}
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-1 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 {c.modules?.pharmacy && (
-                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold" title="Dorixona moduli">
-                                    💊 Dorixona
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/70 text-[11px] font-semibold" title="Dorixona moduli">
+                                    <Pill className="w-3 h-3 text-emerald-600" />
+                                    Dorixona
                                   </span>
                                 )}
                                 {c.modules?.manufacturing && (
-                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold" title="Ishlab chiqarish moduli">
-                                    🏭 Ishlab ch.
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200/70 text-[11px] font-semibold" title="Ishlab chiqarish moduli">
+                                    <Factory className="w-3 h-3 text-amber-600" />
+                                    Ishlab ch.
                                   </span>
                                 )}
                                 {c.modules?.distribution && (
-                                  <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold" title="Distribyutsiya moduli">
-                                    🚚 Logistika
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/70 text-[11px] font-semibold" title="Distribyutsiya moduli">
+                                    <Truck className="w-3 h-3 text-blue-600" />
+                                    Logistika
                                   </span>
                                 )}
                                 {c.modules?.delivery_automation && (
-                                  <span className="px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200 text-[10px] font-bold" title="Yetkazib berish avtomatikasi">
-                                    ⚡ Yetkazma
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-violet-50 text-violet-700 border border-violet-200/70 text-[11px] font-semibold" title="Yetkazib berish avtomatikasi">
+                                    <Zap className="w-3 h-3 text-violet-600" />
+                                    Yetkazma
                                   </span>
                                 )}
                                 {!c.modules?.pharmacy && !c.modules?.manufacturing && !c.modules?.distribution && !c.modules?.delivery_automation && (
-                                  <span className="text-[10px] text-slate-300">Asosiy rejim</span>
+                                  <span className="text-[11px] text-slate-400 font-medium">Asosiy rejim</span>
                                 )}
                               </div>
                             </td>
@@ -2010,16 +2060,27 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                             <td className="px-4 py-3">
                               {c.last_sale_at ? (
                                 <div>
-                                  <div className="font-semibold text-slate-700">
-                                    {c.days_inactive === 0 ? '🟢 Bugun' : c.days_inactive === 1 ? 'Kecha' : `${c.days_inactive} kun oldin`}
+                                  <div className="font-semibold text-slate-700 flex items-center gap-1.5">
+                                    {c.days_inactive === 0 ? (
+                                      <span className="inline-flex items-center gap-1.5 text-emerald-700 font-bold">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+                                        Bugun
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-slate-700">
+                                        <Clock className="w-3 h-3 text-slate-400" />
+                                        {c.days_inactive === 1 ? 'Kecha' : `${c.days_inactive} kun oldin`}
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-[10px] text-slate-400">
                                     {c.sales_count} ta savdo ({fmtMoney(c.sales_total)} s)
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
-                                  🔴 Savdo qilinmagan
+                                <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-slate-300" />
+                                  Savdo qilinmagan
                                 </span>
                               )}
                             </td>
@@ -2029,30 +2090,30 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
                                   onClick={() => { setSelectedCompany(c); setDetailInitialTab('packages'); }}
-                                  title="Paket berish / boshqarish"
-                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 transition-colors"
+                                  title="Paketlarni boshqarish"
+                                  className="p-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 border border-slate-200/60 hover:border-indigo-200 transition-all shadow-2xs"
                                 >
-                                  🎁
+                                  <Package className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => { setFoundCompany(c); setShowTopUpCard(true); }}
                                   title="Balans to'ldirish"
-                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 transition-colors"
+                                  className="p-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 border border-slate-200/60 hover:border-emerald-200 transition-all shadow-2xs"
                                 >
-                                  💳
+                                  <Wallet className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => setDeleteCompany(c)}
                                   title={t('superAdmin.deleteCompanyButton')}
-                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                                  className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200/60 hover:border-rose-200 transition-all shadow-2xs"
                                 >
-                                  <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => { setSelectedCompany(c); setDetailInitialTab('branches'); }}
-                                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                                  className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all"
                                 >
-                                  <Ic d="M9 5l7 7-7 7" cls="w-4 h-4" />
+                                  <ChevronRight className="w-4 h-4" />
                                 </button>
                               </div>
                             </td>
@@ -2148,92 +2209,112 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
                   <p className="text-xs text-slate-400 mb-4">Korxonalar tomonidan sotib olingan / berilgan paketlar</p>
 
                   <div className="space-y-3">
-                    {overview?.package_stats?.map((fp) => (
-                      <div key={fp.code} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-lg">
-                            {fp.code === 'pharmacy' ? '💊' : fp.code === 'manufacturing' ? '🏭' : fp.code === 'distribution' ? '🚚' : '⚡'}
-                          </span>
-                          <div>
-                            <div className="text-xs font-bold text-slate-800">{fp.name}</div>
-                            <div className="text-[10px] text-slate-400">{fmtMoney(fp.price)} so'm/oy</div>
+                    {overview?.package_stats?.map((fp) => {
+                      const iconWrap = fp.code === 'pharmacy'
+                        ? { bg: 'bg-emerald-50 text-emerald-600 border-emerald-200/70', icon: <Pill className="w-4 h-4" /> }
+                        : fp.code === 'manufacturing'
+                        ? { bg: 'bg-amber-50 text-amber-600 border-amber-200/70', icon: <Factory className="w-4 h-4" /> }
+                        : fp.code === 'distribution'
+                        ? { bg: 'bg-blue-50 text-blue-600 border-blue-200/70', icon: <Truck className="w-4 h-4" /> }
+                        : { bg: 'bg-violet-50 text-violet-600 border-violet-200/70', icon: <Zap className="w-4 h-4" /> };
+
+                      return (
+                        <div key={fp.code} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/70 hover:bg-slate-50 border border-slate-100 transition-all">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shadow-2xs ${iconWrap.bg}`}>
+                              {iconWrap.icon}
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-slate-800">{fp.name}</div>
+                              <div className="text-[10px] text-slate-400 font-medium">{fmtMoney(fp.price)} so'm/oy</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200/60 text-blue-700 font-black text-xs">
+                              {fp.count} ta faol
+                            </span>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="px-2.5 py-1 rounded-xl bg-blue-100 text-blue-800 font-black text-xs">
-                            {fp.count} ta faol
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Churn Risk: 7 kunda tugaydiganlar & Obunasi o'tganlar maxsus ro'yxati */}
+                {/* Churn Risk: 7 kunda tugaydiganlar & Obunasi o'tganlar maxsus ro'yxati (Test hisoblar chiqarib tashlangan) */}
                 <div className="lg:col-span-2 bg-white rounded-3xl border border-amber-200/80 shadow-xs p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-sm font-black text-amber-900 flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
-                        Xavf Guruhidagi Korxonalar (At Risk)
-                      </h3>
-                      <p className="text-xs text-slate-400">Tarifi 7 kunda tugaydigan yoki muddati o'tib ketgan korxonalar</p>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-xs">
-                      {companies.filter(c => c.subscription_status === 'expiring_soon' || c.subscription_status === 'expired').length} ta mijoz
-                    </span>
-                  </div>
+                  {(() => {
+                    const atRiskList = companies.filter(c => !c.is_test && (c.subscription_status === 'expiring_soon' || c.subscription_status === 'expired'));
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h3 className="text-sm font-black text-amber-900 flex items-center gap-2">
+                              <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                              </span>
+                              Xavf Guruhidagi Korxonalar (At Risk)
+                            </h3>
+                            <p className="text-xs text-slate-400">Tarifi 7 kunda tugaydigan yoki muddati o'tib ketgan haqiqiy korxonalar</p>
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-xs">
+                            {atRiskList.length} ta mijoz
+                          </span>
+                        </div>
 
-                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
-                    <table className="min-w-full divide-y divide-slate-100 text-xs">
-                      <thead>
-                        <tr className="text-slate-400 text-[10px] uppercase font-bold text-left">
-                          <th className="pb-2">Korxona</th>
-                          <th className="pb-2">Telefon</th>
-                          <th className="pb-2">Tarif</th>
-                          <th className="pb-2">Qolgan kun</th>
-                          <th className="pb-2">Balans</th>
-                          <th className="pb-2 text-right">Amal</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {companies
-                          .filter(c => c.subscription_status === 'expiring_soon' || c.subscription_status === 'expired')
-                          .map((c) => (
-                            <tr key={c.id} className="hover:bg-amber-50/30">
-                              <td className="py-2.5 font-bold text-slate-800">{c.name}</td>
-                              <td className="py-2.5 text-slate-600">{c.phone || '—'}</td>
-                              <td className="py-2.5 font-semibold text-slate-700">{c.tariff_name || 'Tarifsiz'}</td>
-                              <td className="py-2.5">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  c.subscription_status === 'expiring_soon'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-red-100 text-red-700'
-                                }`}>
-                                  {c.days_left != null ? `${c.days_left} kun` : 'Tugagan'}
-                                </span>
-                              </td>
-                              <td className="py-2.5 font-mono font-bold text-slate-700">{fmtMoney(c.balance)} s</td>
-                              <td className="py-2.5 text-right">
-                                <button
-                                  onClick={() => { setSelectedCompany(c); setDetailInitialTab('packages'); }}
-                                  className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[10px] transition-all"
-                                >
-                                  Uzaytirish
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        {companies.filter(c => c.subscription_status === 'expiring_soon' || c.subscription_status === 'expired').length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="py-8 text-center text-slate-400">
-                              Hozirda xavf guruhidagi korxonalar yo'q. Barcha obunalar faol!
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                        <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                          <table className="min-w-full divide-y divide-slate-100 text-xs">
+                            <thead>
+                              <tr className="text-slate-400 text-[10px] uppercase font-bold text-left">
+                                <th className="pb-2">Korxona</th>
+                                <th className="pb-2">Telefon</th>
+                                <th className="pb-2">Tarif</th>
+                                <th className="pb-2">Qolgan kun</th>
+                                <th className="pb-2">Balans</th>
+                                <th className="pb-2 text-right">Amal</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {atRiskList.map((c) => (
+                                <tr key={c.id} className="hover:bg-amber-50/30">
+                                  <td className="py-2.5 font-bold text-slate-800">{c.name}</td>
+                                  <td className="py-2.5 text-slate-600">{c.phone || '—'}</td>
+                                  <td className="py-2.5 font-semibold text-slate-700">{c.tariff_name || 'Tarifsiz'}</td>
+                                  <td className="py-2.5">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                      c.subscription_status === 'expiring_soon'
+                                        ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    }`}>
+                                      <AlertCircle className="w-3 h-3" />
+                                      {c.days_left != null ? (c.days_left < 0 ? `${Math.abs(c.days_left)} kun o'tgan` : `${c.days_left} kun qoldi`) : "Muddati o'tgan"}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 font-mono font-bold text-slate-700">{fmtMoney(c.balance)} s</td>
+                                  <td className="py-2.5 text-right">
+                                    <button
+                                      onClick={() => { setSelectedCompany(c); setDetailInitialTab('packages'); }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200/60 hover:border-blue-200 font-bold text-[10px] transition-all shadow-2xs"
+                                    >
+                                      <RefreshCw className="w-3 h-3" />
+                                      Uzaytirish
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                              {atRiskList.length === 0 && (
+                                <tr>
+                                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                                    Hozirda xavf guruhidagi korxonalar yo'q. Barcha obunalar faol!
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

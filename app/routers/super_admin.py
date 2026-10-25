@@ -44,36 +44,56 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     seven_days_ago = now - timedelta(days=7)
 
-    companies_count   = db.query(func.count(Company.id)).filter(Company.is_active == True).scalar() or 0
-    branches_count    = db.query(func.count(Branch.id)).filter(Branch.is_active == True).scalar() or 0
-    users_count       = db.query(func.count(User.id)).scalar() or 0
-    warehouses_count  = db.query(func.count(Warehouse.id)).filter(Warehouse.is_active == True).scalar() or 0
-    sales_count       = db.query(func.count(Sale.id)).scalar() or 0
-    total_revenue     = float(db.query(func.coalesce(func.sum(Sale.total_amount), 0)).scalar() or 0)
-    role_stats        = db.query(User.role, func.count(User.id)).group_by(User.role).all()
+    # Test korxonalar (hisobotlarga kiritilmaydigan test akkauntlar)
+    TEST_ORG_CODES = {"87427163", "17139074"}
+    test_comp_ids = [
+        cid for (cid,) in db.query(Company.id).filter(Company.org_code.in_(TEST_ORG_CODES)).all()
+    ]
 
-    # Bugungi tarif sotuvlari
-    today_logs  = (
+    all_companies     = db.query(Company).filter(Company.is_active == True).options(joinedload(Company.tariff)).all()
+    real_companies    = [c for c in all_companies if (c.org_code or "") not in TEST_ORG_CODES]
+    real_comp_ids     = [c.id for c in real_companies]
+
+    companies_count   = len(real_companies)
+    branches_count    = db.query(func.count(Branch.id)).filter(Branch.is_active == True, Branch.company_id.in_(real_comp_ids) if real_comp_ids else True).scalar() or 0
+    users_count       = db.query(func.count(User.id)).filter(User.company_id.in_(real_comp_ids) if real_comp_ids else True).scalar() or 0
+    warehouses_count  = db.query(func.count(Warehouse.id)).filter(Warehouse.is_active == True, Warehouse.company_id.in_(real_comp_ids) if real_comp_ids else True).scalar() or 0
+    
+    sales_q = db.query(func.count(Sale.id))
+    tot_rev_sale_q = db.query(func.coalesce(func.sum(Sale.total_amount), 0))
+    if test_comp_ids:
+        sales_q = sales_q.filter(~Sale.company_id.in_(test_comp_ids))
+        tot_rev_sale_q = tot_rev_sale_q.filter(~Sale.company_id.in_(test_comp_ids))
+    sales_count   = sales_q.scalar() or 0
+    total_revenue = float(tot_rev_sale_q.scalar() or 0)
+
+    role_stats    = db.query(User.role, func.count(User.id)).filter(User.company_id.in_(real_comp_ids) if real_comp_ids else True).group_by(User.role).all()
+
+    # Bugungi tarif sotuvlari (sof — test akkauntlarsiz)
+    today_logs_q = (
         db.query(BalanceLog)
         .filter(
             BalanceLog.log_type == "subscription",
             BalanceLog.created_at >= today_start,
             BalanceLog.amount < 0,          # chiqim = tarif to'lovi
         )
-        .all()
     )
+    if test_comp_ids:
+        today_logs_q = today_logs_q.filter(~BalanceLog.company_id.in_(test_comp_ids))
+    today_logs = today_logs_q.all()
     today_subscriptions = len(today_logs)
     today_sub_revenue   = float(sum(abs(lg.amount) for lg in today_logs))
 
-    # Platformaning jami obuna daromadi (E-Code sof tushumi)
-    total_platform_revenue = float(
+    # Platformaning jami obuna daromadi (E-Code sof tushumi, test to'lovlarsiz)
+    tot_platform_q = (
         db.query(func.coalesce(func.sum(func.abs(BalanceLog.amount)), 0))
         .filter(BalanceLog.log_type == "subscription", BalanceLog.amount < 0)
-        .scalar() or 0
     )
+    if test_comp_ids:
+        tot_platform_q = tot_platform_q.filter(~BalanceLog.company_id.in_(test_comp_ids))
+    total_platform_revenue = float(tot_platform_q.scalar() or 0)
 
-    # Korxonalar obunalari va MRR hisobi
-    all_companies = db.query(Company).filter(Company.is_active == True).options(joinedload(Company.tariff)).all()
+    # Korxonalar obunalari va MRR hisobi (sof — faqat haqiqiy mijozlar)
     mrr = 0.0
     active_subs_count = 0
     trial_subs_count = 0
@@ -81,7 +101,7 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
     expiring_soon_count = 0
     no_sub_count = 0
 
-    for c in all_companies:
+    for c in real_companies:
         ends = c.subscription_ends_at
         if ends and ends.tzinfo is None:
             ends = ends.replace(tzinfo=timezone.utc)
@@ -100,28 +120,34 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
             if 0 <= days_left <= 7:
                 expiring_soon_count += 1
 
-    # Faol pullik paketlar MRR ga qo'shiladi
-    active_pkg_rows = (
+    # Faol pullik paketlar MRR ga qo'shiladi (test akkauntlarsiz)
+    active_pkg_q = (
         db.query(CompanyPackage.package_code)
         .filter(
             CompanyPackage.is_active == True,
             CompanyPackage.is_trial == False,
             or_(CompanyPackage.ends_at.is_(None), CompanyPackage.ends_at > now),
         )
-        .all()
     )
+    if test_comp_ids:
+        active_pkg_q = active_pkg_q.filter(~CompanyPackage.company_id.in_(test_comp_ids))
+    active_pkg_rows = active_pkg_q.all()
+
     pkg_prices = {p.code: float(p.price_per_month or 0) for p in db.query(FeaturePackage).all()}
     for (pcode,) in active_pkg_rows:
         mrr += pkg_prices.get(pcode, 0.0)
 
-    # Oxirgi 7 kunda faol korxonalar (kamida 1 ta savdo)
-    active_7d_count = db.query(func.count(func.distinct(Sale.company_id))).filter(Sale.created_at >= seven_days_ago).scalar() or 0
+    # Oxirgi 7 kunda faol korxonalar (kamida 1 ta savdo, test akkauntlarsiz)
+    act_7d_q = db.query(func.count(func.distinct(Sale.company_id))).filter(Sale.created_at >= seven_days_ago)
+    if test_comp_ids:
+        act_7d_q = act_7d_q.filter(~Sale.company_id.in_(test_comp_ids))
+    active_7d_count = act_7d_q.scalar() or 0
 
-    # Tariflar taqsimoti
+    # Tariflar taqsimoti (sof — faqat haqiqiy korxonalar)
     all_tariffs = db.query(Tariff).filter(Tariff.is_active == True).order_by(Tariff.sort_order).all()
     tariff_stats = []
     for t in all_tariffs:
-        cnt = sum(1 for c in all_companies if c.tariff_id == t.id)
+        cnt = sum(1 for c in real_companies if c.tariff_id == t.id)
         tariff_stats.append({
             "id": t.id,
             "name": t.name,
@@ -130,15 +156,18 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
             "total_monthly": cnt * float(t.price_per_month or 0),
         })
 
-    # Paketlar taqsimoti
+    # Paketlar taqsimoti (sof — test akkauntlarsiz)
     all_feature_pkgs = db.query(FeaturePackage).filter(FeaturePackage.is_active == True).order_by(FeaturePackage.sort_order).all()
     package_stats = []
     for fp in all_feature_pkgs:
-        cnt = db.query(func.count(CompanyPackage.id)).filter(
+        cnt_q = db.query(func.count(CompanyPackage.id)).filter(
             CompanyPackage.package_code == fp.code,
             CompanyPackage.is_active == True,
             or_(CompanyPackage.ends_at.is_(None), CompanyPackage.ends_at > now),
-        ).scalar() or 0
+        )
+        if test_comp_ids:
+            cnt_q = cnt_q.filter(~CompanyPackage.company_id.in_(test_comp_ids))
+        cnt = cnt_q.scalar() or 0
         package_stats.append({
             "code": fp.code,
             "name": fp.name,
@@ -146,7 +175,7 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
             "count": cnt,
         })
 
-    # Oxirgi 6 oylik E-Code obuna tushumlari
+    # Oxirgi 6 oylik E-Code obuna tushumlari (sof — test to'lovlarsiz)
     monthly_revenue = []
     for i in range(5, -1, -1):
         m_date = now - timedelta(days=i * 30)
@@ -156,7 +185,7 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
         else:
             m_end = m_start.replace(month=m_start.month + 1)
         
-        m_sum = float(
+        m_rev_q = (
             db.query(func.coalesce(func.sum(func.abs(BalanceLog.amount)), 0))
             .filter(
                 BalanceLog.log_type == "subscription",
@@ -164,8 +193,10 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
                 BalanceLog.created_at >= m_start,
                 BalanceLog.created_at < m_end,
             )
-            .scalar() or 0
         )
+        if test_comp_ids:
+            m_rev_q = m_rev_q.filter(~BalanceLog.company_id.in_(test_comp_ids))
+        m_sum = float(m_rev_q.scalar() or 0)
         monthly_revenue.append({
             "month": m_start.strftime("%b %Y"),
             "revenue": m_sum,
@@ -315,6 +346,7 @@ def list_companies(
             "phone": c.phone,
             "email": c.email,
             "is_active": c.is_active,
+            "is_test": bool((c.org_code or "") in {"87427163", "17139074"}),
             "balance": float(c.balance or 0),
             "created_at": str(c.created_at),
             "branches_count": branches_count,
