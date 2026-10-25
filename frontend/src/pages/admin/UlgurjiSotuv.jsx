@@ -1111,7 +1111,7 @@ export default function UlgurjiSotuv() {
 
   // ── Bitta sotuvni PDF formatida yuklab olish (Namuna asosida) ────────────
   const downloadSalePdf = async (s) => {
-    const toastId = toast.loading("PDF tayyorlanmoqda...");
+    toast.info("PDF tayyorlanmoqda...");
     try {
       const res = await api.get(`/sales/${s.id}/pdf`, { responseType: 'blob' });
       const cust = s.customer_name || s.contractor_name || 'Mijoz';
@@ -1121,10 +1121,8 @@ export default function UlgurjiSotuv() {
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const saveAs = await loadSaveAs();
       saveAs(blob, filename);
-      toast.dismiss(toastId);
       toast.success("PDF muvaffaqiyatli yuklab olindi");
     } catch (err) {
-      toast.dismiss(toastId);
       const msg = await blobErrorMessage(err);
       console.error('Sotuv PDF xatosi:', err, msg);
       toast.error(`PDF yuklanmadi: ${msg}`);
@@ -1192,7 +1190,7 @@ export default function UlgurjiSotuv() {
       toast.error(t('common.noData') || "Eksport qilish uchun sotuvlar mavjud emas");
       return;
     }
-    const toastId = toast.loading("PDF hisobot tayyorlanmoqda...");
+    toast.info("PDF hisobot tayyorlanmoqda...");
     try {
       const params = {
         date_from: filters.date_from || undefined,
@@ -1206,10 +1204,8 @@ export default function UlgurjiSotuv() {
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const saveAs = await loadSaveAs();
       saveAs(blob, filename);
-      toast.dismiss(toastId);
       toast.success("Sotuvlar hisoboti PDF muvaffaqiyatli yuklab olindi");
     } catch (err) {
-      toast.dismiss(toastId);
       const errMsg = await blobErrorMessage(err);
       console.error('Sotuvlar PDF xatosi:', err, errMsg);
       toast.error(`PDF yuklanmadi: ${errMsg}`);
@@ -4417,7 +4413,7 @@ function SaleDetailContent({ saleId }) {
       <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
         <button
           onClick={async () => {
-            const toastId = toast.loading("PDF tayyorlanmoqda...");
+            toast.info("PDF tayyorlanmoqda...");
             try {
               const res = await api.get(`/sales/${data.id}/pdf`, { responseType: 'blob' });
               const cust = data.customer_name || data.contractor_name || 'Mijoz';
@@ -4426,10 +4422,8 @@ function SaleDetailContent({ saleId }) {
               const filename = filenameFromDisposition(res.headers && (res.headers['content-disposition'] || res.headers['Content-Disposition']), fallbackName);
               const saveAs = await loadSaveAs();
               saveAs(new Blob([res.data], { type: 'application/pdf' }), filename);
-              toast.dismiss(toastId);
               toast.success("PDF muvaffaqiyatli yuklab olindi");
             } catch (err) {
-              toast.dismiss(toastId);
               const msg = await blobErrorMessage(err);
               console.error('Sotuv PDF xatosi:', err, msg);
               toast.error(`PDF yuklanmadi: ${msg}`);
