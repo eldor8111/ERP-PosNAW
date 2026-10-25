@@ -1954,7 +1954,8 @@ export default function UlgurjiSotuv() {
     if (!cart.length) return toast.error(t('sale.emptyCart'));
     // Dorixonada mijozsiz sotiladi, lekin qarzga emas (server ham qarz uchun mijoz talab qiladi)
     if (!custId && (!pharmacy || pPaid + 0.01 < total)) return toast.error(t(pharmacy ? 'wholesale.selectCustomerForDebtSale' : 'wholesale.customerNotSelectedFull'));
-    const incompleteMarking = cart.find(it => it.requires_marking && (it.marking_codes || []).length < it.qty);
+    // Dorixonada markirovka majburiy emas: skanerlangan kodlar yuboriladi, kodsiz ham sotiladi
+    const incompleteMarking = !pharmacy && cart.find(it => it.requires_marking && (it.marking_codes || []).length < it.qty);
     if (incompleteMarking) {
       toast.error(t('wholesale.markingIncomplete', { name: incompleteMarking.name, done: (incompleteMarking.marking_codes || []).length, qty: incompleteMarking.qty }));
       setMarkingModal({ idx: cart.indexOf(incompleteMarking) });
@@ -4254,7 +4255,7 @@ export default function UlgurjiSotuv() {
               </div>
               <button
                 onClick={() => setMarkingModal(null)}
-                disabled={(cart[markingModal.idx].marking_codes || []).length < cart[markingModal.idx].qty}
+                disabled={!pharmacy && (cart[markingModal.idx].marking_codes || []).length < cart[markingModal.idx].qty}
                 className="w-full py-2.5 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 {t('wholesale.scannedCloseCount', { done: (cart[markingModal.idx].marking_codes || []).length, qty: cart[markingModal.idx].qty })}

@@ -998,18 +998,10 @@ const navigate = useNavigate();
   const changeAmt = isEnough ? (finalPaid - payableNet) : 0;
   const remaining = isEnough ? 0 : (payableNet - finalPaid);
 
-  // D2.6: to'lovdan oldin dorixona tekshiruvlari — markirovka kodlari to'liq skanerlanmaguncha va retsept
-  // ma'lumoti kiritilmaguncha to'lov oynasi ochilmaydi (server baribir tekshiradi: D2.5, D3.2)
+  // D2.6: to'lovdan oldin dorixona tekshiruvi — retsept ma'lumoti kiritilmaguncha to'lov oynasi ochilmaydi
+  // (server baribir tekshiradi: D2.5). Dorixonada markirovka majburiy emas: skanerlangan kodlar yuboriladi
   const requestCheckout = () => {
     if (pharmacy) {
-      const incomplete = cart.find(c => c.requires_marking && (c.marking_codes || []).length < c.qty_ordered);
-      if (incomplete) {
-        toast.error(t('pos.markingScanIncomplete', {
-          name: incomplete.product_name, scanned: (incomplete.marking_codes || []).length, qty: incomplete.qty_ordered,
-        }));
-        setMarkingModal({ idx: cart.indexOf(incomplete) });
-        return;
-      }
       if (rxProductsOf(cart).length && validateRx(cart, rxData, rxReason, rxMode)) {
         setRxModal({ proceed: true });
         return;
@@ -1066,8 +1058,8 @@ const navigate = useNavigate();
     if (!hasShift) { setShowShiftModal(true); return; }
 
     // Markirovka talab qilinadigan mahsulotlar uchun skanerlangan kodlar
-    // miqdorga to'liq mos kelishi shart — aks holda fiskal chekda aks etmaydi.
-    const incompleteMarking = cart.find(c => c.requires_marking && (c.marking_codes || []).length < c.qty_ordered);
+    // miqdorga to'liq mos kelishi shart — aks holda fiskal chekda aks etmaydi. Dorixonada majburiy emas.
+    const incompleteMarking = !pharmacy && cart.find(c => c.requires_marking && (c.marking_codes || []).length < c.qty_ordered);
     if (incompleteMarking) {
       toast.error(t('pos.markingScanIncomplete', {
         name: incompleteMarking.product_name,
@@ -2173,7 +2165,7 @@ const navigate = useNavigate();
               </div>
               <button
                 onClick={() => setMarkingModal(null)}
-                disabled={(cart[markingModal.idx].marking_codes || []).length < cart[markingModal.idx].qty_ordered}
+                disabled={!pharmacy && (cart[markingModal.idx].marking_codes || []).length < cart[markingModal.idx].qty_ordered}
                 className="w-full py-2.5 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 {(cart[markingModal.idx].marking_codes || []).length}/{cart[markingModal.idx].qty_ordered} {t('pos.scannedDashClose')}

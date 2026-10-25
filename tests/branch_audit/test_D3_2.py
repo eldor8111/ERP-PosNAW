@@ -342,12 +342,14 @@ def test_second_sale_of_same_code_is_400(client, db, w, received):
     assert D(str(sl.quantity)) == 4                                   # ikkinchi sotuv ombordan ayirmadi
 
 
-def test_sale_with_unknown_code_is_400_and_writes_nothing(client, db, w, received):
+def test_sale_with_unknown_code_sells_untracked_with_warning(client, db, w, received):
+    """Kirimda qabul qilinmagan kod sotuvni to'xtatmaydi (dorixonada markirovka majburiy emas): ogohlantirish beriladi."""
     prod = received['prod']
     r = client.login(w['padmin']).post('/api/sales/', json=_sale_body(prod, 1, w['pwh'], [_gs_code("NOPE")]))
-    assert r.status_code == 400 and "topilmadi" in r.json()['detail']
+    assert r.status_code == 200, r.text
+    assert any(x.get("code") == "marking_not_received" for x in r.json()["warnings"])
     sl = db.query(StockLevel).filter_by(product_id=prod.id, warehouse_id=w['pwh'].id).one()
-    assert D(str(sl.quantity)) == 5
+    assert D(str(sl.quantity)) == 4
     assert all(x.status == "in_stock" for x in _rows(db, w['pc']))
 
 
@@ -358,18 +360,25 @@ def test_sale_duplicate_code_within_one_receipt_is_400(client, db, w, received):
     assert all(x.status == "in_stock" for x in _rows(db, w['pc']))
 
 
-def test_sale_count_rule_still_enforced(client, db, w, received):
-    r = client.login(w['padmin']).post('/api/sales/', json=_sale_body(received['prod'], 2, w['pwh'], received['codes'][:1]))
-    assert r.status_code == 400 and "markirovka talab qilinadi" in r.json()['detail']
+def test_sale_codes_optional_but_not_more_than_quantity(client, db, w, received):
+    """Dorixonada markirovka majburiy emas: kod kam yoki umuman yo'q — sotiladi; miqdordan ko'p kod — 400."""
+    cl = client.login(w['padmin'])
+    r = cl.post('/api/sales/', json=_sale_body(received['prod'], 2, w['pwh'], received['codes'][:1]))
+    assert r.status_code == 200, r.text
+    assert [x.status for x in _rows(db, w['pc'], serial="SER0001")] == ["sold"]
+    assert cl.post('/api/sales/', json=_sale_body(received['prod'], 1, w['pwh'])).status_code == 200
+    r = cl.post('/api/sales/', json=_sale_body(received['prod'], 1, w['pwh'], received['codes'][1:3]))
+    assert r.status_code == 400 and "ko'p" in r.json()['detail']
 
 
-def test_other_company_cannot_sell_foreign_code(client, db, w, received):
-    """Q dorixonasi P kodini sota olmaydi (Q'da bu kod yo'q); Q o'z mahsuloti bilan ham."""
+def test_other_company_cannot_touch_foreign_code(client, db, w, received):
+    """Q dorixonasida P kodi ro'yxatda yo'q: Q sotuvi kuzatuvsiz o'tadi (ogohlantirish), P kodi o'zgarmaydi."""
     prod_q = _product(db, w['qc'])
     po = _po(client, w['qadmin'], w['qwh'], w['qsup'], prod_q, 1)
     assert _receive_api(client, w['qadmin'], po, 1).status_code == 200
     r = client.login(w['qadmin']).post('/api/sales/', json=_sale_body(prod_q, 1, w['qwh'], [received['codes'][0]]))
-    assert r.status_code == 400 and "topilmadi" in r.json()['detail']
+    assert r.status_code == 200, r.text
+    assert any(x.get("code") == "marking_not_received" for x in r.json()["warnings"])
     assert [x.status for x in _rows(db, w['pc'], serial="SER0001")] == ["in_stock"]
 
 

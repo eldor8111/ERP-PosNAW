@@ -33,19 +33,22 @@ def test_pharmacy_dona_open_box_code_optional_and_stays_in_stock(client, db, w):
     assert r.status_code == 400 and "ochilgan quti kodini" in r.json()["detail"]
 
 
-def test_pharmacy_unpacked_marked_drug_rule_unchanged(client, db, w):
+def test_pharmacy_unpacked_marked_drug_codes_optional(client, db, w):
     p = _product(db, w["pc"], requires_marking=True)                 # qadoq birligi yo'q
     _stock(db, p, w["pwh"], 100)
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 3, "unit_price": 1000}])
-    assert r.status_code == 400 and "markirovka talab qilinadi" in r.json()["detail"]
+    assert r.status_code == 200, r.text                              # dorixonada markirovka majburiy emas
 
 
-def test_pharmacy_whole_box_still_needs_codes(client, db, w):
+def test_pharmacy_whole_box_codes_optional(client, db, w):
     p = _product(db, w["pc"], requires_marking=True)
     box = _unit(db, p, "quti", 20)
     _stock(db, p, w["pwh"], 100)
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_id": box.id}])
-    assert r.status_code == 400 and "1 ta kod" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_id": box.id,
+                                                    "marking_codes": [_code("W1"), _code("W2")]}])
+    assert r.status_code == 400 and "ko'p" in r.json()["detail"]
 
 
 def test_regular_company_rule_unchanged(client, db, w):

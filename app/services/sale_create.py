@@ -63,7 +63,7 @@ def _marking_unit_ctx(db: Session, company_id: int, product: Product, unit_ctx, 
     return unit_ctx
 
 
-def _resolve_marking_codes(product: Product, item_data, unit_ctx=None) -> list:
+def _resolve_marking_codes(product: Product, item_data, unit_ctx=None, pharmacy: bool = False) -> list:
     """
     Markirovka (Data Matrix) kodlarini tekshiradi.
     Mahsulot requires_marking=True bo'lsa, skanerlangan kodlar soni miqdorga
@@ -72,8 +72,22 @@ def _resolve_marking_codes(product: Product, item_data, unit_ctx=None) -> list:
     CD.1 (dorixona, `unit_ctx` — qatorda unit_id bo'lganda): butun quti sotuvida kodlar soni = quti soni;
     qutidan bo'lib sotishda (dona/blister) kod soni talabi yo'q — kassir ochilgan quti kodini ixtiyoriy (0 yoki 1 ta)
     yuboradi. `unit_id` siz qatorlarda qoida o'zgarmaydi.
+
+    Dorixona (`pharmacy=True`): markirovka majburiy emas — kod kamroq yoki umuman yuborilmasa ham sotiladi,
+    faqat kutilgandan ko'p kod yuborish 400. Oddiy korxonada qoida o'zgarmagan.
     """
     codes = [c for c in (getattr(item_data, "marking_codes", None) or []) if c and c.strip()]
+
+    def _check(expected: int, per_box: str) -> None:
+        if len(codes) == expected or (pharmacy and len(codes) < expected):
+            return
+        if pharmacy:
+            detail = f"'{product.name}' — markirovka kodlari ko'p: ko'pi bilan {expected} ta, {len(codes)} ta kiritildi."
+        else:
+            detail = (f"'{product.name}' — markirovka talab qilinadi. "
+                      f"{expected} ta kod skanerlanishi kerak{per_box}, {len(codes)} ta kiritildi.")
+        raise HTTPException(status_code=400, detail=detail)
+
     if product.requires_marking and unit_ctx is not None:
         if _is_open_box_line(unit_ctx):
             if len(codes) > 1:
@@ -83,26 +97,10 @@ def _resolve_marking_codes(product: Product, item_data, unit_ctx=None) -> list:
                 )
             return codes
         pack = unit_ctx.get("pack_ratio")
-        expected = int(unit_ctx["base_qty"] // pack) if pack else int(unit_ctx["unit_qty"])
-        if len(codes) != expected:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"'{product.name}' — markirovka talab qilinadi. "
-                    f"{expected} ta kod skanerlanishi kerak (har bir quti uchun), {len(codes)} ta kiritildi."
-                ),
-            )
+        _check(int(unit_ctx["base_qty"] // pack) if pack else int(unit_ctx["unit_qty"]), " (har bir quti uchun)")
         return codes
     if product.requires_marking:
-        expected = int(item_data.quantity)
-        if len(codes) != expected:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"'{product.name}' — markirovka talab qilinadi. "
-                    f"{expected} ta kod skanerlanishi kerak, {len(codes)} ta kiritildi."
-                ),
-            )
+        _check(int(item_data.quantity), "")
     return codes
 
 
@@ -483,7 +481,7 @@ def create_sale(
             _ph_ctx = pharmacy_context(db, current_user.company_id)
         _mark_ctx = _marking_unit_ctx(db, current_user.company_id, product, _unit_ctx, _ph_ctx,
                                       getattr(item_data, "marking_codes", None), item_data.quantity)
-        marking_codes = _resolve_marking_codes(product, item_data, _mark_ctx)
+        marking_codes = _resolve_marking_codes(product, item_data, _mark_ctx, pharmacy=bool(_ph_ctx and _ph_ctx[0]))
 
         sale_items_data.append({
             "product": product,
@@ -550,7 +548,7 @@ def create_sale(
             # CD.1: qutidan bo'lib sotishda kod faqat SaleItem.marking_codes ga yoziladi (holati o'zgarmaydi)
             (_i, _d["product"], _d.get("source_product"), [] if _d.get("marking_open_box") else _d["marking_codes"])
             for _i, _d in enumerate(sale_items_data)
-        ])
+        ], warnings=_rx_warnings)   # kirimda qabul qilinmagan kod — ogohlantirish
 
     # T4.6: umumiy (chek) chegirmasi ham chegirma limitiga kiradi; so'ng qaror: block -> 403 limit_exceeded,
     # require_approval -> approval_id yo'q bo'lsa 403 approval_required, bor bo'lsa tasdiq bir marta ishlatiladi

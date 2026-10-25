@@ -297,10 +297,13 @@ def register_receipt_codes(
 
 # ─── Sotuv: kodlarni tekshirish va "sold" qilish ─────────────────────────────
 
-def plan_sale_marking(db: Session, company_id: int, lines: List[Tuple[int, Product, Optional[Product], List[str]]]) -> Dict[int, List[MarkingCode]]:
-    """Dorixona rejimida sotuvdan OLDIN (yozishdan oldin): har bir kod shu korxonada `in_stock` va shu mahsulotniki
+def plan_sale_marking(db: Session, company_id: int, lines: List[Tuple[int, Product, Optional[Product], List[str]]],
+                      warnings: Optional[list] = None) -> Dict[int, List[MarkingCode]]:
+    """Dorixona rejimida sotuvdan OLDIN (yozishdan oldin): ro'yxatdagi kod shu korxonada `in_stock` va shu mahsulotniki
     bo'lishi shart. lines: [(qator indeksi, mahsulot, manba mahsulot (konversiya) yoki None, kodlar)].
-    Faqat `requires_marking` mahsulotlar tekshiriladi. Xato bo'lsa 400 — hech narsa yozilmaydi."""
+    Faqat `requires_marking` mahsulotlar tekshiriladi. Xato bo'lsa 400 — hech narsa yozilmaydi.
+    Kirimda qabul qilinmagan (ro'yxatda yo'q) kod sotuvni to'xtatmaydi: chekda qoladi, kuzatilmaydi, `warnings` ga yoziladi
+    (markirovka dorixonada majburiy emas, kirimda kod kiritish ham ixtiyoriy)."""
     plan: Dict[int, List[MarkingCode]] = {}
     seen = set()
     for idx, product, source, codes in lines:
@@ -321,10 +324,12 @@ def plan_sale_marking(db: Session, company_id: int, lines: List[Tuple[int, Produ
                 .with_for_update().first()
             )
             if row is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"'{product.name}': markirovka kodi omborda topilmadi (kirimda qabul qilinmagan) — {canon}",
-                )
+                if warnings is not None:
+                    warnings.append({
+                        "code": "marking_not_received", "product_id": product.id,
+                        "message": f"'{product.name}': markirovka kodi kirimda qabul qilinmagan, kuzatuvsiz sotildi",
+                    })
+                continue
             if row.status == "sold":
                 raise HTTPException(status_code=400, detail=f"'{product.name}': kod allaqachon sotilgan — {canon}")
             if row.status != "in_stock":
