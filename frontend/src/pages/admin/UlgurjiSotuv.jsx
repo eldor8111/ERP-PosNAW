@@ -24,6 +24,7 @@ import {
 } from '../../utils/posQueue';
 import { EMPTY_DELIVERY, deliveryFromSale, deliveryPayload } from '../../components/sale/saleDelivery';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
+import { filenameFromDisposition, blobErrorMessage } from '../../utils/downloadBlob';
 
 
 const fmt = (v) => Number(v || 0).toLocaleString('uz-UZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -1113,14 +1114,10 @@ export default function UlgurjiSotuv() {
     const toastId = toast.loading("PDF tayyorlanmoqda...");
     try {
       const res = await api.get(`/sales/${s.id}/pdf`, { responseType: 'blob' });
-      let cust = s.customer_name || s.contractor_name || 'Mijoz';
-      let datePart = (s.created_at || '').replace(/[- :]/g, '_').slice(0, 19);
-      let filename = `Sotuv_${cust.replace(/[^\w\s-]/g, '').trim().replace(/[-\s]+/g, '_')}_${datePart}.pdf`;
-      const cd = res.headers && (res.headers['content-disposition'] || res.headers['Content-Disposition']);
-      if (cd && cd.includes('filename=')) {
-        const match = cd.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) filename = match[1];
-      }
+      const cust = s.customer_name || s.contractor_name || 'Mijoz';
+      const datePart = (s.created_at || '').replace(/[- :]/g, '_').slice(0, 19);
+      const fallbackName = `Sotuv_${cust.replace(/[^\w\s-]/g, '').trim().replace(/[-\s]+/g, '_')}_${datePart}.pdf`;
+      const filename = filenameFromDisposition(res.headers && (res.headers['content-disposition'] || res.headers['Content-Disposition']), fallbackName);
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const saveAs = await loadSaveAs();
       saveAs(blob, filename);
@@ -1128,9 +1125,9 @@ export default function UlgurjiSotuv() {
       toast.success("PDF muvaffaqiyatli yuklab olindi");
     } catch (err) {
       toast.dismiss(toastId);
-      console.warn('Backend PDF endpoint error, falling back to Nakladnoy template:', err);
-      printSale(s, 'nak');
-      toast.success("Nakladnoy chop etish / PDF saqlash oynasi ochildi");
+      const msg = await blobErrorMessage(err);
+      console.error('Sotuv PDF xatosi:', err, msg);
+      toast.error(`PDF yuklanmadi: ${msg}`);
     }
   };
 
@@ -1204,12 +1201,8 @@ export default function UlgurjiSotuv() {
         search: filters.search || undefined,
       };
       const res = await api.get('/sales/export/pdf', { params, responseType: 'blob' });
-      let filename = `sotuvlar_hisoboti_${filters.date_from || today()}_${filters.date_to || today()}.pdf`;
-      const cd = res.headers && (res.headers['content-disposition'] || res.headers['Content-Disposition']);
-      if (cd && cd.includes('filename=')) {
-        const match = cd.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) filename = match[1];
-      }
+      const fallbackName = `sotuvlar_hisoboti_${filters.date_from || today()}_${filters.date_to || today()}.pdf`;
+      const filename = filenameFromDisposition(res.headers && (res.headers['content-disposition'] || res.headers['Content-Disposition']), fallbackName);
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const saveAs = await loadSaveAs();
       saveAs(blob, filename);
@@ -1217,6 +1210,9 @@ export default function UlgurjiSotuv() {
       toast.success("Sotuvlar hisoboti PDF muvaffaqiyatli yuklab olindi");
     } catch (err) {
       toast.dismiss(toastId);
+      const errMsg = await blobErrorMessage(err);
+      console.error('Sotuvlar PDF xatosi:', err, errMsg);
+      toast.error(`PDF yuklanmadi: ${errMsg}`);
       console.warn('Backend export pdf error, falling back to browser print view:', err);
       try {
         const rSettings = getReceiptSettings();
@@ -4420,23 +4416,24 @@ function SaleDetailContent({ saleId }) {
       </div>
       <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
         <button
-          onClick={() => {
-            api.get(`/sales/${data.id}/pdf`, { responseType: 'blob' }).then(res => {
-              const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-              const a = document.createElement('a');
-              a.href = url;
-              let cust = data.customer_name || data.contractor_name || 'Mijoz';
-              let datePart = (data.created_at || '').replace(/[- :]/g, '_').slice(0, 19);
-              a.download = `Sotuv_${cust.replace(/[^\w\s-]/g, '').trim().replace(/[-\s]+/g, '_')}_${datePart}.pdf`;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-              window.URL.revokeObjectURL(url);
+          onClick={async () => {
+            const toastId = toast.loading("PDF tayyorlanmoqda...");
+            try {
+              const res = await api.get(`/sales/${data.id}/pdf`, { responseType: 'blob' });
+              const cust = data.customer_name || data.contractor_name || 'Mijoz';
+              const datePart = (data.created_at || '').replace(/[- :]/g, '_').slice(0, 19);
+              const fallbackName = `Sotuv_${cust.replace(/[^\w\s-]/g, '').trim().replace(/[-\s]+/g, '_')}_${datePart}.pdf`;
+              const filename = filenameFromDisposition(res.headers && (res.headers['content-disposition'] || res.headers['Content-Disposition']), fallbackName);
+              const saveAs = await loadSaveAs();
+              saveAs(new Blob([res.data], { type: 'application/pdf' }), filename);
+              toast.dismiss(toastId);
               toast.success("PDF muvaffaqiyatli yuklab olindi");
-            }).catch(() => {
-              printSale(data, 'nak');
-              toast.success("Nakladnoy chop etish / PDF saqlash oynasi ochildi");
-            });
+            } catch (err) {
+              toast.dismiss(toastId);
+              const msg = await blobErrorMessage(err);
+              console.error('Sotuv PDF xatosi:', err, msg);
+              toast.error(`PDF yuklanmadi: ${msg}`);
+            }
           }}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs"
         >

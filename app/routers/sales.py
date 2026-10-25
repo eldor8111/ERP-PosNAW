@@ -697,7 +697,7 @@ def export_sales_pdf(
         current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
         ctx: BranchContext = Depends(get_branch_context),
 ):
-    from app.utils.sale_pdf import generate_sales_list_pdf_bytes
+    from app.utils.sale_pdf import generate_sales_list_pdf_bytes, content_disposition
 
     q = (
         db.query(Sale)
@@ -735,7 +735,10 @@ def export_sales_pdf(
             )
         sales = q.order_by(Sale.created_at.desc()).limit(1000).all()
 
-    company_name = getattr(current_user, "company", None) and getattr(current_user.company, "name", "")
+    company_name = None
+    if current_user.company_id:
+        comp = db.query(Company).filter(Company.id == current_user.company_id).first()
+        company_name = getattr(comp, "name", None)
     if not company_name:
         company_name = "E-Code ERP"
 
@@ -745,13 +748,13 @@ def export_sales_pdf(
         date_to=str(date_to) if date_to else "",
         company_name=company_name,
     )
-    filename = f"Sotuvlar_hisoboti_{date_from or 'barcha'}_{date_to or ''}.pdf"
+    filename = f"Sotuvlar_hisoboti_{date_from or 'barcha'}_{date_to or 'hozirgacha'}.pdf"
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": content_disposition(filename),
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )
@@ -783,7 +786,7 @@ def get_sale_pdf(
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
 ):
-    from app.utils.sale_pdf import generate_sale_pdf_bytes, get_sale_pdf_filename
+    from app.utils.sale_pdf import generate_sale_pdf_bytes, get_sale_pdf_filename, content_disposition
 
     sale = _load_sale(db, sale_id, current_user)
     if not sale:
@@ -796,7 +799,7 @@ def get_sale_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": content_disposition(filename),
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )

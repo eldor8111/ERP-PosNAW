@@ -51,6 +51,23 @@ def clean_filename(s: str) -> str:
     s = re.sub(r'[^\w\s-]', '', str(s or '')).strip()
     return re.sub(r'[-\s]+', '_', s)
 
+
+def enum_value(v: Any) -> str:
+    """SQLAlchemy Enum (str, Enum) -> oddiy matn ('completed', 'cash' ...)."""
+    if v is None:
+        return ""
+    return str(getattr(v, "value", v))
+
+
+def content_disposition(filename: str) -> str:
+    """HTTP header latin-1 bo'lishi shart: kirill/unicode nomlar uchun ASCII zaxira + RFC 5987 filename*."""
+    from urllib.parse import quote
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii").strip("_ ")
+    ascii_name = re.sub(r'[^A-Za-z0-9._-]+', '_', ascii_name) or "sotuv.pdf"
+    if not ascii_name.lower().endswith(".pdf"):
+        ascii_name += ".pdf"
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
 def get_sale_pdf_filename(sale: Any) -> str:
     cust = ""
     if getattr(sale, "customer", None):
@@ -115,7 +132,7 @@ def generate_sale_pdf_bytes(sale: Any, company: Any = None) -> bytes:
         cust_name = "Noma'lum mijoz"
 
     # Status
-    raw_status = str(getattr(sale, "status", "") or "completed").lower()
+    raw_status = (enum_value(getattr(sale, "status", None)) or "completed").lower()
     if "complete" in raw_status:
         status_str = "Подтверждён"
     elif "cancel" in raw_status:
@@ -132,7 +149,7 @@ def generate_sale_pdf_bytes(sale: Any, company: Any = None) -> bytes:
     cashier_name = ""
     cashier_phone = ""
     if cashier_user:
-        cashier_name = getattr(cashier_user, "full_name", "") or getattr(cashier_user, "username", "") or ""
+        cashier_name = getattr(cashier_user, "name", "") or getattr(cashier_user, "full_name", "") or ""
         cashier_phone = getattr(cashier_user, "phone", "") or ""
     if not cashier_name:
         cashier_name = getattr(sale, "cashier_name", "") or "Kassir"
@@ -144,7 +161,7 @@ def generate_sale_pdf_bytes(sale: Any, company: Any = None) -> bytes:
     # Responsible (Ответственный)
     agent_user = getattr(sale, "agent", None)
     if agent_user:
-        resp_name = getattr(agent_user, "full_name", "") or getattr(agent_user, "username", "") or cashier_name
+        resp_name = getattr(agent_user, "name", "") or cashier_name
     else:
         resp_name = cashier_name
 
@@ -481,22 +498,30 @@ def generate_sales_list_pdf_bytes(
 
         s_num = str(getattr(s, "number", "") or f"#{getattr(s, 'id', '')}")
 
-        pt = str(getattr(s, "payment_type", "") or "—")
+        pt = enum_value(getattr(s, "payment_type", None)) or "—"
         pt_map = {
             "cash": "Naqd",
             "card": "Karta",
-            "transfer": "O'tkazma",
-            "credit": "Nasiya / Qarz",
+            "uzcard": "Uzcard",
+            "humo": "Humo",
+            "bank": "Bank",
+            "click": "Click",
+            "payme": "Payme",
+            "visa": "Visa",
+            "uzum": "Uzum",
+            "debt": "Qarz",
             "mixed": "Aralash",
+            "cashback": "Keshbek",
         }
         pt_str = pt_map.get(pt.lower(), pt)
 
-        st = str(getattr(s, "status", "") or "completed").lower()
+        st = (enum_value(getattr(s, "status", None)) or "completed").lower()
         st_map = {
             "completed": "Bajarildi",
             "pending": "Kutilmoqda",
             "cancelled": "Bekor",
             "refunded": "Qaytarildi",
+            "partial_refund": "Qisman qaytarilgan",
         }
         st_str = st_map.get(st, st)
 
