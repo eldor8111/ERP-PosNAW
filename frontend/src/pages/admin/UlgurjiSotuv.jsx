@@ -3039,28 +3039,28 @@ export default function UlgurjiSotuv() {
               <div className="flex gap-1 px-2 pt-1.5 pb-1">
                 <button onClick={() => { if (!cart.length) return; if (window.confirm(t('wholesale.confirmClearCart'))) { setCart([]); setFormProduct(null); } }}
                   disabled={cart.length === 0}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-red-50 text-red-600 active:bg-red-200 disabled:opacity-30 font-bold transition-colors border border-red-100">
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-red-600 text-white active:bg-red-700 disabled:opacity-40 font-bold transition-all shadow-sm">
                   <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
                   <span className="text-[9px]">{t('common.delete')}</span>
                 </button>
 
                 <button onClick={() => savePendingSale(false)}
                   disabled={cart.length === 0 || !custId || pendingSaving}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 active:bg-amber-200 disabled:opacity-30 font-bold transition-colors border border-amber-200">
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-amber-600 text-white active:bg-amber-700 disabled:opacity-40 font-bold transition-all shadow-sm">
                   <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-3.5 h-3.5" />
                   <span className="text-[9px]">{pendingSaving ? t('common.saving') : t('wholesale.withoutPayment')}</span>
                 </button>
 
                 <button onClick={() => handleDirectAction('debt')}
                   disabled={cart.length === 0 || saving}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 active:bg-blue-200 disabled:opacity-30 font-bold transition-colors border border-blue-100">
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-blue-600 text-white active:bg-blue-700 disabled:opacity-40 font-bold transition-all shadow-sm">
                   <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-3.5 h-3.5" />
                   <span className="text-[9px]">{t('pay.debt')}</span>
                 </button>
 
                 <button disabled={cart.length === 0}
                   onClick={() => { if (!cart.length) return; openPayModal(); }}
-                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-slate-50 text-slate-600 active:bg-slate-200 disabled:opacity-30 font-bold transition-colors border border-slate-200">
+                  className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-slate-700 text-white active:bg-slate-800 disabled:opacity-40 font-bold transition-all shadow-sm">
                   <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-3.5 h-3.5" />
                   <span className="text-[9px]">{t('sale.receipt')}</span>
                 </button>
@@ -3094,30 +3094,30 @@ export default function UlgurjiSotuv() {
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5">
               <button onClick={() => { if (!cart.length) return; if (window.confirm(t('wholesale.confirmClearCart'))) { setCart([]); setFormProduct(null); } }}
                 disabled={cart.length === 0}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 disabled:opacity-30 text-xs font-bold transition-colors border border-red-100">
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-40 text-white text-xs md:text-sm font-bold shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed">
                 <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
-                {t('common.delete')}
+                <span>{t('common.delete')}</span>
               </button>
 
               <button onClick={() => savePendingSale(false)}
                 disabled={cart.length === 0 || !custId || pendingSaving}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 text-xs font-bold transition-colors border border-amber-200">
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 disabled:opacity-40 text-white text-xs md:text-sm font-bold shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed">
                 <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2" cls="w-3.5 h-3.5" />
-                {pendingSaving ? t('common.saving') : t('wholesale.saveWithoutPayment')}
+                <span>{pendingSaving ? t('common.saving') : t('wholesale.saveWithoutPayment')}</span>
               </button>
 
               <button onClick={() => handleDirectAction('debt')}
                 disabled={cart.length === 0 || saving}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-200 disabled:opacity-30 text-xs font-bold transition-colors border border-blue-100">
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-40 text-white text-xs md:text-sm font-bold shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed">
                 <Ic d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" cls="w-3.5 h-3.5" />
-                {t('pay.debt')}
+                <span>{t('pay.debt')}</span>
               </button>
 
               <button disabled={cart.length === 0}
                 onClick={() => { if (!cart.length) return; openPayModal(); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200 disabled:opacity-30 text-xs font-bold transition-colors border border-slate-200">
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 disabled:opacity-40 text-white text-xs md:text-sm font-bold shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed">
                 <Ic d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" cls="w-3.5 h-3.5" />
-                {t('sale.receipt')}
+                <span>{t('sale.receipt')}</span>
               </button>
 
               <div className="flex-1" />
