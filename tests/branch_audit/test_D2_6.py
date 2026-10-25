@@ -154,12 +154,13 @@ def test_prescription_modal_and_request_fields():
     assert "nazoratdagi dori uchun maxsus blank turini tanlang" in QUEUE.lower().replace("'", "'")
 
 
-def test_marking_blocks_payment_in_pharmacy_mode():
-    # to'lov oynasi ochilishidan oldin va to'lov paytida kodlar soni tekshiriladi
-    assert re.search(r"if \(pharmacy\) \{\s*const incomplete = cart\.find\(c => c\.requires_marking", POS)
-    assert "c.requires_marking && (c.marking_codes || []).length < c.qty_ordered" in POS
+def test_marking_optional_in_pharmacy_mode():
+    # Dorixonada markirovka majburiy emas: to'lovdan oldin kodlar soni tekshirilmaydi, skanerlangan kodlar yuboriladi;
+    # oddiy korxonada tekshiruv avvalgidek
+    assert not re.search(r"if \(pharmacy\) \{\s*const incomplete = cart\.find\(c => c\.requires_marking", POS)
+    assert "!pharmacy && cart.find(c => c.requires_marking && (c.marking_codes || []).length < c.qty_ordered)" in POS
     assert "marking_codes: c.marking_codes && c.marking_codes.length ? c.marking_codes : undefined" in POS
-    assert "it.requires_marking && (it.marking_codes || []).length < it.qty" in ULG
+    assert "!pharmacy && cart.find(it => it.requires_marking && (it.marking_codes || []).length < it.qty)" in ULG
 
 
 def test_offline_rejected_sales_show_reason():
