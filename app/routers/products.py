@@ -472,6 +472,19 @@ def list_products(
     # T1.1: ko'rinadigan omborlar yagona filial kontekstidan (None → cheklov yo'q)
     branch_wh_set = warehouse_ids_for_ctx(db, ctx)
 
+    # P.10: dorixonada muddat ma'lumoti (POS desktop shu ro'yxatdan oladi) — web kassa (pos-list) bilan bir xil hisob
+    expiry_map: dict = {}
+    if pharma_on:
+        from app.models.warehouse import Warehouse as _Wh
+        from app.routers.product_search import _pharmacy_pos_extras
+        if warehouse_id:
+            _wh_ids = [warehouse_id]
+        else:
+            _whq = db.query(_Wh.id).filter(_Wh.company_id == current_user.company_id, _Wh.is_active.isnot(False))
+            _wh_ids = [w for (w,) in _whq.all() if branch_wh_set is None or w in branch_wh_set]
+        _, _ph_settings = pharmacy_context(db, current_user.company_id)
+        expiry_map = _pharmacy_pos_extras(db, [p.id for p in products], _wh_ids, _ph_settings)
+
     # Preload warehouse names (only current company's warehouses)
     wh_q = db.query(Warehouse)
     wh_q = wh_q.filter(Warehouse.company_id == current_user.company_id)
@@ -510,6 +523,11 @@ def list_products(
             item.pharma = pharma_map.get(p.id)
         if units_map:
             item.units = units_map.get(p.id, [])
+        if pharma_on and p.id in expiry_map:   # P.10
+            _ex = expiry_map[p.id]
+            item.nearest_expiry = _ex.get("nearest_expiry")
+            item.expiry_warn = bool(_ex.get("expiry_warn"))
+            item.expired_qty = float(_ex.get("expired_qty") or 0)
 
         all_stocks = stock_by_product[p.id]  # bazaga murojaat yo'q, xotiradan olamiz
 

@@ -344,14 +344,21 @@ class ProductListOut(BaseModel):
     pharma: Optional[PharmaOut] = None  # D2.1: faqat dorixona rejimida to'ldiriladi, aks holda null
     # P.1: qadoq birliklari (ratio o'sish tartibida) — faqat dorixona rejimida; oddiy korxonada maydon umuman chiqmaydi
     units: Optional[List[ProductUnitOut]] = None
+    # P.10: POS desktop (E-Code POS) uchun — eng yaqin yaroqli muddat va muddati o'tgan qoldiq; faqat dorixona rejimida
+    nearest_expiry: Optional[str] = None
+    expiry_warn: Optional[bool] = None
+    expired_qty: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
     @model_serializer(mode="wrap")
     def _drop_empty_units(self, handler):
         data = handler(self)
-        if isinstance(data, dict) and data.get("units") is None:
-            data.pop("units", None)   # oddiy korxona javobi avvalgidek (units kaliti yo'q)
+        if isinstance(data, dict):
+            # oddiy korxona javobi avvalgidek: dorixona kalitlari (units, muddat) umuman chiqmaydi
+            for key in ("units", "nearest_expiry", "expiry_warn", "expired_qty"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
     @field_validator("images", mode="before")
