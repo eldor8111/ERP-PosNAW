@@ -37,8 +37,12 @@ def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
 
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
-    from datetime import datetime, timezone
-    from app.models.billing import BalanceLog
+    from datetime import datetime, timezone, timedelta
+    from app.models.billing import BalanceLog, Tariff, FeaturePackage, CompanyPackage
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    seven_days_ago = now - timedelta(days=7)
 
     companies_count   = db.query(func.count(Company.id)).filter(Company.is_active == True).scalar() or 0
     branches_count    = db.query(func.count(Branch.id)).filter(Branch.is_active == True).scalar() or 0
@@ -49,7 +53,6 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
     role_stats        = db.query(User.role, func.count(User.id)).group_by(User.role).all()
 
     # Bugungi tarif sotuvlari
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     today_logs  = (
         db.query(BalanceLog)
         .filter(
@@ -62,6 +65,112 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
     today_subscriptions = len(today_logs)
     today_sub_revenue   = float(sum(abs(lg.amount) for lg in today_logs))
 
+    # Platformaning jami obuna daromadi (E-Code sof tushumi)
+    total_platform_revenue = float(
+        db.query(func.coalesce(func.sum(func.abs(BalanceLog.amount)), 0))
+        .filter(BalanceLog.log_type == "subscription", BalanceLog.amount < 0)
+        .scalar() or 0
+    )
+
+    # Korxonalar obunalari va MRR hisobi
+    all_companies = db.query(Company).filter(Company.is_active == True).options(joinedload(Company.tariff)).all()
+    mrr = 0.0
+    active_subs_count = 0
+    trial_subs_count = 0
+    expired_subs_count = 0
+    expiring_soon_count = 0
+    no_sub_count = 0
+
+    for c in all_companies:
+        ends = c.subscription_ends_at
+        if ends and ends.tzinfo is None:
+            ends = ends.replace(tzinfo=timezone.utc)
+        
+        if not c.tariff_id or not ends:
+            no_sub_count += 1
+        elif ends < now:
+            expired_subs_count += 1
+        elif c.is_trial:
+            trial_subs_count += 1
+        else:
+            active_subs_count += 1
+            if c.tariff:
+                mrr += float(c.tariff.price_per_month or 0)
+            days_left = (ends - now).days
+            if 0 <= days_left <= 7:
+                expiring_soon_count += 1
+
+    # Faol pullik paketlar MRR ga qo'shiladi
+    active_pkg_rows = (
+        db.query(CompanyPackage.package_code)
+        .filter(
+            CompanyPackage.is_active == True,
+            CompanyPackage.is_trial == False,
+            or_(CompanyPackage.ends_at.is_(None), CompanyPackage.ends_at > now),
+        )
+        .all()
+    )
+    pkg_prices = {p.code: float(p.price_per_month or 0) for p in db.query(FeaturePackage).all()}
+    for (pcode,) in active_pkg_rows:
+        mrr += pkg_prices.get(pcode, 0.0)
+
+    # Oxirgi 7 kunda faol korxonalar (kamida 1 ta savdo)
+    active_7d_count = db.query(func.count(func.distinct(Sale.company_id))).filter(Sale.created_at >= seven_days_ago).scalar() or 0
+
+    # Tariflar taqsimoti
+    all_tariffs = db.query(Tariff).filter(Tariff.is_active == True).order_by(Tariff.sort_order).all()
+    tariff_stats = []
+    for t in all_tariffs:
+        cnt = sum(1 for c in all_companies if c.tariff_id == t.id)
+        tariff_stats.append({
+            "id": t.id,
+            "name": t.name,
+            "price": float(t.price_per_month or 0),
+            "count": cnt,
+            "total_monthly": cnt * float(t.price_per_month or 0),
+        })
+
+    # Paketlar taqsimoti
+    all_feature_pkgs = db.query(FeaturePackage).filter(FeaturePackage.is_active == True).order_by(FeaturePackage.sort_order).all()
+    package_stats = []
+    for fp in all_feature_pkgs:
+        cnt = db.query(func.count(CompanyPackage.id)).filter(
+            CompanyPackage.package_code == fp.code,
+            CompanyPackage.is_active == True,
+            or_(CompanyPackage.ends_at.is_(None), CompanyPackage.ends_at > now),
+        ).scalar() or 0
+        package_stats.append({
+            "code": fp.code,
+            "name": fp.name,
+            "price": float(fp.price_per_month or 0),
+            "count": cnt,
+        })
+
+    # Oxirgi 6 oylik E-Code obuna tushumlari
+    monthly_revenue = []
+    for i in range(5, -1, -1):
+        m_date = now - timedelta(days=i * 30)
+        m_start = m_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if m_start.month == 12:
+            m_end = m_start.replace(year=m_start.year + 1, month=1)
+        else:
+            m_end = m_start.replace(month=m_start.month + 1)
+        
+        m_sum = float(
+            db.query(func.coalesce(func.sum(func.abs(BalanceLog.amount)), 0))
+            .filter(
+                BalanceLog.log_type == "subscription",
+                BalanceLog.amount < 0,
+                BalanceLog.created_at >= m_start,
+                BalanceLog.created_at < m_end,
+            )
+            .scalar() or 0
+        )
+        monthly_revenue.append({
+            "month": m_start.strftime("%b %Y"),
+            "revenue": m_sum,
+        })
+
     return {
         "companies": companies_count,
         "branches": branches_count,
@@ -72,6 +181,19 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
         "users_by_role": {r.value: c for r, c in role_stats},
         "today_subscriptions": today_subscriptions,
         "today_sub_revenue": today_sub_revenue,
+        # SaaS E-Code Metrikalari
+        "mrr": mrr,
+        "arr": mrr * 12,
+        "active_subscriptions": active_subs_count,
+        "trial_subscriptions": trial_subs_count,
+        "expired_subscriptions": expired_subs_count,
+        "expiring_soon_count": expiring_soon_count,
+        "no_subscription_count": no_sub_count,
+        "active_companies_7d": active_7d_count,
+        "total_platform_revenue": total_platform_revenue,
+        "tariff_stats": tariff_stats,
+        "package_stats": package_stats,
+        "monthly_revenue": monthly_revenue,
     }
 
 
@@ -83,13 +205,16 @@ def list_companies(
     db: Session = Depends(get_db),
     _: User = Depends(require_super_admin),
 ):
-    """Barcha korxonalar — har birida filiallar va xodimlar soni"""
+    """Barcha korxonalar — har birida filiallar, xodimlar, tarif, balans, obuna va faollik holati"""
+    from datetime import datetime, timezone
+    from app.models.billing import CompanyPackage
+    now = datetime.now(timezone.utc)
+
     branch_counts = (
         db.query(Branch.company_id, func.count(Branch.id).label("cnt"))
         .group_by(Branch.company_id)
         .subquery()
     )
-    # T3.2: xodimlar korxona bo'yicha (filialsizlar va faqat user_companies orqali a'zolar bilan)
     members = (
         db.query(User.company_id.label("cid"), User.id.label("uid"))
         .filter(User.company_id.isnot(None))
@@ -104,35 +229,117 @@ def list_companies(
         .group_by(members.c.cid)
         .subquery()
     )
+    # Oxirgi sotuv va jami aylanma
+    sale_stats = (
+        db.query(
+            Sale.company_id,
+            func.max(Sale.created_at).label("last_sale_at"),
+            func.count(Sale.id).label("sales_count"),
+            func.coalesce(func.sum(Sale.total_amount), 0).label("sales_total"),
+        )
+        .group_by(Sale.company_id)
+        .subquery()
+    )
+
     q = (
         db.query(
             Company,
             func.coalesce(branch_counts.c.cnt, 0).label("branches_count"),
             func.coalesce(user_counts.c.cnt, 0).label("users_count"),
+            sale_stats.c.last_sale_at,
+            func.coalesce(sale_stats.c.sales_count, 0).label("sales_count"),
+            func.coalesce(sale_stats.c.sales_total, 0).label("sales_total"),
         )
         .outerjoin(branch_counts, Company.id == branch_counts.c.company_id)
         .outerjoin(user_counts, Company.id == user_counts.c.company_id)
+        .outerjoin(sale_stats, Company.id == sale_stats.c.company_id)
+        .options(joinedload(Company.tariff))
     )
     if search:
         like = f"%{search.strip()}%"
         q = q.filter(
-            or_(Company.name.ilike(like), Company.org_code.ilike(like))
+            or_(Company.name.ilike(like), Company.org_code.ilike(like), Company.phone.ilike(like))
         )
     rows = q.order_by(Company.id).all()
+
+    # Faol paketlar xaritasi (N+1 yo'q)
+    active_comp_pkgs = (
+        db.query(CompanyPackage.company_id, CompanyPackage.package_code)
+        .filter(
+            CompanyPackage.is_active == True,
+            or_(CompanyPackage.ends_at.is_(None), CompanyPackage.ends_at > now),
+        )
+        .all()
+    )
+    pkg_by_comp = {}
+    for cid, pcode in active_comp_pkgs:
+        pkg_by_comp.setdefault(cid, set()).add(pcode)
+
     result = []
-    for c, branches_count, users_count in rows:
+    for c, branches_count, users_count, last_sale_at, sales_count, sales_total in rows:
+        ends = c.subscription_ends_at
+        if ends and ends.tzinfo is None:
+            ends = ends.replace(tzinfo=timezone.utc)
+        
+        days_left = None
+        if ends:
+            days_left = (ends - now).days
+
+        if not c.tariff_id or not ends:
+            sub_status = "none"
+        elif days_left < 0:
+            sub_status = "expired"
+        elif c.is_trial:
+            sub_status = "trial"
+        elif days_left <= 7:
+            sub_status = "expiring_soon"
+        else:
+            sub_status = "active"
+
+        comp_pkgs = pkg_by_comp.get(c.id, set())
+
+        # Oxirgi faollik (kunlarda)
+        days_inactive = None
+        if last_sale_at:
+            l_sale = last_sale_at if last_sale_at.tzinfo else last_sale_at.replace(tzinfo=timezone.utc)
+            days_inactive = max(0, (now - l_sale).days)
+
         result.append({
             "id": c.id,
             "name": c.name,
             "code": c.org_code,
             "org_code": c.org_code,
+            "region": c.region,
+            "district": c.district,
             "address": c.address,
             "phone": c.phone,
             "email": c.email,
             "is_active": c.is_active,
+            "balance": float(c.balance or 0),
             "created_at": str(c.created_at),
             "branches_count": branches_count,
             "users_count": users_count,
+            # Tarif & Obuna
+            "tariff_id": c.tariff_id,
+            "tariff_name": c.tariff.name if c.tariff else None,
+            "tariff_price": float(c.tariff.price_per_month or 0) if c.tariff else 0,
+            "subscription_starts_at": c.subscription_starts_at.isoformat() if c.subscription_starts_at else None,
+            "subscription_ends_at": c.subscription_ends_at.isoformat() if c.subscription_ends_at else None,
+            "is_trial": bool(c.is_trial),
+            "days_left": days_left,
+            "subscription_status": sub_status,
+            # Modullar
+            "modules": {
+                "pharmacy": bool(c.pharmacy_enabled or "pharmacy" in comp_pkgs),
+                "manufacturing": bool(c.manufacturing_enabled or "manufacturing" in comp_pkgs),
+                "distribution": bool(c.distribution_enabled or "distribution" in comp_pkgs),
+                "delivery_automation": bool(c.orders_auto_create_sale or "delivery_automation" in comp_pkgs),
+            },
+            # Faollik
+            "last_sale_at": last_sale_at.isoformat() if last_sale_at else None,
+            "days_inactive": days_inactive,
+            "sales_count": sales_count,
+            "sales_total": float(sales_total or 0),
         })
     return result
 

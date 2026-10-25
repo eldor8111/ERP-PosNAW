@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLang } from '../../context/LangContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
+const fmtMoney = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 const ROLE_LABELS = {
   super_admin: 'Super Admin', admin: 'Admin', director: 'Direktor',
@@ -170,12 +171,12 @@ function DeleteCompanyModal({ company, onClose, onDeleted }) {
 }
 
 /* ─── Company Detail Drawer (o'ng tomondan siljib chiqadigan katta panel) ─── */
-function CompanyDetailPanel({ companyId, companyName, onClose }) {
+function CompanyDetailPanel({ companyId, companyName, onClose, initialTab = 'branches' }) {
   const { t } = useLang();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [tab, setTab] = useState('branches');
+  const [tab, setTab] = useState(initialTab);
   const [visible, setVisible] = useState(false);
 
   const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
@@ -1315,12 +1316,17 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(defaultTab);
+  const [subTab, setSubTab] = useState('list'); // 'list' | 'analytics'
+  const [companyFilter, setCompanyFilter] = useState('all'); // 'all' | 'active' | 'expiring' | 'expired' | 'trial' | 'inactive'
+  const [tableSearch, setTableSearch] = useState('');
+  const [showTopUpCard, setShowTopUpCard] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [detailInitialTab, setDetailInitialTab] = useState('branches');
   const [deleteCompany, setDeleteCompany] = useState(null);
   const [topUp, setTopUp] = useState({ org_code: '', amount: '' });
   const [topUpMsg, setTopUpMsg] = useState(null);
   const [topUpLoading, setTopUpLoading] = useState(false);
-  const [foundCompany, setFoundCompany] = useState(null);   // { id, name, org_code }
+  const [foundCompany, setFoundCompany] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchErr, setSearchErr] = useState('');
 
@@ -1355,7 +1361,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
         org_code: foundCompany.code,
         amount: parseFloat(topUp.amount),
       });
-      setTopUpMsg({ ok: true, text: `✓ ${res.data.company_name} — ${t('superAdmin.newBalance')}: ${res.data.new_balance.toLocaleString()} s` });
+      setTopUpMsg({ ok: true, text: `✓ ${res.data.company_name} — ${t('superAdmin.newBalance')}: ${Number(res.data.new_balance || 0).toLocaleString()} s` });
       setTopUp({ org_code: '', amount: '' });
       setFoundCompany(null);
       loadCompanies();
@@ -1369,17 +1375,90 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
   const loadCompanies = () => {
     setLoading(true);
-    api.get('/super-admin/companies').then(r => setCompanies(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) }).finally(() => setLoading(false));
+    api.get('/super-admin/companies')
+      .then(r => setCompanies(r.data || []))
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) })
+      .finally(() => setLoading(false));
   };
 
   const loadOverview = () => {
-    api.get('/super-admin/overview').then(r => setOverview(r.data)).catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) });
+    api.get('/super-admin/overview')
+      .then(r => setOverview(r.data))
+      .catch((err) => { toast.error(err.response?.data?.detail || err.message || t('superAdmin.errorOccurred')) });
   };
 
   useEffect(() => {
     loadOverview();
     loadCompanies();
   }, []);
+
+  // Filter hisoblari
+  const filterCounts = useMemo(() => {
+    const counts = { all: companies.length, active: 0, expiring: 0, expired: 0, trial: 0, inactive: 0 };
+    companies.forEach(c => {
+      if (c.subscription_status === 'active') counts.active++;
+      else if (c.subscription_status === 'expiring_soon') counts.expiring++;
+      else if (c.subscription_status === 'expired') counts.expired++;
+      else if (c.subscription_status === 'trial') counts.trial++;
+      
+      if (c.days_inactive === null || c.days_inactive > 14) counts.inactive++;
+    });
+    return counts;
+  }, [companies]);
+
+  // Saralangan korxonalar
+  const filteredCompanies = useMemo(() => {
+    return companies.filter(c => {
+      if (companyFilter === 'active' && c.subscription_status !== 'active') return false;
+      if (companyFilter === 'expiring' && c.subscription_status !== 'expiring_soon') return false;
+      if (companyFilter === 'expired' && c.subscription_status !== 'expired') return false;
+      if (companyFilter === 'trial' && !c.is_trial) return false;
+      if (companyFilter === 'inactive' && (c.days_inactive !== null && c.days_inactive <= 14)) return false;
+
+      if (tableSearch.trim()) {
+        const q = tableSearch.toLowerCase().trim();
+        const matchName = (c.name || '').toLowerCase().includes(q);
+        const matchCode = (c.code || '').toLowerCase().includes(q);
+        const matchPhone = (c.phone || '').toLowerCase().includes(q);
+        const matchTariff = (c.tariff_name || '').toLowerCase().includes(q);
+        const matchRegion = (c.region || '').toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchPhone && !matchTariff && !matchRegion) return false;
+      }
+      return true;
+    });
+  }, [companies, companyFilter, tableSearch]);
+
+  // CSV/Excel eksport
+  const exportCompaniesCSV = () => {
+    if (!filteredCompanies.length) return;
+    const headers = ["№", "Korxona nomi", "Kod", "Telefon", "Hudud", "Tarif", "Oylik to'lov", "Balans (so'm)", "Obuna holati", "Qolgan kun", "Tugash sanasi", "Dorixona", "Ishlab chiqarish", "Distribyutsiya", "Avto yetkazma", "Oxirgi savdo"];
+    const rows = filteredCompanies.map((c, i) => [
+      i + 1,
+      `"${(c.name || '').replace(/"/g, '""')}"`,
+      c.code || '',
+      c.phone || '',
+      `"${(c.region || '') + (c.district ? ' ' + c.district : '')}"`,
+      `"${c.tariff_name || "Tarifsiz"}"`,
+      c.tariff_price || 0,
+      c.balance || 0,
+      c.subscription_status || '',
+      c.days_left != null ? c.days_left : '',
+      c.subscription_ends_at ? c.subscription_ends_at.slice(0, 10) : '',
+      c.modules?.pharmacy ? "Ha" : "Yo'q",
+      c.modules?.manufacturing ? "Ha" : "Yo'q",
+      c.modules?.distribution ? "Ha" : "Yo'q",
+      c.modules?.delivery_automation ? "Ha" : "Yo'q",
+      c.last_sale_at ? c.last_sale_at.slice(0, 10) : "Savdo yo'q"
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `E-Code_Korxonalar_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const tabs = [
     { id: 'companies', label: t('superAdmin.companies'), icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
@@ -1391,218 +1470,732 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
   return (
     <div className="space-y-5">
-      {/* Header Stats */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
-            <Ic d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" cls="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-base font-black text-slate-800">{t('superAdmin.panelTitle')}</h1>
-            <p className="text-xs text-slate-400">{t('superAdmin.fullSystemManagement')}</p>
-          </div>
-          <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
-            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-            {t('superAdmin.superAdmin')}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: t('superAdmin.companies'), value: overview?.companies ?? '—', color: 'text-blue-700 bg-blue-50' },
-            { label: t('superAdmin.branches'), value: overview?.branches ?? '—', color: 'text-emerald-700 bg-emerald-50' },
-            { label: t('superAdmin.employees'), value: overview?.users ?? '—', color: 'text-blue-700 bg-blue-50' },
-            { label: t('superAdmin.totalSales'), value: overview ? `${Number(overview.total_revenue || 0).toLocaleString('uz-UZ')} s` : '—', color: 'text-blue-700 bg-blue-50' },
-            {
-              label: t('superAdmin.todayTariffs'),
-              value: overview ? `${overview.today_subscriptions ?? 0} ${t('common.item')}` : '—',
-              color: 'text-amber-700 bg-amber-50',
-              sub: overview ? `${Number(overview.today_sub_revenue || 0).toLocaleString('uz-UZ')} s` : null,
-            },
-            {
-              label: t('superAdmin.todayRevenue'),
-              value: overview ? `${Number(overview.today_sub_revenue || 0).toLocaleString('uz-UZ')} s` : '—',
-              color: 'text-blue-700 bg-blue-50',
-            },
-          ].map(s => (
-            <div key={s.label} className={`rounded-xl p-3 ${s.color} border border-white/60`}>
-              <div className="text-[10px] font-semibold uppercase tracking-wide opacity-70 mb-1">{s.label}</div>
-              <div className="text-lg font-black leading-tight">{s.value}</div>
+      {/* ── Executive Header Stats (SaaS Metrikalari) ── */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 flex items-center justify-center shadow-md shadow-blue-200 shrink-0 text-white">
+              <Ic d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" cls="w-6 h-6" />
             </div>
-          ))}
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-black text-slate-800 tracking-tight">E-Code SaaS Boshqaruv Markazi</h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-50 text-blue-700 text-[11px] font-bold rounded-full border border-blue-200">
+                  <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse" />
+                  Super Admin
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">Korxonalar, obunalar, MRR va platforma faolligi monitoringi</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { loadOverview(); loadCompanies(); }}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
+            >
+              <Ic d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" cls="w-3.5 h-3.5" />
+              Yangilash
+            </button>
+          </div>
+        </div>
+
+        {/* 6 Grid KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* Card 1: Korxonalar */}
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-blue-50/70 to-indigo-50/30 border border-blue-100 hover:shadow-xs transition-all">
+            <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-1 flex items-center justify-between">
+              <span>Korxonalar</span>
+              <span className="text-xs">🏢</span>
+            </div>
+            <div className="text-xl font-black text-blue-900 leading-tight">
+              {overview?.companies ?? '—'} <span className="text-xs font-semibold text-slate-400">ta</span>
+            </div>
+            <div className="text-[10px] text-blue-600/80 font-semibold mt-1 truncate">
+              🟢 {overview?.active_subscriptions ?? 0} faol · ⏳ {overview?.trial_subscriptions ?? 0} trial
+            </div>
+          </div>
+
+          {/* Card 2: MRR */}
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-emerald-50/70 to-teal-50/30 border border-emerald-200 hover:shadow-xs transition-all ring-1 ring-emerald-400/20">
+            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-1 flex items-center justify-between">
+              <span>MRR (Oylik tushum)</span>
+              <span className="text-xs">💰</span>
+            </div>
+            <div className="text-lg font-black text-emerald-900 leading-tight truncate">
+              {overview ? `${fmtMoney(overview.mrr)}` : '—'} <span className="text-xs font-semibold text-emerald-600">s</span>
+            </div>
+            <div className="text-[10px] text-emerald-700 font-semibold mt-1 truncate">
+              ARR: {overview ? `${fmtMoney(overview.arr || 0)} s` : '—'}
+            </div>
+          </div>
+
+          {/* Card 3: 7 kunda tugaydiganlar */}
+          <div
+            onClick={() => { setTab('companies'); setSubTab('list'); setCompanyFilter('expiring'); }}
+            className={`rounded-2xl p-3.5 bg-gradient-to-br from-amber-50/80 to-orange-50/40 border border-amber-200 hover:shadow-sm cursor-pointer transition-all ${
+              overview?.expiring_soon_count > 0 ? 'ring-2 ring-amber-400/30' : ''
+            }`}
+          >
+            <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1 flex items-center justify-between">
+              <span>7 kunda tugaydi</span>
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+            </div>
+            <div className="text-xl font-black text-amber-900 leading-tight">
+              {overview?.expiring_soon_count ?? 0} <span className="text-xs font-semibold text-amber-700">ta</span>
+            </div>
+            <div className="text-[10px] text-amber-700 font-semibold mt-1 truncate">
+              🔴 {overview?.expired_subscriptions ?? 0} ta muddati o'tgan
+            </div>
+          </div>
+
+          {/* Card 4: Faollik (7 kun) */}
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-violet-50/70 to-purple-50/30 border border-violet-100 hover:shadow-xs transition-all">
+            <div className="text-[10px] font-black uppercase tracking-wider text-violet-700 mb-1 flex items-center justify-between">
+              <span>Faollik (7 kun)</span>
+              <span className="text-xs">⚡</span>
+            </div>
+            <div className="text-xl font-black text-violet-900 leading-tight">
+              {overview?.active_companies_7d ?? 0} <span className="text-xs font-semibold text-violet-500">ta</span>
+            </div>
+            <div className="text-[10px] text-violet-600 font-semibold mt-1 truncate">
+              Filial: {overview?.branches ?? 0} · Xodim: {overview?.users ?? 0}
+            </div>
+          </div>
+
+          {/* Card 5: Bugungi Obuna Tushumi */}
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-sky-50/70 to-blue-50/30 border border-sky-100 hover:shadow-xs transition-all">
+            <div className="text-[10px] font-black uppercase tracking-wider text-sky-700 mb-1 flex items-center justify-between">
+              <span>Bugun tushum</span>
+              <span className="text-xs">🧾</span>
+            </div>
+            <div className="text-lg font-black text-sky-900 leading-tight truncate">
+              {overview ? `${fmtMoney(overview.today_sub_revenue)}` : '—'} <span className="text-xs font-semibold text-sky-600">s</span>
+            </div>
+            <div className="text-[10px] text-sky-600 font-semibold mt-1 truncate">
+              {overview?.today_subscriptions ?? 0} ta yangi obuna
+            </div>
+          </div>
+
+          {/* Card 6: Mijozlar Savdo Hajmi */}
+          <div className="rounded-2xl p-3.5 bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200 hover:shadow-xs transition-all">
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+              <span>Mijozlar savdosi</span>
+              <span className="text-xs">🛍️</span>
+            </div>
+            <div className="text-base font-black text-slate-800 leading-tight truncate" title={`${fmtMoney(overview?.total_revenue)} so'm`}>
+              {overview ? `${fmtMoney(overview.total_revenue)}` : '—'} <span className="text-[10px] font-semibold text-slate-400">s</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-semibold mt-1 truncate">
+              {overview?.sales?.toLocaleString() ?? 0} ta operatsiya
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      {(
-        <div className="flex gap-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-1.5 w-fit">
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all
-                ${tab === t.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:bg-slate-100'}`}>
-              <Ic d={t.icon} cls="w-3.5 h-3.5" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-1.5 w-fit">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all
+              ${tab === t.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <Ic d={t.icon} cls="w-3.5 h-3.5" />
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Companies Tab */}
+      {/* ── COMPANIES TAB ── */}
       {tab === 'companies' && (
-        <>
-          {/* Balans to'ldirish forma — 2 bosqich */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-4">
-            <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <Ic d="M12 6v6m0 0v6m0-6h6m-6 0H6" cls="w-4 h-4 text-emerald-600" />
-              </div>
-              {t('superAdmin.topUpCompanyBalance')}
-            </h3>
+        <div className="space-y-4">
+          {/* Sub-view switcher + Action Controls */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => setSubTab('list')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  subTab === 'list'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Ic d="M4 6h16M4 10h16M4 14h16M4 18h16" cls="w-3.5 h-3.5" />
+                Korxonalar ro'yxati ({filteredCompanies.length})
+              </button>
 
-            {/* Step 1 — search */}
-            {!foundCompany ? (
-              <form onSubmit={handleSearchCompany} className="flex items-end gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500 font-medium">{t('superAdmin.orgCode')}</label>
-                  <input
-                    value={topUp.org_code}
-                    onChange={e => { setTopUp(p => ({ ...p, org_code: e.target.value.toUpperCase() })); setSearchErr(''); }}
-                    placeholder={t('superAdmin.orgCodePlaceholder')}
-                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-blue-700 w-44 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    autoFocus
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={searchLoading || !topUp.org_code.trim()}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60 flex items-center gap-2"
-                >
-                  {searchLoading
-                    ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>{t('superAdmin.searching')}</>
-                    : <><Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-4 h-4" />{t('common.search')}</>
-                  }
+              <button
+                onClick={() => setSubTab('analytics')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  subTab === 'analytics'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Ic d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2-2h-2a2 2 0 01-2-2z" cls="w-3.5 h-3.5" />
+                SaaS Tahlil & Tushumlar
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setShowTopUpCard(v => !v)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                  showTopUpCard
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                }`}
+              >
+                <Ic d="M12 6v6m0 0v6m0-6h6m-6 0H6" cls="w-3.5 h-3.5" />
+                Balans to'ldirish
+              </button>
+
+              <button
+                onClick={exportCompaniesCSV}
+                className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+                title="CSV/Excel faylga yuklash"
+              >
+                <Ic d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" cls="w-3.5 h-3.5 text-blue-600" />
+                Eksport (Excel)
+              </button>
+            </div>
+          </div>
+
+          {/* Collapsible Balans to'ldirish Card */}
+          {showTopUpCard && (
+            <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-4 animate-in fade-in slide-in-from-top duration-200">
+              <div className="flex items-center justify-between mb-3 border-b border-emerald-50 pb-2">
+                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <Ic d="M12 6v6m0 0v6m0-6h6m-6 0H6" cls="w-3.5 h-3.5 text-emerald-600" />
+                  </div>
+                  {t('superAdmin.topUpCompanyBalance')}
+                </h3>
+                <button onClick={() => setShowTopUpCard(false)} className="text-slate-400 hover:text-slate-600 text-xs">
+                  <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
                 </button>
-              </form>
-            ) : (
-              /* Step 2 — confirm & enter amount */
-              <div className="space-y-4">
-                {/* Company confirmation card */}
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-base shrink-0">
-                    {foundCompany.name?.[0]?.toUpperCase()}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-bold text-slate-800 text-sm">{foundCompany.name}</div>
-                    <div className="text-xs text-blue-500 font-mono font-bold mt-0.5">{t('superAdmin.codeLabel')}: {foundCompany.code}</div>
-                  </div>
-                  <button
-                    onClick={() => { setFoundCompany(null); setTopUp(p => ({ ...p, amount: '' })); setTopUpMsg(null); }}
-                    className="text-slate-400 hover:text-red-500 transition-colors"
-                    title={t('common.cancel')}
-                  >
-                    <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
-                  </button>
-                </div>
+              </div>
 
-                {/* Amount form */}
-                <form onSubmit={handleTopUp} className="flex items-end gap-3">
+              {!foundCompany ? (
+                <form onSubmit={handleSearchCompany} className="flex items-end gap-3 flex-wrap">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-500 font-medium">{t('superAdmin.amountSum')}</label>
+                    <label className="text-[11px] text-slate-500 font-semibold">{t('superAdmin.orgCode')}</label>
                     <input
-                      type="number"
-                      value={topUp.amount}
-                      onChange={e => setTopUp(p => ({ ...p, amount: e.target.value }))}
-                      placeholder="100000"
-                      min="1"
+                      value={topUp.org_code}
+                      onChange={e => { setTopUp(p => ({ ...p, org_code: e.target.value.toUpperCase() })); setSearchErr(''); }}
+                      placeholder={t('superAdmin.orgCodePlaceholder')}
+                      className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-blue-700 w-44 focus:outline-none focus:ring-2 focus:ring-blue-300"
                       autoFocus
-                      className="border border-slate-200 rounded-xl px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-emerald-300"
                     />
                   </div>
                   <button
                     type="submit"
-                    disabled={topUpLoading || !topUp.amount}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60"
+                    disabled={searchLoading || !topUp.org_code.trim()}
+                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 flex items-center gap-1.5"
                   >
-                    {topUpLoading ? t('common.loading') : t('superAdmin.topUpBalance')}
+                    {searchLoading ? 'Qidirilmoqda...' : t('common.search')}
                   </button>
                 </form>
-              </div>
-            )}
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                      {foundCompany.name?.[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-slate-800 text-xs truncate">{foundCompany.name}</div>
+                      <div className="text-[11px] text-blue-600 font-mono font-bold">{foundCompany.code}</div>
+                    </div>
+                    <button
+                      onClick={() => { setFoundCompany(null); setTopUp(p => ({ ...p, amount: '' })); setTopUpMsg(null); }}
+                      className="text-slate-400 hover:text-red-500"
+                    >
+                      <Ic d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
+                    </button>
+                  </div>
 
-            {/* Messages */}
-            {searchErr && (
-              <p className="mt-3 text-sm font-semibold px-3 py-2 rounded-xl bg-red-50 text-red-600">{searchErr}</p>
-            )}
-            {topUpMsg && (
-              <p className={`mt-3 text-sm font-semibold px-3 py-2 rounded-xl ${topUpMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
-                {topUpMsg.text}
-              </p>
-            )}
-          </div>
+                  <form onSubmit={handleTopUp} className="flex items-end gap-3 flex-wrap">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] text-slate-500 font-semibold">{t('superAdmin.amountSum')}</label>
+                      <input
+                        type="number"
+                        value={topUp.amount}
+                        onChange={e => setTopUp(p => ({ ...p, amount: e.target.value }))}
+                        placeholder="100000"
+                        min="1"
+                        autoFocus
+                        className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs w-48 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={topUpLoading || !topUp.amount}
+                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60"
+                    >
+                      {topUpLoading ? 'To\'ldirilmoqda...' : 'To\'ldirish'}
+                    </button>
+                  </form>
+                </div>
+              )}
 
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-700">
-                {t('superAdmin.companiesList')} <span className="text-blue-600 font-black">({companies.length})</span>
-              </h3>
-              <button onClick={loadCompanies} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition-all">{t('common.refresh')}</button>
+              {searchErr && <p className="mt-2 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600">{searchErr}</p>}
+              {topUpMsg && (
+                <p className={`mt-2 text-xs font-semibold px-2.5 py-1.5 rounded-lg ${topUpMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                  {topUpMsg.text}
+                </p>
+              )}
             </div>
-            {loading ? (
-              <div className="flex justify-center py-16"><div className="w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
-            ) : companies.length === 0 ? (
-              <div className="py-16 text-center text-slate-400 text-sm">{t('superAdmin.companiesNotFound')}</div>
-            ) : (
-              <table className="min-w-full">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100">
-                    {['#', t('superAdmin.companyName'), t('superAdmin.codeLabel'), t('superAdmin.registrationDate'), t('common.status'), ''].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {companies.map((c, i) => (
-                    <tr key={c.id}
-                      className="hover:bg-blue-50/40 cursor-pointer transition-colors"
-                      onClick={() => setSelectedCompany(c)}>
-                      <td className="px-5 py-3 text-xs text-slate-400">{i + 1}</td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
-                            {c.name?.[0]?.toUpperCase()}
-                          </div>
-                          <span className="font-semibold text-slate-800 text-sm">{c.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg text-xs border border-blue-100 tracking-widest">
-                          {c.code || '—'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-sm text-slate-500">{fmtDate(c.created_at)}</td>
-                      <td className="px-5 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${c.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                          {c.is_active ? t('common.active') : t('common.inactive')}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-slate-300">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={e => { e.stopPropagation(); setDeleteCompany(c); }}
-                            title={t('superAdmin.deleteCompanyButton')}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
-                          >
-                            <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-4 h-4" />
-                          </button>
-                          <Ic d="M9 5l7 7-7 7" cls="w-4 h-4" />
-                        </div>
-                      </td>
-                    </tr>
+          )}
+
+          {/* VIEW 1: KORXONALAR RO'YXATI (JADVAL) */}
+          {subTab === 'list' && (
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+              {/* Filter pills & search toolbar */}
+              <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: 'all', label: 'Barchasi', count: filterCounts.all },
+                    { id: 'active', label: 'Faol obuna', count: filterCounts.active, dot: 'bg-emerald-500' },
+                    { id: 'expiring', label: '7 kunda tugaydi', count: filterCounts.expiring, dot: 'bg-amber-500 animate-ping' },
+                    { id: 'expired', label: 'Muddati o\'tgan', count: filterCounts.expired, dot: 'bg-red-500' },
+                    { id: 'trial', label: 'Sinovda (Trial)', count: filterCounts.trial, dot: 'bg-sky-500' },
+                    { id: 'inactive', label: 'Nofaol (14+ kun)', count: filterCounts.inactive, dot: 'bg-slate-400' },
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setCompanyFilter(f.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                        companyFilter === f.id
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {f.dot && <span className={`w-1.5 h-1.5 rounded-full ${companyFilter === f.id ? 'bg-white' : f.dot}`} />}
+                      <span>{f.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        companyFilter === f.id ? 'bg-white/20 text-white' : 'bg-white text-slate-500 border border-slate-200'
+                      }`}>
+                        {f.count}
+                      </span>
+                    </button>
                   ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
+                </div>
+
+                {/* Search input */}
+                <div className="relative w-full md:w-72">
+                  <input
+                    type="text"
+                    value={tableSearch}
+                    onChange={e => setTableSearch(e.target.value)}
+                    placeholder="Qidiruv: nomi, kodi, telefoni..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all font-medium"
+                  />
+                  <div className="absolute left-2.5 top-2 text-slate-400">
+                    <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-3.5 h-3.5" />
+                  </div>
+                  {tableSearch && (
+                    <button onClick={() => setTableSearch('')} className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600">
+                      <Ic d="M6 18L18 6M6 6l12 12" cls="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Table */}
+              {loading ? (
+                <div className="flex justify-center py-20">
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : filteredCompanies.length === 0 ? (
+                <div className="py-20 text-center text-slate-400 text-sm">
+                  Mos korxonalar topilmadi
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-100">
+                    <thead>
+                      <tr className="bg-slate-50/80 text-slate-500 text-[11px] font-bold uppercase tracking-wider text-left">
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">Korxona</th>
+                        <th className="px-4 py-3">Tarif & Balans</th>
+                        <th className="px-4 py-3">Obuna & Muddat</th>
+                        <th className="px-4 py-3">Modullar</th>
+                        <th className="px-4 py-3">Oxirgi faollik</th>
+                        <th className="px-4 py-3 text-right">Amallar</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 text-xs">
+                      {filteredCompanies.map((c, i) => {
+                        const isExpiringSoon = c.subscription_status === 'expiring_soon';
+                        const isExpired = c.subscription_status === 'expired';
+                        const isTrial = c.is_trial;
+                        const isInactive = c.days_inactive === null || c.days_inactive > 14;
+
+                        return (
+                          <tr
+                            key={c.id}
+                            className={`hover:bg-blue-50/40 cursor-pointer transition-colors ${
+                              isExpiringSoon ? 'bg-amber-50/20' : isExpired ? 'bg-red-50/15' : ''
+                            }`}
+                            onClick={() => { setSelectedCompany(c); setDetailInitialTab('branches'); }}
+                          >
+                            {/* Index */}
+                            <td className="px-4 py-3 text-slate-400 font-mono text-[11px]">{i + 1}</td>
+
+                            {/* Company Name & Details */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                                  {c.name?.[0]?.toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 truncate flex items-center gap-1.5">
+                                    <span>{c.name}</span>
+                                    {c.phone && <span className="text-[10px] text-slate-400 font-normal">({c.phone})</span>}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.2 rounded-md text-[10px] border border-blue-100">
+                                      {c.code || '—'}
+                                    </span>
+                                    {c.region && (
+                                      <span className="text-[10px] text-slate-400 truncate">
+                                        📍 {c.region}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Tariff & Balance */}
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-slate-800">
+                                {c.tariff_name ? (
+                                  <span className="px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 font-black text-[11px]">
+                                    {c.tariff_name}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 text-[11px]">Tarifsiz</span>
+                                )}
+                              </div>
+                              <div className="mt-1 flex items-center gap-1">
+                                <span className={`text-[11px] font-bold px-1.5 py-0.2 rounded-md ${
+                                  c.balance > 0 ? 'text-emerald-700 bg-emerald-50' : 'text-slate-500 bg-slate-100'
+                                }`}>
+                                  Balans: {fmtMoney(c.balance)} s
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Subscription Status & Expiry */}
+                            <td className="px-4 py-3">
+                              {c.subscription_status === 'active' && (
+                                <div>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    Faol ({c.days_left} kun qoldi)
+                                  </span>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    {c.subscription_ends_at?.slice(0, 10)} gacha
+                                  </div>
+                                </div>
+                              )}
+                              {c.subscription_status === 'expiring_soon' && (
+                                <div>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                    ⚠️ {c.days_left} kun qoldi!
+                                  </span>
+                                  <div className="text-[10px] text-amber-700 font-semibold mt-0.5">
+                                    {c.subscription_ends_at?.slice(0, 10)} gacha
+                                  </div>
+                                </div>
+                              )}
+                              {c.subscription_status === 'expired' && (
+                                <div>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                    Muddati tugagan
+                                  </span>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    {c.subscription_ends_at?.slice(0, 10)}
+                                  </div>
+                                </div>
+                              )}
+                              {c.subscription_status === 'trial' && (
+                                <div>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">
+                                    ⏳ Sinov ({c.days_left} kun)
+                                  </span>
+                                </div>
+                              )}
+                              {c.subscription_status === 'none' && (
+                                <span className="text-[11px] text-slate-400">Obunasi yo'q</span>
+                              )}
+                            </td>
+
+                            {/* Active Modules Badges */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {c.modules?.pharmacy && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold" title="Dorixona moduli">
+                                    💊 Dorixona
+                                  </span>
+                                )}
+                                {c.modules?.manufacturing && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold" title="Ishlab chiqarish moduli">
+                                    🏭 Ishlab ch.
+                                  </span>
+                                )}
+                                {c.modules?.distribution && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold" title="Distribyutsiya moduli">
+                                    🚚 Logistika
+                                  </span>
+                                )}
+                                {c.modules?.delivery_automation && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200 text-[10px] font-bold" title="Yetkazib berish avtomatikasi">
+                                    ⚡ Yetkazma
+                                  </span>
+                                )}
+                                {!c.modules?.pharmacy && !c.modules?.manufacturing && !c.modules?.distribution && !c.modules?.delivery_automation && (
+                                  <span className="text-[10px] text-slate-300">Asosiy rejim</span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Last Activity */}
+                            <td className="px-4 py-3">
+                              {c.last_sale_at ? (
+                                <div>
+                                  <div className="font-semibold text-slate-700">
+                                    {c.days_inactive === 0 ? '🟢 Bugun' : c.days_inactive === 1 ? 'Kecha' : `${c.days_inactive} kun oldin`}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    {c.sales_count} ta savdo ({fmtMoney(c.sales_total)} s)
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                                  🔴 Savdo qilinmagan
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => { setSelectedCompany(c); setDetailInitialTab('packages'); }}
+                                  title="Paket berish / boshqarish"
+                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 transition-colors"
+                                >
+                                  🎁
+                                </button>
+                                <button
+                                  onClick={() => { setFoundCompany(c); setShowTopUpCard(true); }}
+                                  title="Balans to'ldirish"
+                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 transition-colors"
+                                >
+                                  💳
+                                </button>
+                                <button
+                                  onClick={() => setDeleteCompany(c)}
+                                  title={t('superAdmin.deleteCompanyButton')}
+                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                                >
+                                  <Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" cls="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => { setSelectedCompany(c); setDetailInitialTab('branches'); }}
+                                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                                >
+                                  <Ic d="M9 5l7 7-7 7" cls="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 2: SAAS TAHLIL & TUSHUMLAR DASHBOARDI */}
+          {subTab === 'analytics' && (
+            <div className="space-y-4">
+              {/* Row 1: Oylik SaaS Tushumlari Grafigi & Tariflar Taqsimoti */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Oylik tushum grafigi (2 cols) */}
+                <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800">E-Code SaaS Tushumlari (Oxirgi 6 oy)</h3>
+                      <p className="text-xs text-slate-400">Tariflar va pullik paketlardan yechilgan oylik obuna to'lovlari</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-slate-400 font-semibold">Jami platforma tushumi:</div>
+                      <div className="text-base font-black text-emerald-700">{fmtMoney(overview?.total_platform_revenue)} so'm</div>
+                    </div>
+                  </div>
+
+                  {overview?.monthly_revenue && overview.monthly_revenue.length > 0 ? (
+                    <div className="h-48 flex items-end justify-between gap-3 pt-6 pb-2 border-b border-slate-100">
+                      {overview.monthly_revenue.map((m, idx) => {
+                        const maxRev = Math.max(...overview.monthly_revenue.map(r => r.revenue), 1000000);
+                        const pct = Math.max(8, Math.round((m.revenue / maxRev) * 100));
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                            <div className="text-[10px] font-bold text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {fmtMoney(m.revenue)} s
+                            </div>
+                            <div
+                              style={{ height: `${pct}%` }}
+                              className="w-full max-w-[42px] bg-gradient-to-t from-blue-600 to-indigo-500 rounded-t-xl group-hover:from-blue-500 group-hover:to-indigo-400 transition-all shadow-xs"
+                            />
+                            <div className="text-[10px] font-bold text-slate-500 truncate">{m.month}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-44 flex items-center justify-center text-xs text-slate-400">Ma'lumotlar yuklanmoqda...</div>
+                  )}
+                </div>
+
+                {/* Tariflar taqsimoti (1 col) */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800 mb-1">Tariflar Taqsimoti</h3>
+                    <p className="text-xs text-slate-400 mb-4">Mijozlarning tariflar bo'yicha ulushi</p>
+                    
+                    <div className="space-y-3">
+                      {overview?.tariff_stats?.map((ts) => {
+                        const totalSubs = overview.companies || 1;
+                        const pct = Math.round((ts.count / totalSubs) * 100);
+                        return (
+                          <div key={ts.id} className="space-y-1">
+                            <div className="flex justify-between text-xs font-bold text-slate-700">
+                              <span>{ts.name} <span className="font-normal text-slate-400">({fmtMoney(ts.price)} s)</span></span>
+                              <span>{ts.count} ta ({pct}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                              <div style={{ width: `${pct}%` }} className="bg-blue-600 h-full rounded-full" />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-semibold">Oylik kutilayotgan tushum:</span>
+                    <span className="font-black text-emerald-700">{fmtMoney(overview?.mrr)} s</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: Qo'shimcha Paketlar va Churn Risk Radar */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Modullar holati */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5">
+                  <h3 className="text-sm font-black text-slate-800 mb-1">Qo'shimcha Pullik Modullar</h3>
+                  <p className="text-xs text-slate-400 mb-4">Korxonalar tomonidan sotib olingan / berilgan paketlar</p>
+
+                  <div className="space-y-3">
+                    {overview?.package_stats?.map((fp) => (
+                      <div key={fp.code} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg">
+                            {fp.code === 'pharmacy' ? '💊' : fp.code === 'manufacturing' ? '🏭' : fp.code === 'distribution' ? '🚚' : '⚡'}
+                          </span>
+                          <div>
+                            <div className="text-xs font-bold text-slate-800">{fp.name}</div>
+                            <div className="text-[10px] text-slate-400">{fmtMoney(fp.price)} so'm/oy</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="px-2.5 py-1 rounded-xl bg-blue-100 text-blue-800 font-black text-xs">
+                            {fp.count} ta faol
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Churn Risk: 7 kunda tugaydiganlar & Obunasi o'tganlar maxsus ro'yxati */}
+                <div className="lg:col-span-2 bg-white rounded-3xl border border-amber-200/80 shadow-xs p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-black text-amber-900 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                        Xavf Guruhidagi Korxonalar (At Risk)
+                      </h3>
+                      <p className="text-xs text-slate-400">Tarifi 7 kunda tugaydigan yoki muddati o'tib ketgan korxonalar</p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-xs">
+                      {companies.filter(c => c.subscription_status === 'expiring_soon' || c.subscription_status === 'expired').length} ta mijoz
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                    <table className="min-w-full divide-y divide-slate-100 text-xs">
+                      <thead>
+                        <tr className="text-slate-400 text-[10px] uppercase font-bold text-left">
+                          <th className="pb-2">Korxona</th>
+                          <th className="pb-2">Telefon</th>
+                          <th className="pb-2">Tarif</th>
+                          <th className="pb-2">Qolgan kun</th>
+                          <th className="pb-2">Balans</th>
+                          <th className="pb-2 text-right">Amal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {companies
+                          .filter(c => c.subscription_status === 'expiring_soon' || c.subscription_status === 'expired')
+                          .map((c) => (
+                            <tr key={c.id} className="hover:bg-amber-50/30">
+                              <td className="py-2.5 font-bold text-slate-800">{c.name}</td>
+                              <td className="py-2.5 text-slate-600">{c.phone || '—'}</td>
+                              <td className="py-2.5 font-semibold text-slate-700">{c.tariff_name || 'Tarifsiz'}</td>
+                              <td className="py-2.5">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  c.subscription_status === 'expiring_soon'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {c.days_left != null ? `${c.days_left} kun` : 'Tugagan'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 font-mono font-bold text-slate-700">{fmtMoney(c.balance)} s</td>
+                              <td className="py-2.5 text-right">
+                                <button
+                                  onClick={() => { setSelectedCompany(c); setDetailInitialTab('packages'); }}
+                                  className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[10px] transition-all"
+                                >
+                                  Uzaytirish
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        {companies.filter(c => c.subscription_status === 'expiring_soon' || c.subscription_status === 'expired').length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-slate-400">
+                              Hozirda xavf guruhidagi korxonalar yo'q. Barcha obunalar faol!
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── BILLING TAB ── */}
@@ -1631,15 +2224,13 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
         <CompanyDetailPanel
           companyId={selectedCompany.id}
           companyName={selectedCompany.name}
-          onClose={() => setSelectedCompany(null)}
+          initialTab={detailInitialTab}
+          onClose={() => { setSelectedCompany(null); setDetailInitialTab('branches'); }}
         />
       )}
     </div>
   );
 }
-
-/* ─── fmt helper ─────────────────────────────────── */
-const fmtMoney = (v) => Number(v || 0).toLocaleString('uz-UZ');
 
 /* ─── BILLING TAB ───────────────────────────────────── */
 const BILLING_PAGE_SIZE = 15;
