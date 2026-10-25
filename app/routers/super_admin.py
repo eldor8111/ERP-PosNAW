@@ -2,6 +2,7 @@
 Super Admin Panel API — faqat super_admin roli uchun.
 Korxonalar (company) → Filiallar (branch) → Tafsilot
 """
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore
 from pydantic import BaseModel  # type: ignore
@@ -1123,6 +1124,10 @@ def delete_company_preview(
         res = preview_company_purge_ex(db, company_id)
     except PurgeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:   # oynada umumiy "Xatolik yuz berdi" emas, aniq sabab ko'rinsin (faqat super admin)
+        db.rollback()
+        logging.getLogger(__name__).exception("delete-preview: company %s", company_id)
+        raise HTTPException(status_code=500, detail=f"Hisoblab bo'lmadi: {(str(e).strip().splitlines() or [type(e).__name__])[0][:300]}")
     counts, moved = res["counts"], res["moved"]
     # transactions_unattributed — transactions ning bir qismi (ma'lumot uchun), umumiy songa qo'shilmaydi
     total = sum(v for k, v in counts.items() if k != "transactions_unattributed")
