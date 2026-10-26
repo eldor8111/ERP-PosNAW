@@ -75,3 +75,4 @@ from .product_pharma import ProductPharma, PharmaSubstance, ProductSubstance  # 
 from .prescription import SalePrescription  # type: ignore  # D2.5: retsept ma'lumotlari
 from .marking_code import MarkingCode  # type: ignore  # D3.2: markirovka kodlari
 from .product_units import ProductUnit, SaleItemUnit  # type: ignore  # D2.4: quti/blister/dona birliklari
+from .uzum_transaction import UzumTransaction  # type: ignore  # Uzum Bank Merchant API

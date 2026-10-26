@@ -1,0 +1,277 @@
+{
+  "info": {
+    "_postman_id": "e-code-uzum-merchant-api-v1",
+    "name": "Uzum Bank Merchant API (E-Code ERP)",
+    "description": "Uzum Bank Merchant API (v1.0.0) integratsiya so'rovlar to'plami. E-Code ERP tizimi uchun tayyorlangan.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{username}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{password}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://savdo.e-code.uz/api/uzum",
+      "type": "string",
+      "description": "Server Base URL (masalan: https://savdo.e-code.uz/api/uzum yoki test server URL)"
+    },
+    {
+      "key": "username",
+      "value": "123123",
+      "type": "string",
+      "description": "Basic Auth Login"
+    },
+    {
+      "key": "password",
+      "value": "123123",
+      "type": "string",
+      "description": "Basic Auth Password"
+    },
+    {
+      "key": "serviceId",
+      "value": 123123,
+      "type": "number",
+      "description": "Xizmat identifikatori"
+    },
+    {
+      "key": "orderId",
+      "value": "123123",
+      "type": "string",
+      "description": "Test uchun hisob raqami / buyurtma ID"
+    },
+    {
+      "key": "transId",
+      "value": "5c398d7e-76b6-11ee-96da-f3a095c6289d",
+      "type": "string",
+      "description": "Tranzaksiya UUID identifikatori"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Check (To'lov imkoniyatini tekshirish)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceId\": {{serviceId}},\n  \"timestamp\": 1714377645426,\n  \"params\": {\n    \"order_id\": \"{{orderId}}\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/check",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "check"
+          ]
+        },
+        "description": "Uzum Bank ilovasida mijoz hisob raqamini kiritganda to'lov imkoniyatini tekshirish uchun chaqiriladi."
+      },
+      "response": [
+        {
+          "name": "200 OK - Muvaffaqiyatli",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": 123123,\n  \"timestamp\": 1714377645426,\n  \"params\": {\n    \"order_id\": \"123123\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["check"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"timestamp\": 1714377645500,\n  \"status\": \"OK\",\n  \"data\": {\n    \"account\": {\n      \"value\": \"123123\"\n    },\n    \"userInfo\": {\n      \"name\": \"E-Code Test Mijoz\"\n    }\n  }\n}"
+        },
+        {
+          "name": "400 Bad Request - Hisob topilmadi",
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"timestamp\": 1714377645500,\n  \"status\": \"FAILED\",\n  \"errorCode\": \"10007\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "2. Create (Tranzaksiya yaratish)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceId\": {{serviceId}},\n  \"timestamp\": 1714377645427,\n  \"transId\": \"{{transId}}\",\n  \"params\": {\n    \"order_id\": \"{{orderId}}\"\n  },\n  \"amount\": 2500000\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/create",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "create"
+          ]
+        },
+        "description": "To'lovni boshlash va tranzaksiyani yaratish (amount tiyinda: 2 500 000 tiyin = 25 000 so'm)."
+      },
+      "response": [
+        {
+          "name": "200 OK - Yaratildi",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"CREATED\",\n  \"transTime\": 1714377645550,\n  \"data\": {},\n  \"amount\": 2500000\n}"
+        },
+        {
+          "name": "400 Bad Request - Tranzaksiya allaqachon mavjud",
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"timestamp\": 1714377645550,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"FAILED\",\n  \"errorCode\": \"10010\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "3. Confirm (To'lovni tasdiqlash)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceId\": {{serviceId}},\n  \"timestamp\": 1714377645428,\n  \"transId\": \"{{transId}}\",\n  \"paymentSource\": \"UZCARD\",\n  \"tariff\": null,\n  \"processingReferenceNumber\": \"00012345\",\n  \"phone\": \"998901234567\",\n  \"cardType\": 2\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/confirm",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "confirm"
+          ]
+        },
+        "description": "Uzum Bank mijozdan pulni yechib olgach chaqiradi. Balans to'ldiriladi va xizmat ko'rsatiladi."
+      },
+      "response": [
+        {
+          "name": "200 OK - Tasdiqlandi",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"CONFIRMED\",\n  \"confirmTime\": 1714377645600,\n  \"data\": {},\n  \"amount\": 2500000\n}"
+        },
+        {
+          "name": "400 Bad Request - Tranzaksiya topilmadi",
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"timestamp\": 1714377645600,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"FAILED\",\n  \"errorCode\": \"10014\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "4. Status (Holatni tekshirish)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceId\": {{serviceId}},\n  \"timestamp\": 1714377645429,\n  \"transId\": \"{{transId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "status"
+          ]
+        },
+        "description": "Tranzaksiyaning joriy holatini tekshirish."
+      },
+      "response": [
+        {
+          "name": "200 OK - Holat",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"CONFIRMED\",\n  \"transTime\": 1714377645550,\n  \"confirmTime\": 1714377645600,\n  \"reverseTime\": null,\n  \"data\": {},\n  \"amount\": 2500000\n}"
+        }
+      ]
+    },
+    {
+      "name": "5. Reverse (Tranzaksiyani bekor qilish / qaytarish)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceId\": {{serviceId}},\n  \"timestamp\": 1714377645430,\n  \"transId\": \"{{transId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/reverse",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "reverse"
+          ]
+        },
+        "description": "To'lovni bekor qilish yoki qaytarish."
+      },
+      "response": [
+        {
+          "name": "200 OK - Bekor qilindi",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"serviceId\": 123123,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"REVERSED\",\n  \"reverseTime\": 1714377645650,\n  \"data\": {},\n  \"amount\": 2500000\n}"
+        }
+      ]
+    }
+  ]
+}

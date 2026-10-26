@@ -26,6 +26,7 @@ from app.routers import branch_prices as branch_prices_router  # type: ignore  #
 from app.routers import mxik as mxik_router  # type: ignore
 from app.routers import billing  # type: ignore
 from app.routers import payme as payme_router  # type: ignore
+from app.routers import uzum as uzum_router  # type: ignore
 from app.routers import kassa  # type: ignore
 from app.routers import loyalty as loyalty_router  # type: ignore  # T2.12
 from app.routers import audit_logs as audit_logs_router  # type: ignore
@@ -36,6 +37,7 @@ from app.models import agent  # noqa: F401 — ensure Alembic detects Agent mode
 from app.models import billing as billing_models  # noqa: F401 — ensure Alembic detects Tariff, BalanceLog
 from app.models import bot_session  # noqa: F401 — ensure bot_sessions table exists
 from app.models import payme_transaction  # noqa: F401 — ensure payme_transactions table exists
+from app.models import uzum_transaction  # noqa: F401 — ensure uzum_transactions table exists
 from app.models import order  # noqa: F401 — ensure orders table exists
 from app.models import marketplace  # noqa: F401 — ensure marketplace tables exist
 from dotenv import load_dotenv
@@ -102,6 +104,30 @@ def _run_auto_migrations(engine):
         );""",
         "CREATE INDEX IF NOT EXISTS ix_payme_txn_company ON payme_transactions (company_id);",
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_payme_txn_payme_id ON payme_transactions (payme_id);",
+        # ── Uzum Bank integratsiya ──
+        """CREATE TABLE IF NOT EXISTS uzum_transactions (
+            id                 SERIAL PRIMARY KEY,
+            company_id         INTEGER REFERENCES companies(id),
+            trans_id           VARCHAR(64) UNIQUE NOT NULL,
+            service_id         BIGINT NOT NULL,
+            amount             BIGINT NOT NULL,
+            status             VARCHAR(20) NOT NULL DEFAULT 'CREATED',
+            account_identifier VARCHAR(100),
+            payment_source     VARCHAR(50),
+            tariff             VARCHAR(50),
+            processing_ref     VARCHAR(100),
+            phone              VARCHAR(50),
+            card_type          INTEGER,
+            trans_time         BIGINT,
+            confirm_time       BIGINT,
+            reverse_time       BIGINT,
+            log_id             INTEGER REFERENCES balance_logs(id),
+            raw_params         JSONB,
+            created_at         TIMESTAMP DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_uzum_txn_company ON uzum_transactions (company_id);",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_uzum_txn_trans_id ON uzum_transactions (trans_id);",
+        "CREATE INDEX IF NOT EXISTS ix_uzum_txn_status ON uzum_transactions (status);",
         """CREATE TABLE IF NOT EXISTS sale_payments (
             id SERIAL PRIMARY KEY,
             sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
@@ -775,6 +801,8 @@ app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(billing.router, prefix=API_PREFIX)
 app.include_router(lead.router, prefix=API_PREFIX)
 app.include_router(payme_router.router, prefix=API_PREFIX)
+app.include_router(uzum_router.router, prefix=API_PREFIX)
+app.include_router(uzum_router.router)  # /uzum/* to'g'ridan-to'g'ri webhooklar uchun
 app.include_router(kassa.router, prefix=API_PREFIX)
 app.include_router(mxik_router.router, prefix=API_PREFIX)
 app.include_router(sms_router.router, prefix=API_PREFIX)
