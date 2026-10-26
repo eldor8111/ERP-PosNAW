@@ -5250,6 +5250,7 @@ export default {
   'purchase.phExpiryPast': "yaroqlilik muddati o'tgan",
   'purchase.phLotsExceed': "seriyalar yig'indisi qolgan miqdordan oshdi",
   'purchase.phMfgDate': 'Ishlab chiqarilgan sana',
+  'purchase.phMfgBeforeExpiry': "ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak",
   'purchase.phSalePrice': 'Sotuv narxi',
   'purchase.phInvoiceNo': 'Yuk xati raqami',
   'purchase.phInvoiceDate': 'Yuk xati sanasi',

@@ -5262,6 +5262,7 @@ export default {
   'purchase.phExpiryPast': 'срок годности истёк',
   'purchase.phLotsExceed': 'сумма серий превышает оставшееся количество',
   'purchase.phMfgDate': 'Дата производства',
+  'purchase.phMfgBeforeExpiry': "дата производства должна быть раньше срока годности",
   'purchase.phSalePrice': 'Цена продажи',
   'purchase.phInvoiceNo': 'Номер накладной',
   'purchase.phInvoiceDate': 'Дата накладной',

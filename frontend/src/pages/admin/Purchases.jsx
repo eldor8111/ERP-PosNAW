@@ -417,6 +417,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
           category_is_perishable: prod?.category_is_perishable || false,
           expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
           lot_number: item.lot_number || '',
+          manufacture_date: item.manufacture_date ? String(item.manufacture_date).slice(0, 10) : '',
           unit_cost: cur === 'UZS' ? netUzs : Math.round((netUzs / getRateFor(cur)) * 10000) / 10000,
           discount_type: 'pct',
           discount_val: 0,
@@ -727,6 +728,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         return;
       }
     }
+    // Dorixona: ishlab chiqarilgan sana (ixtiyoriy) yaroqlilik muddatidan oldin bo'lishi kerak
+    if (pharmacy) {
+      const badMfg = poItems.filter(i => i.manufacture_date && i.expiry_date && i.manufacture_date >= i.expiry_date);
+      if (badMfg.length > 0) {
+        setErr(`"${badMfg.map(i => i.product_name).join(', ')}": ${t('purchase.phMfgBeforeExpiry')}`);
+        return;
+      }
+    }
     if (saving) return;
     setSaving(true); setErr('');
 
@@ -749,7 +758,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
         new_sale_price: priceIfChanged(i.new_sale_price, i.orig_sale_price, autoRetail),
         new_wholesale_price: priceIfChanged(i.new_wholesale_price, i.orig_wholesale_price, autoWholesale),
         expiry_date: i.expiry_date || null,
-        ...(pharmacy ? { lot_number: String(i.lot_number || '').trim() || null } : {}),
+        ...(pharmacy ? { lot_number: String(i.lot_number || '').trim() || null, manufacture_date: i.manufacture_date || null } : {}),
       })),
     };
 
@@ -1163,6 +1172,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                                 placeholder={t('purchase.lotNumber')}
                                 className="w-34 text-center border border-slate-200 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             )}
+                            {pharmacy && <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{t('purchase.expiryDateShort')}</span>}
                             <input type="date" value={it.expiry_date || ''}
                               onChange={e => updFn(i, 'expiry_date', e.target.value)}
                               className={`w-34 text-center border rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
@@ -1172,6 +1182,18 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                               }`} />
                             {!it.expiry_date && (
                               <span className="text-[9px] text-red-500 font-bold">{t('purchase.enterExpiry')}</span>
+                            )}
+                            {pharmacy && (
+                              <>
+                                <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 mt-0.5">{t('purchase.phMfgDate')}</span>
+                                <input type="date" value={it.manufacture_date || ''}
+                                  onChange={e => updFn(i, 'manufacture_date', e.target.value)}
+                                  className={`w-34 text-center border rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                                    it.manufacture_date && it.expiry_date && it.manufacture_date >= it.expiry_date
+                                      ? 'border-red-300 bg-red-50 text-red-600'
+                                      : 'border-slate-200 hover:border-blue-300'
+                                  }`} />
+                              </>
                             )}
                           </div>
                         ) : (

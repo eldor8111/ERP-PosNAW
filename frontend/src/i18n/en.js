@@ -5257,6 +5257,7 @@ export default {
   'purchase.phExpiryPast': 'expiry date has passed',
   'purchase.phLotsExceed': 'lots total exceeds the remaining quantity',
   'purchase.phMfgDate': 'Manufacture date',
+  'purchase.phMfgBeforeExpiry': "manufacture date must be before the expiry date",
   'purchase.phSalePrice': 'Sale price',
   'purchase.phInvoiceNo': 'Supplier invoice no.',
   'purchase.phInvoiceDate': 'Supplier invoice date',
