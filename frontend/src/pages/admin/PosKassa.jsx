@@ -337,7 +337,7 @@ const navigate = useNavigate();
       toast.error(t('pos.markingScannedNoProduct'));
       return;
     }
-    if (!gs1.serial) { pickOrAdd(p); return; }
+    if (!gs1.serial) { scanAdd(p); return; }
     if (cart.some(x => (x.marking_codes || []).includes(gs1.code))) { toast.error(t('pos.markingCodeAlreadyScanned')); return; }
     const box = (Array.isArray(p.units) ? p.units : [])
       .filter(u => (Number(u.ratio) || 1) > 1).sort((a, b) => Number(b.ratio) - Number(a.ratio))[0] || null;
@@ -372,7 +372,7 @@ const navigate = useNavigate();
       (Array.isArray(x.extra_barcodes) && x.extra_barcodes.includes(code))
     );
     if (p) {
-      pickOrAdd(p);   // P.7: dorixonada quti / blister / dona tanlanadi
+      scanAdd(p);   // dorixonada eng katta mavjud birlik: quti -> blister -> dona
       return;
     }
 
@@ -389,7 +389,7 @@ const navigate = useNavigate();
         const zp = products.find(x => productMatchesGtin(x, code));
         if (zp) {
           const zu = (zp.units || []).find(u => u.barcode && gtinMatches(code, u.barcode) && (Number(u.ratio) || 1) > 1);
-          if (zu) addToCart(zp, undefined, zu); else pickOrAdd(zp);
+          if (zu) addToCart(zp, undefined, zu); else scanAdd(zp);
           return;
         }
       }
@@ -435,7 +435,7 @@ const navigate = useNavigate();
       if (isOnline) {
         api.get('/products/barcode/' + encodeURIComponent(code))
           .then(r => {
-            if (r.data && r.data.id != null) pickOrAdd(r.data);
+            if (r.data && r.data.id != null) scanAdd(r.data);
             else afterLocalMiss();
           })
           .catch(err => {
@@ -651,6 +651,12 @@ const navigate = useNavigate();
     const opts = pharmacy ? unitOptions(p) : [];
     if (opts.length < 3) { addToCart(p, qty); return; }
     setUnitPick({ p, qty, sel: Math.max(0, opts.findIndex(o => !o.disabled)) });
+  };
+  // Skanerda birlik o'zi tanlanadi: quti (omborda butun quti bo'lsa) -> blister -> dona; savatda almashtirish mumkin.
+  // Tanlash oynasi faqat kartochka bosilganda (pickOrAdd)
+  const scanAdd = (p) => {
+    const o = pharmacy ? unitOptions(p).find(x => x.unit && !x.disabled) : null;
+    addToCart(p, undefined, o ? o.unit : undefined);
   };
   const confirmUnitPick = (i) => {
     if (!unitPick) return;

@@ -33,6 +33,12 @@ const today = () => (new Date(Date.now() - new Date().getTimezoneOffset() * 6000
 const parseN = (s) => parseFloat(String(s || '').replace(/\s/g, '')) || 0;
 
 // D2.6: dorixona savat qatorining qo'shimcha maydonlari (muddat, retsept, birliklar); faqat dorixona rejimida chaqiriladi
+// D2.6: skanerda birlik o'zi tanlanadi — quti (omborda butun quti bo'lsa) -> blister -> dona (null)
+const defaultScanUnit = (p) => (Array.isArray(p.units) ? p.units : [])
+  .filter(u => (Number(u.ratio) || 1) > 1)
+  .sort((a, b) => Number(b.ratio) - Number(a.ratio))
+  .find(u => !(p.pack_ratio != null && p.full_boxes != null && Number(u.ratio) >= Number(p.pack_ratio) && Number(p.full_boxes) < 1)) || null;
+
 const pharmaFieldsOf = (p, unit) => ({
   nearest_expiry: p.nearest_expiry || null,
   expiry_warn: !!p.expiry_warn,
@@ -1800,7 +1806,7 @@ export default function UlgurjiSotuv() {
       if (prod) break;
     }
     if (!prod) { toast.error(t('wholesale.productNotFoundCode', { code: gs1.gtin })); return; }
-    if (!gs1.serial) { addToCartRef.current(prod); return; }
+    if (!gs1.serial) { addToCartRef.current({ ...prod, _scanUnit: defaultScanUnit(prod) }); return; }
     if (cartRef.current.some(it => (it.marking_codes || []).includes(gs1.code))) { toast.error(t('wholesale.markingCodeAlreadyScanned')); return; }
     const box = (Array.isArray(prod.units) ? prod.units : [])
       .filter(u => (Number(u.ratio) || 1) > 1).sort((a, b) => Number(b.ratio) - Number(a.ratio))[0] || null;
@@ -1903,6 +1909,8 @@ export default function UlgurjiSotuv() {
         fetchProduct().then(prod => {
           if (prod) {
             if (weightQty !== 1) prod.qty_ordered = weightQty;
+            // D2.6: dorixona — asosiy shtrix-kod skanerlansa eng katta mavjud birlik (quti -> blister -> dona)
+            if (pharmaRef.current.pharmacy && !prod._scanUnit && weightQty === 1) prod._scanUnit = defaultScanUnit(prod);
             addToCartRef.current(prod);
           } else {
             const el = document.activeElement;

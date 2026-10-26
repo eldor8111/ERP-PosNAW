@@ -3,8 +3,9 @@
 Qamrov:
  1. Backend: /products/pos-list dorixonada `expired_qty` (shu omborlardagi muddati o'tgan qoldiq) qaytaradi;
     `nearest_expiry` faqat yaroqli partiyadan; oddiy korxona javobi o'zgarmagan.
- 2. PosKassa.jsx: asosiy shtrix-kod va kartochka bosilganda `pickOrAdd` (dorixonada tanlash oynasi, aks holda avvalgidek
-    savatga); tanlash oynasi faqat `pharmacy && unitPick`; oyna ochiqligida skaner kodi tanlov bo'lib ketmaydi;
+ 2. PosKassa.jsx: skanerda eng katta mavjud birlik o'zi (`scanAdd`: quti -> blister -> dona), kartochka bosilganda
+    `pickOrAdd` (dorixonada tanlash oynasi, aks holda avvalgidek savatga); tanlash oynasi faqat `pharmacy && unitPick`;
+    oyna ochiqligida skaner kodi tanlov bo'lib ketmaydi; "Sotuv" (UlgurjiSotuv) skaneri ham `defaultScanUnit`;
     muddat ranglari yashil / sariq / qizil, muddati o'tgan — qizil miltillaydi.
  3. i18n (i18n_pending/P.7.json).
 """
@@ -89,11 +90,15 @@ def test_pos_list_plain_company_unchanged(client, db, mk):
 
 # ───────────────────────── 2. PosKassa.jsx ─────────────────────────
 
-def test_scan_and_card_click_use_unit_picker_only_in_pharmacy():
+def test_scan_picks_largest_unit_card_click_uses_picker():
     s = _read(POS)
-    # skanerlash mantig'i alohida funksiyada; asosiy shtrix-kod va serverdan topilgan tovar -> pickOrAdd
+    # skaner: asosiy shtrix-kod va serverdan topilgan tovar -> scanAdd (quti -> blister -> dona, tanlash oynasisiz)
     body = s[s.index('const handleScannedCode = (code) => {'):s.index('const scanRef = useRef(null);')]
-    assert 'pickOrAdd(p);' in body and 'pickOrAdd(r.data)' in body
+    assert 'scanAdd(p);' in body and 'scanAdd(r.data)' in body and 'pickOrAdd(' not in body
+    scan = s[s.index('const scanAdd = (p) => {'):s.index('const confirmUnitPick')]
+    assert "pharmacy ? unitOptions(p).find(x => x.unit && !x.disabled) : null" in scan
+    ulg = _read('frontend/src/pages/admin/UlgurjiSotuv.jsx')
+    assert "prod._scanUnit = defaultScanUnit(prod);" in ulg and "const defaultScanUnit = (p) =>" in ulg
     # birlik shtrix-kodi (quti/blister kodi) — tanlovsiz, to'g'ridan-to'g'ri o'sha birlik
     assert "addToCart(up, undefined, up.units.find(u => u.barcode === code));" in body
     assert 'scanRef.current(code);' in s
