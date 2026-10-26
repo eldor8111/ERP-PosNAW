@@ -628,7 +628,7 @@ async def status_check(request: Request, payload: Optional[StatusRequest] = None
 
 # ─── 6. Uzum Bank Maxsus Alohida Swagger UI & ReDoc ──────────────────────────
 @router.get("/openapi.json", include_in_schema=False)
-async def uzum_custom_openapi():
+async def uzum_custom_openapi(request: Request):
     """Faqat Uzum Bank endpointlari uchun alohida toza OpenAPI JSON."""
     schema = get_openapi(
         title="Uzum Bank Merchant API (1.0.0)",
@@ -661,23 +661,34 @@ async def uzum_custom_openapi():
         for method_item in path_item.values():
             if isinstance(method_item, dict):
                 method_item["security"] = [{"basicAuth": []}]
+
+    # Agar so'rov /api/uzum orqali kelgan bo'lsa, yo'llarni ham /api bilan qaytaramiz
+    if request.url.path.startswith("/api"):
+        new_paths = {}
+        for path_k, path_v in schema.get("paths", {}).items():
+            new_k = "/api" + path_k if not path_k.startswith("/api") else path_k
+            new_paths[new_k] = path_v
+        schema["paths"] = new_paths
+
     return schema
 
 
 @router.get("/docs", include_in_schema=False)
-async def uzum_docs():
+async def uzum_docs(request: Request):
     """Faqat Uzum Bank metodlari aks etadigan maxsus Swagger UI."""
+    prefix = "/api/uzum" if request.url.path.startswith("/api") else "/uzum"
     return get_swagger_ui_html(
-        openapi_url="/uzum/openapi.json",
+        openapi_url=f"{prefix}/openapi.json",
         title="Uzum Bank Merchant API — Swagger UI",
         swagger_favicon_url="https://uzumbank.uz/favicon.ico",
     )
 
 
 @router.get("/redoc", include_in_schema=False)
-async def uzum_redoc():
+async def uzum_redoc(request: Request):
     """Faqat Uzum Bank metodlari aks etadigan maxsus ReDoc hujjati."""
+    prefix = "/api/uzum" if request.url.path.startswith("/api") else "/uzum"
     return get_redoc_html(
-        openapi_url="/uzum/openapi.json",
+        openapi_url=f"{prefix}/openapi.json",
         title="Uzum Bank Merchant API — ReDoc",
     )
