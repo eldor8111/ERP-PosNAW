@@ -1500,6 +1500,7 @@ export default function Products() {
       const { data } = await api.post('/products/mxik-sync-bulk');
       toast.success(
         t('product.mxikSyncDoneMsg', { active: data.active, disabled: data.disabled, error: data.error, total: data.total })
+        + (data.renamed ? ' ' + t('product.mxikSyncRenamed', { n: data.renamed }) : '')
       );
       loadProducts();
     } catch (error) {

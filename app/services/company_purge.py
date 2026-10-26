@@ -33,7 +33,7 @@ import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 
-from sqlalchemy import inspect, text
+from sqlalchemy import Integer, inspect, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
@@ -148,11 +148,17 @@ class _Purger:
     def tmp(self, t: str) -> str:
         return self.q(TMP + t)
 
+    def _id_type(self, t: str) -> str:
+        """Temp jadval ustuni turi jadval PK'siga mos: butun son — BIGINT, aks holda TEXT (masalan pending_actions.id
+        VARCHAR). PostgreSQL matnli PK ni BIGINT ustunga yozmaydi (42804) — SQLite yozadi, shuning uchun faqat serverda yiqilardi."""
+        typ = self.columns.get(t, {}).get(self.pk.get(t) or "", {}).get("type")
+        return "BIGINT" if typ is None or isinstance(typ, Integer) else "TEXT"
+
     def ensure_set(self, t: str):
         if t in self.sets:
             return
         self.conn.execute(text(f"DROP TABLE IF EXISTS {self.tmp(t)}"))
-        self.conn.execute(text(f"CREATE TEMPORARY TABLE {self.tmp(t)} (id BIGINT PRIMARY KEY)"))
+        self.conn.execute(text(f"CREATE TEMPORARY TABLE {self.tmp(t)} (id {self._id_type(t)} PRIMARY KEY)"))
         self.sets.add(t)
 
     def parent_vals(self, e: Edge) -> str:

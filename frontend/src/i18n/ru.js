@@ -3917,6 +3917,7 @@ export default {
   'product.mxikStatusError': 'Классификатор временно не работает',
   'product.mxikStatusUnknown': 'Неизвестно — ещё не проверено',
   'product.mxikSyncDoneMsg': 'Синхронизация MXIK завершена: {active} активно, {disabled} не найдено, {error} ошибок (всего {total})',
+  'product.mxikSyncRenamed': 'Сокращено названий лекарств: {n}.',
   'product.mxikSyncError': 'Произошла ошибка синхронизации MXIK',
   'product.nameBarcodeOrSkuRequired': 'Название товара, Штрих-код или SKU',
   'product.nameColumnRequired': 'Название товара',

@@ -3821,6 +3821,7 @@ export default {
   'product.mxikStatusError': 'Classifier temporarily not working',
   'product.mxikStatusUnknown': 'Unknown — not checked yet',
   'product.mxikSyncDoneMsg': 'MXIK sync completed: {active} active, {disabled} not found, {error} errors (total {total})',
+  'product.mxikSyncRenamed': '{n} drug names shortened.',
   'product.mxikSyncError': 'An error occurred during MXIK sync',
   'product.nameBarcodeOrSkuRequired': 'Product name, Barcode or SKU',
   'product.nameColumnRequired': 'Product name',

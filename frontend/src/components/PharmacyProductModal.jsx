@@ -453,7 +453,8 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
   const applyDrug = (d, explicit) => {
     setForm(f => ({
       ...f,
-      name: explicit || !f.name.trim() ? (d.name || f.name) : f.name,
+      // qisqa nom (brend + doza + soni); tasnifning to'liq rasmiy nomi juda uzun
+      name: explicit || !f.name.trim() ? (d.short_name || d.name || f.name) : f.name,
       mxik: explicit || !f.mxik.trim() ? (d.mxik_code || f.mxik) : f.mxik,
       barcode: f.barcode.trim() ? f.barcode : (d.barcode || ''),
     }));
@@ -482,7 +483,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
     if (seq !== lookupSeq.current) return;
     if (res.status === 'found') {
       applyDrug(res.drug, false);
-      setBcInfo({ status: 'found', text: res.drug.name });
+      setBcInfo({ status: 'found', text: res.drug.short_name || res.drug.name });
     } else if (res.status === 'notfound') {
       setBcInfo({ status: 'notfound' });
       setShowTasnif(true);

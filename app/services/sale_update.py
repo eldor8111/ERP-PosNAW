@@ -143,11 +143,11 @@ def _confirm_rx_and_marking(db: Session, sale: Sale, data, ph_ctx, items) -> tup
                         detail=f"'{prod.name}' — qutidan bo'lib sotishda faqat ochilgan quti kodini (1 ta) yuborish mumkin",
                     )
                 codes = []
-            elif no_unit and len(codes) != int(it.quantity):
+            elif no_unit and len(codes) > int(it.quantity):   # dorixonada markirovka majburiy emas, ko'p kod — 400
                 raise HTTPException(
                     status_code=400,
-                    detail=(f"'{prod.name}' — markirovka talab qilinadi. "
-                            f"{int(it.quantity)} ta kod skanerlanishi kerak, {len(codes)} ta kiritildi."),
+                    detail=(f"'{prod.name}' — markirovka kodlari ko'p: "
+                            f"ko'pi bilan {int(it.quantity)} ta, {len(codes)} ta kiritildi."),
                 )
         mk_lines.append((idx, prod, ln["source_product"], codes))
     plan = plan_sale_marking(db, sale.company_id, [l for l in mk_lines if l[1] is not None])
@@ -483,7 +483,7 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
             _mark_ctx = _marking_unit_ctx(db, current_user.company_id, product, _unit_ctx, _ph_ctx,   # P.11
                                           getattr(item_d, "marking_codes", None), item_d.quantity)
             if final_status != SaleStatus.pending:
-                marking_codes = _resolve_marking_codes(product, item_d, _mark_ctx)
+                marking_codes = _resolve_marking_codes(product, item_d, _mark_ctx, pharmacy=bool(_ph_ctx and _ph_ctx[0]))
             else:
                 marking_codes = [c for c in (getattr(item_d, "marking_codes", None) or []) if c and c.strip()]
 

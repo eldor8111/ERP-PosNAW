@@ -532,7 +532,9 @@ def test_confirm_pending_marks_codes_sold_simple_path(client, db, w):
     assert _mrow(db, w["pc"], c1).sale_item_id == item.id
 
 
-def test_confirm_pending_marking_wrong_count_and_unknown_code(client, db, w):
+def test_confirm_pending_marking_optional_unknown_code_untracked(client, db, w):
+    """Dorixonada markirovka majburiy emas: kod kam bo'lsa ham, ro'yxatda yo'q kod bo'lsa ham tasdiqlanadi;
+    miqdordan ko'p kod — 400."""
     p = _product(db, w["pc"], requires_marking=True)
     b = _stock(db, p, w["pwh"], 20)
     _mcode(db, w["pc"], p, "Q1", w["pwh"], b)
@@ -540,12 +542,16 @@ def test_confirm_pending_marking_wrong_count_and_unknown_code(client, db, w):
     sid = _pending(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_price": 1000,
                                                     "marking_codes": [_code("Q1")]}])
     r = cl.put(f"/api/sales/{sid}", json={"status": "completed", "paid_amount": 2000})
-    assert r.status_code == 400 and "markirovka" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    assert _mrow(db, w["pc"], _code("Q1")).status == "sold"
     sid2 = _pending(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_price": 1000,
                                                      "marking_codes": [_code("NOPE")]}])
     r = cl.put(f"/api/sales/{sid2}", json={"status": "completed", "paid_amount": 1000})
-    assert r.status_code == 400 and "topilmadi" in r.json()["detail"]
-    assert _mrow(db, w["pc"], _code("Q1")).status == "in_stock"
+    assert r.status_code == 200, r.text
+    sid3 = _pending(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_price": 1000,
+                                                     "marking_codes": [_code("X1"), _code("X2")]}])
+    r = cl.put(f"/api/sales/{sid3}", json={"status": "completed", "paid_amount": 1000})
+    assert r.status_code == 400 and "ko'p" in r.json()["detail"]
 
 
 def test_confirm_pending_marking_regular_company_unchanged(client, db, w):
@@ -675,19 +681,24 @@ def boxed(db, w):
     return dict(p=p, box=box, piece=piece, batch=b)
 
 
-def test_whole_boxes_need_one_code_per_box(client, db, w, boxed):
+def test_whole_boxes_codes_optional_one_per_box_at_most(client, db, w, boxed):
+    """Dorixonada markirovka majburiy emas: butun quti kodsiz yoki kam kod bilan sotiladi, qutidan ko'p kod — 400."""
     p, box = boxed["p"], boxed["box"]
-    b1, b2 = _code("B1"), _code("B2")
+    b1, b2, b3 = _code("B1"), _code("B2"), _code("B3")
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id, "marking_codes": [b1]}])
-    assert r.status_code == 400 and "2 ta kod" in r.json()["detail"]
-    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id}])
-    assert r.status_code == 400
-    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id,
-                                                    "marking_codes": [b1, b2]}])
     assert r.status_code == 200, r.text
-    assert _mrow(db, w["pc"], b1).status == "sold" and _mrow(db, w["pc"], b2).status == "sold"
+    assert _mrow(db, w["pc"], b1).status == "sold"
+    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id}])
+    assert r.status_code == 200, r.text
+    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_id": box.id,
+                                                    "marking_codes": [b2, b3]}])
+    assert r.status_code == 400 and "ko'p" in r.json()["detail"]
+    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id,
+                                                    "marking_codes": [b2, b3]}])
+    assert r.status_code == 200, r.text
+    assert _mrow(db, w["pc"], b2).status == "sold" and _mrow(db, w["pc"], b3).status == "sold"
     item = db.query(SaleItem).filter_by(sale_id=r.json()["id"]).one()
-    assert D(str(item.quantity)) == 60 and sorted(item.marking_codes) == sorted([b1, b2])
+    assert D(str(item.quantity)) == 60 and sorted(item.marking_codes) == sorted([b2, b3])
 
 
 def test_pieces_from_box_need_no_code(client, db, w, boxed):
