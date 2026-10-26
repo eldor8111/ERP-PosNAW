@@ -641,6 +641,22 @@ def get_by_barcode(
         )
         if variant:
             product = variant.product
+    # Dorixona: shtrix-kod boshidagi 0 lar farqi — skaner UPC-A (12 xona) ni EAN-13 qilib boshiga "0" qo'shadi,
+    # Excel importi esa boshidagi 0 ni o'chiradi. 8-14 xonali raqamli kod nollarsiz solishtiriladi
+    # (qisqa ichki kodlar va oddiy korxona o'zgarishsiz)
+    if not product and barcode.isdigit() and 8 <= len(barcode) <= 14:
+        core = barcode.lstrip('0')
+        if len(core) >= 7 and pharmacy_context(db, current_user.company_id)[0]:
+            from sqlalchemy import or_ as _sa_or
+            variants = ['0' * k + core for k in range(0, 15 - len(core)) if '0' * k + core != barcode]
+            if variants:
+                product = db.query(Product).filter(*base_filter, Product.barcode.in_(variants)).first()
+            if not product and variants:
+                product = (
+                    db.query(Product)
+                    .filter(*base_filter, _sa_or(*[Product.extra_barcodes.ilike(f'%"{v}"%') for v in variants]))
+                    .first()
+                )
     # Topilmasa SKU bo'yicha qidirish
     if not product:
         product = db.query(Product).filter(*base_filter, Product.sku == barcode).first()

@@ -17,7 +17,7 @@ import ShiftOpenModal from '../../components/ShiftOpenModal';
 import ShiftCloseModal from '../../components/ShiftCloseModal';
 import { registerReceipt, fiscalizeAndPrint } from '../../api/hippoLocal';
 import { parseScaleBarcode, findScaleProduct } from '../../utils/scale';
-import { GS, parseGs1Scan, gtinVariants, productMatchesGtin, createGsDetector } from '../../utils/gs1';
+import { GS, parseGs1Scan, gtinMatches, gtinVariants, productMatchesGtin, createGsDetector } from '../../utils/gs1';
 import { useApprovalFlow, ApprovalModal } from './Approvals'; // T4.6: menejer tasdig'i
 
 
@@ -382,6 +382,16 @@ const navigate = useNavigate();
       if (up) {
         addToCart(up, undefined, up.units.find(u => u.barcode === code));
         return;
+      }
+      // Shtrix-kod boshidagi 0 lar farqi: skaner UPC-A (12 xona) ga "0" qo'shadi, Excel importi 0 ni o'chiradi.
+      // 8-14 xonali raqamli kod nollarsiz solishtiriladi (qisqa ichki kodlar tegilmaydi)
+      if (/^\d{8,14}$/.test(code) && code.replace(/^0+/, '').length >= 7) {
+        const zp = products.find(x => productMatchesGtin(x, code));
+        if (zp) {
+          const zu = (zp.units || []).find(u => u.barcode && gtinMatches(code, u.barcode) && (Number(u.ratio) || 1) > 1);
+          if (zu) addToCart(zp, undefined, zu); else pickOrAdd(zp);
+          return;
+        }
       }
     }
 
