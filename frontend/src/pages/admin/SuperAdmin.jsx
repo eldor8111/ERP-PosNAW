@@ -34,6 +34,7 @@ import {
   FlaskConical,
   ChevronRight,
   ShieldAlert,
+  AlertCircle,
 } from 'lucide-react';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
