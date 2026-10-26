@@ -2306,6 +2306,7 @@ export default {
   'wholesale.saleNumberOrCustomerPlaceholder': 'Sale number or customer name...',
   'wholesale.salesCount': '{count} sales',
   'wholesale.pageNumber': 'Page {page}',
+  'wholesale.pageOfTotal': 'Page {page} of {pages} · {count} sales in total',
   'wholesale.noArchivedSales': 'No archived sales',
   'wholesale.archiveHint': 'Sales for which "Archive" was pressed on the sale screen appear here.',
   'wholesale.productTypesCount': '{count} product types',

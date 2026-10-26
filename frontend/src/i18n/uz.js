@@ -2421,6 +2421,7 @@ export default {
   'wholesale.saleNumberOrCustomerPlaceholder': 'Sotuv raqami yoki mijoz ismi...',
   'wholesale.salesCount': '{count} ta sotuv',
   'wholesale.pageNumber': '{page}-sahifa',
+  'wholesale.pageOfTotal': '{page}/{pages}-sahifa · jami {count} ta sotuv',
   'wholesale.noArchivedSales': 'Arxivlangan sotuvlar yo\'q',
   'wholesale.archiveHint': 'Sotuv oynasida "Arxivga olish" bosilganlari shu yerga tushadi.',
   'wholesale.productTypesCount': '{count} xil mahsulot',

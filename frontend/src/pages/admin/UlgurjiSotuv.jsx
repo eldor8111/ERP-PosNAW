@@ -833,10 +833,14 @@ export default function UlgurjiSotuv() {
   const [tab, setTab] = useState('new');
   const [sales, setSales] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
-  const [filters, setFilters] = useState({ date_from: new Date().toISOString().split('T')[0], date_to: new Date().toISOString().split('T')[0], status: '', search: '' });
+  const [filters, setFilters] = useState({ date_from: today(), date_to: today(), status: '', search: '' });
   const [selectedSale, setSelectedSale] = useState(null);
   const [page, setPage] = useState(0);
-  const LIMIT = 25;
+  const LIMIT = 100;
+  // Butun filtr bo'yicha: sotuvlar soni va jamilar (sahifadagi 100 tasi emas)
+  const [salesMeta, setSalesMeta] = useState({ total: 0, sum_total: 0, sum_paid: 0, sum_debt: 0 });
+  // Filtr o'zgarsa 1-sahifadan (aks holda yangi oraliqning 3-sahifasi ochilib, sotuvlar "yo'q" bo'lib ko'rinardi)
+  const setFilter = (k, v) => { setPage(0); setFilters(f => ({ ...f, [k]: v })); };
   const [openMenuId, setOpenMenuId] = useState(null);
   const [returnSale, setReturnSale] = useState(null);
   const [assignModalSale, setAssignModalSale] = useState(null);
@@ -895,11 +899,20 @@ export default function UlgurjiSotuv() {
 
   const loadSales = useCallback(() => {
     setLoadingSales(true);
-    const params = { skip: page * LIMIT, limit: LIMIT, ...filters };
+    const params = { skip: page * LIMIT, limit: LIMIT, with_total: true, ...filters };
     if (!params.status) delete params.status;
     if (!params.search) delete params.search;
     api.get('/sales/', { params })
-      .then(r => setSales(Array.isArray(r.data) ? r.data : []))
+      .then(r => {
+        const d = r.data || {};
+        const items = Array.isArray(d) ? d : (Array.isArray(d.items) ? d.items : []);
+        setSales(items);
+        setSalesMeta(Array.isArray(d)
+          ? { total: items.length, sum_total: items.reduce((s, x) => s + Number(x.total_amount || 0), 0),
+              sum_paid: items.reduce((s, x) => s + Number(x.paid_amount || 0), 0),
+              sum_debt: items.reduce((s, x) => s + Math.max(0, Number(x.total_amount || 0) - Number(x.paid_amount || 0)), 0) }
+          : { total: Number(d.total) || 0, sum_total: Number(d.sum_total) || 0, sum_paid: Number(d.sum_paid) || 0, sum_debt: Number(d.sum_debt) || 0 });
+      })
       .catch(() => { })
       .finally(() => setLoadingSales(false));
   }, [filters, page]);
@@ -1136,6 +1149,21 @@ export default function UlgurjiSotuv() {
     }
   };
 
+  // Filtrdagi barcha sotuvlar (sahifalab, 200 tadan)
+  const fetchAllSales = async () => {
+    const base = { ...filters };
+    if (!base.status) delete base.status;
+    if (!base.search) delete base.search;
+    const all = [];
+    for (let skip = 0; skip < 100000; skip += 200) {
+      const r = await api.get('/sales/', { params: { ...base, skip, limit: 200 } });
+      const chunk = Array.isArray(r.data) ? r.data : (r.data?.items || []);
+      all.push(...chunk);
+      if (chunk.length < 200) break;
+    }
+    return all;
+  };
+
   // ── Sotuvlar ro'yxatini Excel (.xlsx) formatida eksport qilish ──────────
   const exportToExcel = async () => {
     if (!sales || sales.length === 0) {
@@ -1143,8 +1171,8 @@ export default function UlgurjiSotuv() {
       return;
     }
     try {
-      const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
-      const rows = sales.map((s, idx) => {
+      const [XLSX, saveAs, allSales] = await Promise.all([loadXLSX(), loadSaveAs(), fetchAllSales()]);
+      const rows = allSales.map((s, idx) => {
         const total = Number(s.total_amount || 0);
         const paid = Number(s.paid_amount || 0);
         const debt = Math.max(0, total - paid);
@@ -3254,18 +3282,18 @@ export default function UlgurjiSotuv() {
       {tab === 'list' && (
         <div className="flex-1 overflow-hidden flex flex-col p-3 md:p-4 gap-3">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 flex flex-wrap gap-2 items-center">
-            <input type="date" value={filters.date_from} onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
+            <input type="date" value={filters.date_from} onChange={e => setFilter('date_from', e.target.value)}
               className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            <input type="date" value={filters.date_to} onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
+            <input type="date" value={filters.date_to} onChange={e => setFilter('date_to', e.target.value)}
               className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+            <select value={filters.status} onChange={e => setFilter('status', e.target.value)}
               className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
               <option value="">{t('wholesale.allStatuses')}</option>
               <option value="completed">{t('sale.statusCompleted')}</option>
               <option value="pending">{t('wholesale.statusPendingApproval')}</option>
               <option value="cancelled">{t('wholesale.statusCancelledShort')}</option>
             </select>
-            <input value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+            <input value={filters.search} onChange={e => setFilter('search', e.target.value)}
               placeholder={t('wholesale.saleNumberOrCustomerPlaceholder')} className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-full max-w-100" />
             <button onClick={loadSales} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
               <Ic d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" cls="w-3.5 h-3.5" />{t('common.search')}
@@ -3455,10 +3483,10 @@ export default function UlgurjiSotuv() {
                 {sales.length > 0 && (
                   <tfoot>
                     <tr className="bg-blue-50 border-t-2 border-blue-100">
-                      <td colSpan={3} className="px-4 py-3 text-xs font-bold text-blue-700">{t('wholesale.salesCount', { count: sales.length })}</td>
-                      <td className="px-4 py-3 text-right font-black text-blue-800 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Number(x.total_amount), 0))} s</td>
-                      <td className="px-4 py-3 text-right font-black text-emerald-700 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Number(x.paid_amount), 0))} s</td>
-                      <td className="px-4 py-3 text-right font-black text-red-600 whitespace-nowrap">{fmt(sales.reduce((s, x) => s + Math.max(0, Number(x.total_amount) - Number(x.paid_amount)), 0))} s</td>
+                      <td colSpan={3} className="px-4 py-3 text-xs font-bold text-blue-700">{t('wholesale.salesCount', { count: salesMeta.total })}</td>
+                      <td className="px-4 py-3 text-right font-black text-blue-800 whitespace-nowrap">{fmt(salesMeta.sum_total)} s</td>
+                      <td className="px-4 py-3 text-right font-black text-emerald-700 whitespace-nowrap">{fmt(salesMeta.sum_paid)} s</td>
+                      <td className="px-4 py-3 text-right font-black text-red-600 whitespace-nowrap">{fmt(salesMeta.sum_debt)} s</td>
                       <td colSpan={5} />
                     </tr>
                   </tfoot>
@@ -3469,8 +3497,8 @@ export default function UlgurjiSotuv() {
 
           <div className="flex items-center justify-between">
             <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all">← {t('common.prev')}</button>
-            <span className="text-sm text-slate-500 font-semibold">{t('wholesale.pageNumber', { page: page + 1 })}</span>
-            <button disabled={sales.length < LIMIT} onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all">{t('common.next')} →</button>
+            <span className="text-sm text-slate-500 font-semibold">{t('wholesale.pageOfTotal', { page: page + 1, pages: Math.max(1, Math.ceil(salesMeta.total / LIMIT)), count: salesMeta.total })}</span>
+            <button disabled={(page + 1) * LIMIT >= salesMeta.total} onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-all">{t('common.next')} →</button>
           </div>
         </div>
       )}

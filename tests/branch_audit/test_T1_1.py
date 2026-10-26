@@ -149,7 +149,8 @@ def test_cashier_assigned_other_branch_header_403(client, two):
 def test_unassigned_cashier_two_branches_sees_nothing_and_needs_assignment(client, two):
     cl = client.login(two["cashier_a_none"])
     assert cl.get("/api/sales/").json() == []
-    assert cl.get("/api/sales/", params={"with_total": "true"}).json() == {"items": [], "total": 0}
+    assert cl.get("/api/sales/", params={"with_total": "true"}).json() == {
+        "items": [], "total": 0, "sum_total": 0, "sum_paid": 0, "sum_debt": 0}
     assert cl.get("/api/shifts").json() == []
     assert cl.get("/api/warehouses").json() == []
     ctx = cl.get("/api/branches/my-context")

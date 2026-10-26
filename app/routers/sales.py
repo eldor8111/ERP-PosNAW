@@ -1,6 +1,6 @@
 import logging
 from types import SimpleNamespace
-from datetime import date, datetime, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Union
 
@@ -595,13 +595,11 @@ def list_sales(
         current_user: User = Depends(require_roles(*SALE_VIEW_ROLES)),
         ctx: BranchContext = Depends(get_branch_context),
 ):
-    from sqlalchemy import func
+    from sqlalchemy import case, func
     # T3.8: items_count butun sale_items jadvalini guruhlamaydi — sahifadagi sale_id'lar uchun
     # alohida (IN) so'rov bilan hisoblanadi; asosiy so'rov oddiy Sale so'rovi (count() ham tez).
-    q = (
-        db.query(Sale)
-        .options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency), joinedload(Sale.branch))
-    )
+    # Eager load faqat sahifa qatorlariga (jamilar so'rovi with_entities bilan ishlaydi)
+    q = db.query(Sale)
     q = q.filter(Sale.company_id == current_user.company_id)
 
     # T1.1: yagona filial konteksti (X-Branch-Id / users.branch_id). Filial biriktirilmagan
@@ -616,13 +614,7 @@ def list_sales(
         q = q.filter(Sale.cashier_id == cashier_id)
     if customer_id:
         q = q.filter(Sale.customer_id == customer_id)
-    if date_today:
-        today = date.today()
-        q = q.filter(Sale.created_at >= datetime.combine(today, datetime.min.time()))
-    if date_from:
-        q = q.filter(Sale.created_at >= datetime.combine(date_from, datetime.min.time()))
-    if date_to:
-        q = q.filter(Sale.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+    q = _sale_date_filter(q, date_from, date_to, date_today)
     if status:
         q = q.filter(Sale.status == status)
     else:
@@ -639,7 +631,10 @@ def list_sales(
         )
     total = q.count()
     response.headers["X-Total-Count"] = str(total)
-    rows = q.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
+    rows = (
+        q.options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency), joinedload(Sale.branch))
+        .order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
+    )
 
     from app.models.sale_delivery import SaleDelivery
     _ids = [s.id for s in rows]
@@ -679,8 +674,27 @@ def list_sales(
         for s in rows
     ]
     if with_total:
-        return {"items": items, "total": total}
+        # Jamilar butun filtr bo'yicha (ro'yxat ostidagi "N ta sotuv" faqat sahifadagini ko'rsatmasin)
+        s_total, s_paid, s_debt = q.with_entities(
+            func.coalesce(func.sum(Sale.total_amount), 0),
+            func.coalesce(func.sum(Sale.paid_amount), 0),
+            func.coalesce(func.sum(case((Sale.total_amount > Sale.paid_amount, Sale.total_amount - Sale.paid_amount), else_=0)), 0),
+        ).one()
+        return {"items": items, "total": total,
+                "sum_total": float(s_total or 0), "sum_paid": float(s_paid or 0), "sum_debt": float(s_debt or 0)}
     return items
+
+
+def _sale_date_filter(q, date_from, date_to, date_today):
+    """Sotuv sanasi filtri Toshkent vaqtida (T2.8 date_bounds): kun 00:00 da boshlanadi.
+    Avval UTC yarim tuni (Toshkent 05:00) edi — tungi sotuvlar oldingi kunga tushardi."""
+    from app.utils.report_utils import date_bounds, local_day_start, local_today
+    if date_today:
+        q = q.filter(Sale.created_at >= local_day_start(local_today()))
+    if date_from or date_to:
+        start, end = date_bounds(date_from, date_to)
+        q = q.filter(Sale.created_at >= start, Sale.created_at < end)
+    return q
 
 
 @router.get("/export/pdf")
@@ -713,13 +727,7 @@ def export_sales_pdf(
             q = q.filter(Sale.cashier_id == cashier_id)
         if customer_id:
             q = q.filter(Sale.customer_id == customer_id)
-        if date_today:
-            today_d = date.today()
-            q = q.filter(Sale.created_at >= datetime.combine(today_d, datetime.min.time()))
-        if date_from:
-            q = q.filter(Sale.created_at >= datetime.combine(date_from, datetime.min.time()))
-        if date_to:
-            q = q.filter(Sale.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+        q = _sale_date_filter(q, date_from, date_to, date_today)
         if status:
             q = q.filter(Sale.status == status)
         else:

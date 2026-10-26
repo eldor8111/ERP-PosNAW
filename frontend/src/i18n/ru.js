@@ -2423,6 +2423,7 @@ export default {
   'wholesale.saleNumberOrCustomerPlaceholder': 'Номер продажи или имя клиента...',
   'wholesale.salesCount': '{count} продаж',
   'wholesale.pageNumber': 'Страница {page}',
+  'wholesale.pageOfTotal': 'Страница {page} из {pages} · всего {count} продаж',
   'wholesale.noArchivedSales': 'Нет архивированных продаж',
   'wholesale.archiveHint': 'Сюда попадают продажи, для которых на экране продажи нажата кнопка "В архив".',
   'wholesale.productTypesCount': '{count} видов товара',

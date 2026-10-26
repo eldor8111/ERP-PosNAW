@@ -381,7 +381,10 @@ class SaleBulkCreate(BaseModel):
 
 
 class SalePage(BaseModel):
-    """GET /sales/?with_total=true javob shakli."""
+    """GET /sales/?with_total=true javob shakli. sum_* — butun filtr bo'yicha (faqat sahifa emas)."""
     items: List["SaleListOut"]
     total: int
+    sum_total: float = 0
+    sum_paid: float = 0
+    sum_debt: float = 0
 
