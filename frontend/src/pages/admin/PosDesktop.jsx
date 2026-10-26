@@ -935,7 +935,7 @@ const navigate = useNavigate();
                     <span className="font-bold text-slate-700 group-hover:text-blue-700">{label}</span>
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-bold text-blue-600">{Number(v.sale_price).toLocaleString()} UZS</span>
-                      <span className="text-slate-500">{v.stock_quantity || 0} {v.unit}</span>
+                      <span className="text-slate-500">{fmt(v.stock_quantity)} {v.unit}</span>
                     </div>
                   </button>
                 );

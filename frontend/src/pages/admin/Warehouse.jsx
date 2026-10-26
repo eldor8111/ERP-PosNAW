@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { loadXLSX, loadSaveAs } from '../../utils/excelLazy';
 import { exportFileName, sheetHeaderRows } from '../../utils/exportMeta';
 import BranchSelect from '../../components/BranchSelect';
+import { fmtQty } from '../../utils/qty';
 import { WAREHOUSE_TYPE_BY_VALUE } from '../../constants/warehouseTypes';
 import { useBranches } from '../../hooks/useBranches';
 
@@ -363,9 +364,9 @@ export default function Warehouse() {
                         <td className="px-5 py-3.5 text-sm text-slate-700">{i.warehouse_name || '—'}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-500">{i.branch_name || '—'}</td>
                         <td className="px-5 py-3.5">
-                          <span className={`text-sm font-bold ${i.is_low ? 'text-red-500' : 'text-slate-800'}`}>{i.quantity}</span>
+                          <span className={`text-sm font-bold ${i.is_low ? 'text-red-500' : 'text-slate-800'}`}>{fmtQty(i.quantity)}</span>
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-slate-400">{i.min_stock}</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-400">{fmtQty(i.min_stock)}</td>
                         <td className="px-5 py-3.5 text-sm text-slate-700">{fmtS(i.value)}</td>
                         <td className="px-5 py-3.5">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${

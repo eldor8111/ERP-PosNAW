@@ -357,7 +357,7 @@ function ProdSearch({ products, onSelect, inputRef, placeholder }) {
                 <div className="font-medium text-slate-800 text-sm truncate">{p.name}</div>
                 <div className="text-xs text-slate-400">{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</div>
               </div>
-              <div className="text-right shrink-0 text-xs text-slate-400">{t('warehouse.stockLevel')}: {p.stock_quantity}</div>
+              <div className="text-right shrink-0 text-xs text-slate-400">{t('warehouse.stockLevel')}: {fmtQ(p.stock_quantity)}</div>
             </button>
           ))}
         </div>

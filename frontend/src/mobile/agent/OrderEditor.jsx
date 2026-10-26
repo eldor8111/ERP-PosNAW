@@ -5,6 +5,7 @@ import { useLang } from '../../context/LangContext';
 import { enqueue } from '../offline/outbox';
 import { Btn } from '../ui';
 import { fmtMoney } from '../format';
+import { fmtQty } from '../../utils/qty';
 import { getPosition, distanceM, fmtDistance } from '../lib/geo';
 import { loadCatalog, priceFor } from './data';
 
@@ -105,7 +106,7 @@ export default function OrderEditor({ customer, onClose, onDone }) {
                 <div key={p.id} className={`flex items-center gap-3 bg-surface border rounded-xl p-3 ${qty ? 'border-brand' : 'border-line'}`}>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-ink-900 text-sm">{p.name}</div>
-                    <div className="text-xs text-ink-500 tabular-nums">{fmtMoney(price)} so'm · {t('m.stock')}: {p.stock} {p.unit}</div>
+                    <div className="text-xs text-ink-500 tabular-nums">{fmtMoney(price)} so'm · {t('m.stock')}: {fmtQty(p.stock)} {p.unit}</div>
                   </div>
                   {qty === 0 ? (
                     <button onClick={() => setQty(p.id, 1)} className="w-11 h-11 rounded-xl bg-brand text-white flex items-center justify-center"><Plus className="size-5" /></button>

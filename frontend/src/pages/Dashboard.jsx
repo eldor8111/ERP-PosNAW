@@ -203,7 +203,7 @@ export default function Dashboard() {
                           <tr key={p.product_id} className="hover:bg-gray-50">
                             <td className="py-3 text-gray-400">{i + 1}</td>
                             <td className="py-3 font-medium text-gray-800">{p.name}</td>
-                            <td className="py-3 text-right text-gray-600">{p.total_qty}</td>
+                            <td className="py-3 text-right text-gray-600">{fmt(p.total_qty)}</td>
                             <td className="py-3 text-right font-semibold text-gray-800">
                               {Number(p.total_revenue).toLocaleString()} so'm
                             </td>

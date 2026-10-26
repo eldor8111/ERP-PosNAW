@@ -8,6 +8,7 @@ import { useLang } from '../../context/LangContext';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import { Link } from 'react-router-dom';
 import BranchSelect from '../../components/BranchSelect';
+import { fmtQty } from '../../utils/qty';
 
 function AlertCard({ icon: Icon, color, title, count, desc }) {
   const colors = {
@@ -207,8 +208,8 @@ export default function Alerts() {
                       <div className="font-semibold text-slate-800 text-sm">{s.product_name}</div>
                       <div className="text-xs text-slate-500 mt-0.5">
                         {t('alert.warehouse')}: <b>{s.warehouse_name || '—'}</b> &nbsp;|&nbsp;
-                        {t('alert.rawNeed')}: <b>{s.required} {s.unit}</b> &nbsp;|&nbsp;
-                        {t('alert.remaining')}: <b>{s.available}</b>
+                        {t('alert.rawNeed')}: <b>{fmtQty(s.required)} {s.unit}</b> &nbsp;|&nbsp;
+                        {t('alert.remaining')}: <b>{fmtQty(s.available)}</b>
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5 truncate">{t('alert.rawForOrders')}: {s.orders.join(', ')}</div>
                     </div>
@@ -224,7 +225,7 @@ export default function Alerts() {
                   <div key={`${s.product_id}-${i}`}className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
                     <div className="font-semibold text-slate-800 text-sm">{s.product_name}</div>
                     <div className="text-xs text-slate-500">
-                      {t('alert.remaining')}: <b className="text-amber-700">{s.quantity} {s.unit}</b> &nbsp;|&nbsp; {t('alert.min')}: <b>{s.min_stock}</b>
+                      {t('alert.remaining')}: <b className="text-amber-700">{fmtQty(s.quantity)} {s.unit}</b> &nbsp;|&nbsp; {t('alert.min')}: <b>{fmtQty(s.min_stock)}</b>
                     </div>
                   </div>
                 ))}
@@ -308,7 +309,7 @@ export default function Alerts() {
                         {new Date(item.expiry_date).toLocaleDateString('uz-UZ')}
                       </span>
                       <span className="text-xs text-slate-500">
-                        {t('common.quantity')}: <b>{item.quantity}</b>
+                        {t('common.quantity')}: <b>{fmtQty(item.quantity)}</b>
                       </span>
                       {item.warehouse_name && (
                         <span className="text-xs text-slate-500">
@@ -357,7 +358,7 @@ export default function Alerts() {
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
                       {t('alert.remaining')}: <b className="text-amber-700">{Number(item.current_qty)}</b>
-                      {item.min_stock > 0 && <> &nbsp;|&nbsp; {t('alert.min')}: <b>{item.min_stock}</b></>}
+                      {item.min_stock > 0 && <> &nbsp;|&nbsp; {t('alert.min')}: <b>{fmtQty(item.min_stock)}</b></>}
                     </div>
                     {(item.warehouses || []).length > 0 && (
                       <div className="text-[11px] text-slate-400 mt-0.5">

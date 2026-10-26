@@ -1783,8 +1783,8 @@ function KirimlarTab() {
                   {detail.items?.map(item => (
                     <tr key={item.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium">{item.product_name}{item.variant_name ? ` — ${item.variant_name}` : ''}</td>
-                      <td className="px-4 py-3 text-center">{item.qty_ordered}</td>
-                      <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{item.qty_received}</td>
+                      <td className="px-4 py-3 text-center">{fmt(item.qty_ordered)}</td>
+                      <td className="px-4 py-3 text-center text-emerald-600 font-semibold">{fmt(item.qty_received)}</td>
                       {(() => {
                         // Avval UZS narx valyuta belgisi bilan chiqardi (masalan "1 270 000 USD")
                         const { cur, unit } = itemPrice(item, detail);

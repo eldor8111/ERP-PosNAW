@@ -262,7 +262,7 @@ export default function Orders({ embedded = false }) {
                         <td className="px-6 py-4 text-sm text-slate-600">{group.branch_name || '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-800">
                           {itemsCount === 1 ? (
-                            <span>{group.items[0].product_name} <span className="text-slate-400">× {group.items[0].quantity}</span></span>
+                            <span>{group.items[0].product_name} <span className="text-slate-400">× {fmt(group.items[0].quantity)}</span></span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 text-blue-600 font-medium">
                               <Package className="w-3.5 h-3.5" /> {t('order.itemsCount', { count: itemsCount })}
@@ -363,7 +363,7 @@ export default function Orders({ embedded = false }) {
                 <div key={item.id} className="flex items-center justify-between border border-slate-100 rounded-xl px-4 py-3">
                   <div>
                     <p className="text-sm font-medium text-slate-800">{item.product_name}</p>
-                    <p className="text-xs text-slate-400">{fmt(item.unit_price)} so'm × {item.quantity}</p>
+                    <p className="text-xs text-slate-400">{fmt(item.unit_price)} so'm × {fmt(item.quantity)}</p>
                   </div>
                   <p className="text-sm font-semibold text-slate-800">{fmt(item.total_amount)} so'm</p>
                 </div>

@@ -2033,8 +2033,8 @@ function CustomerOrders({ customerId, loading }) {
             <tr key={group.group_id} className="hover:bg-slate-50 transition-colors">
               <td className="px-4 py-3 text-sm">
                 {group.items.length === 1
-                  ? <span>{group.items[0].product_name} <span className="text-slate-400">× {group.items[0].quantity}</span></span>
-                  : <span className="text-slate-700">{group.items.map(i => `${i.product_name} ×${i.quantity}`).join(', ')}</span>}
+                  ? <span>{group.items[0].product_name} <span className="text-slate-400">× {fmt(group.items[0].quantity)}</span></span>
+                  : <span className="text-slate-700">{group.items.map(i => `${i.product_name} ×${fmt(i.quantity)}`).join(', ')}</span>}
               </td>
               <td className="px-4 py-3 text-sm font-semibold">{fmt(group.total_amount)} so'm</td>
               <td className="px-4 py-3 text-sm">

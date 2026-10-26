@@ -581,7 +581,7 @@ export default function TelegramShop() {
                     <p className="text-xs font-medium text-slate-700 line-clamp-2 min-h-[32px]">{product.name}</p>
                     <p className="text-sm font-bold text-blue-600">{fmt(product.price)} so'm</p>
                     {product.available > 0 ? (
-                      <p className="text-[10px] text-slate-400">Qoldiq: {product.available} ta</p>
+                      <p className="text-[10px] text-slate-400">Qoldiq: {fmt(product.available)} ta</p>
                     ) : (
                       <p className="text-[10px] text-orange-500 font-medium">Tugagan — buyurtma berish mumkin</p>
                     )}
@@ -877,7 +877,7 @@ export default function TelegramShop() {
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-800 truncate">{order.product_name}</p>
                           <p className="text-xs text-slate-400 mt-0.5">
-                            {order.quantity} ta × {fmt(order.unit_price)} so'm
+                            {fmt(order.quantity)} ta × {fmt(order.unit_price)} so'm
                           </p>
                           <p className="text-[11px] text-slate-400 mt-1">{fmtDate(order.created_at)}</p>
                         </div>

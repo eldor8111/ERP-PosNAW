@@ -592,7 +592,7 @@ export function BulkStockEditModal({ selectedIds, products, warehouses, onClose,
               {items.map((it, idx) => (
                 <tr key={it.product.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-800">{it.product.name}</td>
-                  <td className="px-4 py-3 text-center text-slate-500 bg-slate-50/50">{it.product.stock_quantity || 0} {it.product.unit || 'dona'}</td>
+                  <td className="px-4 py-3 text-center text-slate-500 bg-slate-50/50">{fmt(it.product.stock_quantity)} {it.product.unit || 'dona'}</td>
                   <td className="px-4 py-2">
                     <input type="number" min="0" step="any" value={it.fact}
                       onChange={e => {

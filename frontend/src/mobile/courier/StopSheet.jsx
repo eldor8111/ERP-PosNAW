@@ -7,6 +7,7 @@ import { getPosition, navigateUrl, distanceM, fmtDistance } from '../lib/geo';
 import { takePhoto } from '../lib/photo';
 import { Btn } from '../ui';
 import { fmtMoney } from '../format';
+import { fmtQty } from '../../utils/qty';
 
 const REASONS = ['absent', 'refused', 'wrong_address', 'no_money', 'other'];
 
@@ -104,7 +105,7 @@ export default function StopSheet({ stop, onClose, onAction }) {
             <div className="bg-surface border border-line rounded-2xl divide-y divide-line">
               {detail.items.map((it, i) => (
                 <div key={i} className="flex justify-between gap-3 px-4 py-2.5 text-sm">
-                  <span className="text-ink-900">{it.name} <span className="text-ink-500">× {it.quantity} {it.unit || ''}</span></span>
+                  <span className="text-ink-900">{it.name} <span className="text-ink-500">× {fmtQty(it.quantity)} {it.unit || ''}</span></span>
                   <span className="tabular-nums text-ink-500 shrink-0">{fmtMoney(it.amount)}</span>
                 </div>
               ))}

@@ -151,7 +151,7 @@ export default function CourierApp() {
                 <div className="bg-slate-50 rounded-xl px-3 py-2 space-y-1">
                   {group.items.map((it, i) => (
                     <div key={i} className="flex justify-between text-xs">
-                      <span className="text-slate-600 truncate">{it.product_name} × {it.quantity}</span>
+                      <span className="text-slate-600 truncate">{it.product_name} × {fmt(it.quantity)}</span>
                       <span className="text-slate-500 font-medium shrink-0 ml-2">{fmt(it.total_amount)}</span>
                     </div>
                   ))}

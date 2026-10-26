@@ -3107,7 +3107,7 @@ export default function Products() {
                         {fmt(p.price)} so'm
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold text-slate-700">
-                        {p.qty}
+                        {fmt(p.qty)}
                       </td>
                       <td className="px-5 py-4">
                         {p.status === 'review' && (
@@ -3193,7 +3193,7 @@ export default function Products() {
                 : tf('mpApprove.title', 'Mahsulotni tasdiqlash')}
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              {approveModal.product.name} — {approveModal.product.qty} × {fmt(approveModal.product.price)} so'm
+              {approveModal.product.name} — {fmt(approveModal.product.qty)} × {fmt(approveModal.product.price)} so'm
             </p>
 
             {approveError && (
@@ -4779,7 +4779,7 @@ export default function Products() {
                       {precheck.stock_will_change > 0 && (
                         <div className="px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm">
                           <span className="text-slate-500 text-sm">{t('product.importStockWillChange')}:</span>
-                          <span className="font-bold text-blue-600 ml-2 text-base">{precheck.stock_will_change} {t('common.item')}</span>
+                          <span className="font-bold text-blue-600 ml-2 text-base">{fmt(precheck.stock_will_change)} {t('common.item')}</span>
                         </div>
                       )}
                     </>

@@ -4448,7 +4448,7 @@ function SaleDetailContent({ saleId }) {
           {(data.items || []).map(it => (
             <tr key={it.id} className="hover:bg-slate-50">
               <td className="px-4 py-3 font-semibold text-slate-800">{it.product_name}</td>
-              <td className="px-3 py-3 text-center text-slate-600">{it.quantity}</td>
+              <td className="px-3 py-3 text-center text-slate-600">{fmt(it.quantity)}</td>
               <td className="px-3 py-3 text-right text-slate-600">{fmtL(it.unit_price)} s</td>
               <td className="px-3 py-3 text-right text-amber-600">{it.discount > 0 ? `−${fmtL(it.discount)} s` : '—'}</td>
               <td className="px-4 py-3 text-right font-bold text-slate-800">{fmtL(it.subtotal)} s</td>

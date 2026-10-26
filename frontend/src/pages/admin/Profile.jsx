@@ -12,6 +12,7 @@ import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { useReportScope } from '../../hooks/useReportScope';
 import { useBranches } from '../../hooks/useBranches';
 import toast from 'react-hot-toast';
+import { fmtQty } from '../../utils/qty';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react';
 import { ChevronsUpDown, CheckIcon, Building2, Warehouse } from 'lucide-react'; // Ikonkalar uchun (ixtiyoriy)
 
@@ -803,10 +804,10 @@ export default function Profile() {
                                             </td>
                                             <td className="px-4 py-3.5 text-center">
                                                 <span className={`text-sm font-bold ${item.qty <= 0 ? 'text-blue-600' : 'text-amber-600'}`}>
-                                                    {item.qty}
+                                                    {fmtQty(item.qty)}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3.5 text-center text-sm text-slate-400">{item.min_stock}</td>
+                                            <td className="px-4 py-3.5 text-center text-sm text-slate-400">{fmtQty(item.min_stock)}</td>
                                             <td className="px-4 py-3.5 text-center">
                                                 {item.qty <= 0 ? (
                                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">

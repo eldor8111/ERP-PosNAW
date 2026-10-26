@@ -1465,7 +1465,7 @@ function TransferCreateView({ warehouses, allWarehouses = null, onBack, onSaved,
                           <span className="font-medium text-slate-800">{it.product_name}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center font-bold text-blue-600">{it.quantity}</td>
+                      <td className="px-4 py-3 text-center font-bold text-blue-600">{fmt(it.quantity)}</td>
                       <td className="px-4 py-3 text-center text-slate-400 text-xs">{it.unit}</td>
                     </tr>
                   ))}
@@ -2482,7 +2482,7 @@ function ToldirishTab({ warehouses = [], allWarehouses = null }) {
         <Tbl loading={loading} rows={rows} skip={skip} limit={LIMIT} onChange={setSkip} cols={[
           { k: 'product_name', l: tf('replen.product', 'Mahsulot') },
           { k: 'current_qty', l: tf('replen.current', 'Qoldiq'), r: v => Number(v ?? 0).toLocaleString('uz-UZ') },
-          { k: 'company_min_stock', l: tf('replen.companyMin', 'Umumiy min / max'), r: (v, r) => `${v ?? 0}${r.company_max_stock != null ? ` / ${r.company_max_stock}` : ''}` },
+          { k: 'company_min_stock', l: tf('replen.companyMin', 'Umumiy min / max'), r: (v, r) => `${fmt(v)}${r.company_max_stock != null ? ` / ${fmt(r.company_max_stock)}` : ''}` },
           { k: 'min_qty', l: t('ombor.min'), r: (v, r) => <input type="number" min="0" className={inp} value={val(r, 'min_qty')} onChange={e => setEdit(r.product_id, 'min_qty', e.target.value)} /> },
           { k: 'max_qty', l: tf('ombor.max', 'Max'), r: (v, r) => <input type="number" min="0" className={inp} value={val(r, 'max_qty')} onChange={e => setEdit(r.product_id, 'max_qty', e.target.value)} /> },
           { k: 'reorder_qty', l: tf('replen.reorder', "To'ldirish miqdori"), r: (v, r) => <input type="number" min="0" className={inp} value={val(r, 'reorder_qty')} onChange={e => setEdit(r.product_id, 'reorder_qty', e.target.value)} /> },
