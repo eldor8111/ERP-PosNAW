@@ -281,9 +281,6 @@ async def check(request: Request, payload: Optional[CheckRequest] = None, author
             "timestamp": now_ms,
             "status": "OK",
             "data": {
-                "account": {
-                    "value": str(account_val)
-                },
                 "userInfo": {
                     "name": company_name
                 }
@@ -343,7 +340,6 @@ async def create(request: Request, payload: Optional[CreateRequest] = None, auth
                     "transId": str(existing.trans_id),
                     "status": "CREATED",
                     "transTime": existing.trans_time or _now_ms(),
-                    "data": {},
                     "amount": existing.amount
                 }
             )
@@ -380,7 +376,6 @@ async def create(request: Request, payload: Optional[CreateRequest] = None, auth
             "transId": str(trans_id),
             "status": "CREATED",
             "transTime": now_ms,
-            "data": {},
             "amount": amount_tiyin
         }
     )
@@ -424,7 +419,6 @@ async def confirm(request: Request, payload: Optional[ConfirmRequest] = None, au
                 "transId": str(trans_id),
                 "status": "CONFIRMED",
                 "confirmTime": txn.confirm_time or now_ms,
-                "data": {},
                 "amount": txn.amount
             }
         )
@@ -485,7 +479,6 @@ async def confirm(request: Request, payload: Optional[ConfirmRequest] = None, au
             "transId": str(trans_id),
             "status": "CONFIRMED",
             "confirmTime": now_ms,
-            "data": {},
             "amount": txn.amount
         }
     )
@@ -529,7 +522,6 @@ async def reverse(request: Request, payload: Optional[ReverseRequest] = None, au
                 "transId": str(trans_id),
                 "status": "REVERSED",
                 "reverseTime": txn.reverse_time or now_ms,
-                "data": {},
                 "amount": txn.amount
             }
         )
@@ -569,7 +561,6 @@ async def reverse(request: Request, payload: Optional[ReverseRequest] = None, au
             "transId": str(trans_id),
             "status": "REVERSED",
             "reverseTime": now_ms,
-            "data": {},
             "amount": txn.amount
         }
     )
@@ -604,12 +595,19 @@ async def status_check(request: Request, payload: Optional[StatusRequest] = None
 
     now_ms = _now_ms()
 
-    # 30 daqiqadan oshgan yaratilgan tranzaksiya FAILED ga o'tadi
-    if txn.status == "CREATED" and txn.trans_time and (now_ms - txn.trans_time > 30 * 60 * 1000):
-        txn.status = "FAILED"
-        db.commit()
+    company_name = None
+    if txn.company_id:
+        company = db.query(Company).filter(Company.id == txn.company_id).first()
+        if company:
+            company_name = company.name
+    if not company_name and txn.account_identifier:
+        company = _resolve_account(txn.account_identifier, db)
+        if company:
+            company_name = company.name
+    if not company_name:
+        company_name = "Test Account" if settings.UZUM_IS_TEST else ""
 
-    logger.info("[Uzum] Status query: transId=%s, status=%s", trans_id, txn.status)
+    logger.info("[Uzum] Status query: transId=%s, status=%s, company=%s", trans_id, txn.status, company_name)
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -620,7 +618,11 @@ async def status_check(request: Request, payload: Optional[StatusRequest] = None
             "transTime": txn.trans_time,
             "confirmTime": txn.confirm_time,
             "reverseTime": txn.reverse_time,
-            "data": {},
+            "data": {
+                "userInfo": {
+                    "name": company_name
+                }
+            },
             "amount": txn.amount
         }
     )
