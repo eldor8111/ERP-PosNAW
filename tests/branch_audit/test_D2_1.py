@@ -135,30 +135,24 @@ def test_pharma_validation_errors(client, db, mk):
     assert r.json()["pharma"]["dosage_form"] is None
 
 
-# ---------------------------------------------------------------- MXIK majburiy
+# ---------------------------------------------------------------- MXIK: yaratishda ixtiyoriy, o'chirib bo'lmaydi
 
-def test_pharmacy_requires_mxik_on_create_and_update(client, db, mk):
+def test_pharmacy_mxik_optional_on_create_but_not_clearable(client, db, mk):
+    """Dorixona: "Ko'p mahsulot qo'shish" MXIKsiz ham saqlaydi (keyin "MXIK sinxronlash" to'ldiradi);
+    MXIKsiz mahsulot tahrirlanaveradi; mavjud MXIKni bo'shatib bo'lmaydi."""
     c, _, _, admin = mk.tenant()
     _pharmacy_on(db, c)
     cl = client.login(admin)
     r = cl.post(PRODUCTS, json={"name": "MXIKsiz", "barcode": "4780000000059", "sale_price": "10"})
-    assert r.status_code == 400 and "MXIK" in r.json()["detail"]
-    r = cl.post(PRODUCTS, json=_payload("MXIKsiz", "4780000000059", mxik_code="   "))
-    assert r.status_code == 400
-    assert db.query(Product).filter_by(company_id=c.id).count() == 0
-
-    # eski mahsulot (MXIKsiz) tahrirlanganda ham 400; MXIK berilsa o'tadi
-    old = Product(company_id=c.id, name="Eski", barcode="4780000000066", sku="OLD-1", sale_price=10, cost_price=0)
-    db.add(old)
-    db.flush()
-    r = cl.put(f"{PRODUCTS}{old.id}", json={"min_stock": 5})
-    assert r.status_code == 400 and "MXIK" in r.json()["detail"]
-    r = cl.put(f"{PRODUCTS}{old.id}", json={"min_stock": 5, "mxik_code": "30040000000000000"})
+    assert r.status_code == 201, r.text
+    p = db.query(Product).filter_by(company_id=c.id, barcode="4780000000059").one()
+    assert not p.mxik_code
+    assert cl.put(f"{PRODUCTS}{p.id}", json={"min_stock": 5}).status_code == 200
+    r = cl.put(f"{PRODUCTS}{p.id}", json={"min_stock": 5, "mxik_code": "30040000000000000"})
     assert r.status_code == 200, r.text
-    # MXIK bor mahsulot keyingi tahrirda MXIK yubormasdan ham o'tadi
-    assert cl.put(f"{PRODUCTS}{old.id}", json={"min_stock": 6}).status_code == 200
-    # MXIKni bo'shatib bo'lmaydi
-    assert cl.put(f"{PRODUCTS}{old.id}", json={"mxik_code": ""}).status_code == 400
+    assert cl.put(f"{PRODUCTS}{p.id}", json={"min_stock": 6}).status_code == 200
+    r = cl.put(f"{PRODUCTS}{p.id}", json={"mxik_code": ""})
+    assert r.status_code == 400 and "MXIK" in r.json()["detail"]
 
 
 # ---------------------------------------------------------------- oddiy korxona (regressiya)

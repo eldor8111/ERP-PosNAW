@@ -748,10 +748,9 @@ def create_product(
         current_user: User = Depends(require_roles(*WRITE_ROLES)),
         ctx: BranchContext = Depends(get_branch_context),  # T1.5: X-Branch-Id -> boshlang'ich qoldiq filiali (db.info)
 ):
-    # D2.1: dorixona rejimida MXIK kodi majburiy (oddiy korxonada o'zgarishsiz)
+    # D2.1: dorixonada MXIK kodi yaratishda ixtiyoriy ("Ko'p mahsulot qo'shish", import) — chek uchun keyin
+    # "MXIK sinxronlash" to'ldiradi; bitta-bitta qo'shish oynalari MXIKni frontendda so'raydi
     pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
-    if pharmacy_on and not (data.mxik_code or "").strip():
-        raise HTTPException(status_code=400, detail="Dorixona rejimida MXIK kodi majburiy")
     if pharmacy_on:
         _assert_max_markup(_ph_settings, data.cost_price, data.sale_price)   # CD.1: ustama chegarasi
 
@@ -1026,12 +1025,13 @@ def update_product(
         "units", "initial_lot_number", "initial_expiry_date", "initial_manufacture_date",   # P.1
     })
 
-    # D2.1: dorixona rejimida tahrirlanayotgan mahsulotda MXIK kodi majburiy (oddiy korxonada o'zgarishsiz)
+    # D2.1: dorixonada mavjud MXIK kodini o'chirib bo'lmaydi; MXIKsiz qo'shilgan mahsulot (ko'p qo'shish, import)
+    # tahrirlanaveradi (oddiy korxonada o'zgarishsiz)
     pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
     if pharmacy_on:
-        eff_mxik = update_data["mxik_code"] if "mxik_code" in update_data else product.mxik_code
-        if not (eff_mxik or "").strip():
-            raise HTTPException(status_code=400, detail="Dorixona rejimida MXIK kodi majburiy")
+        if ("mxik_code" in update_data and not (update_data["mxik_code"] or "").strip()
+                and (product.mxik_code or "").strip()):
+            raise HTTPException(status_code=400, detail="Dorixona rejimida MXIK kodini o'chirib bo'lmaydi")
         # CD.1: faqat sotuv narxi o'zgarganda ustama chegarasi tekshiriladi
         if "sale_price" in update_data and Decimal(str(update_data["sale_price"] or 0)) != Decimal(str(product.sale_price or 0)):
             _assert_max_markup(
