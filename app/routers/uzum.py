@@ -282,7 +282,7 @@ async def check(request: Request, payload: Optional[CheckRequest] = None, author
             "status": "OK",
             "data": {
                 "userInfo": {
-                    "name": company_name
+                    "value": company_name
                 }
             }
         }
@@ -620,7 +620,7 @@ async def status_check(request: Request, payload: Optional[StatusRequest] = None
             "reverseTime": txn.reverse_time,
             "data": {
                 "userInfo": {
-                    "name": company_name
+                    "value": company_name
                 }
             },
             "amount": txn.amount

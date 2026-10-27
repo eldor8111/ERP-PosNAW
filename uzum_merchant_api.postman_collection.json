@@ -108,7 +108,7 @@
           "status": "OK",
           "code": 200,
           "_postman_previewlanguage": "json",
-          "body": "{\n  \"serviceId\": 123123,\n  \"timestamp\": 1714377645500,\n  \"status\": \"OK\",\n  \"data\": {\n    \"userInfo\": {\n      \"name\": \"E-Code Test Mijoz\"\n    }\n  }\n}"
+          "body": "{\n  \"serviceId\": 123123,\n  \"timestamp\": 1714377645500,\n  \"status\": \"OK\",\n  \"data\": {\n    \"userInfo\": {\n      \"value\": \"E-Code Test Mijoz\"\n    }\n  }\n}"
         },
         {
           "name": "400 Bad Request - Hisob topilmadi",
@@ -234,7 +234,7 @@
           "status": "OK",
           "code": 200,
           "_postman_previewlanguage": "json",
-          "body": "{\n  \"serviceId\": 123123,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"CONFIRMED\",\n  \"transTime\": 1714377645550,\n  \"confirmTime\": 1714377645600,\n  \"reverseTime\": null,\n  \"data\": {\n    \"userInfo\": {\n      \"name\": \"E-Code Test Mijoz\"\n    }\n  },\n  \"amount\": 2500000\n}"
+          "body": "{\n  \"serviceId\": 123123,\n  \"transId\": \"5c398d7e-76b6-11ee-96da-f3a095c6289d\",\n  \"status\": \"CONFIRMED\",\n  \"transTime\": 1714377645550,\n  \"confirmTime\": 1714377645600,\n  \"reverseTime\": null,\n  \"data\": {\n    \"userInfo\": {\n      \"value\": \"E-Code Test Mijoz\"\n    }\n  },\n  \"amount\": 2500000\n}"
         }
       ]
     },
