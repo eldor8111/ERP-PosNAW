@@ -5,6 +5,8 @@ import ECodeLogo from './ECodeLogo'
 import FlagIcon from './FlagIcon'
 import Preloader from './Preloader'
 import { MapPin, Phone, Mail, Send, ChevronDown } from 'lucide-react'
+import paymeOfficialImg from '../assets/images/payme_official.png'
+import uzumOfficialImg from '../assets/images/uzum_official.png'
 
 const TelegramIcon = ({ className = "w-4 h-4" }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -43,10 +45,11 @@ const YoutubeIcon = ({ className = "w-4 h-4" }) => (
 )
 
 const PaymeLogo = () => (
-  <svg viewBox="0 0 240 75" className="h-7 w-auto hover:scale-105 transition-transform cursor-pointer drop-shadow-sm">
-    <path d="M 12 0 L 205 0 L 240 37.5 L 205 75 L 12 75 A 12 12 0 0 1 0 63 L 0 12 A 12 12 0 0 1 12 0 Z" fill="#2BD7F7" />
-    <text x="108" y="53" fill="#000000" fontSize="44" fontWeight="900" fontStyle="italic" textAnchor="middle" fontFamily="sans-serif">payme</text>
-  </svg>
+  <img
+    src={paymeOfficialImg}
+    alt="Payme"
+    className="h-7 w-auto object-contain rounded-lg hover:scale-105 transition-transform cursor-pointer shadow-xs select-none"
+  />
 )
 
 const ClickLogo = () => (
@@ -60,23 +63,13 @@ const ClickLogo = () => (
 )
 
 const UzumLogo = () => (
-  <svg viewBox="0 0 170 54" className="h-7 w-auto bg-[#7000FF] rounded-lg px-2.5 py-1 hover:scale-105 transition-transform cursor-pointer shadow-xs">
-    <g transform="translate(6, 11) scale(0.68)">
-      <circle cx="12" cy="7" r="5" fill="#FFFFFF" />
-      <circle cx="28" cy="7" r="5" fill="#FFFFFF" />
-      <circle cx="4" cy="23" r="5" fill="#FFFFFF" />
-      <circle cx="20" cy="23" r="5" fill="#FFFFFF" />
-      <circle cx="36" cy="23" r="5" fill="#FFFFFF" />
-      <circle cx="12" cy="39" r="5" fill="#FFFFFF" />
-      <circle cx="28" cy="39" r="5" fill="#FFFFFF" />
-    </g>
-    <text x="46" y="37" fill="#FFFFFF" fontSize="28" fontWeight="900" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="-0.5">uzum</text>
-    <text x="114" y="37" fill="#FFFFFF" fontSize="19" fontWeight="600" fontFamily="system-ui, -apple-system, sans-serif" opacity="0.95">bank</text>
-  </svg>
+  <div className="h-7 bg-white rounded-lg px-2.5 py-1 hover:scale-105 transition-transform cursor-pointer shadow-xs flex items-center justify-center select-none">
+    <img src={uzumOfficialImg} alt="Uzum" className="h-5 w-auto object-contain" />
+  </div>
 )
 
 const HumoLogo = () => (
-  <svg viewBox="0 0 170 100" className="h-8 w-auto rounded-lg hover:scale-105 transition-transform cursor-pointer shadow-xs">
+  <svg viewBox="0 0 170 100" className="h-7 w-auto rounded-lg hover:scale-105 transition-transform cursor-pointer shadow-xs">
     <rect width="170" height="100" rx="10" fill="#2C3E50" />
     <path d="M 135 5 Q 170 30 148 95 C 165 72 170 42 135 5 Z" fill="#E5C158" />
     <path d="M 152 20 Q 172 48 158 95 C 170 72 172 48 152 20 Z" fill="#E5C158" opacity="0.85" />

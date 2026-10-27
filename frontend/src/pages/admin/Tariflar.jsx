@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import PaymeLogo, { PaymeIcon } from '../../components/PaymeLogo';
 import UzumLogo, { UzumIcon } from '../../components/UzumLogo';
+import paymeOfficialImg from '../../assets/images/payme_official.png';
+import uzumOfficialImg from '../../assets/images/uzum_official.png';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('uz-UZ');
 
@@ -502,22 +504,30 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                           type="button"
                           onClick={() => handlePayme(tariff, effMonths, totalPackagePrice)}
                           disabled={trialLoading || !canBuy}
-                          className="py-2.5 px-3 bg-white hover:bg-emerald-50/70 active:scale-[0.98] border border-emerald-500/40 hover:border-emerald-600 rounded-xl font-black text-xs sm:text-sm text-slate-800 transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 group"
+                          className="h-12 px-3 bg-white hover:bg-[#00CCCC]/10 active:scale-[0.98] border-2 border-[#00CCCC]/40 hover:border-[#00CCCC] rounded-2xl font-black text-xs sm:text-sm text-slate-800 transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 group"
                           title="Payme orqali to'lash"
                         >
-                          <PaymeLogo width={54} height={18} className="shrink-0 group-hover:scale-105 transition-transform" />
-                          <span className="text-slate-700 font-bold">orqali</span>
+                          <img
+                            src={paymeOfficialImg}
+                            alt="Payme"
+                            className="h-6 w-auto object-contain rounded-xs group-hover:scale-105 transition-transform shrink-0"
+                          />
+                          <span className="font-extrabold text-xs sm:text-sm text-[#006666]">orqali</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handleUzum(tariff, effMonths, totalPackagePrice)}
                           disabled={trialLoading || !canBuy}
-                          className="py-2.5 px-3 bg-white hover:bg-purple-50/70 active:scale-[0.98] border border-[#7000FF]/40 hover:border-[#7000FF] rounded-xl font-black text-xs sm:text-sm text-slate-800 transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 group"
+                          className="h-12 px-3 bg-white hover:bg-purple-50 active:scale-[0.98] border-2 border-[#7000FF]/40 hover:border-[#7000FF] rounded-2xl font-black text-xs sm:text-sm text-slate-800 transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 group"
                           title="Uzum Bank orqali to'lash"
                         >
-                          <UzumLogo width={64} height={18} className="shrink-0 group-hover:scale-105 transition-transform" />
-                          <span className="text-slate-700 font-bold">orqali</span>
+                          <img
+                            src={uzumOfficialImg}
+                            alt="Uzum"
+                            className="h-5.5 w-auto object-contain group-hover:scale-105 transition-transform shrink-0"
+                          />
+                          <span className="font-extrabold text-xs sm:text-sm text-[#6200E0]">orqali</span>
                         </button>
                       </div>
 
@@ -526,11 +536,11 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                         type="button"
                         onClick={() => handleBuyTariff(tariff, effMonths, totalPackagePrice)}
                         disabled={trialLoading || !canBuy || (hasActiveSub && !isCurrent(tariff))}
-                        className={`w-full py-3 px-4 bg-gradient-to-r ${theme.btnGradient} text-white font-black rounded-xl text-sm transition-all shadow-md hover:shadow-lg active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60`}
+                        className={`w-full h-12 px-4 bg-gradient-to-r ${theme.btnGradient} text-white font-black rounded-2xl text-sm transition-all shadow-md hover:shadow-lg active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60`}
                       >
                         {trialLoading ? t('tariff.waiting') : (
                           <>
-                            <Wallet size={16} className="shrink-0" />
+                            <Wallet size={17} className="shrink-0" />
                             <span>Balansdan sotib olish</span>
                           </>
                         )}
@@ -1402,7 +1412,7 @@ export default function Tariflar() {
                       : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
-                  <UzumLogo width={84} height={24} />
+                  <img src={uzumOfficialImg} alt="Uzum" className="h-6 w-auto object-contain" />
                   <span className="text-xs font-bold text-slate-700">Uzum Bank</span>
                 </button>
 
@@ -1416,7 +1426,7 @@ export default function Tariflar() {
                       : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
-                  <PaymeLogo width={74} height={24} />
+                  <img src={paymeOfficialImg} alt="Payme" className="h-6 w-auto object-contain rounded-xs" />
                   <span className="text-xs font-bold text-slate-700">Payme</span>
                 </button>
               </div>
