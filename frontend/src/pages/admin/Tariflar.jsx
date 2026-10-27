@@ -23,6 +23,8 @@ import {
   AlertTriangle,
   Pill,
 } from 'lucide-react';
+import PaymeLogo, { PaymeIcon } from '../../components/PaymeLogo';
+import UzumLogo, { UzumIcon } from '../../components/UzumLogo';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('uz-UZ');
 
@@ -85,7 +87,7 @@ const getTariffTheme = (name = '') => {
   };
 };
 
-function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, priceColor, handleBuyTariff, handlePayme, trialLoading, isCurrent, hasActiveSub, canBuy = true, usage = null, onSwitchToPackages }) {
+function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, priceColor, handleBuyTariff, handlePayme, handleUzum, handleOpenTopUp, trialLoading, isCurrent, hasActiveSub, canBuy = true, usage = null, onSwitchToPackages }) {
   const { t } = useLang();
   const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
   const unitTxt = tf('tariffs.unit', 'ta');
@@ -98,22 +100,37 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
 
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 py-8">
-      {/* ── Header + BHM noti ── */}
+      {/* ── Header + BHM noti + Balans to'ldirish ── */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">{t('nav.tariffs')}</h1>
           <p className="text-sm text-slate-500 mt-1">{t('tariffs.subtitle')}</p>
         </div>
-        {hasBhm && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-2xl shadow-xs">
-            <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-xs text-blue-700 font-bold">
-              {t('tariff.bhmNotice')}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {hasBhm && (
+            <div className="flex items-center gap-2 px-3.5 py-2 bg-blue-50 border border-blue-200 rounded-2xl shadow-xs">
+              <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-xs text-blue-700 font-bold">
+                {t('tariff.bhmNotice')}
+              </span>
+            </div>
+          )}
+
+          {/* Balansni to'ldirish tugmasi */}
+          <button
+            type="button"
+            onClick={() => handleOpenTopUp && handleOpenTopUp()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 active:scale-95 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer group"
+          >
+            <Wallet className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition-transform" />
+            <span>Balansni to'ldirish</span>
+            <span className="bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full text-xs font-black">
+              {fmtMoney(billing?.balance || 0)} so'm
             </span>
-          </div>
-        )}
+          </button>
+        </div>
       </div>
 
       {/* ── Joriy obuna holati ── */}
@@ -471,41 +488,56 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                   </div>
                 </div>
 
-                {/* ── Tugmalar qatori (Yonma-yon 2 ta tugma) ── */}
+                {/* ── Tugmalar qatori (Payme, Uzum va Balans) ── */}
                 <div className="pt-4 border-t border-slate-100">
                   {isCurrent(tariff) ? (
                     <div className="w-full py-3 text-center font-black rounded-xl text-sm bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center justify-center gap-2">
                       <Check size={16} /> {t('tariff.active')}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        onClick={() => handlePayme(tariff, effMonths, totalPackagePrice)}
-                        disabled={trialLoading || !canBuy}
-                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                      >
-                        {trialLoading ? t('tariff.waiting') : (
-                          <>
-                            <CreditCard size={17} className="shrink-0" />
-                            <span>Payme orqali to'lash</span>
-                          </>
-                        )}
-                      </button>
+                    <div className="space-y-2.5">
+                      {/* Tezkor to'lov tizimlari: Payme & Uzum */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handlePayme(tariff, effMonths, totalPackagePrice)}
+                          disabled={trialLoading || !canBuy}
+                          className="py-2.5 px-3 bg-white hover:bg-emerald-50/70 active:scale-[0.98] border border-emerald-500/40 hover:border-emerald-600 rounded-xl font-black text-xs sm:text-sm text-slate-800 transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 group"
+                          title="Payme orqali to'lash"
+                        >
+                          <PaymeLogo width={54} height={18} className="shrink-0 group-hover:scale-105 transition-transform" />
+                          <span className="text-slate-700 font-bold">orqali</span>
+                        </button>
 
+                        <button
+                          type="button"
+                          onClick={() => handleUzum(tariff, effMonths, totalPackagePrice)}
+                          disabled={trialLoading || !canBuy}
+                          className="py-2.5 px-3 bg-white hover:bg-purple-50/70 active:scale-[0.98] border border-[#7000FF]/40 hover:border-[#7000FF] rounded-xl font-black text-xs sm:text-sm text-slate-800 transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 group"
+                          title="Uzum Bank orqali to'lash"
+                        >
+                          <UzumLogo width={64} height={18} className="shrink-0 group-hover:scale-105 transition-transform" />
+                          <span className="text-slate-700 font-bold">orqali</span>
+                        </button>
+                      </div>
+
+                      {/* Balansdan sotib olish tugmasi */}
                       <button
+                        type="button"
                         onClick={() => handleBuyTariff(tariff, effMonths, totalPackagePrice)}
                         disabled={trialLoading || !canBuy || (hasActiveSub && !isCurrent(tariff))}
-                        className={`py-3 px-4 bg-gradient-to-r ${theme.btnGradient} text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60`}
+                        className={`w-full py-3 px-4 bg-gradient-to-r ${theme.btnGradient} text-white font-black rounded-xl text-sm transition-all shadow-md hover:shadow-lg active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60`}
                       >
                         {trialLoading ? t('tariff.waiting') : (
                           <>
-                            <Wallet size={17} className="shrink-0" />
+                            <Wallet size={16} className="shrink-0" />
                             <span>Balansdan sotib olish</span>
                           </>
                         )}
                       </button>
+
                       {!canBuy && (
-                        <p className="sm:col-span-2 text-center text-xs text-slate-500">{ownerOnlyText}</p>
+                        <p className="text-center text-xs text-slate-500">{ownerOnlyText}</p>
                       )}
                     </div>
                   )}
@@ -885,6 +917,9 @@ export default function Tariflar() {
   const [toast, setToast] = useState(null);
   const [logs, setLogs] = useState([]);
   const [usage, setUsage] = useState(null);   // T3.9: ishlatilgan / limit
+  const [topUpModalOpen, setTopUpModalOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState(100000);
+  const [selectedProvider, setSelectedProvider] = useState('uzum');
   const tf = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -959,13 +994,15 @@ export default function Tariflar() {
 
   const handlePayme = async (directTariff = null, customMonths = 1, customAmount = null) => {
     if (!canBuy) return;
-    const tariffToPay = directTariff;
-    if (!tariffToPay) return;
-
     setTrialLoading(true);
     try {
-      const payMonths = customMonths || 1;
-      const amount = customAmount != null ? Math.round(customAmount) : Math.round(tariffToPay.price_per_month * payMonths);
+      let amount = customAmount != null ? Math.round(customAmount) : null;
+      if (amount == null && directTariff) {
+        const payMonths = customMonths || 1;
+        amount = Math.round((directTariff.price_per_month || 0) * payMonths);
+      }
+      if (!amount || amount <= 0) return;
+
       const res = await api.post('/payme/checkout-url', { amount });
 
       // Popup oynani markazda ochish
@@ -978,17 +1015,81 @@ export default function Tariflar() {
         `width=${w},height=${h},top=${top},left=${left}`
       );
 
-      // Popup yopilishini kutib balansni yangilaymiz
+      const initialBal = billing?.balance || 0;
       const timer = setInterval(async () => {
-        if (popup && popup.closed) {
-          clearInterval(timer);
+        try {
+          const b = await api.get('/billing/my-company');
+          if (b?.data && b.data.balance !== initialBal) {
+            setBilling(b.data);
+            clearInterval(timer);
+            setToast({ msg: t('tariff.balanceUpdated') || "Balans muvaffaqiyatli to'ldirildi!", ok: true });
+          }
+          if (popup && popup.closed) {
+            clearInterval(timer);
+          }
+        } catch { /* ignore */ }
+      }, 2000);
+      setTimeout(() => clearInterval(timer), 180000);
+    } catch (e) {
+      setToast({ msg: e.response?.data?.detail || t('auth.errGeneral'), ok: false });
+    } finally {
+      setTrialLoading(false);
+      setTimeout(() => setToast(null), 4000);
+    }
+  };
+
+  const handleUzum = async (directTariff = null, customMonths = 1, customAmount = null) => {
+    if (!canBuy) return;
+    setTrialLoading(true);
+    try {
+      let amount = customAmount != null ? Math.round(customAmount) : null;
+      if (amount == null && directTariff) {
+        const payMonths = customMonths || 1;
+        amount = Math.round((directTariff.price_per_month || 0) * payMonths);
+      }
+      if (!amount || amount <= 0) {
+        setToast({ msg: "To'lov summasi noto'g'ri", ok: false });
+        return;
+      }
+
+      let checkoutUrl = '';
+      try {
+        const res = await api.post('/uzum/checkout-url', { amount });
+        checkoutUrl = res.data?.checkout_url;
+      } catch {
+        const orgCode = billing?.org_code || user?.company_code || user?.company?.org_code || user?.company_id || '';
+        const amountTiyin = amount * 100;
+        checkoutUrl = `https://uzumbank.uz/open-service?serviceId=498659320&order_id=${encodeURIComponent(orgCode)}&amount=${amountTiyin}`;
+      }
+
+      if (checkoutUrl) {
+        const w = 600, h = 700;
+        const left = Math.round(window.innerWidth / 2 - w / 2);
+        const top = Math.round(window.innerHeight / 2 - h / 2);
+        const popup = window.open(
+          checkoutUrl,
+          'uzum_checkout',
+          `width=${w},height=${h},top=${top},left=${left}`
+        );
+
+        setToast({ msg: "Uzum Bank to'lov oynasi ochildi. To'lov tasdiqlangach balans yangilanadi.", ok: true });
+
+        const initialBal = billing?.balance || 0;
+        const timer = setInterval(async () => {
           try {
             const b = await api.get('/billing/my-company');
-            setBilling(b.data);
-            setToast({ msg: t('tariff.balanceUpdated'), ok: true });
+            if (b?.data && b.data.balance !== initialBal) {
+              setBilling(b.data);
+              clearInterval(timer);
+              setToast({ msg: t('tariff.balanceUpdated') || "Balans muvaffaqiyatli to'ldirildi!", ok: true });
+            }
+            if (popup && popup.closed) {
+              clearInterval(timer);
+            }
           } catch { /* ignore */ }
-        }
-      }, 1000);
+        }, 2000);
+        setTimeout(() => clearInterval(timer), 180000);
+      }
     } catch (e) {
       setToast({ msg: e.response?.data?.detail || t('auth.errGeneral'), ok: false });
     } finally {
@@ -1191,7 +1292,27 @@ export default function Tariflar() {
       </div>
 
       {
-        tabs === 'tariflar' && <TariflarTab hasBhm={hasBhm} billing={billing} settings={settings} tariffs={tariffs} bgAccent={bgAccent} btnColor={btnColor} priceColor={priceColor} handleBuyTariff={handleBuyTariff} handlePayme={handlePayme} trialLoading={trialLoading} isCurrent={isCurrent} hasActiveSub={hasActiveSub} canBuy={canBuy} usage={usage} onSwitchToPackages={() => switchTab('paketlar')} />
+        tabs === 'tariflar' && (
+          <TariflarTab
+            hasBhm={hasBhm}
+            billing={billing}
+            settings={settings}
+            tariffs={tariffs}
+            bgAccent={bgAccent}
+            btnColor={btnColor}
+            priceColor={priceColor}
+            handleBuyTariff={handleBuyTariff}
+            handlePayme={handlePayme}
+            handleUzum={handleUzum}
+            handleOpenTopUp={() => setTopUpModalOpen(true)}
+            trialLoading={trialLoading}
+            isCurrent={isCurrent}
+            hasActiveSub={hasActiveSub}
+            canBuy={canBuy}
+            usage={usage}
+            onSwitchToPackages={() => switchTab('paketlar')}
+          />
+        )
       }
       {
         tabs === 'paketlar' && <PaketlarTab billing={billing} refreshBilling={async () => { const b = await api.get('/billing/my-company'); setBilling(b.data); }} setToast={setToast} />
@@ -1202,6 +1323,129 @@ export default function Tariflar() {
       {
         tabs === 'billing' && <BillingHistoryTab logs={logs} />
       }
+
+      {/* ── Balansni to'ldirish Modali (Payme & Uzum) ── */}
+      {topUpModalOpen && (
+        <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => setTopUpModalOpen(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                <Wallet size={22} />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">Balansni to'ldirish</h3>
+                <p className="text-xs text-slate-500">
+                  Joriy balans: <span className="font-extrabold text-emerald-600">{fmtMoney(billing?.balance || 0)} so'm</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Summa kiritish */}
+            <div className="space-y-2 mb-5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                To'ldirish summasi (so'm)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(Number(e.target.value))}
+                  placeholder="Summani kiriting..."
+                  className="w-full py-3.5 pl-4 pr-16 bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-2xl font-black text-lg text-slate-900 transition-all outline-hidden"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                  SO'M
+                </span>
+              </div>
+
+              {/* Tezkor summalar */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {[50000, 100000, 200000, 500000, 1000000].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setTopUpAmount(amt)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      topUpAmount === amt
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    +{fmtMoney(amt)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* To'lov usulini tanlash */}
+            <div className="space-y-2 mb-6">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                To'lov tizimini tanlang
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Uzum Bank */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProvider('uzum')}
+                  className={`p-3.5 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                    selectedProvider === 'uzum'
+                      ? 'border-[#7000FF] bg-purple-50/60 shadow-md shadow-purple-500/10 ring-2 ring-purple-500/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <UzumLogo width={84} height={24} />
+                  <span className="text-xs font-bold text-slate-700">Uzum Bank</span>
+                </button>
+
+                {/* Payme */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProvider('payme')}
+                  className={`p-3.5 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                    selectedProvider === 'payme'
+                      ? 'border-[#00CCCC] bg-cyan-50/60 shadow-md shadow-cyan-500/10 ring-2 ring-cyan-500/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <PaymeLogo width={74} height={24} />
+                  <span className="text-xs font-bold text-slate-700">Payme</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tasdiqlash tugmasi */}
+            <button
+              type="button"
+              disabled={trialLoading || !topUpAmount || topUpAmount < 1000}
+              onClick={() => {
+                setTopUpModalOpen(false);
+                if (selectedProvider === 'uzum') {
+                  handleUzum(null, 1, topUpAmount);
+                } else {
+                  handlePayme(null, 1, topUpAmount);
+                }
+              }}
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-white shadow-lg transition-all active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 ${
+                selectedProvider === 'uzum'
+                  ? 'bg-gradient-to-r from-[#7000FF] to-[#8B24FF] shadow-purple-600/25 hover:from-[#6200E0] hover:to-[#781FE0]'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 shadow-emerald-600/25 hover:from-emerald-700 hover:to-teal-700'
+              }`}
+            >
+              <span>{fmtMoney(topUpAmount)} so'm to'lash</span>
+              <span className="text-base">→</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (

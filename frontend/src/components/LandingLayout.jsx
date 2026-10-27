@@ -59,6 +59,22 @@ const ClickLogo = () => (
   </svg>
 )
 
+const UzumLogo = () => (
+  <svg viewBox="0 0 170 54" className="h-7 w-auto bg-[#7000FF] rounded-lg px-2.5 py-1 hover:scale-105 transition-transform cursor-pointer shadow-xs">
+    <g transform="translate(6, 11) scale(0.68)">
+      <circle cx="12" cy="7" r="5" fill="#FFFFFF" />
+      <circle cx="28" cy="7" r="5" fill="#FFFFFF" />
+      <circle cx="4" cy="23" r="5" fill="#FFFFFF" />
+      <circle cx="20" cy="23" r="5" fill="#FFFFFF" />
+      <circle cx="36" cy="23" r="5" fill="#FFFFFF" />
+      <circle cx="12" cy="39" r="5" fill="#FFFFFF" />
+      <circle cx="28" cy="39" r="5" fill="#FFFFFF" />
+    </g>
+    <text x="46" y="37" fill="#FFFFFF" fontSize="28" fontWeight="900" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="-0.5">uzum</text>
+    <text x="114" y="37" fill="#FFFFFF" fontSize="19" fontWeight="600" fontFamily="system-ui, -apple-system, sans-serif" opacity="0.95">bank</text>
+  </svg>
+)
+
 const HumoLogo = () => (
   <svg viewBox="0 0 170 100" className="h-8 w-auto rounded-lg hover:scale-105 transition-transform cursor-pointer shadow-xs">
     <rect width="170" height="100" rx="10" fill="#2C3E50" />
@@ -304,6 +320,7 @@ export default function LandingLayout({ children }) {
               <div className="flex items-center gap-2.5 flex-wrap">
                 <PaymeLogo />
                 <ClickLogo />
+                <UzumLogo />
                 <HumoLogo />
                 <UzcardLogo />
                 <VisaLogo />

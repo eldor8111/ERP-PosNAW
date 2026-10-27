@@ -18,7 +18,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -26,9 +26,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.dependencies import get_current_user_allow_expired
 from app.database import get_db
 from app.models.company import Company
 from app.models.billing import BalanceLog
+from app.models.user import User
 from app.models.uzum_transaction import UzumTransaction
 
 logger = logging.getLogger(__name__)
@@ -628,7 +630,63 @@ async def status_check(request: Request, payload: Optional[StatusRequest] = None
     )
 
 
-# ─── 6. Uzum Bank Maxsus Alohida Swagger UI & ReDoc ──────────────────────────
+# ─── 6. Uzum Bank Checkout URL (Frontend uchun Deeplink) ─────────────────────
+class UzumCheckoutRequest(BaseModel):
+    amount: float = Field(..., example=50000, description="To'lov summasi so'mda")
+    order_id: Optional[str] = Field(None, example="123123", description="Korxona org_code (agar ko'rsatilmasa joriy user korxonasi)")
+
+
+@router.post(
+    "/checkout-url",
+    summary="6. Uzum Bank to'lov havolasini yaratish (/checkout-url)",
+    description="Frontend uchun Uzum Bank to'lov havolasi (Deeplink)ni shakllantiradi."
+)
+def create_uzum_checkout_url(
+    data: UzumCheckoutRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user_allow_expired),
+):
+    if data.order_id:
+        target_code = data.order_id.strip()
+        company = db.query(Company).filter(
+            Company.org_code == target_code,
+            Company.is_active == True,
+        ).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Kompaniya topilmadi")
+    else:
+        if not user.company_id:
+            raise HTTPException(status_code=400, detail="Korxonaga biriktirilmagan foydalanuvchi")
+        company = db.query(Company).filter(
+            Company.id == user.company_id,
+            Company.is_active == True,
+        ).first()
+        if not company:
+            raise HTTPException(status_code=404, detail="Korxona topilmadi")
+
+    if not company.org_code:
+        raise HTTPException(status_code=400, detail="Korxonada org_code belgilanmagan")
+
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Summa musbat bo'lishi kerak")
+
+    amount_tiyin = int(data.amount * 100)
+    service_id = settings.UZUM_SERVICE_ID or "498659320"
+    checkout_url = f"https://uzumbank.uz/open-service?serviceId={service_id}&order_id={company.org_code}&amount={amount_tiyin}"
+
+    logger.info("[Uzum] checkout-url: org=%s amount=%.0f som tiyin=%d", company.org_code, data.amount, amount_tiyin)
+
+    return {
+        "checkout_url": checkout_url,
+        "amount": data.amount,
+        "amount_tiyin": amount_tiyin,
+        "order_id": company.org_code,
+        "service_id": service_id,
+        "company_name": company.name,
+    }
+
+
+# ─── 7. Uzum Bank Maxsus Alohida Swagger UI & ReDoc ──────────────────────────
 @router.get("/openapi.json", include_in_schema=False)
 async def uzum_custom_openapi(request: Request):
     """Faqat Uzum Bank endpointlari uchun alohida toza OpenAPI JSON."""
