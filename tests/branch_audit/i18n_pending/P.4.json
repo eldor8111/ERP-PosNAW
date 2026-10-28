@@ -44,7 +44,9 @@
     "pharmacyImport.f.sku": "SKU",
     "pharmacyImport.f.code": "Kod",
     "pharmacyImport.f.status": "Holat",
-    "pharmacyImport.f.mfg": "Ishlab chiqarilgan sana (ixtiyoriy)"
+    "pharmacyImport.f.mfg": "Ishlab chiqarilgan sana (ixtiyoriy)",
+    "pharmacyImport.hint5": "Bir nechta partiya: har biri alohida qatorda, nomi bir xil (seriya, muddat, quti soni o'ziniki). Bir nechta shtrix-kod: bitta katakda vergul bilan.",
+    "pharmacyImport.lotRow": "Yuqoridagi dorining partiyasi"
   },
   "ru": {
     "pharmacyImport.button": "Импорт лекарств",
@@ -91,7 +93,9 @@
     "pharmacyImport.f.sku": "SKU",
     "pharmacyImport.f.code": "Код",
     "pharmacyImport.f.status": "Статус",
-    "pharmacyImport.f.mfg": "Дата производства (необязательно)"
+    "pharmacyImport.f.mfg": "Дата производства (необязательно)",
+    "pharmacyImport.hint5": "Несколько партий: каждая отдельной строкой с тем же наименованием (своя серия, срок, количество упаковок). Несколько штрих-кодов: в одной ячейке через запятую.",
+    "pharmacyImport.lotRow": "Партия препарата выше"
   },
   "en": {
     "pharmacyImport.button": "Import medicines",
@@ -138,6 +142,8 @@
     "pharmacyImport.f.sku": "SKU",
     "pharmacyImport.f.code": "Code",
     "pharmacyImport.f.status": "Status",
-    "pharmacyImport.f.mfg": "Manufacture date (optional)"
+    "pharmacyImport.f.mfg": "Manufacture date (optional)",
+    "pharmacyImport.hint5": "Several lots: each on its own row with the same name (own lot, expiry, box count). Several barcodes: in one cell, comma separated.",
+    "pharmacyImport.lotRow": "Lot of the drug above"
   }
 }

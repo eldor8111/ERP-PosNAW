@@ -380,7 +380,7 @@ def _export_row(p):
     simple = len(us) == 1 or (len(us) == 2 and (us[1][0] / us[0][0]).is_integer())
     mx = p.get('mxik_code') or ''
     nb = p.get('nearest_batch') or {}
-    tail = [nb.get('lot_number') or '', nb.get('expiry_date') or '', nb.get('manufacture_date') or '']
+    tail = [nb.get('lot_number') or '', nb.get('expiry_date') or '', nb.get('manufacture_date') or '', '']   # P.9: Ombor
     if not simple:
         return [mx, float(p.get('sale_price') or 0), '', '', round(qty, 3)] + tail
     big = us[-1]
@@ -398,15 +398,16 @@ def test_export_columns_roundtrip_with_import(client, db, pharm):
     items = cl.get('/api/products/paginated', params={'limit': 100}).json()['items']
     by = {it['name']: it for it in items}
     para, sirop = by['Paratsetamol 500 mg'], by['Ambroksol sirop 100 ml']
-    assert _export_row(para) == ['', 100000.0, 5.0, 10.0, 3.0, 'LOT2026A', FUTURE, '2025-12-01']   # 150 dona = 3 quti
-    assert _export_row(sirop) == ['', 25000.0, '', '', 10.0, sirop['nearest_batch']['lot_number'], FUTURE, '']
+    assert _export_row(para) == ['', 100000.0, 5.0, 10.0, 3.0, 'LOT2026A', FUTURE, '2025-12-01', '']   # 150 dona = 3 quti
+    assert _export_row(sirop) == ['', 25000.0, '', '', 10.0, sirop['nearest_batch']['lot_number'], FUTURE, '', '']
     assert para['pharma']['dosage_form'] == 'tablet'
     # JS funksiya va sarlavhalar import shablonidagidek
     js = _read(PHARM_IMPORT_JS)
     blk = js[js.index('export const PHARMA_EXPORT_HEADERS = ['):js.index('];', js.index('export const PHARMA_EXPORT_HEADERS'))]
     ex_headers = re.findall(r"'([^']*)'", blk)
     assert ex_headers == ['MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni',
-                          'Quti soni (qoldiq)', 'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana']
+                          'Quti soni (qoldiq)', 'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana',
+                          'Ombor']
     idx = _alias_index()
     assert all(idx.get(_norm(h)) for h in ex_headers)                      # qayta import qilinganda tanilad
     assert "return us.length === 2" in js and 'r3(qty / big.ratio)' in js
@@ -415,8 +416,8 @@ def test_export_columns_roundtrip_with_import(client, db, pharm):
 def test_export_columns_only_in_pharmacy_mode():
     s = _read(PRODUCTS_JSX)
     blk = s[s.index('// P.6/P.8: dorixonada oxiriga MXIK, qadoq, seriya va sanalar'):s.index("ws['!ref'] = `A1:${lastCol}")]
-    assert 'if (pharmacyOn) {' in blk and 'pharmaExportRow(p, formLabel)' in blk
-    assert "let lastCol = 'U';" in blk and "lastCol = 'AD';" in blk
+    assert 'if (pharmacyOn) {' in blk and 'pharmaExportRow(p, formLabel, b, lotOnly)' in blk
+    assert "let lastCol = 'U';" in blk and "lastCol = 'AE';" in blk
     assert "...(pharmacyOn ? [{ wch: 20 }" in s
 
 

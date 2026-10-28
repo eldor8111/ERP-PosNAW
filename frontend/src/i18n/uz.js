@@ -5731,6 +5731,8 @@ export default {
   "pharmacyImport.wPrice": "narx yo'q",
   "pharmacyImport.wLot": "yaroqlilik muddati kerak",
   "pharmacyImport.wMxik": "MXIK yo'q (katalogdan qidiriladi)",
+  "pharmacyImport.hint5": "Bir nechta partiya: har biri alohida qatorda, nomi bir xil (seriya, muddat, quti soni o'ziniki). Bir nechta shtrix-kod: bitta katakda vergul bilan.",
+  "pharmacyImport.lotRow": "Yuqoridagi dorining partiyasi",
   "pharmacyImport.f.name": "Dori nomi",
   "pharmacyImport.f.barcode": "Shtrix-kod",
   "pharmacyImport.f.mxik": "MXIK kodi",

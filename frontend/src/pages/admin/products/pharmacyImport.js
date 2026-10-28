@@ -100,7 +100,10 @@ export const normHeader = (h) => String(h ?? '').toLowerCase()
 // Excel sarlavhasi (o'zbekcha / ruscha / shablon) -> kalit
 const ALIASES = {
   'Nomi': ['dori nomi', 'nomi', 'nomlanishi', 'mahsulot nomi', 'наименование', 'название', 'препарат', 'товар', 'name'],
-  'Barkod': ['shtrix-kod', 'shtrix kod', 'shtrixkod', 'barkod', 'barcode', 'штрихкод', 'штрих-код', 'штрих код', 'ean'],
+  'Barkod': ['shtrix-kod', 'shtrix kod', 'shtrixkod', 'barkod', 'barcode', 'штрихкод', 'штрих-код', 'штрих код', 'ean',
+    // P.12: eksportdagi "barcha shtrix-kodlar" ustuni (bir nechta kod vergul bilan)
+    'barcha barkodlar', 'barkodlar', 'shtrix-kodlar', 'shtrix kodlar', 'все штрих-коды', 'штрих-коды', 'штрихкоды',
+    'all barcodes', 'barcodes'],
   'MXIK': ['mxik', 'mxik kodi', 'ikpu', 'икпу', 'код икпу', 'мхик'],
   'Modda': ["ta'sir etuvchi modda", "ta'sir etuvchi modda (vergul bilan)", 'modda', 'mnn', 'мнн', 'действующее вещество'],
   'Shakl': ['dori shakli', 'shakl', 'shakli', 'форма', 'лекарственная форма', 'форма выпуска'],
@@ -158,8 +161,66 @@ export const pharmaMapHeader = (header, fields) => {
 
 const filled = (v) => String(v ?? '').trim() !== '';
 
-// Qator hisobi (ko'rinish uchun; asl hisob serverda): { line, warnings }
-export const pharmaImportPreview = (m, round, fmtNum) => {
+// ── P.12: bitta dori bir necha qatorda — har qator alohida partiya (seriya, muddat, ishlab chiqarilgan sana, qoldiq) ──
+// Kalit server (`_group_key`) bilan bir xil: nomi; nomsiz bo'lsa birinchi shtrix-kodi.
+export const pharmaRowKey = (r) => {
+  const name = String(r['Nomi'] ?? '').trim();
+  if (name) return `n:${name}`;
+  const code = String(r['Barkod'] ?? '').split(/[,;\r\n]+/).map(s => s.trim()).find(Boolean);
+  return code ? `b:${code}` : null;
+};
+
+// Import bo'laklari: bir xil dori qatorlari birga (birinchi uchragan tartibda), bo'lak guruh chegarasida kesiladi —
+// bitta dorining partiyalari ikki so'rovga bo'linmaydi (server ularni bitta mahsulotga birlashtiradi)
+export const pharmaChunks = (rows, size) => {
+  const groups = new Map();
+  const order = [];
+  rows.forEach((r) => {
+    const k = pharmaRowKey(r);
+    if (k != null && groups.has(k)) { groups.get(k).push(r); return; }
+    const g = [r];
+    order.push(g);
+    if (k != null) groups.set(k, g);
+  });
+  const chunks = [];
+  let cur = [];
+  order.forEach((g) => {
+    if (cur.length && cur.length + g.length > size) { chunks.push(cur); cur = []; }
+    cur = cur.concat(g);
+  });
+  if (cur.length) chunks.push(cur);
+  return chunks;
+};
+
+// Import ko'rinishida: yuqoridagi dorining partiya qatorlari (importRows indekslari)
+export const pharmaLotRows = (rows, colMap, skipRows) => {
+  const col = (key) => Object.keys(colMap).find(c => colMap[c] === key);
+  const nameCol = col('Nomi');
+  const codeCol = col('Barkod');
+  const seen = new Set();
+  const out = new Set();
+  rows.forEach((row, i) => {
+    if (i < skipRows - 1) return;
+    const k = pharmaRowKey({ Nomi: nameCol ? row[nameCol] : '', Barkod: codeCol ? row[codeCol] : '' });
+    if (k == null) return;
+    if (seen.has(k)) out.add(i);
+    else seen.add(k);
+  });
+  return out;
+};
+
+// Qator hisobi (ko'rinish uchun; asl hisob serverda): { line, warnings }. lotRow — yuqoridagi dorining partiyasi
+// (narx, qadoq va MXIK birinchi qatordan olinadi, shu sababli faqat partiya ma'lumoti ko'rsatiladi)
+export const pharmaImportPreview = (m, round, fmtNum, lotRow = false) => {
+  if (lotRow) {
+    const box = filled(m['Qoldiq (katta qadoq)']) ? Number(cleanPharmaNum(m['Qoldiq (katta qadoq)'])) : 0;
+    const pcs = filled(m['Qoldiq']) ? Number(cleanPharmaNum(m['Qoldiq'])) : 0;
+    const parts = [m['Seriya'], m['Yaroqlilik muddati']].map(v => String(v ?? '').trim()).filter(Boolean);
+    if (pcs > 0) parts.push(`qoldiq ${fmtNum(pcs)} dona`);
+    else if (box > 0) parts.push(`qoldiq ${fmtNum(box)} ${String(m['Katta qadoq nomi'] ?? '').trim() || 'quti'}`);
+    const warnings = (pcs > 0 || box > 0) && !filled(m['Yaroqlilik muddati']) ? ['lot'] : [];
+    return { line: parts.join(' · '), warnings, lotRow: true };
+  }
   const mid = filled(m["Katta qadoqdagi o'rta qadoq soni"]) ? cleanPharmaNum(m["Katta qadoqdagi o'rta qadoq soni"]) : '';
   const pcs = filled(m["O'rta qadoqdagi dona soni"]) ? cleanPharmaNum(m["O'rta qadoqdagi dona soni"]) : '';
   const both = mid !== '' && pcs !== '';
@@ -227,6 +288,8 @@ const GUIDE = [
   ['Yaroqlilik muddati', 'qoldiq bo\'lsa', 'YYYY-MM-DD yoki DD.MM.YYYY yoki MM.YYYY'],
   ['Ishlab chiqarilgan sana', "yo'q", 'Ixtiyoriy; yaroqlilik muddatidan oldin bo\'lishi kerak'],
   ['Kategoriya', "yo'q", "Yo'q bo'lsa yangisi ochiladi"],
+  ['Bir nechta partiya', "yo'q", "Har partiya alohida qatorda: nomi bir xil, seriya, muddat, ishlab chiqarilgan sana va quti soni o'ziniki. Narx va qadoq birinchi qatordan olinadi"],
+  ['Bir nechta shtrix-kod', "yo'q", 'Bitta katakda vergul bilan: 4780012345678, 4780012345685. Birinchisi asosiy'],
 ];
 
 export const downloadPharmacyTemplate = (XLSX, saveAs) => {
@@ -245,24 +308,34 @@ export const downloadPharmacyTemplate = (XLSX, saveAs) => {
 export const PHARMA_EXPORT_HEADERS = [
   'MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni', 'Quti soni (qoldiq)',
   'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana',   // P.8: eng yaqin muddatli partiya
+  'Ombor',   // P.12: partiya ombori (faqat 2+ partiyali dori qatorlarida)
 ];
+
+// P.12: eksport qatorlari — 2+ partiyali dori: har partiya alohida qator (ro'yxat `with_batches` bilan olinadi),
+// aks holda bitta qator (umumiy qoldiq va eng yaqin muddatli partiya, avvalgidek)
+export const pharmaExportLines = (p) => (Array.isArray(p.batches) && p.batches.length > 1
+  ? p.batches.map((b, k) => ({ b, lotOnly: k > 0 }))
+  : [{ b: null, lotOnly: false }]);
 
 // Mahsulot (ro'yxat javobi: units, stock_quantity, pharma, nearest_batch) -> PHARMA_EXPORT_HEADERS tartibidagi qiymatlar.
 // Qadoqsiz (yoki murakkab tuzilmali) dori: narx va qoldiq 1 dona bo'yicha, sonlar bo'sh — importdagi qoida bilan bir xil.
-export const pharmaExportRow = (p, formLabel) => {
-  const qty = Number(p.stock_quantity || 0);
+// b — partiya (qoldig'i shu partiyaniki, ombori bilan); lotOnly — dorining keyingi partiya qatori: MXIK, narx, qadoq
+// sonlari va shakl bo'sh (importda birinchi qatordan olinadi)
+export const pharmaExportRow = (p, formLabel, b = null, lotOnly = false) => {
+  const qty = b ? Number(b.quantity || 0) : Number(p.stock_quantity || 0);
   const r3 = (x) => Math.round(x * 1000) / 1000;
-  const form = p.pharma?.dosage_form ? formLabel(p.pharma.dosage_form) : '';
-  const nb = p.nearest_batch || {};
-  const tail = [nb.lot_number || '', nb.expiry_date || '', form, nb.manufacture_date || ''];
+  const form = p.pharma?.dosage_form && !lotOnly ? formLabel(p.pharma.dosage_form) : '';
+  const nb = b || p.nearest_batch || {};
+  const tail = [nb.lot_number || '', nb.expiry_date || '', form, nb.manufacture_date || '', b ? (b.warehouse || '') : ''];
   const us = (Array.isArray(p.units) ? p.units : [])
     .map(u => ({ ratio: Number(u.ratio), price: u.sale_price != null ? u.sale_price : u.price }))
     .filter(u => u.ratio > 1).sort((a, b) => a.ratio - b.ratio);
   const simple = us.length === 1 || (us.length === 2 && Number.isInteger(us[1].ratio / us[0].ratio));
-  if (!simple) return [p.mxik_code || '', Number(p.sale_price || 0), '', '', r3(qty), ...tail];
+  const head = (row) => (lotOnly ? ['', '', '', '', row[4]] : row);
+  if (!simple) return [...head([p.mxik_code || '', Number(p.sale_price || 0), '', '', r3(qty)]), ...tail];
   const big = us[us.length - 1];
   const boxPrice = big.price != null ? Number(big.price) : Number(p.sale_price || 0) * big.ratio;
   return us.length === 2
-    ? [p.mxik_code || '', boxPrice, big.ratio / us[0].ratio, us[0].ratio, r3(qty / big.ratio), ...tail]
-    : [p.mxik_code || '', boxPrice, '', big.ratio, r3(qty / big.ratio), ...tail];
+    ? [...head([p.mxik_code || '', boxPrice, big.ratio / us[0].ratio, us[0].ratio, r3(qty / big.ratio)]), ...tail]
+    : [...head([p.mxik_code || '', boxPrice, '', big.ratio, r3(qty / big.ratio)]), ...tail];
 };

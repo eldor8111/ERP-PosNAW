@@ -5738,6 +5738,8 @@ export default {
   "pharmacyImport.wPrice": "no price",
   "pharmacyImport.wLot": "expiry date required",
   "pharmacyImport.wMxik": "no MXIK (will be looked up in catalog)",
+  "pharmacyImport.hint5": "Several lots: each on its own row with the same name (own lot, expiry, box count). Several barcodes: in one cell, comma separated.",
+  "pharmacyImport.lotRow": "Lot of the drug above",
   "pharmacyImport.f.name": "Medicine name",
   "pharmacyImport.f.barcode": "Barcode",
   "pharmacyImport.f.mxik": "MXIK code",

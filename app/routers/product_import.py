@@ -2,7 +2,9 @@
 Mahsulotlarni Excel/JSON dan ommaviy yuklash endpointi.
 bulk_import_products products.py dan ajratilgan.
 """
+import json
 import random
+import re
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -379,6 +381,15 @@ def _per_unit(total: Decimal, ratio) -> Decimal:
     return (Decimal(total) / Decimal(int(ratio or 1))).quantize(Decimal("0.0001"))
 
 
+def _box_to_units(box: Decimal, ratio) -> Decimal:
+    """Quti soni -> dona. Eksport quti sonini 3 xonagacha yaxlitlaydi (23 dona / 30 = 0.767): yaxlitlash xatosi
+    ichidagi qiymat butun donaga qaytariladi (0.767 * 30 = 23.01 -> 23), aks holda qayta importda 0.01 dona kirim bo'lardi."""
+    r = Decimal(int(ratio or 1))
+    units = Decimal(box) * r
+    whole = units.to_integral_value()
+    return whole if abs(units - whole) <= Decimal("0.0005") * r else units
+
+
 def _existing_units(db: Session, company_id, product_id: int) -> list:
     """P.4: mahsulotning mavjud qadoq birliklari (ratio o'sish tartibida) `_clean_units` ko'rinishida."""
     from app.models.product_units import ProductUnit
@@ -406,8 +417,8 @@ def _catalog_mxik_map(db: Session, rows: List[dict]) -> dict:
     """P.4: MXIK ustuni bo'sh qatorlar uchun shtrix-kod -> MXIK (mahalliy tovarlar katalogi, bitta so'rov to'plami).
     Katalog ishlamasa import to'xtamaydi (savepoint)."""
     from app.models.tovarlar_catalog import TovarlarCatalog
-    codes = sorted({str(r.get("Barkod") or "").strip() for r in rows
-                    if str(r.get("Barkod") or "").strip() and not _cell(r, "MXIK")})
+    codes = sorted({_split_barcodes(r.get("Barkod"))[0] for r in rows
+                    if _split_barcodes(r.get("Barkod")) and not _cell(r, "MXIK")})
     out: dict = {}
     if not codes:
         return out
@@ -438,6 +449,239 @@ def _stamp_initial_batch(db: Session, product_id: int, warehouse_id, lot, manufa
         if manufacture is not None:
             batch.manufacture_date = (datetime.combine(manufacture, datetime.min.time())
                                       if not isinstance(manufacture, datetime) else manufacture)
+
+
+# ── P.12: bir nechta shtrix-kod va partiya (seriya, yaroqlilik muddati, ishlab chiqarilgan sana) ──────────────
+# Eksport: mahsulotning barcha shtrix-kodlari bitta katakda vergul bilan; dorixonada 2+ partiyali dori — har partiya
+# alohida qator (qoldig'i, seriyasi, sanalari va ombori bilan). Import shu ko'rinishni qayta o'qiydi.
+LOT_ROW_KEYS = ("Seriya", "Yaroqlilik muddati", "Ishlab chiqarilgan sana", "Qoldiq (katta qadoq)", "Qoldiq", "Ombor")
+
+
+def _split_barcodes(raw) -> list:
+    """Katakdagi shtrix-kodlar: "A, B; C" -> ["A", "B", "C"] (takrorsiz, tartib saqlanadi, har biri 50 belgigacha)."""
+    out: list = []
+    for part in re.split(r"[,;\r\n]+", "" if raw is None else str(raw)):
+        code = part.replace("\xa0", " ").strip()[:50]
+        if code and code not in out:
+            out.append(code)
+    return out
+
+
+def _extra_barcodes(product) -> list:
+    """Product.extra_barcodes (JSON matn) -> ro'yxat; bo'sh yoki buzilgan qiymat -> []."""
+    raw = getattr(product, "extra_barcodes", None)
+    if not raw:
+        return []
+    try:
+        val = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return []
+    return [str(x).strip() for x in val if str(x).strip()] if isinstance(val, list) else []
+
+
+def _merge_barcodes(product, codes: list, owner_of, warnings: list, row_num, label) -> None:
+    """Yangilashda fayldagi shtrix-kodlar: asosiy kod ular orasida bo'lsa o'zgarmaydi, aks holda birinchi kod asosiy
+    bo'ladi (avvalgidek); qolganlari qo'shimcha kodlarga QO'SHILADI (borlari o'chirilmaydi). Boshqa mahsulotniki
+    bo'lgan kod qo'shilmaydi — ogohlantirish."""
+    free = [c for c in codes if owner_of(c) in (None, product)]
+    taken = [c for c in codes if c not in free]
+    if taken:
+        warnings.append({"row": row_num, "name": label,
+                         "warning": f"Shtrix-kod boshqa mahsulotda bor, qo'shilmadi: {', '.join(taken)}"})
+    if not free:
+        return
+    extras = _extra_barcodes(product)
+    main = (product.barcode or "").strip()
+    if main not in free:
+        main = free[0]
+        product.barcode = main
+    for c in free:
+        if c != main and c not in extras:
+            extras.append(c)
+    extras = [c for c in extras if c != main]
+    product.extra_barcodes = json.dumps(extras) if extras else None
+
+
+def _group_key(row: dict):
+    """Bitta mahsulot qatorlari kaliti: nomi; nomsiz bo'lsa birinchi shtrix-kodi (frontend `pharmaRowKey` bilan bir xil)."""
+    name = str(row.get("Nomi") or "").strip()
+    if name:
+        return ("n", name)
+    codes = _split_barcodes(row.get("Barkod"))
+    return ("b", codes[0]) if codes else None
+
+
+def _group_lot_rows(rows: List[dict]) -> List[dict]:
+    """Dorixona: bir xil dori bir necha qatorda — har qator alohida partiya. Guruh bitta qatorga birlashadi: mahsulot
+    ustunlari — birinchi to'ldirilgan qiymat, shtrix-kodlar — barchasi, partiya ustunlari (seriya, muddat, ishlab
+    chiqarilgan sana, qoldiq, ombor) — `__lots`. Bitta qatorli dori avvalgidek (o'zgarishsiz) qoladi."""
+    groups: dict = {}
+    order: list = []
+    for row in rows:
+        key = _group_key(row)
+        if key is not None and key in groups:
+            groups[key].append(row)
+            continue
+        grp = [row]
+        order.append(grp)
+        if key is not None:
+            groups[key] = grp
+    out: list = []
+    for grp in order:
+        if len(grp) == 1:
+            out.append(grp[0])
+            continue
+        merged = {k: v for k, v in grp[0].items() if k not in LOT_ROW_KEYS or k == "Ombor"}
+        for r in grp[1:]:
+            for k, v in r.items():
+                if k in LOT_ROW_KEYS or k == "__row_index":
+                    continue
+                if not _cell(merged, k) and str(v if v is not None else "").strip():
+                    merged[k] = v
+        codes: list = []
+        for r in grp:
+            codes += [c for c in _split_barcodes(r.get("Barkod")) if c not in codes]
+        if codes:
+            merged["Barkod"] = ", ".join(codes)
+        merged["__lots"] = [{**{k: r.get(k) for k in LOT_ROW_KEYS}, "__row_index": r.get("__row_index")} for r in grp]
+        out.append(merged)
+    return out
+
+
+def _parse_lot_rows(lots: list):
+    """`__lots` -> ([{lot, expiry, mfg, box, units, wh_raw, row}], xato_matni). Xato matnida Excel qator raqami."""
+    out: list = []
+    for raw in lots:
+        where = f"{raw.get('__row_index')}-qator"
+        lot = _cell(raw, "Seriya")
+        if len(lot) > 100:
+            return None, f"{where}: Seriya 100 belgidan oshmasligi kerak"
+        try:
+            expiry = _parse_date_cell(raw.get("Yaroqlilik muddati")) if _cell(raw, "Yaroqlilik muddati") else None
+            box = _num_cell(raw, "Qoldiq (katta qadoq)")
+            units = _num_cell(raw, "Qoldiq")
+        except ValueError as e:
+            return None, f"{where}: {e}"
+        mfg = None
+        if _cell(raw, "Ishlab chiqarilgan sana"):
+            try:
+                mfg = _parse_date_cell(raw.get("Ishlab chiqarilgan sana"))
+            except ValueError:
+                return None, f"{where}: Ishlab chiqarilgan sana noto'g'ri: {_cell(raw, 'Ishlab chiqarilgan sana')}"
+            if expiry is not None and mfg >= expiry:
+                return None, f"{where}: Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"
+        if (box is not None and box < 0) or (units is not None and units < 0):
+            return None, f"{where}: Qoldiq manfiy bo'lishi mumkin emas"
+        out.append({"lot": lot or None, "expiry": expiry, "mfg": mfg, "box": box, "units": units,
+                    "wh_raw": _cell(raw, "Ombor"), "row": raw.get("__row_index")})
+    return out, None
+
+
+def _lot_qty(lot: dict, top):
+    """Partiya qoldig'i asosiy birlikda: "Qoldiq" (dona) berilsa — u, aks holda quti soni * qutidagi dona soni."""
+    if lot["units"] is not None:
+        return lot["units"]
+    if lot["box"] is not None:
+        return _box_to_units(lot["box"], top)
+    return None
+
+
+def _apply_lots_existing(db: Session, product: Product, lots: list, top, user: User, company_id,
+                         warnings: list, label) -> None:
+    """P.12: mavjud dorining partiyalari fayldagi qatorlar bo'yicha (har qator — bitta partiya, qator savepoint'i ichida):
+    - kalit: ombor + yaroqlilik muddati + seriya (seriya bo'sh bo'lsa — shu muddatli qolgan partiyalar);
+    - fayldagi qoldiq ko'p bo'lsa farq: avval shu ombordagi muddatsiz (avval sanasiz kiritilgan) qoldiqqa sana yoziladi
+      (P.8 kabi, qoldiq o'zgarmaydi), qolgani mavjud faol partiyaga yoki yangi partiya bo'lib kirim qilinadi;
+    - kam bo'lsa kamaytirilmaydi (inventarizatsiya) — ogohlantirish; faylda yo'q partiyalarga tegilmaydi."""
+    from app.models.batch import Batch
+    from app.services.batch_allocator import tashkent_today
+    today = tashkent_today()
+    want: dict = {}
+    for lt in lots:
+        qty = _lot_qty(lt, top)
+        if qty is None or qty <= 0:
+            continue
+        where = f"{lt['row']}-qator"
+        if lt["wh_err"] or lt["wh_id"] is None:
+            warnings.append({"row": lt["row"], "name": label,
+                             "warning": f"{where}: qoldiq qo'shilmadi — {lt['wh_err'] or 'ombor aniqlanmadi'}"})
+            continue
+        if lt["expiry"] is None or lt["expiry"] <= today:
+            warnings.append({"row": lt["row"], "name": label,
+                             "warning": f"{where}: qoldiq qo'shilmadi — yaroqlilik muddati (bugundan keyingi sana) kerak"})
+            continue
+        w = want.setdefault((lt["wh_id"], lt["expiry"], lt["lot"]), {"qty": Decimal("0"), "mfg": None, "row": lt["row"]})
+        w["qty"] += qty
+        w["mfg"] = w["mfg"] or lt["mfg"]
+    if not want:
+        return
+    batches = db.query(Batch).filter(
+        Batch.product_id == product.id, Batch.variant_id.is_(None), Batch.quantity > 0,
+        Batch.warehouse_id.in_(list({k[0] for k in want})),
+    ).order_by(Batch.id).all()
+
+    def _day(b):
+        return b.expiry_date.date() if b.expiry_date is not None else None
+
+    claimed: set = set()
+    # avval seriyali kalitlar (aniq moslik), keyin seriyasizlar — shu muddatli qolgan partiyalar
+    for (wh_id, exp, lot), w in sorted(want.items(), key=lambda kv: (kv[0][2] is None, kv[0][1])):
+        match = [b for b in batches if b.id not in claimed and b.warehouse_id == wh_id and _day(b) == exp
+                 and (lot is None or (b.lot_number or "").strip() == lot)]
+        claimed.update(b.id for b in match)
+        need = w["qty"] - sum((Decimal(str(b.quantity or 0)) for b in match), Decimal("0"))
+        exp_dt = datetime.combine(exp, datetime.min.time())
+        mfg_dt = datetime.combine(w["mfg"], datetime.min.time()) if w["mfg"] else None
+        if need < 0:
+            warnings.append({"row": w["row"], "name": label,
+                             "warning": f"{w['row']}-qator: qoldiq kamaytirilmadi — dorixonada qoldiqni kamaytirish "
+                                        f"partiyalar bo'yicha Inventarizatsiya orqali qilinadi"})
+        for b in [x for x in batches if x.id not in claimed and x.warehouse_id == wh_id and x.expiry_date is None]:
+            if need <= 0:
+                break
+            have = Decimal(str(b.quantity or 0))
+            if have <= need:
+                b.expiry_date = exp_dt
+                if lot:
+                    b.lot_number = lot[:100]
+                if mfg_dt is not None and b.manufacture_date is None:
+                    b.manufacture_date = mfg_dt
+                claimed.add(b.id)
+                need -= have
+            else:   # muddatsiz partiya bo'linadi: kerakli qismi shu muddat bilan alohida partiya
+                b.quantity = have - need
+                db.add(Batch(
+                    product_id=product.id, variant_id=None, warehouse_id=wh_id,
+                    lot_number=(lot or b.lot_number or "manual")[:100], manufacture_date=mfg_dt, expiry_date=exp_dt,
+                    initial_quantity=need, quantity=need, purchase_price=b.purchase_price,
+                    company_id=b.company_id or company_id, status=b.status,
+                ))
+                need = Decimal("0")
+        if need > 0:
+            target = next((b for b in reversed(match) if b.status in (None, "active")), None)
+            if target is None:
+                receive_stock(
+                    db, product.id, need, user.id, reason="Excel import", reference_type="product_import",
+                    reference_id=None, warehouse_id=wh_id, purchase_price=product.cost_price,
+                    company_id=company_id, expiry_date=exp_dt,
+                )
+                db.flush()
+                _stamp_initial_batch(db, product.id, wh_id, lot, w["mfg"])
+            else:
+                stock = get_or_create_stock(db, product.id, wh_id, None)
+                before = Decimal(str(stock.quantity or 0))
+                stock.quantity = before + need
+                db.add(StockMovement(
+                    product_id=product.id, variant_id=None, warehouse_id=wh_id, type=MovementType.IN,
+                    qty_before=before, qty_after=before + need, quantity=need,
+                    reference_type="product_import", reference_id=None, user_id=user.id, reason="Excel import",
+                ))
+                target.quantity = Decimal(str(target.quantity or 0)) + need
+                target.initial_quantity = Decimal(str(target.initial_quantity or 0)) + need
+        if mfg_dt is not None:
+            for b in match:
+                if b.manufacture_date is None:
+                    b.manufacture_date = mfg_dt
 
 
 class _SubstanceResolver:
@@ -573,7 +817,7 @@ def bulk_check_products(
     qoldig'i Excel'dagi "Qoldiq" ga o'zgarishi."""
     target_wh = _resolve_target_warehouse(db, current_user, warehouse_id)   # 400/403 noto'g'ri ombor
     all_products = db.query(
-        Product.id, Product.name, Product.barcode, Product.sku, Product.product_type,
+        Product.id, Product.name, Product.barcode, Product.sku, Product.product_type, Product.extra_barcodes,
     ).filter(
         Product.is_deleted == False,
         Product.company_id == current_user.company_id,
@@ -581,7 +825,12 @@ def bulk_check_products(
 
     name_map = {p.name: p for p in all_products if p.name}
     barcode_map = {p.barcode: p for p in all_products if p.barcode}
+    extra_map = {c: p for p in all_products for c in _extra_barcodes(p)}   # P.12: qo'shimcha shtrix-kodlar
     sku_map = {p.sku: p for p in all_products if p.sku}
+
+    from app.services.pharmacy import pharmacy_context
+    if pharmacy_context(db, current_user.company_id)[0]:
+        rows = _group_lot_rows(rows)   # P.12: bitta dorining partiya qatorlari — bitta mahsulot
 
     found_count = 0
     new_count = 0
@@ -590,7 +839,8 @@ def bulk_check_products(
 
     for row in rows:
         name = str(row.get("Nomi") or "").strip()
-        barcode = str(row.get("Barkod") or "").strip()
+        codes = _split_barcodes(row.get("Barkod"))
+        barcode = codes[0] if codes else ""
         sku_val = str(row.get("SKU") or "").strip() or None
         if sku_val and sku_val.lstrip("0") == "":
             sku_val = None
@@ -601,13 +851,15 @@ def bulk_check_products(
         product = None
         if name and name in name_map:
             product = name_map[name]
-        elif barcode and barcode in barcode_map:
-            product = barcode_map[barcode]
+        elif barcode and (barcode in barcode_map or barcode in extra_map):   # P.12: qo'shimcha kod ham
+            product = barcode_map.get(barcode) or extra_map[barcode]
         elif search_by_sku and sku_val and sku_val in sku_map:
             product = sku_map[sku_val]
 
         if product is not None:
             found_count += 1
+            if row.get("__lots"):
+                continue   # partiyalar bo'yicha — umumiy qoldiq bilan solishtirilmaydi
             raw_stock = row.get("Qoldiq")
             if raw_stock is None or str(raw_stock).strip() == "":
                 continue
@@ -655,8 +907,15 @@ def bulk_import_products(
     Har bir satr alohida savepoint bilan saqlanadi — bitta xato
     butun importni to'xtatmaydi.
     """
+    from app.services.pharmacy import pharmacy_context
     from app.services.tariff_guard import check_product_limit
-    check_product_limit(db, current_user.company_id, count_to_add=len(rows))
+    # D2.2: dorixona rejimi faqat bir marta tekshiriladi; o'chiq korxonada dori ustunlari e'tiborsiz (avvalgidek)
+    pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
+    if pharmacy_on:
+        rows = _group_lot_rows(rows)   # P.12: bitta dorining partiya qatorlari — bitta mahsulot
+    # shtrix-kodlar limiti: har bir kod hisoblanadi (P.12: bitta katakda bir nechta kod bo'lishi mumkin)
+    check_product_limit(db, current_user.company_id,
+                        count_to_add=sum(max(1, len(_split_barcodes(r.get("Barkod")))) for r in rows))
 
     created = 0
     updated = 0
@@ -671,9 +930,6 @@ def bulk_import_products(
     first_wh_name = chosen_wh.name if chosen_wh else None
     wh_resolver = _RowWarehouseResolver(db, current_user, chosen_wh)
 
-    # D2.2: dorixona rejimi faqat bir marta tekshiriladi; o'chiq korxonada dori ustunlari e'tiborsiz (avvalgidek)
-    from app.services.pharmacy import pharmacy_context
-    pharmacy_on, _ph_settings = pharmacy_context(db, current_user.company_id)
     substance_resolver = _SubstanceResolver(db, current_user.company_id) if pharmacy_on else None
     catalog_mxik = _catalog_mxik_map(db, rows) if pharmacy_on else {}   # P.4
 
@@ -695,6 +951,10 @@ def bulk_import_products(
     name_map    = {p.name.strip():    p for p in all_products if p.name}
     barcode_map = {p.barcode.strip(): p for p in all_products if p.barcode}
     sku_map     = {p.sku.strip():     p for p in all_products if p.sku}
+    extra_map   = {c: p for p in all_products for c in _extra_barcodes(p)}   # P.12: qo'shimcha shtrix-kodlar
+
+    def owner_of(code):
+        return barcode_map.get(code) or extra_map.get(code)
 
     # Barcode uchun to'liq set (is_deleted=True bo'lganlar ham partial index ta'sir qilmaydi,
     # lekin xavfsizlik uchun faqat aktiv barcodes yetarli — partial index shunga qaratilgan)
@@ -707,7 +967,8 @@ def bulk_import_products(
     for idx, row in enumerate(rows):
         row_num = row.get("__row_index", idx + 2)
         name             = str(row.get("Nomi") or "").strip()
-        barcode          = str(row.get("Barkod") or "").strip()
+        codes            = _split_barcodes(row.get("Barkod"))   # P.12: "A, B" — asosiy va qo'shimcha kodlar
+        barcode          = codes[0] if codes else ""
         product_code_val = str(row.get("Kod") or "").strip() or None
         sku_val          = str(row.get("SKU") or "").strip() or None
         if sku_val and sku_val.lstrip("0") == "":
@@ -746,12 +1007,22 @@ def bulk_import_products(
                 errors.append({"row": row_num, "name": name or barcode, "error": pack_err})
                 continue
 
+        # P.12: bir necha qatorli dori — har qator alohida partiya (ombori qator bo'yicha, bo'sh bo'lsa umumiy)
+        lots = None
+        if pharmacy_on and row.get("__lots"):
+            lots, lot_err = _parse_lot_rows(row["__lots"])
+            if lot_err:
+                errors.append({"row": row_num, "name": name or barcode, "error": lot_err})
+                continue
+            for lt in lots:
+                lt["wh_id"], lt["wh_err"] = wh_resolver.resolve(lt["wh_raw"]) if lt["wh_raw"] else (row_wh_id, None)
+
         # ── Mavjud mahsulotni topish ───────────────────────────────────
         existing = None
         if name and name in name_map:
             existing = name_map[name]
-        if not existing and barcode and barcode in barcode_map:
-            existing = barcode_map[barcode]
+        if not existing and barcode:
+            existing = owner_of(barcode)   # P.12: birinchi kod — asosiy yoki qo'shimcha shtrix-kod bo'yicha
         if not existing and search_by_sku and sku_val and sku_val in sku_map:
             existing = sku_map[sku_val]
 
@@ -767,8 +1038,8 @@ def bulk_import_products(
 
             stock_val = None
             for row_key, (field, cast) in FIELD_MAP.items():
-                if field == "_warehouse":
-                    continue   # yuqorida aniqlangan (row_wh_id)
+                if field in ("_warehouse", "barcode"):
+                    continue   # ombor yuqorida aniqlangan (row_wh_id); shtrix-kodlar — pastda (_merge_barcodes)
                 raw = row.get(row_key)
                 if raw is None or str(raw).strip() == "":
                     continue
@@ -808,6 +1079,8 @@ def bulk_import_products(
                 except Exception:
                     errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati noto'g'ri: {raw}"})
                     continue
+            if codes:
+                _merge_barcodes(existing, codes, owner_of, warnings, row_num, name or barcode)
 
             if pharmacy_on:
                 # P.4: qadoq ustunlari bo'sh, faqat narx berilgan — mavjud tuzilma bo'yicha qayta hisob
@@ -822,7 +1095,7 @@ def bulk_import_products(
                 if extra["box_cost"] is not None and not _cell(row, "Tan narxi"):
                     existing.cost_price = _per_unit(extra["box_cost"], top)
                 if extra["box_stock"] is not None and not _cell(row, "Qoldiq"):
-                    stock_val = extra["box_stock"] * top
+                    stock_val = _box_to_units(extra["box_stock"], top)
                 if extra["mxik"]:
                     existing.mxik_code = extra["mxik"]
 
@@ -902,6 +1175,17 @@ def bulk_import_products(
                                 user_id=current_user.id,
                                 reason="Excel import",
                             ))
+                if lots is not None:   # P.12: partiyalar bo'yicha (umumiy qoldiq ustunlari guruhda bo'lmaydi)
+                    if existing.product_type in ("sell", "service") or db.query(ProductVariant.id).filter(
+                            ProductVariant.product_id == existing.id).first() is not None:
+                        warnings.append({
+                            "row": row_num, "name": name or barcode,
+                            "warning": "Qoldiq o'zgartirilmadi: variantli yoki tarkibiy/xizmat mahsulot — "
+                                       "qoldiqni Inventarizatsiya orqali tuzating",
+                        })
+                    else:
+                        _apply_lots_existing(db, existing, lots, top, current_user, current_user.company_id,
+                                             warnings, name or barcode)
                 if pharmacy_on and (pharma_fields or pharma_names):
                     _apply_pharma(db, substance_resolver, current_user.company_id, existing.id,
                                   pharma_fields or {}, pharma_names)
@@ -913,6 +1197,10 @@ def bulk_import_products(
                 sp.commit()
                 if substance_resolver:
                     substance_resolver.commit_new()
+                if existing.barcode:
+                    barcode_map[existing.barcode.strip()] = existing
+                for c in _extra_barcodes(existing):
+                    extra_map[c] = existing
                 updated += 1
             except Exception as exc:
                 sp.rollback()
@@ -966,7 +1254,32 @@ def bulk_import_products(
             if extra["box_cost"] is not None and not _cell(row, "Tan narxi"):
                 cost_price = _per_unit(extra["box_cost"], top)
             if extra["box_stock"] is not None and not _cell(row, "Qoldiq"):
-                initial_stock = extra["box_stock"] * top
+                initial_stock = _box_to_units(extra["box_stock"], top)
+        new_lots = None
+        if lots is not None:
+            # P.12: har qator — alohida partiya (o'z ombori, muddati, seriyasi bilan); qoldiq — yig'indisi
+            from app.services.batch_allocator import tashkent_today
+            new_lots, lot_err = [], None
+            for lt in lots:
+                qty = _lot_qty(lt, top)
+                if qty is None or qty <= 0:
+                    continue
+                where = f"{lt['row']}-qator"
+                if lt["wh_err"]:
+                    lot_err = f"{where}: {lt['wh_err']}"
+                elif lt["wh_id"] is None:
+                    lot_err = f"{where}: Ombor aniqlanmadi — omborni tanlang, qoldiqli mahsulotni yuklab bo'lmaydi"
+                elif lt["expiry"] is None:
+                    lot_err = f"{where}: Qoldiq uchun Yaroqlilik muddati majburiy (dorixona rejimi)"
+                elif lt["expiry"] <= tashkent_today():
+                    lot_err = f"{where}: Yaroqlilik muddati bugundan keyingi sana bo'lishi kerak"
+                if lot_err:
+                    break
+                new_lots.append((lt, qty))
+            if lot_err:
+                errors.append({"row": row_num, "name": name, "error": lot_err})
+                continue
+            initial_stock = sum((q for _, q in new_lots), Decimal("0"))
         if initial_stock < 0:
             errors.append({"row": row_num, "name": name, "error": "Qoldiq manfiy bo'lishi mumkin emas"})
             continue
@@ -975,7 +1288,7 @@ def bulk_import_products(
             if not sale_price and pack["unit_price"] is not None:
                 sale_price = pack["unit_price"]
             # P.1: dorixonada qoldiq bo'lsa yaroqlilik muddati (bugundan keyin) majburiy; P.5: seriya ixtiyoriy
-            if initial_stock > 0:
+            if initial_stock > 0 and new_lots is None:
                 from app.services.batch_allocator import tashkent_today
                 if pack["expiry"] is None:
                     errors.append({"row": row_num, "name": name,
@@ -992,18 +1305,26 @@ def bulk_import_products(
                 "warning": "Qoldiq kiritilmagan — yaroqlilik muddati va ishlab chiqarilgan sana partiya bilan saqlanadi: "
                            "\"Quti soni (qoldiq)\" ni kiriting yoki keyin kirim qiling",
             })
-        if initial_stock > 0 and row_wh_id is None:
+        if initial_stock > 0 and row_wh_id is None and new_lots is None:
             errors.append({"row": row_num, "name": name, "error": "Ombor aniqlanmadi — omborni tanlang, qoldiqli mahsulotni yuklab bo'lmaydi"})
             continue
 
         # ── Barkod tekshiruvi (DB + joriy sessiya) ─────────────────────
-        if barcode and (barcode in db_barcodes or barcode in session_barcodes):
+        if barcode and (barcode in db_barcodes or barcode in session_barcodes or barcode in extra_map):
             errors.append({
                 "row": row_num, "name": name,
                 "error": f"Barkod '{barcode}' allaqachon mavjud — o'tkazib yuborildi",
                 "skipped": True,
             })
             continue
+        # P.12: qolgan kodlar — qo'shimcha shtrix-kodlar (boshqa mahsulotniki bo'lsa qo'shilmaydi)
+        extra_codes = [c for c in codes[1:] if not (c in db_barcodes or c in session_barcodes or c in extra_map)]
+        if len(extra_codes) < len(codes[1:]):
+            warnings.append({
+                "row": row_num, "name": name,
+                "warning": "Shtrix-kod boshqa mahsulotda bor, qo'shilmadi: "
+                           + ", ".join(c for c in codes[1:] if c not in extra_codes),
+            })
 
         unit       = str(row.get("O'lchov") or "dona").strip()
         brand      = str(row.get("Brand") or "").strip() or None
@@ -1043,16 +1364,29 @@ def bulk_import_products(
                 cost_currency=cost_cur,
                 sale_currency=sale_cur,
                 wholesale_currency=wholesale_cur,
+                extra_barcodes=json.dumps(extra_codes) if extra_codes else None,
             )
             # P.4: dorixonada MXIK — ustundan, bo'lmasa shtrix-kod bo'yicha mahalliy katalogdan
-            mxik_final = (extra["mxik"] or catalog_mxik.get(str(row.get("Barkod") or "").strip())) if pharmacy_on else None
+            mxik_final = (extra["mxik"] or (catalog_mxik.get(codes[0]) if codes else None)) if pharmacy_on else None
             if mxik_final:
                 product.mxik_code = mxik_final
             # T3.12: kg/g mahsulotga tarozi PLU kodi avtomatik beriladi
             _assign_plu(db, current_user.company_id, product)
             db.add(product)
             db.flush()
-            if initial_stock > 0:
+            if new_lots:
+                # P.12: har partiya o'z omboriga alohida kirim (IN) + Batch (muddat, seriya, ishlab chiqarilgan sana)
+                for lt, qty in new_lots:
+                    receive_stock(
+                        db, product.id, qty, current_user.id,
+                        reason="Excel import", reference_type="product_import", reference_id=None,
+                        warehouse_id=lt["wh_id"], purchase_price=cost_price, company_id=current_user.company_id,
+                        expiry_date=datetime.combine(lt["expiry"], datetime.min.time()),
+                    )
+                    if lt["lot"] or lt["mfg"]:
+                        db.flush()
+                        _stamp_initial_batch(db, product.id, lt["wh_id"], lt["lot"], lt["mfg"])
+            elif initial_stock > 0:
                 # Qoldiq tanlangan omborga kirim (IN) harakati + Batch bilan tushadi
                 receive_stock(
                     db, product.id, initial_stock, current_user.id,
@@ -1081,6 +1415,8 @@ def bulk_import_products(
             session_skus.add(sku_final)
             name_map[name]       = product
             barcode_map[barcode] = product
+            for c in extra_codes:
+                extra_map[c] = product
             sku_map[sku_final]   = product
             created += 1
             if pharmacy_on and not mxik_final:

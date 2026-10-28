@@ -5743,6 +5743,8 @@ export default {
   "pharmacyImport.wPrice": "нет цены",
   "pharmacyImport.wLot": "нужен срок годности",
   "pharmacyImport.wMxik": "нет ИКПУ (будет найден в каталоге)",
+  "pharmacyImport.hint5": "Несколько партий: каждая отдельной строкой с тем же наименованием (своя серия, срок, количество упаковок). Несколько штрих-кодов: в одной ячейке через запятую.",
+  "pharmacyImport.lotRow": "Партия препарата выше",
   "pharmacyImport.f.name": "Название лекарства",
   "pharmacyImport.f.barcode": "Штрих-код",
   "pharmacyImport.f.mxik": "Код ИКПУ",

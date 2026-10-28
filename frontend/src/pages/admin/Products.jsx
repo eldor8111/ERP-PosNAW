@@ -29,7 +29,7 @@ import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import PharmacyProductModal, { SubstancePicker, CONTROL_CLASSES, DOSAGE_FORMS, emptyPack, packLevels, packPrices, packToUnits, packSummary } from '../../components/PharmacyProductModal';
 import {
   PHARMA_IMPORT_FIELDS, PHARMA_NUM_KEYS, cleanPharmaNum, pharmaMapHeader, pharmaImportPreview, downloadPharmacyTemplate,
-  isoDateCells, PHARMA_EXPORT_HEADERS, pharmaExportRow,
+  isoDateCells, PHARMA_EXPORT_HEADERS, pharmaExportRow, pharmaExportLines, pharmaChunks, pharmaLotRows,
 } from './products/pharmacyImport';
 import useBulkVoice from './products/useBulkVoice';
 import { isScaleUnit } from '../../utils/scale';
@@ -1047,6 +1047,8 @@ export default function Products() {
   const IMPORT_LIMIT = 10;
 
   const excelCols = importRows.length > 0 ? Object.keys(importRows[0]) : [];
+  // P.12: dorixonada yuqoridagi dorining partiya qatorlari (bir xil nomli qatorlar bitta doriga birlashadi)
+  const importLotRows = pharmacyOn && importRows.length ? pharmaLotRows(importRows, colMap, skipRows) : null;
 
   // Narx ustunlari uchun valyuta yordamchi (PRICE_FIELD_KEYS - module darajasida)
   const getPriceFieldCurrencyCode = (fieldKey) => {
@@ -1184,9 +1186,12 @@ export default function Products() {
       let whName = null;
       const CHUNK_SIZE = 500;
       const whParam = importWarehouseId ? `&warehouse_id=${importWarehouseId}` : '';
+      // P.12: dorixonada bitta dorining partiya qatorlari bitta so'rovga tushadi (bo'lak guruh chegarasida kesiladi)
+      const chunks = pharmacyOn ? pharmaChunks(payload, CHUNK_SIZE) : [];
+      if (!pharmacyOn) for (let i = 0; i < payload.length; i += CHUNK_SIZE) chunks.push(payload.slice(i, i + CHUNK_SIZE));
+      let sent = 0;
 
-      for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-        const chunk = payload.slice(i, i + CHUNK_SIZE);
+      for (const chunk of chunks) {
         const { data } = await api.post(`/products/bulk-import?allow_update=${allowUpdate ? 'true' : 'false'}&search_by_sku=${searchBySku ? 'true' : 'false'}${whParam}`, chunk);
         totC += data.created || 0;
         totU += data.updated || 0;
@@ -1198,7 +1203,8 @@ export default function Products() {
           warns = [...warns, ...data.warnings].slice(0, 300);
         }
         if (data.warehouse_name) whName = data.warehouse_name;
-        setImportProgress(Math.round(((i + chunk.length) / payload.length) * 100));
+        sent += chunk.length;
+        setImportProgress(Math.round((sent / payload.length) * 100));
       }
 
       setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs, warnings: warns, warehouse_name: whName });
@@ -1700,6 +1706,7 @@ export default function Products() {
                       if (filterStatus) params.append('status', filterStatus);
                       if (filterWarehouse) params.append('warehouse_id', filterWarehouse);
                       if (filterBranch) params.append('branch_id', filterBranch);
+                      if (pharmacyOn) params.append('with_batches', 'true');   // P.12: har partiya alohida qator
                       params.append('limit', '9999');
                       params.append('skip', '0');
                       const res = await api.get('/products/paginated?' + params.toString());
@@ -1755,8 +1762,13 @@ export default function Products() {
 
                     // Data rows starting at row 3
                     const cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U'];
-                    allProducts.forEach((p, i) => {
-                      const r = i + 3;
+                    // P.12: dorixonada 2+ partiyali dori — har partiya alohida qator; keyingi qatorlarda faqat nomi
+                    // (importda bir xil nomli qatorlar bitta doriga birlashadi) va partiya ustunlari
+                    const lines = [];
+                    allProducts.forEach((p, i) => (pharmacyOn ? pharmaExportLines(p) : [{ b: null, lotOnly: false }])
+                      .forEach(l => lines.push({ p, i, ...l })));
+                    lines.forEach(({ p, i, lotOnly }, k) => {
+                      const r = k + 3;
                       const qty = Number(p.stock_quantity || 0);
                       const saleP = Number(p.sale_price || 0);
                       const whoP = Number(p.wholesale_price || 0);
@@ -1767,7 +1779,7 @@ export default function Products() {
                       const ebRaw = p.extra_barcodes;
                       const ebArr = Array.isArray(ebRaw) ? ebRaw : (typeof ebRaw === 'string' && ebRaw ? (() => { try { return JSON.parse(ebRaw); } catch { return ebRaw.split(','); } })() : []);
                       const allBarcodes = [p.barcode, ...ebArr].filter(Boolean).join(', ');
-                      const vals = [
+                      const vals = lotOnly ? cols.map((_, j) => (j === 1 ? p.name : '')) : [
                         i + 1, p.name,
                         qty, qty,
                         saleP, "UZS", saleP * qty,
@@ -1785,24 +1797,25 @@ export default function Products() {
                     });
 
                     // P.6/P.8: dorixonada oxiriga MXIK, qadoq, seriya va sanalar (V..AD), sarlavhalar import shablonidagidek
+                    // P.12: AE — partiya ombori (2+ partiyali dori qatorlarida)
                     let lastCol = 'U';
                     if (pharmacyOn) {
-                      const pCols = ['V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD'];
+                      const pCols = ['V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE'];
                       const formLabel = (k) => (DOSAGE_FORMS.find(([key]) => key === k) || [k, k])[1];
                       PHARMA_EXPORT_HEADERS.forEach((h, j) => { cell(`${pCols[j]}1`, h, hdr1); cell(`${pCols[j]}2`, h, hdr2); });
-                      allProducts.forEach((p, i) => {
+                      lines.forEach(({ p, i, b, lotOnly }, k) => {
                         const rowBg = i % 2 === 0 ? { fill: { fgColor: { rgb: 'FAFBFF' } } } : {};
-                        pharmaExportRow(p, formLabel).forEach((v, j) => {
+                        pharmaExportRow(p, formLabel, b, lotOnly).forEach((v, j) => {
                           const isNum = typeof v === 'number';
                           // MXIK — matn (Excel 17 xonali kodni buzmasin)
-                          ws[`${pCols[j]}${i + 3}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : {}) } };
+                          ws[`${pCols[j]}${k + 3}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : {}) } };
                         });
                       });
-                      lastCol = 'AD';
+                      lastCol = 'AE';
                     }
 
                     // Set sheet range
-                    ws['!ref'] = `A1:${lastCol}${allProducts.length + 2}`;
+                    ws['!ref'] = `A1:${lastCol}${lines.length + 2}`;
 
                     // Column widths
                     ws['!cols'] = [
@@ -1811,7 +1824,7 @@ export default function Products() {
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
                       { wch: 7 }, { wch: 14 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 5 },
-                      ...(pharmacyOn ? [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }] : []),
+                      ...(pharmacyOn ? [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }] : []),
                     ];
                     // Freeze top 2 rows
                     ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activeCell: 'C3', sqref: 'C3' };
@@ -4845,6 +4858,7 @@ export default function Products() {
                   <p>• {tf('pharmacyImport.hint2', "Qadoqsiz dori (sirop) uchun blister va dona sonini bo'sh qoldiring — narx 1 dona uchun bo'ladi.")}</p>
                   <p>• {tf('pharmacyImport.hint3', "Qoldiq bo'lsa yaroqlilik muddati majburiy (seriya ixtiyoriy). MXIK bo'sh bo'lsa shtrix-kod bo'yicha katalogdan olinadi.")}</p>
                   <p>• {tf('pharmacyImport.hint4', "\"Shablon\" tugmasi — namunali fayl va yo'riqnoma. Ruscha sarlavhalar ham tanildi (Наименование, Штрихкод, ИКПУ, Серия...).")}</p>
+                  <p>• {tf('pharmacyImport.hint5', "Bir nechta partiya: har biri alohida qatorda, nomi bir xil (seriya, muddat, quti soni o'ziniki). Bir nechta shtrix-kod: bitta katakda vergul bilan.")}</p>
                 </div>
               )}
               {/* T4.5: qoldiq faqat tanlangan (yoki "Ombor" ustunidagi) omborga yoziladi */}
@@ -4984,7 +4998,8 @@ export default function Products() {
                               {pharmacyOn && (() => {
                                 const m = {};
                                 Object.entries(colMap).forEach(([c, k]) => { if (k && k !== '__SKIP__') m[k] = row[c]; });
-                                const pv = pharmaImportPreview(m, Number(features?.pharmacy_settings?.price_round) || 0, fmt);
+                                const pv = pharmaImportPreview(m, Number(features?.pharmacy_settings?.price_round) || 0, fmt,
+                                  !!importLotRows?.has(absIdx));
                                 const W = {
                                   qty: tf('pharmacyImport.wQty', "son noto'g'ri"),
                                   price: tf('pharmacyImport.wPrice', "narx yo'q"),
@@ -4993,6 +5008,7 @@ export default function Products() {
                                 };
                                 return (
                                   <td className="px-3 py-2 text-xs align-top min-w-[260px]">
+                                    {pv.lotRow && <div className="text-slate-500">{tf('pharmacyImport.lotRow', 'Yuqoridagi dorining partiyasi')}</div>}
                                     {pv.line && <div className="font-semibold text-emerald-800">{pv.line}</div>}
                                     {pv.warnings.map(w => (
                                       <div key={w} className={w === 'mxik' ? 'text-slate-400' : 'text-amber-600 font-semibold'}>⚠ {W[w]}</div>

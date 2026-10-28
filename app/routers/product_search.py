@@ -466,6 +466,7 @@ def list_products_paginated(
     manufacturer: Optional[str] = Query(None, description="Dorixona: ishlab chiqaruvchi nomi bo'yicha (qismi, oddiy korxonada e'tiborsiz)"),
     is_rx: Optional[bool] = Query(None, description="Dorixona: retseptli/retseptsiz (oddiy korxonada e'tiborsiz)"),
     control_class: Optional[str] = Query(None, description="Dorixona: nazorat toifasi (oddiy korxonada e'tiborsiz)"),
+    with_batches: bool = Query(False, description="Dorixona: qoldig'i bor barcha partiyalar (Excel'ga yuklab olish uchun)"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=20000),
     db: Session = Depends(get_db),
@@ -728,21 +729,29 @@ def list_products_paginated(
             it["pharma"] = _po.model_dump() if _po is not None else None
         # P.8: eng yaqin muddatli partiya (seriya, yaroqlilik muddati, ishlab chiqarilgan sana) — Excel'ga yuklab olish
         # uchun; bitta so'rov (N+1 yo'q), qoldig'i bor partiyalar, muddatsizlari oxirida
+        # P.12: with_batches — barcha partiyalar (qoldig'i va ombori bilan): eksportda har partiya alohida qator
         _nb: dict = {}
+        _all: dict = {}
         if _wh_for_loose:
-            for pid, lot, exp, mfg in (
-                db.query(Batch.product_id, Batch.lot_number, Batch.expiry_date, Batch.manufacture_date)
+            for pid, lot, exp, mfg, qty, wid in (
+                db.query(Batch.product_id, Batch.lot_number, Batch.expiry_date, Batch.manufacture_date,
+                         Batch.quantity, Batch.warehouse_id)
                 .filter(Batch.product_id.in_([it["id"] for it in items]), Batch.quantity > 0,
                         Batch.warehouse_id.in_(list(_wh_for_loose)))
                 .order_by(Batch.product_id, Batch.expiry_date.is_(None), Batch.expiry_date, Batch.id)
             ):
-                _nb.setdefault(pid, {
+                b = {
                     "lot_number": lot,
                     "expiry_date": (exp.date() if hasattr(exp, "date") else exp).isoformat() if exp else None,
                     "manufacture_date": (mfg.date() if hasattr(mfg, "date") else mfg).isoformat() if mfg else None,
-                })
+                }
+                _nb.setdefault(pid, dict(b))
+                if with_batches:
+                    _all.setdefault(pid, []).append({**b, "quantity": float(qty or 0), "warehouse": warehouses.get(wid)})
         for it in items:
             it["nearest_batch"] = _nb.get(it["id"])
+            if with_batches:
+                it["batches"] = _all.get(it["id"], [])
 
     return {
         "items": items,
