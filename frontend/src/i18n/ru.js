@@ -5238,7 +5238,7 @@ export default {
   'features.pharmacy.title': 'Аптека',
   'features.pharmacy.desc': 'Контроль серий и сроков годности, блокировка просроченных лекарств, рецептурные продажи и отчёты аптеки',
   'settings.pharmacy.title': 'Настройки аптеки',
-  'settings.pharmacy.desc': 'Правила срока годности, рецептурной продажи и расчёта цены при приходе.',
+  'settings.pharmacy.desc': 'Предупреждение о сроке годности и правила расчёта цены при приходе.',
   'settings.pharmacy.expiryBlockDays': 'Блокировать лекарства с близким сроком (дней)',
   'settings.pharmacy.expiryBlockDaysHint': 'Партия, до конца срока которой осталось столько дней или меньше, не продаётся (0 — только просроченные)',
   'settings.pharmacy.expiryWarnDays': 'Предупреждение (дней)',
@@ -5819,7 +5819,7 @@ export default {
   "pos.unitPickHint": "↑ ↓ — выбор · Enter — в корзину · Esc — отмена",
   "pos.noWholeBox": "Нет целой коробки",
   "pos.expiryDaysLeft": "Осталось дней: {n}",
-  "pos.expiredTitle": "На складе есть просроченная партия — не продаётся",
+  "pos.expiredTitle": "На складе есть просроченная партия",
   "pos.expiredShort": "Просрочено",
   // === P.9 ===
   "drugForm.batchQtyLabel": "Остаток ({unit})",

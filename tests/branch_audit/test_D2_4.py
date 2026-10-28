@@ -2,7 +2,7 @@
 
 Qamrov: birliklar CRUD (faqat dorixona, korxona izolyatsiyasi, noyob shtrix-kod); sotuv `unit_id` (quti/blister/dona):
 qoldiq asosiy birlikda, narx (unit.sale_price / quti narxidan yuqoriga yaxlitlangan / mahsulot narxi * nisbat),
-SaleItemUnit; ochilgan quti avval; butun quti "yig'ma" emas va 400 xabari; kirimda `unit_id` (miqdor * nisbat,
+SaleItemUnit; ochilgan quti avval; butun quti avval butun qutilardan (P.13: yetmasa ochilganidan, 400 yo'q); kirimda `unit_id` (miqdor * nisbat,
 narx / nisbat); POS qidiruvi (birlik shtrix-kodi, units, stock_display); oddiy korxona va ProductConversion regressiyasi.
 
 Eslatma: `SaleItemCreate` / `POItemCreate` / `POReceiveItem` sxemalarida `unit_id` maydoni hali yo'q (sxema fayllari
@@ -435,32 +435,26 @@ def test_whole_box_sale_takes_only_whole_boxes_and_is_not_assembled(client, db, 
     assert [(s.batch_id, D(str(s.quantity))) for s in sibs] == [(a.id, D(30)), (b.id, D(30))]
 
 
-def test_whole_box_sale_400_message_and_nothing_written(client, db, ph, med):
+def test_whole_box_sale_takes_loose_when_whole_boxes_run_out(client, db, ph, med):
+    """P.13: butun quti yetmasa rad etilmaydi — ochilgan qutilar qoldig'idan olinadi."""
     p, wh = med["p"], ph["wh"]
     sl = _stock(db, p, wh, 90)
     a = _batch(db, p, wh, 45)     # 1 quti + 15 dona
     b = _batch(db, p, wh, 45)     # 1 quti + 15 dona
-    with pytest.raises(HTTPException) as e:
-        _sell(db, ph["admin"], wh, p, 3, unit=med["box"])     # jami 90 dona bor, lekin butun quti atigi 2 ta
-    assert e.value.status_code == 400
-    assert e.value.detail == f"{p.name}: butun quti 2 ta, ochilgan qutida 30 dona bor"
-    assert db.query(Sale).filter(Sale.company_id == ph["c"].id).count() == 0
-    assert _q(db, sl) == 90 and _q(db, a) == 45 and _q(db, b) == 45
-    # kassir dona qilib sotishi mumkin
-    _sell(db, ph["admin"], wh, p, 30, unit=med["piece"])
-    assert _q(db, sl) == 60
+    sale = _sell(db, ph["admin"], wh, p, 3, unit=med["box"])     # jami 90 dona, butun quti atigi 2 ta
+    assert _q(db, sl) == 0 and _q(db, a) == 0 and _q(db, b) == 0
+    assert D(str(_sale_item(db, sale).quantity)) == 90
 
 
-def test_whole_box_sale_ignores_expired_boxes(client, db, ph, med):
+def test_whole_box_sale_valid_first_then_expired(client, db, ph, med):
+    """P.13: yaroqli qutilar yetmasa muddati o'tgan partiyadan olinadi (rad etilmaydi), javobda ogohlantirish."""
     p, wh = med["p"], ph["wh"]
     _stock(db, p, wh, 90)
-    _batch(db, p, wh, 60, expiry_days=-1)               # muddati o'tgan 2 quti
+    expired = _batch(db, p, wh, 60, expiry_days=-1)     # muddati o'tgan 2 quti
     ok = _batch(db, p, wh, 30, expiry_days=100)
-    with pytest.raises(HTTPException) as e:
-        _sell(db, ph["admin"], wh, p, 2, unit=med["box"])
-    assert e.value.status_code == 400
-    _sell(db, ph["admin"], wh, p, 1, unit=med["box"])
-    assert _q(db, ok) == 0
+    sale = _sell(db, ph["admin"], wh, p, 2, unit=med["box"])
+    assert _q(db, ok) == 0 and _q(db, expired) == 30
+    assert [w["code"] for w in sale.rx_warnings] == ["sold_invalid_batch"]
 
 
 def test_pack_qty_from_pharma_card_defines_box(client, db, ph):
@@ -700,3 +694,16 @@ def test_pending_i18n_keys_match_across_languages():
     jsx = (ROOT / "frontend" / "src" / "pages" / "admin" / "Purchases.jsx").read_text(encoding="utf-8")
     for key in data["uz"]:
         assert key in jsx, key
+
+
+@pytest.mark.parametrize("stock", [None, 0, 50])
+def test_blister_sale_with_zero_or_undated_stock_is_not_rejected(client, db, ph, med, stock):
+    """P.13 (kassadagi holat): partiya yo'q, qoldiq 0 yoki partiyasiz eski qoldiq — 1 blister sotiladi, 400 yo'q."""
+    p, wh = med["p"], ph["wh"]
+    sl = _stock(db, p, wh, stock) if stock is not None else None
+    body = _body([{"product_id": p.id, "quantity": 1, "unit_id": med["blister"].id, "_t": 10000}], wh)
+    r = client.login(ph["admin"]).post("/api/sales/", json=json.loads(json.dumps(body, default=float)))
+    assert r.status_code == 200, r.text
+    got =db.query(StockLevel).filter_by(product_id=p.id, warehouse_id=wh.id).one()
+    assert D(str(got.quantity)) == D(stock or 0) - 10
+    assert sl is None or got.id == sl.id

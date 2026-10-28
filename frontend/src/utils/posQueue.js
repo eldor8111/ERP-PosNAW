@@ -165,28 +165,8 @@ export function rxProductsOf(items) {
 
 export const isControlled = (it) => !!(it && it.control_class && it.control_class !== 'none');
 
-/** Retsept oynasi ma'lumotini tekshiradi. rxData = { [product_id]: { mode:'rx'|'norx', number, issued_at, doctor, clinic, patient, blank_type } }.
- *  Xato matni yoki null (hammasi joyida). rxMode — 'warn' | 'block'. */
-export function validateRx(items, rxData, reason, rxMode = 'warn', todayIso = todayLocalIso()) {
-  for (const it of rxProductsOf(items)) {
-    const nm = it.product_name || it.name || '';
-    const d = (rxData || {})[it.product_id] || {};
-    const controlled = isControlled(it);
-    const mode = controlled || rxMode === 'block' ? 'rx' : (d.mode || 'rx');
-    if (mode === 'norx') {
-      if (String(reason || '').trim().length < 3) return `${nm}: retseptsiz sotish sababini kiriting`;
-      continue;
-    }
-    if (!String(d.number || '').trim() || !String(d.doctor || '').trim() || !String(d.clinic || '').trim() || !d.issued_at) {
-      return `${nm}: retsept raqami, sanasi, shifokori va muassasasini kiriting`;
-    }
-    if (String(d.issued_at) > todayIso) return `${nm}: retsept sanasi kelajakda bo'lishi mumkin emas`;
-    if (controlled && (!d.blank_type || d.blank_type === 'simple')) return `${nm}: nazoratdagi dori uchun maxsus blank turini tanlang`;
-  }
-  return null;
-}
-
-/** So'rovga qo'shiladigan maydonlar: { prescriptions, rx_override_reason } (bo'sh bo'lsa — bo'sh obyekt). */
+/** So'rovga qo'shiladigan maydonlar: { prescriptions, rx_override_reason } (bo'sh bo'lsa — bo'sh obyekt).
+ *  P.13: retsept ixtiyoriy — faqat kassir kiritgan (hech bo'lmasa bitta maydoni to'ldirilgan) retseptlar yuboriladi. */
 export function buildRxPayload(items, rxData, reason, rxMode = 'warn') {
   const prescriptions = [];
   let needReason = false;
@@ -194,6 +174,7 @@ export function buildRxPayload(items, rxData, reason, rxMode = 'warn') {
     const d = (rxData || {})[it.product_id] || {};
     const mode = isControlled(it) || rxMode === 'block' ? 'rx' : (d.mode || 'rx');
     if (mode === 'norx') { needReason = true; continue; }
+    if (![d.number, d.doctor, d.clinic, d.issued_at].some(v => String(v || '').trim())) continue;
     prescriptions.push({
       product_id: it.product_id,
       number: String(d.number || '').trim(),
@@ -218,13 +199,10 @@ export function unitLinePrice(basePrice, productSalePrice, unit) {
   return (Number(basePrice) || 0) * ratio;
 }
 
-/** Butun quti sotuvi uchun eng ko'pi: ombordagi butun qutilar soni (birlik nisbatiga bo'lingan). null — cheklov yo'q. */
-export function wholeBoxMax(item) {
-  const ratio = Number(item?.unit_ratio) || 1;
-  const pack = Number(item?.pack_ratio) || 0;
-  if (!item?.unit_id || !pack || ratio < pack || item.full_boxes == null) return null;
-  return Math.floor((Number(item.full_boxes) * pack) / ratio);
-}
+/** P.13: omborda butun quti yo'q, faqat ochilgan quti bor — skanerda/tanlashda quti o'rniga kichik birlik taklif
+ *  qilinadi (cheklov emas: quti ham tanlanadi). Qoldiq umuman yo'q bo'lsa — quti (eng katta birlik). */
+export const openedBoxOnly = (p) => !!p && p.pack_ratio != null && p.full_boxes != null
+  && Number(p.full_boxes) < 1 && Number(p.loose_units) > 0;
 
 /** Server "butun quti X ta, ochilgan qutida Y dona bor" (D2.4) xatosini ajratadi; boshqa xato uchun null. */
 export function parseWholeBoxError(detail) {

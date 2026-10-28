@@ -37,15 +37,15 @@ def test_settings_pharmacy_card_has_all_keys_and_save_shape():
     m = re.search(r'function PharmacySettingsCard.*?\n}\n', src, re.S)
     assert m, 'PharmacySettingsCard topilmadi'
     card = m.group(0)
+    # P.13: sotuvni bloklovchi sozlamalar (expiry_block_days, rx_mode) oynada yo'q — dorixonada sotuv cheklanmaydi
+    retired = {"expiry_block_days", "rx_mode"}
     for key in DEFAULT_SETTINGS:
-        assert key in src, key
+        assert (key not in card) if key in retired else (key in src), key
     assert "pharmacy_settings: body" in card
     assert "refreshCompanyFeatures" in card
     # yaxlitlash qadamlari serverdagi bilan bir xil
     steps = re.search(r'PHARMACY_ROUND_STEPS = \[([^\]]*)\]', src).group(1)
     assert tuple(int(x) for x in steps.split(',')) == PRICE_ROUND_STEPS
-    # rx_mode ikki qiymat
-    assert 'value="warn"' in card and 'value="block"' in card
     # server tekshiruv xabari (400 detail) ko'rsatiladi
     assert "e.response?.data?.detail" in card
 

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import {
-  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, validateRx, buildRxPayload, unitLinePrice, wholeBoxMax,
+  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, buildRxPayload, unitLinePrice, openedBoxOnly,
   parseWholeBoxError, getPending, setPending, REJECTED_SALES_KEY, getCurrentCompanyId,
 } from '../../utils/posQueue';
 import { toast } from '../../utils/toast';
@@ -73,7 +73,7 @@ const navigate = useNavigate();
   // D2.6: dorixona rejimi — faqat korxonada modul yoqilgan bo'lsa dorixona elementlari ko'rinadi
   const features = useCompanyFeatures();
   const pharmacy = !!features?.pharmacy;
-  const rxMode = features?.pharmacy_settings?.rx_mode === 'block' ? 'block' : 'warn';
+  const rxMode = 'warn';   // P.13: dorixonada sotuv cheklanmaydi — retsept ixtiyoriy
   const [rxModal, setRxModal] = useState(null);        // { message?, onDone? } — retsept oynasi
   const [rxData, setRxData] = useState({});            // { [product_id]: { mode, number, issued_at, doctor, clinic, patient, blank_type } }
   const [rxReason, setRxReason] = useState('');        // retseptsiz sotish sababi (rx_mode=warn)
@@ -341,7 +341,7 @@ const navigate = useNavigate();
     if (cart.some(x => (x.marking_codes || []).includes(gs1.code))) { toast.error(t('pos.markingCodeAlreadyScanned')); return; }
     const box = (Array.isArray(p.units) ? p.units : [])
       .filter(u => (Number(u.ratio) || 1) > 1).sort((a, b) => Number(b.ratio) - Number(a.ratio))[0] || null;
-    const unit = box && !(p.pack_ratio != null && p.full_boxes != null && Number(p.full_boxes) < 1) ? box : null;
+    const unit = box && !openedBoxOnly(p) ? box : null;
     const same = (x) => x.product_id === p.id && (x.unit_id || null) === (unit ? unit.id : null);
     const open = (x) => same(x) && (x.marking_codes || []).length < x.qty_ordered;
     if (!cart.some(open)) addToCart(p, 1, unit);
@@ -594,17 +594,11 @@ const navigate = useNavigate();
     if (pharmacy && isOnline && !opts.noAnalogs && Number(p.stock_quantity) <= 0 && (p.product_type || 'stock') === 'stock') {
       openAnalogs(p, true);
     }
-    // Butun quti shtrix-kodi, lekin omborda butun quti yo'q (faqat ochilgan quti) — dona qilib sotish taklif qilinadi
-    if (unit && p.pack_ratio != null && Number(unit.ratio) >= Number(p.pack_ratio) && p.full_boxes != null && Number(p.full_boxes) < 1) {
-      toast.warn(tf('pos.wholeBoxNone', "Omborda butun quti yo'q (ochilgan qutida {loose} dona). Dona qilib soting.", { loose: p.loose_units ?? 0 }));
-      unit = null;
-    }
     setCart(prev => {
       const idx = prev.findIndex(x => x.product_id === p.id && (x.unit_id || null) === (unit ? unit.id : null));
       if (idx >= 0) {
         const next = [...prev];
         next[idx].qty_ordered += overrideQty !== undefined ? overrideQty : 1;
-        _clampWholeBox(next[idx]);
         return next;
       }
       return [{
@@ -637,25 +631,26 @@ const navigate = useNavigate();
       .filter(u => (Number(u.ratio) || 1) !== 1)
       .map(u => (u.price == null && u.sale_price != null ? { ...u, price: u.sale_price } : u))
       .sort((a, b) => Number(b.ratio) - Number(a.ratio));
-    const noWholeBox = p.pack_ratio != null && p.full_boxes != null && Number(p.full_boxes) < 1;
+    // P.13: hech bir birlik bloklanmaydi; faqat ochilgan quti bo'lsa quti sukut bo'yicha tanlanmaydi (skip)
+    const openedOnly = openedBoxOnly(p);
     return [
       ...us.map(u => ({
         unit: u, name: u.name, ratio: Number(u.ratio), price: unitLinePrice(base, p.sale_price, u),
-        disabled: noWholeBox && Number(u.ratio) >= Number(p.pack_ratio),
+        disabled: false, skip: openedOnly && Number(u.ratio) >= Number(p.pack_ratio),
       })),
-      { unit: null, name: p.unit || 'dona', ratio: 1, price: base, disabled: false },
+      { unit: null, name: p.unit || 'dona', ratio: 1, price: base, disabled: false, skip: false },
     ];
   };
   // Oyna faqat quti VA blister (2 ta qadoq birligi) bo'lgan dorida; donalab yoki blistersiz dori — avvalgidek savatga
   const pickOrAdd = (p, qty) => {
     const opts = pharmacy ? unitOptions(p) : [];
     if (opts.length < 3) { addToCart(p, qty); return; }
-    setUnitPick({ p, qty, sel: Math.max(0, opts.findIndex(o => !o.disabled)) });
+    setUnitPick({ p, qty, sel: Math.max(0, opts.findIndex(o => !o.skip)) });
   };
   // Skanerda birlik o'zi tanlanadi: quti (omborda butun quti bo'lsa) -> blister -> dona; savatda almashtirish mumkin.
   // Tanlash oynasi faqat kartochka bosilganda (pickOrAdd)
   const scanAdd = (p) => {
-    const o = pharmacy ? unitOptions(p).find(x => x.unit && !x.disabled) : null;
+    const o = pharmacy ? unitOptions(p).find(x => x.unit && !x.skip) : null;
     addToCart(p, undefined, o ? o.unit : undefined);
   };
   const confirmUnitPick = (i) => {
@@ -745,7 +740,7 @@ const navigate = useNavigate();
         )}
         {expiredQty > 0 && (
           <span className={`${cls} ${EXPIRY_CLS.expired}`} data-expiry-level="expired"
-            title={tf('pos.expiredTitle', "Omborda muddati o'tgan partiya bor — sotilmaydi")}>
+            title={tf('pos.expiredTitle', "Omborda muddati o'tgan partiya bor")}>
             {tf('pos.expiredShort', "Muddati o'tgan")}: {fmt(expiredQty)}
           </span>
         )}
@@ -806,24 +801,11 @@ const navigate = useNavigate();
     return item;
   };
 
-  // D2.6: butun quti sotuvida miqdor ombordagi butun qutilar sonidan oshmasin (server ham 400 qaytaradi)
-  const _clampWholeBox = (item) => {
-    const max = wholeBoxMax(item);
-    if (max != null && item.qty_ordered > max) {
-      item.qty_ordered = Math.max(max, 1);
-      toast.warn(tf('pos.wholeBoxMax', "Omborda butun quti {boxes} ta (ochilgan qutida {loose} dona). Ko'proq kerak bo'lsa dona qilib soting.", {
-        boxes: item.full_boxes, loose: item.loose_units ?? 0,
-      }));
-    }
-    return item;
-  };
-
   const updateCartQty = (idx, delta) => {
     setCart(prev => {
       const next = [...prev];
       next[idx] = { ...next[idx] };
       next[idx].qty_ordered = Math.max(0.1, next[idx].qty_ordered + delta);
-      _clampWholeBox(next[idx]);
       _trimMarkingCodes(next[idx]);
       return next;
     });
@@ -834,7 +816,6 @@ const navigate = useNavigate();
       const next = [...prev];
       next[idx] = { ...next[idx] };
       next[idx].qty_ordered = Math.max(0.1, Number(qtyVal)||1);
-      _clampWholeBox(next[idx]);
       _trimMarkingCodes(next[idx]);
       return next;
     });
@@ -861,12 +842,7 @@ const navigate = useNavigate();
         unit_price: price,
         qty_ordered: Number.isInteger(q) && q >= 1 ? q : 1,
       };
-      if (wholeBoxMax(nextItem) === 0) {
-        toast.warn(tf('pos.wholeBoxNone', "Omborda butun quti yo'q (ochilgan qutida {loose} dona). Dona qilib soting.", { loose: it.loose_units ?? 0 }));
-        return prev;
-      }
       if (nextItem.discount_type === 'sum') nextItem.discount_val = Math.min(nextItem.discount_val || 0, price * nextItem.qty_ordered);
-      _clampWholeBox(nextItem);
       _trimMarkingCodes(nextItem);
       const next = [...prev];
       next[idx] = nextItem;
@@ -1014,23 +990,15 @@ const navigate = useNavigate();
   const changeAmt = isEnough ? (finalPaid - payableNet) : 0;
   const remaining = isEnough ? 0 : (payableNet - finalPaid);
 
-  // D2.6: to'lovdan oldin dorixona tekshiruvi — retsept ma'lumoti kiritilmaguncha to'lov oynasi ochilmaydi
-  // (server baribir tekshiradi: D2.5). Dorixonada markirovka majburiy emas: skanerlangan kodlar yuboriladi
+  // P.13: dorixonada to'lovdan oldin tekshiruv yo'q — retsept ixtiyoriy (savatdagi "Retsept" tugmasi orqali kiritiladi).
+  // Markirovka majburiy emas: skanerlangan kodlar yuboriladi
   const requestCheckout = () => {
-    if (pharmacy) {
-      if (rxProductsOf(cart).length && validateRx(cart, rxData, rxReason, rxMode)) {
-        setRxModal({ proceed: true });
-        return;
-      }
-    }
     setShowCheckout(true);
   };
 
   const setRxField = (pid, field, val) => setRxData(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [field]: val } }));
   const [rxError, setRxError] = useState('');
-  const confirmRx = () => {
-    const err = validateRx(cart, rxData, rxReason, rxMode);
-    if (err) { setRxError(err); return; }
+  const confirmRx = () => {   // P.13: retsept ma'lumoti to'liq bo'lmasa ham saqlanadi
     setRxError('');
     const proceed = !!rxModal?.proceed;
     setRxModal(null);
@@ -1050,7 +1018,7 @@ const navigate = useNavigate();
   };
   const applyBoxFix = () => {
     const name = saleError?.boxFix?.name;
-    const idx = cart.findIndex(c => c.product_name === name && wholeBoxMax(c) != null);
+    const idx = cart.findIndex(c => c.product_name === name && c.unit_id);
     if (idx >= 0) switchUnit(idx, '');
     setSaleError(null);
   };
@@ -1476,15 +1444,6 @@ const navigate = useNavigate();
                           ))}
                         </select>
                       )}
-                      {wholeBoxMax(item) != null && (
-                        <>
-                          <span className="text-[9px] font-bold text-slate-400">{tf('pos.wholeBoxMaxShort', 'max {n} quti', { n: wholeBoxMax(item) })}</span>
-                          <button type="button" onClick={() => switchUnit(i, '')}
-                            className="px-1 h-4 rounded text-[9px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100">
-                            {tf('pos.sellByPiece', 'Dona qilib sotish')}
-                          </button>
-                        </>
-                      )}
                       <button type="button" onClick={() => openAnalogs(item)}
                         className="px-1 h-4 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
                         {tf('pos.analogs', 'Analoglar')}
@@ -1715,7 +1674,7 @@ const navigate = useNavigate();
                     <span>
                       <span className="block text-base font-black text-slate-800">1 {o.name}</span>
                       {o.ratio > 1 && <span className="block text-xs font-semibold text-slate-500">{fmt(o.ratio)} {unitPick.p.unit || 'dona'}</span>}
-                      {o.disabled && <span className="block text-xs font-semibold text-red-600">{tf('pos.noWholeBox', "Butun quti yo'q")}</span>}
+                      {o.skip && <span className="block text-xs font-semibold text-slate-400">{tf('pos.noWholeBox', "Butun quti yo'q")}</span>}
                     </span>
                     <span className="text-xl font-black text-blue-700">{fmt(o.price)}</span>
                   </button>

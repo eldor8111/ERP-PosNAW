@@ -1,8 +1,9 @@
-"""D2.5 — Retseptli dori sotuvi (backend): retsept saqlash, rx_mode (warn/block) va nazorat toifasi tekshiruvi.
+"""D2.5 — Retseptli dori sotuvi (backend): retsept saqlash. P.13: dorixonada sotuv cheklanmaydi — retsept ixtiyoriy.
 
-Qamrov: warn (sabab majburiy, saqlanadi) / block, nazoratdagi dori (retseptsiz sotilmaydi, simple blank mumkin emas),
-retsept product_id yoki item_index bilan, 60 kundan eski retsept ogohlantirishi, kelajak sanasi, aralash savat,
-oflayn (created_at + Idempotency-Key) sotuv ham shu tekshiruvdan o'tishi, sotuv tafsilotida `prescriptions`,
+Qamrov: retseptli va nazoratdagi dori retseptsiz ham sotiladi (rx_mode, blank turi rad etmaydi); berilgan retsept
+(to'liq bo'lmasa ham) va retseptsiz sotish sababi saqlanadi; retsept product_id yoki item_index bilan, dori
+aniqlanmagan yozuv — `rx_skipped` ogohlantirishi, 60 kundan eski retsept ogohlantirishi, aralash savat,
+oflayn (created_at + Idempotency-Key) sotuv, sotuv tafsilotida `prescriptions`,
 oddiy korxona regressiyasi (rx belgili mahsulot ham avvalgidek sotiladi, yangi maydonlar e'tiborsiz) va ikki korxona izolyatsiyasi.
 
 Ishga tushirish (repo ildizidan):
@@ -97,13 +98,6 @@ def _stock(db, p):
     return D(str(sl.quantity))
 
 
-def _nothing_written(db, c, *products):
-    assert db.query(Sale).filter(Sale.company_id == c.id).count() == 0
-    assert db.query(SalePrescription).filter(SalePrescription.company_id == c.id).count() == 0
-    for p in products:
-        assert _stock(db, p) == 100
-
-
 @pytest.fixture
 def ph(db, mk):
     """Dorixona yoqilgan korxona A (kassa bilan) va oddiy korxona B."""
@@ -117,17 +111,15 @@ def ph(db, mk):
 
 # ───────────────────────── rx_mode = warn ─────────────────────────
 
-def test_warn_mode_requires_prescription_or_reason(client, db, ph):
+def test_rx_drug_sells_without_prescription_or_reason(client, db, ph):
+    """P.13: retseptli dori retseptsiz va sababsiz ham sotiladi — yozuv saqlanmaydi, ogohlantirish yo'q."""
     p = _product(db, ph["c"], ph["wh"], rx=True)
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], ph["wh"]))
-    assert r.status_code == 400
-    d = r.json()["detail"]
-    assert d["code"] == "rx_required" and d["mode"] == "warn" and d["override_allowed"] is True
-    assert [x["product_id"] for x in d["products"]] == [p.id]
-    # bo'sh / probel sabab ham qabul qilinmaydi
+    assert r.status_code == 200, r.text
+    assert _stock(db, p) == 99 and r.json()["warnings"] == []
+    assert db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).count() == 0
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], ph["wh"], rx_override_reason="   "))
-    assert r.status_code == 400 and r.json()["detail"]["code"] == "rx_required"
-    _nothing_written(db, ph["c"], p)
+    assert r.status_code == 200 and db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).count() == 0
 
 
 def test_warn_mode_reason_allows_sale_and_is_saved(client, db, ph):
@@ -159,16 +151,14 @@ def test_rx_mode_defaults_to_warn_for_old_settings(client, db, ph):
 
 # ───────────────────────── rx_mode = block ─────────────────────────
 
-def test_block_mode_rejects_without_prescription_even_with_reason(client, db, ph):
-    _enable_block = ph["c"]
-    _enable_block.pharmacy_settings = {"rx_mode": "block"}
+def test_old_block_setting_no_longer_rejects(client, db, ph):
+    """P.13: eski rx_mode='block' sozlamasi sotuvni rad etmaydi; sabab berilsa saqlanadi."""
+    ph["c"].pharmacy_settings = {"rx_mode": "block"}
     db.flush()
     p = _product(db, ph["c"], ph["wh"], rx=True)
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], ph["wh"], rx_override_reason="shoshilinch"))
-    assert r.status_code == 400
-    d = r.json()["detail"]
-    assert d["code"] == "rx_required" and d["mode"] == "block" and d["override_allowed"] is False
-    _nothing_written(db, ph["c"], p)
+    assert r.status_code == 200, r.text
+    assert db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).one().reason_without_rx == "shoshilinch"
 
 
 def test_block_mode_with_prescription_is_ok(client, db, ph):
@@ -210,22 +200,28 @@ def test_prescription_by_item_index(client, db, ph):
     assert row.product_id == p.id
 
 
-def test_prescription_invalid_input_is_400_and_writes_nothing(client, db, ph):
+def test_prescription_invalid_input_never_blocks(client, db, ph):
+    """P.13: noto'g'ri / to'liq bo'lmagan retsept sotuvni to'xtatmaydi: dori aniqlanmasa — ogohlantirish (saqlanmaydi),
+    noma'lum blank turi — "simple", to'liq bo'lmagani — berilgan maydonlar bilan saqlanadi."""
     p = _product(db, ph["c"], ph["wh"], rx=True)
     other = _product(db, ph["c"], ph["wh"])
     cl = client.login(ph["admin"])
-    bad = [
-        [_rx(other)],                                        # savatda yo'q mahsulot
-        [_rx()],                                              # product_id ham, item_index ham yo'q
-        [_rx(index=5)],                                       # item_index diapazondan tashqari
-        [_rx(p, blank="fake")],                               # noma'lum blank turi
-        [_rx(p, days_ago=-3)],                                # kelajak sanasi
-        [{"product_id": p.id, "number": "X"}],               # to'liq emas
-    ]
-    for pres in bad:
+
+    def sell(pres):
         r = cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"], prescriptions=pres))
-        assert r.status_code == 400, (pres, r.text)
-    _nothing_written(db, ph["c"], p, other)
+        assert r.status_code == 200, (pres, r.text)
+        return r.json(), db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).all()
+
+    for pres in ([_rx(other)], [_rx()], [_rx(index=5)], [{"product_id": p.id}]):
+        out, rows = sell(pres)
+        assert rows == [] and [w["code"] for w in out["warnings"]] == ["rx_skipped"], pres
+    _out, rows = sell([_rx(p, blank="fake")])
+    assert [x.blank_type for x in rows] == ["simple"]
+    _out, rows = sell([_rx(p, days_ago=-3)])
+    assert rows[0].issued_at == tashkent_today() + timedelta(days=3)
+    _out, rows = sell([{"product_id": p.id, "number": "X", "issued_at": "noto'g'ri"}])
+    assert [(x.number, x.issued_at, x.doctor, x.clinic) for x in rows] == [("X", None, None, None)]
+    assert _stock(db, p) == 93 and _stock(db, other) == 100
 
 
 def test_old_prescription_gives_warning_but_sells(client, db, ph):
@@ -245,24 +241,21 @@ def test_old_prescription_gives_warning_but_sells(client, db, ph):
 # ───────────────────────── nazorat toifasi ─────────────────────────
 
 @pytest.mark.parametrize("control", ["narcotic", "psychotropic", "potent", "precursor"])
-def test_controlled_drug_needs_prescription_even_with_reason_and_warn_mode(client, db, ph, control):
+def test_controlled_drug_sells_without_prescription(client, db, ph, control):
+    """P.13: nazoratdagi dori ham retseptsiz sotiladi; sabab berilsa saqlanadi."""
     p = _product(db, ph["c"], ph["wh"], rx=False, control=control)      # is_rx=False bo'lsa ham
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], ph["wh"], rx_override_reason="sabab bor"))
-    assert r.status_code == 400
-    d = r.json()["detail"]
-    assert d["code"] == "rx_required" and d["override_allowed"] is False
-    assert d["products"][0]["control_class"] == control
-    _nothing_written(db, ph["c"], p)
+    assert r.status_code == 200, r.text
+    assert _stock(db, p) == 99
+    assert db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).one().reason_without_rx == "sabab bor"
 
 
 @pytest.mark.parametrize("control", ["narcotic", "psychotropic", "potent", "precursor"])
-def test_controlled_drug_rejects_simple_blank(client, db, ph, control):
+def test_controlled_drug_simple_blank_is_saved(client, db, ph, control):
     p = _product(db, ph["c"], ph["wh"], rx=True, control=control)
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], ph["wh"], prescriptions=[_rx(p, blank="simple")]))
-    assert r.status_code == 400
-    d = r.json()["detail"]
-    assert d["code"] == "rx_blank_invalid" and d["products"][0]["product_id"] == p.id
-    _nothing_written(db, ph["c"], p)
+    assert r.status_code == 200, r.text
+    assert db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).one().blank_type == "simple"
 
 
 @pytest.mark.parametrize("control,blank", [("narcotic", "form_107"), ("narcotic", "special"),
@@ -275,17 +268,15 @@ def test_controlled_drug_sells_with_special_blank(client, db, ph, control, blank
     assert _stock(db, p) == 99
 
 
-def test_mixed_cart_controlled_missing_blocks_whole_sale(client, db, ph):
+def test_mixed_cart_sells_and_records_given_data(client, db, ph):
     rx = _product(db, ph["c"], ph["wh"], rx=True)
     nar = _product(db, ph["c"], ph["wh"], control="narcotic")
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(rx, 1), (nar, 1)], ph["wh"],
                                                                   rx_override_reason="sabab"))
-    assert r.status_code == 400
-    d = r.json()["detail"]
-    assert d["override_allowed"] is False
-    assert {x["product_id"] for x in d["products"]} == {rx.id, nar.id}
-    _nothing_written(db, ph["c"], rx, nar)
-    # narkotikka retsept bor, oddiy retseptli dori uchun sabab bor -> o'tadi, ikkala yozuv saqlanadi
+    assert r.status_code == 200, r.text
+    rows = db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).all()
+    assert {(x.product_id, x.reason_without_rx) for x in rows} == {(rx.id, "sabab"), (nar.id, "sabab")}
+    # narkotikka retsept bor, oddiy retseptli dori uchun sabab bor -> ikkala yozuv saqlanadi
     r = client.login(ph["admin"]).post("/api/sales/", json=_body(
         [(rx, 1), (nar, 1)], ph["wh"], rx_override_reason="sabab", prescriptions=[_rx(nar, blank="form_107")]))
     assert r.status_code == 200, r.text
@@ -304,16 +295,16 @@ def test_non_rx_product_in_pharmacy_needs_nothing(client, db, ph):
 
 # ───────────────────────── oflayn navbat ─────────────────────────
 
-def test_offline_sale_goes_through_same_check(client, db, ph):
+def test_offline_sale_without_prescription_is_accepted(client, db, ph):
+    """P.13: oflayn navbatdagi retseptsiz sotuv ham qabul qilinadi (rad etilib qolib ketmaydi)."""
     p = _product(db, ph["c"], ph["wh"], rx=True)
     created = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
     body = _body([(p, 1)], ph["wh"], created_at=created, local_id="offline-uuid-1")
     cl = client.login(ph["admin"])
     r = cl.post("/api/sales/", json=body, headers={"Idempotency-Key": "d25-offline-1"})
-    assert r.status_code == 400 and r.json()["detail"]["code"] == "rx_required"
-    _nothing_written(db, ph["c"], p)
-    body["prescriptions"] = [_rx(p)]
-    r = cl.post("/api/sales/", json=body, headers={"Idempotency-Key": "d25-offline-1"})
+    assert r.status_code == 200, r.text
+    body2 = _body([(p, 1)], ph["wh"], created_at=created, local_id="offline-uuid-2", prescriptions=[_rx(p)])
+    r = cl.post("/api/sales/", json=body2, headers={"Idempotency-Key": "d25-offline-2"})
     assert r.status_code == 200, r.text
     assert db.query(SalePrescription).filter_by(sale_id=r.json()["id"]).count() == 1
 

@@ -317,17 +317,17 @@ def allocate_unit_batches(
     pack_ratio: Optional[Decimal], whole_boxes: bool, today=None, expiry_block_days: int = 0,
     lock: bool = True, deduct: bool = True,
 ) -> Tuple[List[dict], Decimal]:
-    """Dorixona: qadoq birligidan sotuvda partiya tanlash (FEFO; muddati o'tgan / yaroqsiz partiya olinmaydi).
+    """Dorixona: qadoq birligidan sotuvda partiya tanlash (FEFO).
 
     - Dona/blister (`whole_boxes=False`): avval ochilgan qutisi bor partiyalar (qoldiq % quti_ratio != 0), ular
       ichida FEFO; yetmasa — qolgan partiyalar FEFO bo'yicha (yangi quti ochiladi).
-    - Butun quti (`whole_boxes=True`): har partiyadan faqat butun qutilar (floor(qoldiq / quti) * quti), FEFO;
-      ochilgan quti qoldig'idan "yig'ma quti" tuzilmaydi. Yetmasa 400 (butun quti va ochilgan dona soni bilan).
-    Qaytaradi: (`[{"batch", "batch_id", "quantity", "unit_cost"}]`, shortfall). Dona sotuvida shortfall > 0 ni
-    chaqiruvchi rad etadi (`allocate_batches` bilan bir xil).
+    - Butun quti (`whole_boxes=True`): avval har partiyadan butun qutilar (floor(qoldiq / quti) * quti), FEFO;
+      P.13: yetmasa rad etilmaydi — ochilgan qutilar qoldig'idan.
+    P.13: yaroqli partiyalar yetmasa muddati o'tgan / yaroqsiz partiyalardan (`take_rest`), qolgani — shortfall
+    (partiyasiz, chaqiruvchi mahsulot tannarxi bilan hisoblaydi). Sotuv rad etilmaydi.
+    Qaytaradi: (`[{"batch", "batch_id", "quantity", "unit_cost"}]`, shortfall).
     """
-    from fastapi import HTTPException
-    from app.services.batch_allocator import _candidate_query, _naive, _MAX_DT
+    from app.services.batch_allocator import _candidate_query, _naive, _MAX_DT, take_rest
 
     qty = _udec(quantity)
     allocations: List[dict] = []
@@ -346,45 +346,44 @@ def allocate_unit_batches(
 
     cands.sort(key=lambda b: (_tier(b), b.expiry_date is None, _naive(b.expiry_date) or _MAX_DT, b.id))
     pack = pack_ratio if (pack_ratio and pack_ratio > 0) else None
+    used: dict = {}
+
+    def _left(batch) -> Decimal:
+        return _udec(batch.quantity) - (Decimal("0") if deduct else used.get(batch.id, Decimal("0")))
 
     def _take(batch, take):
         if deduct:
             batch.quantity = _udec(batch.quantity) - take
+        used[batch.id] = used.get(batch.id, Decimal("0")) + take
         allocations.append({"batch": batch, "batch_id": batch.id, "quantity": take,
                             "unit_cost": batch.purchase_price or Decimal("0")})
 
     remaining = qty
     if whole_boxes and pack:
-        avail = {}
-        for b in cands:
-            avail[b.id] = (_udec(b.quantity) // pack) * pack
         for b in cands:
             if remaining <= 0:
                 break
-            take = min(remaining, avail[b.id])
+            take = min(remaining, (_left(b) // pack) * pack)
             if take > 0:
                 _take(b, take)
                 remaining -= take
-        if remaining > 0:
-            full = sum(avail.values(), Decimal("0")) / pack
-            loose = sum((_udec(b.quantity) - avail[b.id] for b in cands), Decimal("0"))
-            raise HTTPException(
-                status_code=400,
-                detail=f"{product.name}: butun quti {_ufmt(full)} ta, ochilgan qutida {_ufmt(loose)} dona bor",
-            )
-        return allocations, remaining
-
-    if pack:
+        ordered = cands   # P.13: butun qutilar yetmasa — ochilgan qutilar qoldig'i (FEFO)
+    elif pack:
         ordered = [b for b in cands if _udec(b.quantity) % pack != 0] + [b for b in cands if _udec(b.quantity) % pack == 0]
     else:
         ordered = cands
     for b in ordered:
         if remaining <= 0:
             break
-        take = min(remaining, _udec(b.quantity))
+        take = min(remaining, _left(b))
         if take > 0:
             _take(b, take)
             remaining -= take
+    if remaining > 0:
+        remaining = take_rest(
+            db, company_id=company_id, product_id=product.id, variant_id=variant_id, warehouse_id=warehouse_id,
+            remaining=remaining, allocations=allocations, exclude_ids={b.id for b in cands}, deduct=deduct, lock=lock,
+        )
     return allocations, remaining
 
 

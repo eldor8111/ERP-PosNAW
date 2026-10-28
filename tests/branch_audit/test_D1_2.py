@@ -1,10 +1,10 @@
-"""D1.2 — Dorixona rejimi: FEFO va muddati o'tgan dorini sotishni bloklash.
+"""D1.2 — Dorixona rejimi: FEFO. P.13: dorixonada sotuv CHEKLANMAYDI.
 
-Qamrov (sotuv API orqali): FEFO tartibi (eski FIFO emas), faqat muddati o'tgan partiya qolsa 400 va
-StockLevel/partiya/sotuv yozuvlari o'zgarmaydi, `allow_negative` / `pos_allow_negative_stock` chetlab o'tmaydi,
-`expiry_block_days`, muddati NULL partiya (yaroqli, FEFO oxirida), xizmat mahsuloti, bir mahsulot ikki qatorda,
-sotuv tahriri va kutilayotgan sotuvni tasdiqlash, `pharmacy_context` sotuvga bir marta, oddiy korxona regressiyasi
-(muddati o'tgan partiya avvalgidek sotiladi) va ikki korxona izolyatsiyasi.
+Qamrov (sotuv API orqali): FEFO tartibi (eski FIFO emas), muddati NULL partiya (yaroqli, FEFO oxirida);
+P.13: yaroqli partiyalar yetmasa muddati o'tganlaridan (javobda `sold_invalid_batch` ogohlantirishi), so'ng
+partiyasiz qoldiqdan (minus qoldiq, `pos_allow_negative_stock` dorixonada qo'llanmaydi), `expiry_block_days`
+sotuvni bloklamaydi; xizmat mahsuloti, bir mahsulot ikki qatorda, sotuv tahriri va kutilayotgan sotuvni tasdiqlash,
+`pharmacy_context` sotuvga bir marta, oddiy korxona regressiyasi va ikki korxona izolyatsiyasi.
 
 Ishga tushirish (repo ildizidan):
     python -m pytest tests/branch_audit/test_D1_2.py -q -p no:cacheprovider
@@ -25,7 +25,7 @@ from app.models.sale import PaymentType, Sale, SaleItem, SaleItemBatch, SaleStat
 from app.models.user import UserWallet
 from app.schemas.sale import SaleUpdate
 from app.services.batch_allocator import (
-    allocate_batches, assert_pharmacy_sellable, expiry_cutoff, tashkent_today,
+    allocate_batches, expiry_cutoff, tashkent_today,
 )
 from app.services.sale_update import update_sale
 
@@ -161,75 +161,74 @@ def test_pharmacy_null_expiry_batch_is_valid_and_last(client, db, ph):
     assert _bq(db, legacy) == 0
 
 
-# ───────────────────────── bloklash ─────────────────────────
+# ───────────────────────── P.13: cheklov yo'q ─────────────────────────
 
-def test_pharmacy_only_expired_batch_blocks_sale_and_changes_nothing(client, db, ph):
-    """Qabul: faqat muddati o'tgan partiya qolgan dori sotilmaydi, StockLevel o'zgarmaydi."""
+def _warn_codes(r):
+    return [w.get("code") for w in r.json().get("warnings") or []]
+
+
+def test_pharmacy_only_expired_batch_is_sold_with_warning(client, db, ph):
+    """P.13: faqat muddati o'tgan partiya qolgan dori ham sotiladi — shu partiyadan yechiladi, javobda ogohlantirish."""
     p, wh = ph["p"], ph["wh"]
     expired = _batch(db, p, wh, 100, -3)
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], wh))
-    assert r.status_code == 400
-    assert r.json()["detail"] == f"{p.name}: yaroqli qoldiq 0, muddati o'tgan yoki yaroqsiz 100"
-    _no_sale_written(db, ph["c"], ph["sl"], D(100))
-    assert _bq(db, expired) == 100
-    assert db.query(SaleItemBatch).count() == 0
-
-
-def test_pharmacy_message_shows_valid_and_invalid_amounts(client, db, ph):
-    p, wh = ph["p"], ph["wh"]
-    _batch(db, p, wh, 5, -1)
-    _batch(db, p, wh, 2, 30)
-    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 3)], wh))
-    assert r.status_code == 400
-    assert r.json()["detail"] == f"{p.name}: yaroqli qoldiq 2, muddati o'tgan yoki yaroqsiz 5"
-    # yaroqli miqdorning o'zi sotiladi, muddati o'tgani tegilmaydi
-    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 2)], wh))
     assert r.status_code == 200, r.text
-    assert D(str(db.query(Batch).filter(Batch.product_id == p.id, Batch.expiry_date < _dt(0)).one().quantity)) == 5
+    assert _bq(db, expired) == 99 and _sq(db, ph["sl"]) == 99
+    assert _warn_codes(r) == ["sold_invalid_batch"]
+    item = db.query(SaleItem).filter_by(sale_id=r.json()["id"]).one()
+    sib = db.query(SaleItemBatch).filter_by(sale_item_id=item.id).all()
+    assert [(s.batch_id, D(str(s.quantity))) for s in sib] == [(expired.id, D(1))]
+
+
+def test_pharmacy_valid_batches_first_then_expired(client, db, ph):
+    p, wh = ph["p"], ph["wh"]
+    expired = _batch(db, p, wh, 5, -1)
+    valid = _batch(db, p, wh, 2, 30)
+    cl = client.login(ph["admin"])
+    r = cl.post("/api/sales/", json=_body([(p, 1)], wh))
+    assert r.status_code == 200 and _warn_codes(r) == [], r.text      # yaroqlisidan — ogohlantirish yo'q
+    assert _bq(db, valid) == 1 and _bq(db, expired) == 5
+    r = cl.post("/api/sales/", json=_body([(p, 3)], wh))
+    assert r.status_code == 200 and _warn_codes(r) == ["sold_invalid_batch"], r.text
+    assert _bq(db, valid) == 0 and _bq(db, expired) == 3
 
 
 @pytest.mark.parametrize("allow_negative", [True, False])
-def test_pharmacy_block_ignores_allow_negative_settings(client, db, ph, allow_negative):
-    """`pos_allow_negative_stock` yoqiq bo'lsa ham muddati o'tgan dori sotilmaydi."""
+def test_pharmacy_sale_ignores_negative_stock_setting(client, db, ph, allow_negative):
+    """P.13: `pos_allow_negative_stock` o'chiq bo'lsa ham dorixonada qoldiqdan ko'p sotiladi (minus qoldiq)."""
     p, wh = ph["p"], ph["wh"]
     ph["c"].pos_allow_negative_stock = allow_negative
     db.flush()
-    _batch(db, p, wh, 100, -10)
-    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], wh))
-    assert r.status_code == 400
-    _no_sale_written(db, ph["c"], ph["sl"], D(100))
-
-
-def test_pharmacy_no_batches_at_all_is_blocked(client, db, ph):
-    """Yaroqli partiya yo'q (partiyasiz qoldiq) — TZ bo'yicha sotuv rad etiladi."""
-    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(ph["p"], 1)], ph["wh"]))
-    assert r.status_code == 400
-    assert "yaroqli qoldiq 0" in r.json()["detail"]
-    _no_sale_written(db, ph["c"], ph["sl"], D(100))
-
-
-def test_pharmacy_same_product_in_two_lines_is_summed(client, db, ph):
-    p, wh = ph["p"], ph["wh"]
-    _batch(db, p, wh, 3, 30)
-    body = _body([(p, 2), (p, 2)], wh)
-    r = client.login(ph["admin"]).post("/api/sales/", json=body)
-    assert r.status_code == 400
-    assert "yaroqli qoldiq 3" in r.json()["detail"]
-    _no_sale_written(db, ph["c"], ph["sl"], D(100))
-    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 2), (p, 1)], wh))
+    b = _batch(db, p, wh, 3, 30)
+    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 105)], wh))
     assert r.status_code == 200, r.text
+    assert _bq(db, b) == 0 and _sq(db, ph["sl"]) == -5
 
 
-def test_pharmacy_second_line_blocked_changes_nothing_for_first(client, db, ph):
+def test_pharmacy_no_batches_at_all_sells_from_stock(client, db, ph):
+    """Partiyasiz qoldiq (eski qoldiq) ham sotiladi."""
+    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(ph["p"], 1)], ph["wh"]))
+    assert r.status_code == 200, r.text
+    assert _sq(db, ph["sl"]) == 99 and _warn_codes(r) == []
+
+
+def test_pharmacy_same_product_in_two_lines(client, db, ph):
+    p, wh = ph["p"], ph["wh"]
+    b = _batch(db, p, wh, 3, 30)
+    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 2), (p, 2)], wh))
+    assert r.status_code == 200, r.text
+    assert _bq(db, b) == 0 and _sq(db, ph["sl"]) == 96
+
+
+def test_pharmacy_expired_second_line_does_not_block_first(client, db, ph):
     p, wh = ph["p"], ph["wh"]
     good = _batch(db, p, wh, 10, 30)
     p2 = _product(db, ph["c"])
     sl2 = _stock(db, p2, wh, 10)
-    _batch(db, p2, wh, 10, -5)
+    bad = _batch(db, p2, wh, 10, -5)
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 2), (p2, 1)], wh))
-    assert r.status_code == 400 and p2.name in r.json()["detail"]
-    assert _bq(db, good) == 10 and _sq(db, ph["sl"]) == 100 and _sq(db, sl2) == 10
-    assert db.query(Sale).filter(Sale.company_id == ph["c"].id).count() == 0
+    assert r.status_code == 200, r.text
+    assert _bq(db, good) == 8 and _bq(db, bad) == 9 and _sq(db, ph["sl"]) == 98 and _sq(db, sl2) == 9
 
 
 def test_pharmacy_service_product_is_not_blocked(client, db, ph):
@@ -240,19 +239,16 @@ def test_pharmacy_service_product_is_not_blocked(client, db, ph):
 
 # ───────────────────────── expiry_block_days ─────────────────────────
 
-def test_pharmacy_expiry_block_days_treats_near_expiry_as_invalid(client, db, ph):
+def test_pharmacy_expiry_block_days_setting_no_longer_blocks(client, db, ph):
+    """P.13: eski `expiry_block_days` sozlamasi sotuvni bloklamaydi — muddati yaqin partiya FEFO bo'yicha birinchi."""
     p, wh = ph["p"], ph["wh"]
     ph["c"].pharmacy_settings = {"expiry_block_days": 10}
     db.flush()
-    near = _batch(db, p, wh, 5, 10)         # 10 kun qoldi -> yaroqsiz
-    ok = _batch(db, p, wh, 5, 11)           # 11 kun qoldi -> yaroqli
-    cl = client.login(ph["admin"])
-    r = cl.post("/api/sales/", json=_body([(p, 6)], wh))
-    assert r.status_code == 400
-    assert r.json()["detail"] == f"{p.name}: yaroqli qoldiq 5, muddati o'tgan yoki yaroqsiz 5"
-    r = cl.post("/api/sales/", json=_body([(p, 5)], wh))
-    assert r.status_code == 200, r.text
-    assert _bq(db, near) == 5 and _bq(db, ok) == 0
+    near = _batch(db, p, wh, 5, 10)
+    later = _batch(db, p, wh, 5, 11)
+    r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 6)], wh))
+    assert r.status_code == 200 and _warn_codes(r) == [], r.text
+    assert _bq(db, near) == 0 and _bq(db, later) == 4
 
 
 def test_expiry_cutoff_rules():
@@ -263,7 +259,7 @@ def test_expiry_cutoff_rules():
 
 # ───────────────────────── allocator / pharmacy_context ─────────────────────────
 
-def test_allocator_pharmacy_flag_applies_fefo_and_drops_expired_but_default_does_not(db, ph):
+def test_allocator_pharmacy_flag_takes_valid_first_then_expired(db, ph):
     p, wh, c = ph["p"], ph["wh"], ph["c"]
     expired = _batch(db, p, wh, 5, -2, age_days=30)
     ok = _batch(db, p, wh, 5, 40, age_days=1)
@@ -271,14 +267,9 @@ def test_allocator_pharmacy_flag_applies_fefo_and_drops_expired_but_default_does
                                   quantity=7, deduct=False)
     assert [a["batch_id"] for a in off] == [expired.id, ok.id] and short == 0     # oddiy qoida: FIFO
     on, short = allocate_batches(db, company_id=c.id, product_id=p.id, variant_id=None, warehouse_id=wh.id,
-                                 quantity=7, deduct=False, pharmacy=True)
-    assert [a["batch_id"] for a in on] == [ok.id] and short == 2                  # muddati o'tgani chetlatildi
-
-
-def test_assert_pharmacy_sellable_noop_when_module_off(db, ph):
-    p, wh = ph["p"], ph["wh"]
-    _batch(db, p, wh, 5, -2)
-    assert_pharmacy_sellable(db, company_id=ph["c"].id, lines=[(p, None, wh.id, 5)], pharmacy_ctx=(False, {}))
+                                 quantity=12, deduct=False, pharmacy=True)
+    # P.13: avval yaroqli (FEFO), so'ng muddati o'tgani (`invalid`), qolgani partiyasiz
+    assert [(a["batch_id"], a.get("invalid", False)) for a in on] == [(ok.id, False), (expired.id, True)] and short == 2
 
 
 def test_pharmacy_context_called_once_per_sale(client, db, ph, monkeypatch):
@@ -306,7 +297,8 @@ def test_pharmacy_context_called_once_per_sale(client, db, ph, monkeypatch):
 
 # ───────────────────────── tahrir va tasdiqlash ─────────────────────────
 
-def test_update_sale_blocks_over_valid_and_keeps_old_sale(client, db, ph):
+def test_update_sale_over_valid_takes_expired_batch(client, db, ph):
+    """P.13: tahrirda yaroqli partiya yetmasa ham rad etilmaydi — muddati o'tgan partiyadan yechiladi."""
     p, wh = ph["p"], ph["wh"]
     b = _batch(db, p, wh, 10, 30)
     cl = client.login(ph["admin"])
@@ -314,25 +306,16 @@ def test_update_sale_blocks_over_valid_and_keeps_old_sale(client, db, ph):
     assert r.status_code == 200, r.text
     sale_id = r.json()["id"]
     assert _bq(db, b) == 7 and _sq(db, ph["sl"]) == 97
-    # muddati o'tib ketgan partiya qo'shiladi (yaroqsiz) — tahrirda 11 dona yaroqli 10 dan ko'p
-    _batch(db, p, wh, 50, -1)
+    expired = _batch(db, p, wh, 50, -1)
     r = cl.put(f"/api/sales/{sale_id}", json={
         "items": [{"product_id": p.id, "quantity": 11, "unit_price": 1000, "warehouse_id": wh.id}],
         "paid_amount": 11000})
-    assert r.status_code == 400, r.text
-    assert "yaroqli qoldiq 10" in r.json()["detail"]
-    # eski sotuv o'z holicha (teskari ta'sirlar yozilmagan)
-    assert _bq(db, b) == 7 and _sq(db, ph["sl"]) == 97
-    assert D(str(db.query(SaleItem).filter_by(sale_id=sale_id).one().quantity)) == 3
-    # eski sotuv partiyasiga qaytadigan miqdor hisobga olinadi: 10 ta (7 + 3) tahrirda ruxsat
-    r = cl.put(f"/api/sales/{sale_id}", json={
-        "items": [{"product_id": p.id, "quantity": 10, "unit_price": 1000, "warehouse_id": wh.id}],
-        "paid_amount": 10000})
     assert r.status_code == 200, r.text
-    assert _bq(db, b) == 0
+    assert _bq(db, b) == 0 and _bq(db, expired) == 49 and _sq(db, ph["sl"]) == 89
+    assert D(str(db.query(SaleItem).filter_by(sale_id=sale_id).one().quantity)) == 11
 
 
-def test_confirm_pending_sale_blocks_expired(db, ph):
+def test_confirm_pending_sale_with_only_expired_batch(db, ph):
     p, wh, c, admin = ph["p"], ph["wh"], ph["c"], ph["admin"]
     expired = _batch(db, p, wh, 100, -4)
     sale = Sale(number=f"D12-P{next(_n)}", cashier_id=admin.id, company_id=c.id, warehouse_id=wh.id,
@@ -343,17 +326,10 @@ def test_confirm_pending_sale_blocks_expired(db, ph):
     db.add(SaleItem(sale_id=sale.id, product_id=p.id, warehouse_id=wh.id, unit="dona", quantity=D(1),
                     unit_price=D(1000), cost_price=D(0), discount=D(0), subtotal=D(1000)))
     db.flush()
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as e:
-        update_sale(db, sale.id, SaleUpdate(status=SaleStatus.completed, paid_amount=D(1000)), admin)
-    assert e.value.status_code == 400 and "yaroqli qoldiq 0" in e.value.detail
-    db.refresh(sale)
-    assert sale.status == SaleStatus.pending
-    assert _bq(db, expired) == 100 and _sq(db, ph["sl"]) == 100
-    # yaroqli partiya qo'shilsa tasdiqlanadi va FEFO bilan yechiladi
-    ok = _batch(db, p, wh, 5, 90)
     update_sale(db, sale.id, SaleUpdate(status=SaleStatus.completed, paid_amount=D(1000)), admin)
-    assert _bq(db, ok) == 4 and _bq(db, expired) == 100
+    db.refresh(sale)
+    assert sale.status == SaleStatus.completed
+    assert _bq(db, expired) == 99 and _sq(db, ph["sl"]) == 99
 
 
 # ───────────────────────── oddiy korxona (regressiya) ─────────────────────────
@@ -429,18 +405,17 @@ def test_other_company_cannot_sell_pharmacy_product_and_batches_untouched(client
     assert _bq(db, b) == 10 and _sq(db, ph["sl"]) == 100
 
 
-def test_other_company_valid_batches_do_not_count_for_pharmacy(client, db, ph):
-    """Boshqa korxona partiyasi (shu mahsulot id si bilan ham) yaroqli qoldiqqa qo'shilmaydi."""
+def test_other_company_batches_are_never_taken(client, db, ph):
+    """Boshqa korxona partiyasi (shu mahsulot id si bilan ham) olinmaydi — o'z muddati o'tgan partiyasidan yechiladi."""
     p, wh = ph["p"], ph["wh"]
-    _batch(db, p, wh, 100, -5)                              # A: faqat muddati o'tgan
+    own = _batch(db, p, wh, 100, -5)                        # A: faqat muddati o'tgan
     foreign = Batch(product_id=p.id, warehouse_id=wh.id, quantity=D(100), initial_quantity=D(100),
                     purchase_price=D(1), company_id=ph["c2"].id, expiry_date=_dt(90))
     db.add(foreign)
     db.flush()
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], wh))
-    assert r.status_code == 400
-    assert "yaroqli qoldiq 0" in r.json()["detail"]
-    assert _bq(db, foreign) == 100
+    assert r.status_code == 200, r.text
+    assert _bq(db, own) == 99 and _bq(db, foreign) == 100
 
 
 def test_own_resource_positive_path(client, db, ph):

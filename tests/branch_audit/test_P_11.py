@@ -27,10 +27,11 @@ def test_pharmacy_dona_open_box_code_optional_and_stays_in_stock(client, db, w):
         {"product_id": p.id, "quantity": 2, "unit_price": 1000, "marking_codes": [_code("OB1")]}])
     assert r.status_code == 200, r.text
     assert _mrow(db, w["pc"], _code("OB1")).status == "in_stock"     # ochilgan quti kodi — sotilgan deb belgilanmaydi
-    # 3 dona, 2 kod: na qutidan bo'lib sotish (ko'pi bilan 1), na eski qoida (kod soni = miqdor) — rad
+    # P.13: 3 dona, 2 kod — rad etilmaydi: qutidan bo'lib sotish, ochilgan quti kodi (birinchisi) chekda qoladi
     r = _post_sale(client, w["padmin"], w["pwh"], [
         {"product_id": p.id, "quantity": 3, "unit_price": 1000, "marking_codes": [_code("OB1"), _code("OB2")]}])
-    assert r.status_code == 400 and "ochilgan quti kodini" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    assert _mrow(db, w["pc"], _code("OB2")).status == "in_stock"
 
 
 def test_pharmacy_unpacked_marked_drug_codes_optional(client, db, w):
@@ -46,9 +47,10 @@ def test_pharmacy_whole_box_codes_optional(client, db, w):
     _stock(db, p, w["pwh"], 100)
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_id": box.id}])
     assert r.status_code == 200, r.text
+    # P.13: qutidan ko'p kod — rad etilmaydi (quti sonicha kod olinadi)
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_id": box.id,
                                                     "marking_codes": [_code("W1"), _code("W2")]}])
-    assert r.status_code == 400 and "ko'p" in r.json()["detail"]
+    assert r.status_code == 200, r.text
 
 
 def test_regular_company_rule_unchanged(client, db, w):

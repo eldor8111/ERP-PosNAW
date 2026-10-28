@@ -1,6 +1,6 @@
 """Dorixona moduli (D1.1): yoqilganligini tekshirish va sozlamalar.
 
-ASOSIY QOIDA: barcha dorixona qoidalari (FEFO, muddati o'tganni bloklash, majburiy seriya, retsept,
+ASOSIY QOIDA: barcha dorixona qoidalari (FEFO, muddat ogohlantirishi, seriya, retsept ma'lumoti,
 dori ma'lumotlari va h.k.) FAQAT `pharmacy_enabled(db, company_id)` True bo'lganda ishlaydi.
 Modul o'chiq korxonada (oddiy do'kon) hech qaysi xatti-harakat o'zgarmaydi.
 
@@ -15,12 +15,11 @@ from sqlalchemy.orm import Session
 FEATURE_CODE = "pharmacy"
 
 DEFAULT_SETTINGS = {
-    # Muddatiga shuncha kun yoki undan kam qolgan partiya sotilmaydi (0 = faqat muddati o'tganlar)
+    # P.13: sotuvda ishlatilmaydi (dorixonada sotuv cheklanmaydi); eski korxonalar uchun saqlanadi
     "expiry_block_days": 0,
     # Muddatiga shuncha kun qolganda ogohlantirish (POS savati, hisobotlar)
     "expiry_warn_days": 30,
-    # Retseptli dorini retseptsiz sotish: "warn" — sabab so'rab ruxsat, "block" — taqiqlash.
-    # Nazoratdagi (narkotik, psixotrop va h.k.) dorilar uchun doim "block".
+    # P.13: sotuvda ishlatilmaydi — retsept ixtiyoriy (eski korxonalar uchun saqlanadi)
     "rx_mode": "warn",
     # Kirimda qolgan yaroqlilik muddati foizi shundan kam bo'lsa ogohlantirish (0 = o'chiq)
     "min_shelf_life_pct": 0,

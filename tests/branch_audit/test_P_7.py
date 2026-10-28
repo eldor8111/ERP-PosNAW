@@ -96,7 +96,7 @@ def test_scan_picks_largest_unit_card_click_uses_picker():
     body = s[s.index('const handleScannedCode = (code) => {'):s.index('const scanRef = useRef(null);')]
     assert 'scanAdd(p);' in body and 'scanAdd(r.data)' in body and 'pickOrAdd(' not in body
     scan = s[s.index('const scanAdd = (p) => {'):s.index('const confirmUnitPick')]
-    assert "pharmacy ? unitOptions(p).find(x => x.unit && !x.disabled) : null" in scan
+    assert "pharmacy ? unitOptions(p).find(x => x.unit && !x.skip) : null" in scan     # P.13: skip — faqat ochilgan quti
     ulg = _read('frontend/src/pages/admin/UlgurjiSotuv.jsx')
     assert "prod._scanUnit = defaultScanUnit(prod);" in ulg and "const defaultScanUnit = (p) =>" in ulg
     # birlik shtrix-kodi (quti/blister kodi) — tanlovsiz, to'g'ridan-to'g'ri o'sha birlik
@@ -119,10 +119,11 @@ def test_scan_picks_largest_unit_card_click_uses_picker():
 def test_unit_picker_options_keyboard_and_scan_while_open():
     s = _read(POS)
     opts = s[s.index('const unitOptions = (p) => {'):s.index('const pickOrAdd')]
-    # quti (eng katta) birinchi, oxirida dona; butun quti yo'q bo'lsa quti tanlab bo'lmaydi
+    # quti (eng katta) birinchi, oxirida dona; P.13: hech bir birlik bloklanmaydi, faqat ochilgan quti bo'lsa quti
+    # sukut bo'yicha tanlanmaydi (skip)
     assert '.sort((a, b) => Number(b.ratio) - Number(a.ratio))' in opts
-    assert "{ unit: null, name: p.unit || 'dona', ratio: 1, price: base, disabled: false }" in opts
-    assert 'disabled: noWholeBox && Number(u.ratio) >= Number(p.pack_ratio)' in opts
+    assert "{ unit: null, name: p.unit || 'dona', ratio: 1, price: base, disabled: false, skip: false }" in opts
+    assert 'disabled: false, skip: openedOnly && Number(u.ratio) >= Number(p.pack_ratio)' in opts
     keys = s[s.index("if (!unitPick) return undefined;"):s.index('// P.7: yaroqlilik muddati rangi')]
     assert "e.key === 'Escape'" in keys and "e.key === 'ArrowDown'" in keys and "e.key === 'Enter'" in keys
     # oyna ochiqligida kelgan skaner kodi: joriy tanlov qo'shiladi, yangi kod odatdagidek qayta ishlanadi

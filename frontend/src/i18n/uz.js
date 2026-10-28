@@ -5226,7 +5226,7 @@ export default {
   'features.pharmacy.title': 'Dorixona',
   'features.pharmacy.desc': "Seriya va yaroqlilik muddati nazorati, muddati o'tgan dorini bloklash, retseptli sotuv va dorixona hisobotlari",
   'settings.pharmacy.title': 'Dorixona sozlamalari',
-  'settings.pharmacy.desc': 'Yaroqlilik muddati, retseptli sotuv va kirimda narx hisoblash qoidalari.',
+  'settings.pharmacy.desc': 'Yaroqlilik muddati ogohlantirishi va kirimda narx hisoblash qoidalari.',
   'settings.pharmacy.expiryBlockDays': 'Muddati yaqin dorini bloklash (kun)',
   'settings.pharmacy.expiryBlockDaysHint': "Muddatiga shuncha kun yoki kam qolgan partiya sotilmaydi (0 — faqat muddati o'tganlar)",
   'settings.pharmacy.expiryWarnDays': 'Ogohlantirish (kun)',
@@ -5807,7 +5807,7 @@ export default {
   "pos.unitPickHint": "↑ ↓ — tanlash · Enter — savatga · Esc — bekor",
   "pos.noWholeBox": "Butun quti yo'q",
   "pos.expiryDaysLeft": "{n} kun qoldi",
-  "pos.expiredTitle": "Omborda muddati o'tgan partiya bor — sotilmaydi",
+  "pos.expiredTitle": "Omborda muddati o'tgan partiya bor",
   "pos.expiredShort": "Muddati o'tgan",
   // === P.9 ===
   "drugForm.batchQtyLabel": "Qoldiq ({unit})",

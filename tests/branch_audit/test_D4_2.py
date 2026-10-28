@@ -303,16 +303,17 @@ def test_block_all_branches_audit_telegram_and_sale_rejected(client, db, ph, sen
     assert D(str(b1.quantity)) == 8 and D(str(other.quantity)) == 2        # b1 faqat oldingi sotuvdan kamaygan
 
 
-def test_sale_rejected_when_only_recalled_lot(client, db, ph, sent):
+def test_sale_of_only_recalled_lot_is_not_rejected(client, db, ph, sent):
+    """P.13: dorixonada sotuv cheklanmaydi — qaytarib olingan seriya ham sotiladi, javobda ogohlantirish."""
     p, wh1 = ph["p"], ph["wh1"]
     b = _batch(db, p, wh1, 10, 200, "ONLY-1")
     cl = client.login(ph["admin"])
     assert cl.post("/api/pharmacy/recall/block", json={"lot": "ONLY-1", "reason": "Brak"}).status_code == 200
     r = cl.post("/api/sales/", json=_sale_body(p, 1, wh1))
-    assert r.status_code == 400, r.text
+    assert r.status_code == 200, r.text
+    assert [x["code"] for x in r.json()["warnings"]] == ["sold_invalid_batch"]
     db.refresh(b)
-    assert D(str(b.quantity)) == 10
-    assert db.query(Sale).filter(Sale.company_id == ph["c"].id).count() == 0
+    assert D(str(b.quantity)) == 9
 
 
 def test_block_validation(client, db, ph, sent):

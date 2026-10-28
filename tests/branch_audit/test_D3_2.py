@@ -332,14 +332,20 @@ def test_sale_accepts_short_code_without_crypto_tail(client, db, w, received):
     assert [x.status for x in _rows(db, w['pc'], serial="SER0003")] == ["sold"]
 
 
-def test_second_sale_of_same_code_is_400(client, db, w, received):
+def test_second_sale_of_same_code_sells_untracked(client, db, w, received):
+    """P.13: avval sotilgan kod qayta skanerlansa sotuv to'xtamaydi — kod holati o'zgarmaydi, ogohlantirish."""
     prod, codes = received['prod'], received['codes']
     cl = client.login(w['padmin'])
-    assert cl.post('/api/sales/', json=_sale_body(prod, 1, w['pwh'], [codes[0]])).status_code == 200
+    first = cl.post('/api/sales/', json=_sale_body(prod, 1, w['pwh'], [codes[0]]))
+    assert first.status_code == 200
     r = cl.post('/api/sales/', json=_sale_body(prod, 1, w['pwh'], [codes[0]]))
-    assert r.status_code == 400 and "allaqachon sotilgan" in r.json()['detail']
+    assert r.status_code == 200, r.text
+    assert any("avval sotilgan" in x['message'] for x in r.json()['warnings'])
+    row = _rows(db, w['pc'], serial="SER0001")[0]
+    first_item = db.query(SaleItem).filter_by(sale_id=first.json()['id']).one()
+    assert row.status == "sold" and row.sale_item_id == first_item.id          # birinchi sotuvga bog'liq qoldi
     sl = db.query(StockLevel).filter_by(product_id=prod.id, warehouse_id=w['pwh'].id).one()
-    assert D(str(sl.quantity)) == 4                                   # ikkinchi sotuv ombordan ayirmadi
+    assert D(str(sl.quantity)) == 3
 
 
 def test_sale_with_unknown_code_sells_untracked_with_warning(client, db, w, received):
@@ -353,22 +359,27 @@ def test_sale_with_unknown_code_sells_untracked_with_warning(client, db, w, rece
     assert all(x.status == "in_stock" for x in _rows(db, w['pc']))
 
 
-def test_sale_duplicate_code_within_one_receipt_is_400(client, db, w, received):
+def test_sale_duplicate_code_within_one_receipt_sells_once_tracked(client, db, w, received):
+    """P.13: chekda takrorlangan kod sotuvni to'xtatmaydi — bir marta kuzatiladi, ogohlantirish."""
     c = received['codes'][0]
     r = client.login(w['padmin']).post('/api/sales/', json=_sale_body(received['prod'], 2, w['pwh'], [c, c]))
-    assert r.status_code == 400 and "takrorlangan" in r.json()['detail']
-    assert all(x.status == "in_stock" for x in _rows(db, w['pc']))
+    assert r.status_code == 200, r.text
+    assert any("takrorlangan" in x['message'] for x in r.json()['warnings'])
+    assert [x.status for x in _rows(db, w['pc'], serial="SER0001")] == ["sold"]
 
 
-def test_sale_codes_optional_but_not_more_than_quantity(client, db, w, received):
-    """Dorixonada markirovka majburiy emas: kod kam yoki umuman yo'q — sotiladi; miqdordan ko'p kod — 400."""
+def test_sale_codes_optional_and_extra_codes_trimmed(client, db, w, received):
+    """Dorixonada markirovka majburiy emas: kod kam yoki umuman yo'q — sotiladi; P.13: miqdordan ko'p kod ham rad
+    etilmaydi — miqdorchasi olinadi (ortiqchasi kuzatilmaydi)."""
     cl = client.login(w['padmin'])
     r = cl.post('/api/sales/', json=_sale_body(received['prod'], 2, w['pwh'], received['codes'][:1]))
     assert r.status_code == 200, r.text
     assert [x.status for x in _rows(db, w['pc'], serial="SER0001")] == ["sold"]
     assert cl.post('/api/sales/', json=_sale_body(received['prod'], 1, w['pwh'])).status_code == 200
     r = cl.post('/api/sales/', json=_sale_body(received['prod'], 1, w['pwh'], received['codes'][1:3]))
-    assert r.status_code == 400 and "ko'p" in r.json()['detail']
+    assert r.status_code == 200, r.text
+    assert [x.status for x in _rows(db, w['pc'], serial="SER0002")] == ["sold"]
+    assert [x.status for x in _rows(db, w['pc'], serial="SER0003")] == ["in_stock"]
 
 
 def test_other_company_cannot_touch_foreign_code(client, db, w, received):
@@ -382,12 +393,15 @@ def test_other_company_cannot_touch_foreign_code(client, db, w, received):
     assert [x.status for x in _rows(db, w['pc'], serial="SER0001")] == ["in_stock"]
 
 
-def test_code_belonging_to_other_product_is_400(client, db, w, received):
+def test_code_belonging_to_other_product_sells_untracked(client, db, w, received):
+    """P.13: boshqa mahsulot kodi sotuvni to'xtatmaydi — kuzatilmaydi (holati o'zgarmaydi), ogohlantirish."""
     prod2 = _product(db, w['pc'])
     po = _po(client, w['padmin'], w['pwh'], w['psup'], prod2, 1)
     assert _receive_api(client, w['padmin'], po, 1).status_code == 200
     r = client.login(w['padmin']).post('/api/sales/', json=_sale_body(prod2, 1, w['pwh'], [received['codes'][0]]))
-    assert r.status_code == 400 and "boshqa mahsulotga" in r.json()['detail']
+    assert r.status_code == 200, r.text
+    assert any("boshqa mahsulotga" in x['message'] for x in r.json()['warnings'])
+    assert [x.status for x in _rows(db, w['pc'], serial="SER0001")] == ["in_stock"]
 
 
 def test_same_code_can_exist_in_two_companies(client, db, w, received):

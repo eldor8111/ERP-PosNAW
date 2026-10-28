@@ -124,34 +124,33 @@ def test_unit_selection_scan_and_request_field():
     assert "(x.unit_id || null) === (unit ? unit.id : null)" in POS
 
 
-def test_whole_box_limit_and_piece_suggestion():
+def test_whole_box_not_limited_in_pos_screens():
+    """P.13: butun quti soni cheklanmaydi; faqat ochilgan quti bo'lsa skanerda quti sukut bo'yicha tanlanmaydi."""
     for src in (POS, ULG):
-        assert "wholeBoxMax(" in src
-        assert "pos.wholeBoxMax" in src and "pos.sellByPiece" in src
+        assert "wholeBoxMax(" not in src and "openedBoxOnly(" in src
+    assert "_clampWholeBox" not in POS
     assert "parseWholeBoxError(raw)" in POS and "applyBoxFix" in POS
     assert "parseWholeBoxError(detail)" in ULG and "applyBoxFix" in ULG
-    assert "export function wholeBoxMax" in QUEUE and "export function parseWholeBoxError" in QUEUE
-    assert "butun quti" in QUEUE
+    assert "export function wholeBoxMax" not in QUEUE and "export const openedBoxOnly" in QUEUE
+    assert "export function parseWholeBoxError" in QUEUE and "butun quti" in QUEUE
 
 
 def test_prescription_modal_and_request_fields():
+    """P.13: retsept ixtiyoriy — to'lovdan oldin oyna majburiy ochilmaydi, savatdagi tugma orqali kiritiladi."""
     for src in (POS, ULG):
-        assert "buildRxPayload(" in src and "validateRx(" in src
-        assert "rxProductsOf(" in src
-        assert "blank_type" in src
-    # to'lovdan oldin ochiladi; server rx_required/rx_blank_invalid qaytarsa ham
-    assert "const requestCheckout = " in POS and "requestCheckout();" in POS
-    assert "setRxModal({ proceed: true })" in ULG
+        assert "buildRxPayload(" in src and "validateRx(" not in src
+        assert "rxProductsOf(" in src and "blank_type" in src
+        assert "setRxModal({})" in src                                            # savatdagi "Retsept" tugmasi
+        assert "const rxMode = 'warn';" in src
+    assert "const requestCheckout = () => {\n    setShowCheckout(true);\n  };" in POS and "requestCheckout();" in POS
     assert "info.category === 'rx'" in POS and "info.category === 'rx'" in ULG
     assert "rx_required" in QUEUE and "rx_blank_invalid" in QUEUE
-    # so'rov maydonlari
+    # so'rov maydonlari: faqat kiritilgan retseptlar yuboriladi
     assert "prescriptions" in QUEUE and "rx_override_reason" in QUEUE
+    assert "if (![d.number, d.doctor, d.clinic, d.issued_at].some(v => String(v || '').trim())) continue;" in QUEUE
     assert "...(pharmacy ? buildRxPayload(cart, rxData, rxReason, rxMode) : {})" in POS
     assert "...(pharmacy ? buildRxPayload(cart, rxData, rxReason, rxMode) : {})" in ULG
-    # nazoratdagi dori: blank turi majburiy (oddiy blank emas); warn rejimida sabab varianti
     assert "pos.rxBlankPick" in POS and "pos.rxNone" in POS and "pos.rxReason" in POS
-    assert "rxMode !== 'block'" in POS
-    assert "nazoratdagi dori uchun maxsus blank turini tanlang" in QUEUE.lower().replace("'", "'")
 
 
 def test_marking_optional_in_pharmacy_mode():
@@ -334,45 +333,39 @@ def test_analogs_isolation_and_plain_company(client, db, ph):
     assert r.status_code == 404                                                   # oddiy korxona: modul o'chiq
 
 
-def test_rx_required_error_shape_matches_modal_and_frontend_payload_works(client, db, ph):
+def test_rx_drug_sells_without_prescription_and_frontend_payload_works(client, db, ph):
+    """P.13: retseptsiz ham sotiladi; frontend (buildRxPayload) yuboradigan maydonlar bilan ham."""
     p = _product(db, ph["c"], ph["wh"], rx=True)
     cl = client.login(ph["admin"])
     r = cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"]))
-    assert r.status_code == 400
-    d = r.json()["detail"]
-    assert d["code"] == "rx_required" and d["mode"] == "warn" and d["override_allowed"] is True
-    assert d["products"][0]["name"] == p.name                                    # oynada dori nomi ko'rsatiladi
-    # frontend (buildRxPayload) yuboradigan maydonlar bilan sotuv o'tadi
+    assert r.status_code == 200, r.text
     rx = {"product_id": p.id, "number": "AB-1", "issued_at": (tashkent_today() - timedelta(days=1)).isoformat(),
           "doctor": "Karimov A.", "clinic": "3-poliklinika", "blank_type": "simple"}
     ok = cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"], prescriptions=[rx]))
     assert ok.status_code == 200, ok.text
-    # warn rejimi: retseptsiz sotish sababi bilan
     p2 = _product(db, ph["c"], ph["wh"], rx=True)
     ok2 = cl.post("/api/sales/", json=_body([(p2, 1)], ph["wh"], rx_override_reason="Mijoz retseptni olib kelmadi"))
     assert ok2.status_code == 200, ok2.text
 
 
-def test_controlled_drug_needs_special_blank_and_block_mode(client, db, ph):
+def test_controlled_drug_sells_with_any_blank_or_without_prescription(client, db, ph):
     p = _product(db, ph["c"], ph["wh"], control="psychotropic")
     cl = client.login(ph["admin"])
-    r = cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"], rx_override_reason="sabab"))
-    d = r.json()["detail"]
-    assert r.status_code == 400 and d["code"] == "rx_required" and d["override_allowed"] is False
+    assert cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"], rx_override_reason="sabab")).status_code == 200
     rx = {"product_id": p.id, "number": "N-1", "issued_at": tashkent_today().isoformat(), "doctor": "A", "clinic": "B",
           "blank_type": "simple"}
-    bad = cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"], prescriptions=[rx]))
-    assert bad.status_code == 400 and bad.json()["detail"]["code"] == "rx_blank_invalid"
+    assert cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"], prescriptions=[rx])).status_code == 200
     rx["blank_type"] = "form_107"
     assert cl.post("/api/sales/", json=_body([(p, 1)], ph["wh"], prescriptions=[rx])).status_code == 200
 
 
-def test_expired_batch_error_is_plain_string_for_error_modal(client, db, ph):
+def test_expired_batch_sells_with_plain_warning_for_pos(client, db, ph):
+    """P.13: muddati o'tgan dori sotiladi; kassa ko'rsatadigan ogohlantirish — oddiy matn."""
     p = _product(db, ph["c"], ph["wh"], expiry_days=-5)
     r = client.login(ph["admin"]).post("/api/sales/", json=_body([(p, 1)], ph["wh"]))
-    assert r.status_code == 400
-    assert isinstance(r.json()["detail"], str) and "muddati o'tgan" in r.json()["detail"]
-    assert db.query(Sale).filter(Sale.company_id == ph["c"].id).count() == 0
+    assert r.status_code == 200, r.text
+    w = r.json()["warnings"]
+    assert len(w) == 1 and isinstance(w[0]["message"], str) and "muddati o'tgan" in w[0]["message"]
 
 
 def test_plain_company_sells_rx_flagged_and_expired_as_before(client, db, ph):
@@ -388,7 +381,8 @@ def test_schema_exposes_unit_id():
     assert "unit_id" in SaleItemCreate.model_fields
 
 
-def test_unit_id_sale_and_whole_box_error_match_frontend_parser(client, db, ph):
+def test_unit_id_sale_whole_boxes_not_limited(client, db, ph):
+    """P.13: 3 butun quti kerak, omborda 2 butun quti + 15 ochilgan dona — sotuv o'tadi (ochilganidan olinadi)."""
     p = _product(db, ph["c"], ph["wh"], qty=15, pack_qty=10)
     for q in (15, 5):      # jami 35 dona: 10 + 10 butun va 15 ochilgan qutilarda
         db.add(Batch(product_id=p.id, warehouse_id=ph["wh"].id, quantity=D(q), initial_quantity=D(q),
@@ -399,25 +393,15 @@ def test_unit_id_sale_and_whole_box_error_match_frontend_parser(client, db, ph):
     db.add(box)
     db.flush()
     cl = client.login(ph["admin"])
-    # 3 ta butun quti kerak, lekin 2 butun quti + 15 ochilgan dona bor -> 400 (frontend parseWholeBoxError shu matnni ajratadi)
     body = _body([(p, 3)], ph["wh"])
     body["items"][0].update(unit_id=box.id, unit_price=9000)
     body["paid_amount"] = body["paid_cash"] = 27000
     body["payments"] = [{"type": "cash", "amount": 27000}]
     r = cl.post("/api/sales/", json=body)
-    assert r.status_code == 400, r.text
-    detail = r.json()["detail"]
-    m = re.match(r"^(.*?):\s*butun quti\s+([\d.,]+)\s*ta,\s*ochilgan qutida\s+([\d.,]+)\s*dona", detail, re.I)
-    assert m and m.group(1).strip() == p.name and m.group(2) == "2" and m.group(3) == "15"
-    # 1 quti — sotuv o'tadi, qoldiq 25 ga kamayadi (miqdor asosiy birlikda)
-    body["items"][0]["quantity"] = 1
-    body["paid_amount"] = body["paid_cash"] = 9000
-    body["payments"] = [{"type": "cash", "amount": 9000}]
-    ok = cl.post("/api/sales/", json=body)
-    assert ok.status_code == 200, ok.text
+    assert r.status_code == 200, r.text
     sl = db.query(StockLevel).filter_by(product_id=p.id).one()
     db.refresh(sl)
-    assert D(str(sl.quantity)) == 25
+    assert D(str(sl.quantity)) == 5          # miqdor asosiy birlikda (3 quti = 30 dona)
 
 
 # ───────── 3. 2-urinish: pending saqlash, qayta narxlash, birlik narxi (ulgurji) ─────────

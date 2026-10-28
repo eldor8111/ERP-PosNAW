@@ -299,13 +299,17 @@ def register_receipt_codes(
 
 def plan_sale_marking(db: Session, company_id: int, lines: List[Tuple[int, Product, Optional[Product], List[str]]],
                       warnings: Optional[list] = None) -> Dict[int, List[MarkingCode]]:
-    """Dorixona rejimida sotuvdan OLDIN (yozishdan oldin): ro'yxatdagi kod shu korxonada `in_stock` va shu mahsulotniki
-    bo'lishi shart. lines: [(qator indeksi, mahsulot, manba mahsulot (konversiya) yoki None, kodlar)].
-    Faqat `requires_marking` mahsulotlar tekshiriladi. Xato bo'lsa 400 — hech narsa yozilmaydi.
-    Kirimda qabul qilinmagan (ro'yxatda yo'q) kod sotuvni to'xtatmaydi: chekda qoladi, kuzatilmaydi, `warnings` ga yoziladi
-    (markirovka dorixonada majburiy emas, kirimda kod kiritish ham ixtiyoriy)."""
+    """Dorixona rejimida sotuvdan OLDIN (yozishdan oldin): shu korxonada `in_stock` va shu mahsulotniki bo'lgan kodlar
+    `sold` qilinadi (kuzatiladi). lines: [(qator indeksi, mahsulot, manba mahsulot (konversiya) yoki None, kodlar)].
+    Faqat `requires_marking` mahsulotlar. P.13: sotuv rad etilmaydi — kirimda qabul qilinmagan, takrorlangan, avval
+    sotilgan, yaroqsiz holatdagi yoki boshqa mahsulot kodi chekda qoladi, kuzatilmaydi, `warnings` ga yoziladi."""
     plan: Dict[int, List[MarkingCode]] = {}
     seen = set()
+
+    def _warn(code: str, product, text: str) -> None:
+        if warnings is not None:
+            warnings.append({"code": code, "product_id": product.id, "message": f"'{product.name}': {text}"})
+
     for idx, product, source, codes in lines:
         if not getattr(product, "requires_marking", False):
             continue
@@ -316,7 +320,8 @@ def plan_sale_marking(db: Session, company_id: int, lines: List[Tuple[int, Produ
                 continue
             canon, _parsed = canonical_code(raw)
             if canon in seen:
-                raise HTTPException(status_code=400, detail=f"'{product.name}': kod chekda takrorlangan — {canon}")
+                _warn("marking_duplicate", product, f"kod chekda takrorlangan, kuzatuvsiz sotildi — {canon}")
+                continue
             seen.add(canon)
             row = (
                 db.query(MarkingCode)
@@ -324,21 +329,14 @@ def plan_sale_marking(db: Session, company_id: int, lines: List[Tuple[int, Produ
                 .with_for_update().first()
             )
             if row is None:
-                if warnings is not None:
-                    warnings.append({
-                        "code": "marking_not_received", "product_id": product.id,
-                        "message": f"'{product.name}': markirovka kodi kirimda qabul qilinmagan, kuzatuvsiz sotildi",
-                    })
+                _warn("marking_not_received", product, "markirovka kodi kirimda qabul qilinmagan, kuzatuvsiz sotildi")
                 continue
-            if row.status == "sold":
-                raise HTTPException(status_code=400, detail=f"'{product.name}': kod allaqachon sotilgan — {canon}")
-            if row.status != "in_stock":
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"'{product.name}': kod sotuvga yaroqsiz ({STATUS_LABELS.get(row.status, row.status)}) — {canon}",
-                )
-            if row.product_id not in allowed:
-                raise HTTPException(status_code=400, detail=f"'{product.name}': kod boshqa mahsulotga tegishli — {canon}")
+            if row.status != "in_stock" or row.product_id not in allowed:
+                why = ("kod avval sotilgan" if row.status == "sold"
+                       else f"kod holati: {STATUS_LABELS.get(row.status, row.status)}" if row.status != "in_stock"
+                       else "kod boshqa mahsulotga tegishli")
+                _warn("marking_not_tracked", product, f"{why}, kuzatuvsiz sotildi — {canon}")
+                continue
             rows.append(row)
         if rows:
             plan[idx] = rows

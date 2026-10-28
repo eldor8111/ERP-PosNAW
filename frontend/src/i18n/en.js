@@ -5233,7 +5233,7 @@ export default {
   'features.pharmacy.title': 'Pharmacy',
   'features.pharmacy.desc': 'Batch and expiry control, blocking expired medicines, prescription sales and pharmacy reports',
   'settings.pharmacy.title': 'Pharmacy settings',
-  'settings.pharmacy.desc': 'Expiry, prescription sale and receiving price calculation rules.',
+  'settings.pharmacy.desc': 'Expiry warning and receiving price calculation rules.',
   'settings.pharmacy.expiryBlockDays': 'Block near-expiry medicines (days)',
   'settings.pharmacy.expiryBlockDaysHint': 'A batch with this many days or fewer left is not sold (0 — expired only)',
   'settings.pharmacy.expiryWarnDays': 'Warning (days)',
@@ -5814,7 +5814,7 @@ export default {
   "pos.unitPickHint": "↑ ↓ — select · Enter — add to cart · Esc — cancel",
   "pos.noWholeBox": "No whole box",
   "pos.expiryDaysLeft": "{n} days left",
-  "pos.expiredTitle": "Expired batch in stock — not for sale",
+  "pos.expiredTitle": "Expired batch in stock",
   "pos.expiredShort": "Expired",
   // === P.9 ===
   "drugForm.batchQtyLabel": "Stock ({unit})",

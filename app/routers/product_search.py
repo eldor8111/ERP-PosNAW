@@ -129,7 +129,7 @@ def _nearest_valid_expiry(db: Session, product_ids, wh_ids, settings: dict) -> d
     ids, wh = list(product_ids), list(wh_ids)
     if not ids or not wh:
         return {}
-    cutoff = expiry_cutoff(tashkent_today(), settings.get("expiry_block_days") or 0)
+    cutoff = expiry_cutoff(tashkent_today())   # P.13: muddati yaqin dori ham sotiladi
     rows = (
         db.query(Batch.product_id, func.min(Batch.expiry_date))
         .filter(Batch.product_id.in_(ids), Batch.warehouse_id.in_(wh), Batch.quantity > 0,
@@ -892,7 +892,7 @@ def product_analogs(
     ids = [p.id for p, _ in cands]
     wh_ids = sellable_warehouse_ids(db, company_id, branch_ids=ctx.scope_ids())
     stock_map = stock_totals(db, ids, wh_ids)
-    cutoff = expiry_cutoff(tashkent_today(), settings.get("expiry_block_days") or 0)
+    cutoff = expiry_cutoff(tashkent_today())   # P.13: muddati yaqin dori ham sotiladi
     expired_map = {}
     if wh_ids:
         expired_map = {

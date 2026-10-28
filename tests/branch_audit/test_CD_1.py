@@ -464,21 +464,24 @@ def _pending(client, user, wh, items):
     return r.json()["id"]
 
 
-def test_confirm_pending_rx_required_then_override(client, db, w):
+def test_confirm_pending_rx_drug_without_prescription_and_with_reason(client, db, w):
+    """P.13: retseptli dorili kutilayotgan sotuv retseptsiz tasdiqlanadi; sabab berilsa saqlanadi."""
     p = _product(db, w["pc"])
     db.add(ProductPharma(product_id=p.id, company_id=w["pc"].id, is_rx=True))
     _stock(db, p, w["pwh"], 20)
-    sid = _pending(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_price": 1000}])
     cl = client.login(w["padmin"])
+    sid = _pending(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_price": 1000}])
     r = cl.put(f"/api/sales/{sid}", json={"status": "completed", "paid_amount": 2000})
-    assert r.status_code == 400 and r.json()["detail"]["code"] == "rx_required"
-    assert db.get(Sale, sid).status.value == "pending"
-    r = cl.put(f"/api/sales/{sid}", json={"status": "completed", "paid_amount": 2000,
-                                          "rx_override_reason": "Mijoz retseptni unutgan"})
     assert r.status_code == 200, r.text
-    rows = db.query(SalePrescription).filter_by(sale_id=sid).all()
+    assert db.get(Sale, sid).status.value == "completed"
+    assert db.query(SalePrescription).filter_by(sale_id=sid).count() == 0
+    sid2 = _pending(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_price": 1000}])
+    r = cl.put(f"/api/sales/{sid2}", json={"status": "completed", "paid_amount": 1000,
+                                           "rx_override_reason": "Mijoz retseptni unutgan"})
+    assert r.status_code == 200, r.text
+    rows = db.query(SalePrescription).filter_by(sale_id=sid2).all()
     assert len(rows) == 1 and rows[0].reason_without_rx == "Mijoz retseptni unutgan"
-    got = client.login(w["padmin"]).get(f"/api/sales/{sid}").json()
+    got = client.login(w["padmin"]).get(f"/api/sales/{sid2}").json()
     assert len(got["prescriptions"]) == 1
 
 
@@ -534,7 +537,7 @@ def test_confirm_pending_marks_codes_sold_simple_path(client, db, w):
 
 def test_confirm_pending_marking_optional_unknown_code_untracked(client, db, w):
     """Dorixonada markirovka majburiy emas: kod kam bo'lsa ham, ro'yxatda yo'q kod bo'lsa ham tasdiqlanadi;
-    miqdordan ko'p kod — 400."""
+    P.13: miqdordan ko'p kod ham rad etilmaydi."""
     p = _product(db, w["pc"], requires_marking=True)
     b = _stock(db, p, w["pwh"], 20)
     _mcode(db, w["pc"], p, "Q1", w["pwh"], b)
@@ -551,7 +554,7 @@ def test_confirm_pending_marking_optional_unknown_code_untracked(client, db, w):
     sid3 = _pending(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_price": 1000,
                                                      "marking_codes": [_code("X1"), _code("X2")]}])
     r = cl.put(f"/api/sales/{sid3}", json={"status": "completed", "paid_amount": 1000})
-    assert r.status_code == 400 and "ko'p" in r.json()["detail"]
+    assert r.status_code == 200, r.text
 
 
 def test_confirm_pending_marking_regular_company_unchanged(client, db, w):
@@ -584,12 +587,14 @@ def test_full_edit_swaps_marking_codes(client, db, w):
     assert r.status_code == 200, r.text
     assert _mrow(db, w["pc"], e1).status == "in_stock" and _mrow(db, w["pc"], e1).sale_item_id is None
     assert _mrow(db, w["pc"], e2).status == "sold"
-    # boshqa sotuvda sotilgan kodni olib bo'lmaydi
+    # P.13: boshqa sotuvda sotilgan kod tahrirni to'xtatmaydi — kuzatilmaydi, o'sha sotuvga bog'liq qoladi
     sid2 = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_price": 1000,
                                                         "marking_codes": [e3]}]).json()["id"]
     r = cl.put(f"/api/sales/{sid}", json=body([e3]))
-    assert r.status_code == 400 and "sotilgan" in r.json()["detail"]
-    assert sid2
+    assert r.status_code == 200, r.text
+    item2 = db.query(SaleItem).filter_by(sale_id=sid2).one()
+    assert _mrow(db, w["pc"], e3).status == "sold" and _mrow(db, w["pc"], e3).sale_item_id == item2.id
+    assert _mrow(db, w["pc"], e2).status == "in_stock"
 
 
 def test_cancel_completed_releases_codes(client, db, w):
@@ -682,7 +687,8 @@ def boxed(db, w):
 
 
 def test_whole_boxes_codes_optional_one_per_box_at_most(client, db, w, boxed):
-    """Dorixonada markirovka majburiy emas: butun quti kodsiz yoki kam kod bilan sotiladi, qutidan ko'p kod — 400."""
+    """Dorixonada markirovka majburiy emas: butun quti kodsiz yoki kam kod bilan sotiladi; P.13: qutidan ko'p kod —
+    rad etilmaydi, quti sonicha kod olinadi."""
     p, box = boxed["p"], boxed["box"]
     b1, b2, b3 = _code("B1"), _code("B2"), _code("B3")
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id, "marking_codes": [b1]}])
@@ -692,13 +698,14 @@ def test_whole_boxes_codes_optional_one_per_box_at_most(client, db, w, boxed):
     assert r.status_code == 200, r.text
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 1, "unit_id": box.id,
                                                     "marking_codes": [b2, b3]}])
-    assert r.status_code == 400 and "ko'p" in r.json()["detail"]
-    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id,
-                                                    "marking_codes": [b2, b3]}])
     assert r.status_code == 200, r.text
-    assert _mrow(db, w["pc"], b2).status == "sold" and _mrow(db, w["pc"], b3).status == "sold"
+    assert _mrow(db, w["pc"], b2).status == "sold" and _mrow(db, w["pc"], b3).status == "in_stock"
+    r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 2, "unit_id": box.id,
+                                                    "marking_codes": [b3]}])
+    assert r.status_code == 200, r.text
+    assert _mrow(db, w["pc"], b3).status == "sold"
     item = db.query(SaleItem).filter_by(sale_id=r.json()["id"]).one()
-    assert D(str(item.quantity)) == 60 and sorted(item.marking_codes) == sorted([b2, b3])
+    assert D(str(item.quantity)) == 60 and item.marking_codes == [b3]
 
 
 def test_pieces_from_box_need_no_code(client, db, w, boxed):
@@ -720,10 +727,11 @@ def test_pieces_with_opened_box_code_keep_status(client, db, w, boxed):
     assert item.marking_codes == [code]
     row = _mrow(db, w["pc"], code)
     assert row.status == "in_stock" and row.sale_item_id is None
-    # 2 ta kod — rad etiladi
+    # P.13: 2 ta kod — rad etilmaydi, ochilgan quti kodi (birinchisi) olinadi
     r = _post_sale(client, w["padmin"], w["pwh"], [{"product_id": p.id, "quantity": 5, "unit_id": piece.id,
                                                     "marking_codes": [_code("B3"), _code("B4")]}])
-    assert r.status_code == 400
+    assert r.status_code == 200, r.text
+    assert db.query(SaleItem).filter_by(sale_id=r.json()["id"]).one().marking_codes == [_code("B3")]
 
 
 def test_without_unit_id_old_rule_stays(client, db, w, boxed):

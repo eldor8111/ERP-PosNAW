@@ -9,14 +9,14 @@ Har bosqich ichida: oddiy tovarda FIFO (`created_at, id`); `is_perishable` kateg
 muddati o'tganlar chiqariladi va FEFO (`expiry_date ASC NULLS LAST, id`).
 
 DORIXONA REJIMI (D1.2): modul yoqilgan korxonada (service turidan tashqari) HAMMA mahsulot
-perishable sifatida: FEFO tartibi, muddati o'tgan va muddatiga `expiry_block_days` yoki kam
-qolgan partiyalar chetlatiladi; muddati NULL partiya yaroqli (FEFO oxirida). Yaroqli partiya
-yetmasa sotuv `assert_pharmacy_sellable` bilan yozuvlardan OLDIN 400 bilan rad etiladi
-(`allow_negative` / `pos_allow_negative_stock` buni chetlab o'tmaydi). Modul o'chiq korxonada
-hech narsa o'zgarmaydi.
+perishable sifatida: FEFO tartibi; muddati NULL partiya FEFO oxirida.
+P.13: dorixonada sotuv CHEKLANMAYDI — avval yaroqli (muddati o'tmagan, faol) partiyalar FEFO, yetmasa
+muddati o'tgan va faol bo'lmagan partiyalar (`take_rest`, FEFO), qolgani partiyasiz `shortfall`
+(minus qoldiq). Sotuv rad etilmaydi; javobda ogohlantirish (`sold_invalid_warnings`). Modul o'chiq
+korxonada hech narsa o'zgarmaydi.
 
 PARTIYA HOLATI (D3.3): `Batch.status` NULL/'active' — faol; 'quarantine' | 'defect' | 'recalled' partiyalar
-sotuvga ajratilmaydi (`batch_active_filter`: `allocate_batches`, `lock_batches`, `pharmacy_valid_split`).
+birinchi navbatda ajratilmaydi (`batch_active_filter`), dorixona sotuvida faqat yaroqlilari yetmaganda.
 Oddiy do'konda status doim NULL — natija o'zgarmaydi.
 
 QULF TARTIBI (deadlock bo'lmasligi uchun barqaror): avval `StockLevel` qatorlari
@@ -26,7 +26,7 @@ shu mahsulotni sotayotgan kassirlar bir-birini kutmaydi.
 """
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func, or_, tuple_
@@ -126,7 +126,7 @@ def _candidate_query(db: Session, company_id, product_id, variant_id, warehouse_
 
 def lock_batches(db: Session, company_id: int, keys: Iterable[Tuple[int, Optional[int], int]]) -> List[Batch]:
     """Berilgan `(product_id, variant_id, warehouse_id)` kalitlari uchun partiyalarni
-    (shu ombor + omborsiz) `ORDER BY Batch.id` tartibida `FOR UPDATE` qiladi va yangilaydi."""
+    (shu ombor + omborsiz, P.13: faol bo'lmaganlari ham) `ORDER BY Batch.id` tartibida `FOR UPDATE` qiladi."""
     uniq = sorted({(int(p), (int(v) if v else None), int(w)) for p, v, w in keys},
                   key=lambda k: (k[0], k[1] or 0, k[2]))
     if not uniq:
@@ -140,7 +140,7 @@ def lock_batches(db: Session, company_id: int, keys: Iterable[Tuple[int, Optiona
         ))
     return (
         db.query(Batch)
-        .filter(Batch.company_id == company_id, Batch.quantity > 0, batch_active_filter(), or_(*conds))
+        .filter(Batch.company_id == company_id, Batch.quantity > 0, or_(*conds))
         .order_by(Batch.id.asc())
         .populate_existing()
         .with_for_update()
@@ -168,7 +168,7 @@ def allocate_batches(
     """`quantity` ni partiyalardan ajratadi.
 
     `pharmacy=True` (D1.2; chaqiruvchi `pharmacy_applies` bilan sotuv uchun bir marta aniqlaydi) —
-    mahsulot perishable deb olinadi va muddatiga `expiry_block_days` yoki kam qolgan partiyalar ham chetlatiladi.
+    mahsulot perishable deb olinadi (FEFO); P.13: yaroqlilari yetmasa qolgan partiyalardan (`take_rest`).
 
     Qaytaradi: (`[{"batch", "batch_id", "quantity", "unit_cost"}]`, shortfall).
     `deduct=True` bo'lsa partiya qoldig'i kamayadi; `False` — faqat hisoblaydi (tekshiruv uchun).
@@ -216,7 +216,63 @@ def allocate_batches(
             "quantity": take,
             "unit_cost": batch.purchase_price or _ZERO,
         })
+    if pharmacy and remaining > 0:
+        remaining = take_rest(
+            db, company_id=company_id, product_id=product_id, variant_id=variant_id, warehouse_id=warehouse_id,
+            remaining=remaining, allocations=allocations, exclude_ids={a["batch_id"] for a in allocations},
+            deduct=deduct, lock=lock,
+        )
     return allocations, remaining
+
+
+def take_rest(db: Session, *, company_id, product_id, variant_id, warehouse_id, remaining, allocations: List[dict],
+              exclude_ids=(), deduct: bool = True, lock: bool = True) -> Decimal:
+    """P.13: dorixona sotuvi — yaroqli partiyalar yetmaganda qolgan partiyalar (muddati o'tgan, karantin / brak /
+    qaytarib olingan): shu ombor avval, so'ng omborsiz; FEFO. Ajratilganlar `allocations` ga `invalid: True` bilan
+    qo'shiladi. `exclude_ids` — oldingi bosqichda to'liq olingan partiyalar. Qaytaradi: qolgan (partiyasiz) miqdor."""
+    remaining = _dec(remaining)
+    if remaining <= 0:
+        return remaining
+    q = db.query(Batch).filter(
+        Batch.product_id == product_id, Batch.quantity > 0, Batch.company_id == company_id,
+    )
+    q = q.filter(Batch.variant_id == variant_id) if variant_id is not None else q.filter(Batch.variant_id.is_(None))
+    if warehouse_id is not None:
+        q = q.filter(or_(Batch.warehouse_id == warehouse_id, Batch.warehouse_id.is_(None)))
+    if exclude_ids:
+        q = q.filter(~Batch.id.in_(list(exclude_ids)))
+    q = q.order_by(Batch.id.asc())
+    if lock:
+        q = q.populate_existing().with_for_update()
+    rest = q.all()
+    rest.sort(key=lambda b: (0 if warehouse_id is None or b.warehouse_id == warehouse_id else 1,
+                             b.expiry_date is None, _naive(b.expiry_date) or _MAX_DT, b.id))
+    for batch in rest:
+        if remaining <= 0:
+            break
+        have = _dec(batch.quantity)
+        take = min(remaining, have)
+        if take <= 0:
+            continue
+        if deduct:
+            batch.quantity = have - take
+        remaining -= take
+        allocations.append({
+            "batch": batch, "batch_id": batch.id, "quantity": take,
+            "unit_cost": batch.purchase_price or _ZERO, "invalid": True,
+        })
+    return remaining
+
+
+def sold_invalid_warnings(product, allocations: List[dict]) -> List[dict]:
+    """P.13: sotuv javobidagi ogohlantirish (sotuv to'xtamaydi) — muddati o'tgan yoki yaroqsiz partiyadan sotildi."""
+    bad = sum((_dec(a["quantity"]) for a in allocations if a.get("invalid")), _ZERO)
+    if bad <= 0:
+        return []
+    return [{
+        "code": "sold_invalid_batch", "product_id": getattr(product, "id", None),
+        "message": f"'{getattr(product, 'name', '')}': {_fmt_qty(bad)} muddati o'tgan yoki yaroqsiz partiyadan sotildi",
+    }]
 
 
 def apply_allocations(allocations: List[dict]) -> None:
@@ -240,81 +296,6 @@ def is_perishable_product(product) -> bool:
 def _fmt_qty(v) -> str:
     d = _dec(v)
     return format(d.normalize(), "f") if d != 0 else "0"
-
-
-def pharmacy_valid_split(
-    db: Session, *, company_id, product_id, variant_id, warehouse_id,
-    expiry_block_days: int = 0, today: Optional[date] = None, credit: Optional[Dict[int, Decimal]] = None,
-) -> Tuple[Decimal, Decimal]:
-    """(yaroqli qoldiq, yaroqsiz qoldiq) — shu ombor va omborsiz partiyalar bo'yicha.
-
-    Yaroqli: muddati NULL yoki `expiry_cutoff` dan keyin. `credit` — {batch_id: miqdor}:
-    tahrirda eski sotuv qaytarilgach partiyalarga qaytadigan miqdor (hali qaytarilmagan).
-    """
-    credit = credit or {}
-    q = db.query(Batch).filter(
-        Batch.product_id == product_id,
-        Batch.company_id == company_id,
-    )
-    q = q.filter(Batch.variant_id == variant_id) if variant_id is not None else q.filter(Batch.variant_id.is_(None))
-    if warehouse_id is not None:
-        q = q.filter(or_(Batch.warehouse_id == warehouse_id, Batch.warehouse_id.is_(None)))
-    if credit:
-        q = q.filter(or_(Batch.quantity > 0, Batch.id.in_(list(credit.keys()))))
-    else:
-        q = q.filter(Batch.quantity > 0)
-    cutoff = expiry_cutoff(today, expiry_block_days)
-    valid = invalid = _ZERO
-    for b in q.all():
-        have = _dec(b.quantity) + _dec(credit.get(b.id, 0))
-        if have <= 0:
-            continue
-        exp = _naive(b.expiry_date)
-        if b.status not in (None, "active"):
-            invalid += have  # D3.3: karantin / brak / qaytarib olingan partiya sotilmaydi
-        elif exp is None or exp >= cutoff:
-            valid += have
-        else:
-            invalid += have
-    return valid, invalid
-
-
-def assert_pharmacy_sellable(
-    db: Session, *, company_id: int, lines: Iterable[tuple], pharmacy_ctx: Tuple[bool, dict],
-    today: Optional[date] = None, credit: Optional[Dict[int, Decimal]] = None,
-) -> None:
-    """Dorixona rejimi: har (mahsulot, variant, ombor) bo'yicha jami miqdor yaroqli partiyalar
-    yig'indisidan oshsa 400 (yozuvlardan OLDIN chaqiring). Modul o'chiq bo'lsa hech narsa qilmaydi.
-
-    `lines`: `(stock_product, variant_id, warehouse_id, quantity)` — virtual mahsulotda manba mahsulot va
-    ko'paytirilgan miqdor. `pharmacy_ctx` — `pharmacy_context(db, company_id)` natijasi (bir marta olingan).
-    """
-    enabled, settings = pharmacy_ctx
-    if not enabled:
-        return
-    need: Dict[tuple, list] = {}
-    for product, variant_id, warehouse_id, qty in lines:
-        if product is None or not pharmacy_applies(True, product):
-            continue
-        q = _dec(qty)
-        if q <= 0:
-            continue
-        key = (product.id, int(variant_id) if variant_id else None, warehouse_id)
-        if key in need:
-            need[key][1] += q
-        else:
-            need[key] = [product, q]
-    block_days = int((settings or {}).get("expiry_block_days") or 0)
-    for (pid, vid, wid), (product, q) in need.items():
-        valid, invalid = pharmacy_valid_split(
-            db, company_id=company_id, product_id=pid, variant_id=vid, warehouse_id=wid,
-            expiry_block_days=block_days, today=today, credit=credit,
-        )
-        if q > valid:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{product.name}: yaroqli qoldiq {_fmt_qty(valid)}, muddati o'tgan yoki yaroqsiz {_fmt_qty(invalid)}",
-            )
 
 
 def add_sale_item_batches(db: Session, sale_item_id: int, allocations: List[dict]) -> None:
@@ -359,13 +340,12 @@ def deduct_sale_item(db: Session, sale, item, user, allow_negative: bool, reason
         from app.services.pharmacy import pharmacy_context
         pharmacy_ctx = pharmacy_context(db, sale.company_id)
     ph_on = pharmacy_applies(pharmacy_ctx[0], stock_product)
-    ph_days = int(pharmacy_ctx[1].get("expiry_block_days") or 0) if ph_on else 0
 
     deduct_stock(
         db=db, product_id=deduct_id, quantity=deduct_qty,
         user_id=user.id, reason=text,
         reference_type="sale", reference_id=sale.id,
-        warehouse_id=wh_id, allow_negative=allow_negative or is_service,
+        warehouse_id=wh_id, allow_negative=allow_negative or is_service or ph_on,   # P.13: dorixonada cheklov yo'q
         variant_id=variant_id,
     )
 
@@ -373,15 +353,8 @@ def deduct_sale_item(db: Session, sale, item, user, allow_negative: bool, reason
     allocations, shortfall = allocate_batches(
         db, company_id=sale.company_id, product_id=deduct_id, variant_id=variant_id,
         warehouse_id=wh_id, quantity=deduct_qty, perishable=is_perishable_product(stock_product),
-        today=tashkent_today(), pharmacy=ph_on, expiry_block_days=ph_days,
+        today=tashkent_today(), pharmacy=ph_on,
     )
-    if ph_on and shortfall > 0:
-        # Oldindan tekshiruvdan keyin ham muddati o'tgan dori sotilib ketmasin (parallel o'zgarish)
-        raise HTTPException(
-            status_code=400,
-            detail=f"{stock_product.name}: yaroqli qoldiq {_fmt_qty(deduct_qty - shortfall)}, "
-                   f"yetmaydigan miqdor {_fmt_qty(shortfall)} (muddati o'tgan yoki yaroqsiz)",
-        )
     add_sale_item_batches(db, item.id, allocations)
     if qty > 0:
         item.cost_price = allocation_cost(allocations, shortfall, fallback_cost) / qty

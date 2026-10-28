@@ -2970,7 +2970,8 @@ function ModulesCard({ companyId }) {
 
 // ── Dorixona sozlamalari (D1.1b): faqat dorixona moduli yoqilgan korxonada ko'rinadi ──
 const PHARMACY_ROUND_STEPS = [0, 1, 10, 50, 100, 500, 1000];
-const PHARMACY_NUM_KEYS = ['expiry_block_days', 'expiry_warn_days', 'min_shelf_life_pct', 'markup_pct', 'max_markup_pct'];
+// P.13: sotuvni bloklovchi sozlamalar (expiry_block_days, rx_mode) olib tashlandi — dorixonada sotuv cheklanmaydi
+const PHARMACY_NUM_KEYS = ['expiry_warn_days', 'min_shelf_life_pct', 'markup_pct', 'max_markup_pct'];
 
 function PharmacySettingsCard({ companyId }) {
   const { t } = useLang();
@@ -2994,7 +2995,6 @@ function PharmacySettingsCard({ companyId }) {
       if (form[k] !== '' && form[k] !== null && form[k] !== undefined) body[k] = Number(form[k]);
     });
     if (form.price_round !== '' && form.price_round !== null && form.price_round !== undefined) body.price_round = Number(form.price_round);
-    if (form.rx_mode) body.rx_mode = form.rx_mode;
     setSaving(true);
     try {
       await api.put(`/companies/${companyId}`, { pharmacy_settings: body });
@@ -3027,28 +3027,13 @@ function PharmacySettingsCard({ companyId }) {
     <div className="max-w-xl bg-white border border-slate-200 rounded-2xl p-5">
       <h3 className="text-sm font-bold text-slate-800">{tf('settings.pharmacy.title', 'Dorixona sozlamalari')}</h3>
       <p className="text-[11px] text-slate-400 mt-0.5 mb-4">
-        {tf('settings.pharmacy.desc', "Yaroqlilik muddati, retseptli sotuv va kirimda narx hisoblash qoidalari.")}
+        {tf('settings.pharmacy.desc', "Yaroqlilik muddati ogohlantirishi va kirimda narx hisoblash qoidalari.")}
       </p>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
-        {numField(tf('settings.pharmacy.expiryBlockDays', 'Muddati yaqin dorini bloklash (kun)'), 'expiry_block_days', {
-          max: '365', hint: tf('settings.pharmacy.expiryBlockDaysHint', "Muddatiga shuncha kun yoki kam qolgan partiya sotilmaydi (0 — faqat muddati o'tganlar)"),
-        })}
         {numField(tf('settings.pharmacy.expiryWarnDays', 'Ogohlantirish (kun)'), 'expiry_warn_days', {
           max: '365', hint: tf('settings.pharmacy.expiryWarnDaysHint', "Muddatiga shuncha kun qolganda kassada va hisobotlarda ogohlantiriladi"),
         })}
-        <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">{tf('settings.pharmacy.rxMode', 'Retseptsiz sotish rejimi')}</label>
-          <select
-            value={form.rx_mode || 'warn'}
-            onChange={e => set('rx_mode', e.target.value)}
-            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="warn">{tf('settings.pharmacy.rxWarn', 'Ogohlantirish (sabab bilan ruxsat)')}</option>
-            <option value="block">{tf('settings.pharmacy.rxBlock', 'Bloklash')}</option>
-          </select>
-          <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{tf('settings.pharmacy.rxModeHint', "Retseptli dorini retseptsiz sotishda. Nazoratdagi dorilar doim bloklanadi")}</p>
-        </div>
         {numField(tf('settings.pharmacy.minShelfLifePct', 'Kirimda minimal qolgan muddat (%)'), 'min_shelf_life_pct', {
           max: '100', hint: tf('settings.pharmacy.minShelfLifePctHint', "Kirimda qolgan yaroqlilik shundan kam bo'lsa ogohlantiriladi (0 — o'chiq)"),
         })}

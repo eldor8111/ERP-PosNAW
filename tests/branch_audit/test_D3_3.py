@@ -113,24 +113,25 @@ def ph(db, mk):
 
 # ───────────────────────── Ajratish (allocate / lock) ─────────────────────────
 
-def test_allocate_skips_quarantine_defect_recalled(db, ph):
+def test_allocate_takes_active_first_then_quarantine_defect_recalled(db, ph):
+    """P.13: avval faol partiya, yetmasa faol bo'lmaganlari (sotuv rad etilmaydi), ular `invalid` belgisi bilan."""
     c, wh, p = ph["c"], ph["wh"], ph["p"]
-    for st in ("quarantine", "defect", "recalled"):
-        _batch(db, p, wh, 50, 10, status=st)
+    bad = [_batch(db, p, wh, 50, 10, status=st) for st in ("quarantine", "defect", "recalled")]
     ok = _batch(db, p, wh, 5, 200, status="active")
     allocs, short = allocate_batches(db, company_id=c.id, product_id=p.id, variant_id=None,
                                      warehouse_id=wh.id, quantity=8, pharmacy=True)
-    assert [a["batch_id"] for a in allocs] == [ok.id]
-    assert short == D(3)  # faqat faol partiyaning 5 tasi
+    assert [(a["batch_id"], a.get("invalid", False)) for a in allocs] == [(ok.id, False), (bad[0].id, True)]
+    assert short == 0 and D(str(allocs[1]["quantity"])) == 3
 
 
-def test_lock_batches_excludes_non_active(db, ph):
+def test_lock_batches_includes_non_active(db, ph):
+    """P.13: dorixona sotuvi faol bo'lmagan partiyadan ham yechishi mumkin — ular ham qulflanadi."""
     c, wh, p = ph["c"], ph["wh"], ph["p"]
     act = _batch(db, p, wh, 5, 100)
     nul = _batch(db, p, wh, 5, 100, status="active")
-    _batch(db, p, wh, 5, 100, status="quarantine")
+    qua = _batch(db, p, wh, 5, 100, status="quarantine")
     got = {b.id for b in lock_batches(db, c.id, [(p.id, None, wh.id)])}
-    assert got == {act.id, nul.id}
+    assert got == {act.id, nul.id, qua.id}
 
 
 def test_plain_store_null_status_unchanged(db, ph):
@@ -158,28 +159,30 @@ def test_pharmacy_sale_skips_quarantined_batch(client, db, ph):
     assert [s.batch_id for s in sib] == [good.id]
 
 
-def test_pharmacy_sale_blocked_when_only_non_active(client, db, ph):
+def test_pharmacy_sale_with_only_non_active_batches_is_sold_with_warning(client, db, ph):
+    """P.13: faqat karantin / brak partiya qolgan dori ham sotiladi — javobda ogohlantirish."""
     p, wh = ph["p"], ph["wh"]
     bq = _batch(db, p, wh, 10, 90, status="quarantine")
     bd = _batch(db, p, wh, 10, 90, status="defect")
     r = client.login(ph["admin"]).post("/api/sales/", json=_sale_body(p, 1, wh))
-    assert r.status_code == 400, r.text
-    assert "yaroqli qoldiq 0" in r.json()["detail"]
-    assert _bq(db, bq) == 10 and _bq(db, bd) == 10
+    assert r.status_code == 200, r.text
+    assert [x["code"] for x in r.json()["warnings"]] == ["sold_invalid_batch"]
+    assert _bq(db, bq) + _bq(db, bd) == 19
     db.refresh(ph["sl"])
-    assert D(str(ph["sl"].quantity)) == 100
-    assert db.query(Sale).filter(Sale.company_id == ph["c"].id).count() == 0
+    assert D(str(ph["sl"].quantity)) == 99
 
 
 def test_status_change_back_to_active_sells_again(client, db, ph):
     p, wh = ph["p"], ph["wh"]
     b = _batch(db, p, wh, 10, 90, status="quarantine")
     cl = client.login(ph["admin"])
-    assert cl.post("/api/sales/", json=_sale_body(p, 1, wh)).status_code == 400
+    r = cl.post("/api/sales/", json=_sale_body(p, 1, wh))
+    assert r.status_code == 200 and [x["code"] for x in r.json()["warnings"]] == ["sold_invalid_batch"]
     r = cl.post(f"/api/pharmacy/batches/{b.id}/status", json={"status": "active", "reason": "Tekshiruvdan o'tdi"})
     assert r.status_code == 200, r.text
-    assert cl.post("/api/sales/", json=_sale_body(p, 3, wh)).status_code == 200
-    assert _bq(db, b) == 7
+    r = cl.post("/api/sales/", json=_sale_body(p, 3, wh))
+    assert r.status_code == 200 and r.json()["warnings"] == []                 # faol bo'lgach — ogohlantirishsiz
+    assert _bq(db, b) == 6
 
 
 def test_plain_store_sale_regression(client, db, ph):

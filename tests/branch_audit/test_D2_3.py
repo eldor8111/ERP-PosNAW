@@ -211,8 +211,8 @@ def test_pos_list_pharmacy_fields(client, db, mk):
     db.flush()
     _stock(db, panadol, w, 30)
     _batch(db, panadol, w, 5, -3)     # muddati o'tgan — hisobga olinmaydi
-    _batch(db, panadol, w, 5, 5)      # 10 kunlik blokka tushadi — hisobga olinmaydi
-    _batch(db, panadol, w, 10, 40)    # eng yaqin yaroqli (warn: 40 <= 60)
+    _batch(db, panadol, w, 5, 5)      # P.13: expiry_block_days sotuvni bloklamaydi — eng yaqin yaroqli shu
+    _batch(db, panadol, w, 10, 40)
     _batch(db, panadol, w, 10, 200)
     _batch(db, panadol, w2, 10, 15)   # boshqa filial — hisobga olinmaydi
     _batch(db, panadol, w, 0, 20)     # qoldig'i 0 — hisobga olinmaydi
@@ -224,7 +224,7 @@ def test_pos_list_pharmacy_fields(client, db, mk):
     rows = {x["id"]: x for x in client.login(u).get("/api/products/pos-list", params={"limit": 50}).json()}
     r = rows[panadol.id]
     assert r["is_rx"] is True and r["control_class"] == "potent"
-    assert r["nearest_expiry"] == (tashkent_today() + timedelta(days=40)).isoformat()
+    assert r["nearest_expiry"] == (tashkent_today() + timedelta(days=5)).isoformat()
     assert r["expiry_warn"] is True
     assert [s["name_uz"] for s in r["substances"]] == ["Paratsetamol"]
     assert {"id", "name_uz", "name_ru", "name_lat"} <= set(r["substances"][0])
