@@ -936,6 +936,14 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
                       <input type="number" value={newWholesalePrice} onChange={e => setNewWholesalePrice(e.target.value)} className={`${ic} w-full text-sm py-2 font-semibold`} placeholder={Math.round(sel.wholesale_price || 0)} />
                     </div>
                   </div>
+                  {/* Dorixona: dona narxi o'zgarsa quti/blister narxi ham nisbat bo'yicha yangilanadi (server: _sync_unit_prices) */}
+                  {pharmacy && selUnits.some(u => Number(u.ratio) > 1) && Number(newSalePrice) > 0
+                    && Number(newSalePrice) !== Number(sel.sale_price || 0) && (
+                    <div className="text-xs text-amber-700 font-semibold">
+                      {t('purchase.phPackPrices')}: {selUnits.filter(u => Number(u.ratio) > 1)
+                        .map(u => `${u.name} ${fmt(Number(newSalePrice) * Number(u.ratio))}`).join(' · ')}
+                    </div>
+                  )}
                 </div>
               )}
 

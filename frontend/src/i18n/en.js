@@ -5325,6 +5325,7 @@ export default {
   'purchase.phUnit': 'Unit (box, blister, piece)',
   'purchase.phUnitBase': 'base unit',
   'purchase.phUnitConverted': 'Will be received into stock as base units',
+  'purchase.phPackPrices': 'New pack price',
   'pos.analogs': 'Analogues',
   'pos.analogAdd': 'Add',
   'pos.analogsAuto': 'Out of stock — instead of {name}:',

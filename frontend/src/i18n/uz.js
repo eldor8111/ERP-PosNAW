@@ -5318,6 +5318,7 @@ export default {
   'purchase.phUnit': 'Birlik (quti, blister, dona)',
   'purchase.phUnitBase': 'asosiy birlik',
   'purchase.phUnitConverted': 'Omborga asosiy birlikda kiradi',
+  'purchase.phPackPrices': 'Yangi qadoq narxi',
   'pos.analogs': 'Analoglar',
   'pos.analogAdd': 'Savatga',
   'pos.analogsAuto': "Qoldiq yo'q — {name} o'rniga:",

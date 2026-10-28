@@ -287,11 +287,34 @@ def _to_datetime(v):
     return datetime.combine(v, datetime.min.time())
 
 
+def _sync_unit_prices(db: Session, product: Product, company_id: int) -> dict:
+    """Dorixona: kirimda dona narxi o'zgarsa saqlangan qadoq (quti/blister) narxlari nisbat bo'yicha —
+    dona narxi * nisbat. Narxi saqlanmagan birlik (NULL) sotuvda o'zi hisoblanadi, unga tegilmaydi.
+    Qaytaradi: {birlik nomi: (eski narx, yangi narx)} — faqat o'zgarganlari."""
+    from app.models.product_units import ProductUnit
+    price = _d(product.sale_price)
+    changed = {}
+    if price <= 0:
+        return changed
+    units = db.query(ProductUnit).filter(
+        ProductUnit.product_id == product.id, ProductUnit.company_id == company_id,
+        ProductUnit.sale_price.isnot(None),
+    ).all()
+    for u in units:
+        new = (price * _d(u.ratio)).quantize(Decimal("0.0001"))
+        if _d(u.sale_price) != new:
+            changed[u.name] = (str(u.sale_price), str(new))
+            u.sale_price = new
+    return changed
+
+
 def _update_product_on_receipt(db: Session, product: Product, item: POItem, company_id: int,
-                               user: Optional[User] = None, branch_id: Optional[int] = None) -> None:
+                               user: Optional[User] = None, branch_id: Optional[int] = None,
+                               pharmacy: bool = False) -> None:
     """Oxirgi xarid narxi — mahsulot tannarxi (mahsulot tannarx valyutasida); yangi sotuv narxlari.
     Variantli qator (T1.16): narxlar ProductVariant ga yoziladi (tannarx valyutasi parent mahsulotdan),
     parent Product narxlari o'zgarmaydi.
+    pharmacy — dorixona rejimi: dona narxi o'zgarsa quti/blister narxlari ham (`_sync_unit_prices`).
     T4.3: narx haqiqatan o'zgargan bo'lsa audit jurnaliga `PRICE_CHANGE` (eski/yangi qiymat bilan) yoziladi."""
     unit_uzs = _d(item.unit_cost)
     cur = (product.cost_currency or "UZS").strip().upper() or "UZS"
@@ -312,13 +335,19 @@ def _update_product_on_receipt(db: Session, product: Product, item: POItem, comp
         return (a is None and b is None) or (a is not None and b is not None and _d(a) == _d(b))
 
     _changed = [f for f in _fields if not _same(_old[f], _new[f])]
+    _units = {}
+    if pharmacy and target is product and "sale_price" in _changed:
+        _units = _sync_unit_prices(db, product, company_id)
     if _changed and user is not None:
+        _old_units = {"units": {k: o for k, (o, _n) in _units.items()}} if _units else {}
+        _new_units = {"units": {k: n for k, (_o, n) in _units.items()}} if _units else {}
         log_action(
             db, "PRICE_CHANGE", "product", product.id, user.id,
             old_values={**{f: (str(_old[f]) if _old[f] is not None else None) for f in _changed},
-                        "variant_id": item.variant_id},
+                        "variant_id": item.variant_id, **_old_units},
             new_values={**{f: (str(_new[f]) if _new[f] is not None else None) for f in _changed},
-                        "variant_id": item.variant_id, "po_id": item.po_id if hasattr(item, "po_id") else None},
+                        "variant_id": item.variant_id, "po_id": item.po_id if hasattr(item, "po_id") else None,
+                        **_new_units},
             company_id=company_id, branch_id=branch_id,
         )
 
@@ -436,9 +465,11 @@ def _plan_receipt(db: Session, po: PurchaseOrder, n: int, item: POItem, lots: li
 
 def _receive_item(db: Session, po: PurchaseOrder, item: POItem, qty: Decimal, user: User,
                   lot: Optional[str] = None, expiry=None, manufacture=None,
-                  lots: Optional[list] = None, sale_price: Optional[Decimal] = None) -> None:
+                  lots: Optional[list] = None, sale_price: Optional[Decimal] = None,
+                  pharmacy: bool = False) -> None:
     """lots — D1.3: [(seriya, muddat, ishlab chiqarilgan sana, miqdor)], har biri alohida Batch;
-    berilmasa bitta partiya (lot/expiry/manufacture). sale_price — ustama bilan hisoblangan narx."""
+    berilmasa bitta partiya (lot/expiry/manufacture). sale_price — ustama bilan hisoblangan narx.
+    pharmacy — dorixona rejimi (qadoq narxlari dona narxi bilan birga yangilanadi)."""
     product = item.product or db.get(Product, item.product_id)
     if getattr(product, "product_type", "stock") == "sell":
         raise HTTPException(status_code=400, detail=f"'{product.name}' tarkibiy mahsulot bo'lgani uchun uni qabul qilib bo'lmaydi")
@@ -461,7 +492,8 @@ def _receive_item(db: Session, po: PurchaseOrder, item: POItem, qty: Decimal, us
     item.qty_received = _d(item.qty_received) + qty
     if sale_price is not None and item.new_sale_price is None:
         item.new_sale_price = sale_price  # dorixona ustamasi: mavjud mantiq bilan mahsulot narxiga yoziladi
-    _update_product_on_receipt(db, product, item, po.company_id, user, branch_id=getattr(po.warehouse, "branch_id", None))
+    _update_product_on_receipt(db, product, item, po.company_id, user, branch_id=getattr(po.warehouse, "branch_id", None),
+                               pharmacy=pharmacy)
 
 
 def _register_marking(db: Session, po: PurchaseOrder, n: int, item: POItem, qty: Decimal, codes,
@@ -662,7 +694,7 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
             plan.append((item, qty, lots, _plan_receipt(db, po, n, item, lots, pharm, warnings)))
         for item, qty, lots, sale_price in plan:
             _receive_item(db, po, item, qty, current_user, lot=item.lot_number, manufacture=item.manufacture_date,
-                          sale_price=sale_price)
+                          sale_price=sale_price, pharmacy=pharm[0])
         po.status = POStatus.received
         po.receive_warnings = warnings
     else:
@@ -724,7 +756,7 @@ def receive_purchase_order(db: Session, po_id: int, data, current_user: User) ->
     if not plan:
         raise HTTPException(status_code=400, detail="Qabul qilinadigan miqdor kiritilmagan")
     for item, qty, lots, sale_price, mk_codes, n in plan:
-        _receive_item(db, po, item, qty, current_user, lots=lots, sale_price=sale_price)
+        _receive_item(db, po, item, qty, current_user, lots=lots, sale_price=sale_price, pharmacy=pharm[0])
         _register_marking(db, po, n, item, qty, mk_codes, pharm, warnings)
     if getattr(data, "supplier_invoice_number", None):
         po.supplier_invoice_number = data.supplier_invoice_number.strip() or po.supplier_invoice_number

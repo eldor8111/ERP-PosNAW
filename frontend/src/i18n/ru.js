@@ -5330,6 +5330,7 @@ export default {
   'purchase.phUnit': 'Единица (упаковка, блистер, штука)',
   'purchase.phUnitBase': 'основная единица',
   'purchase.phUnitConverted': 'На склад поступит в основных единицах',
+  'purchase.phPackPrices': 'Новая цена упаковки',
   'pos.analogs': 'Аналоги',
   'pos.analogAdd': 'В корзину',
   'pos.analogsAuto': 'Нет в наличии — вместо {name}:',
