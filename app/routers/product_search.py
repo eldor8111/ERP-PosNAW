@@ -719,8 +719,10 @@ def list_products_paginated(
             {p.id: (float(p.sale_price or 0),) for p in products},
             {it["id"]: float(it.get("stock_quantity") or 0) for it in items},
             _wh_for_loose, None, price_round=pharma_settings.get("price_round") or 0)
+        _min_stock = {p.id: p.min_stock for p in products}
         for it in items:
             it.update(_extra[it["id"]])
+            it["min_stock"] = _min_stock.get(it["id"])   # P.14: Excel eksporti (oddiy korxonada javob o'zgarmaydi)
         # CD.1: dori bloki (moddalari bilan) — bitta-ikkita so'rovda, N+1 yo'q
         from app.routers.products import _load_pharma_map
         _pm = _load_pharma_map(db, current_user.company_id, [it["id"] for it in items])

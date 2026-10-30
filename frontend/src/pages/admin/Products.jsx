@@ -29,7 +29,7 @@ import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import PharmacyProductModal, { SubstancePicker, CONTROL_CLASSES, DOSAGE_FORMS, emptyPack, packLevels, packPrices, packToUnits, packSummary } from '../../components/PharmacyProductModal';
 import {
   PHARMA_IMPORT_FIELDS, PHARMA_NUM_KEYS, cleanPharmaNum, pharmaMapHeader, pharmaImportPreview, downloadPharmacyTemplate,
-  isoDateCells, PHARMA_EXPORT_HEADERS, pharmaExportRow, pharmaExportLines, pharmaChunks, pharmaLotRows,
+  isoDateCells, PHARMA_EXPORT_HEADERS, pharmaExportRow, pharmaExportLines, pharmaChunks, pharmaLotRows, pharmaExportColMap,
 } from './products/pharmacyImport';
 import useBulkVoice from './products/useBulkVoice';
 import { isScaleUnit } from '../../utils/scale';
@@ -1121,6 +1121,9 @@ export default function Products() {
     const cols = Object.keys(rows[0]);
     const map = {};
     if (pharmacyOn) {
+      // P.14: o'zimizning eksport fayli — ustunlar tartibi bo'yicha (interfeys tili qanday bo'lsa ham)
+      const own = pharmaExportColMap(cols, IMPORT_FIELDS);
+      if (own) { setColMap(own); return; }
       // P.4: dorixonada sarlavhalar o'zbekcha/ruscha taxalluslar bo'yicha aniq tanildi; noaniqlari bo'sh (o'zi tanlaydi)
       const used = new Set();
       cols.forEach(col => {
@@ -1151,6 +1154,8 @@ export default function Products() {
         const ws = wb.Sheets[wb.SheetNames[0]];
         if (pharmacyOn) isoDateCells(XLSX, ws);   // P.6: sana yacheykalari formatidan qat'i nazar YYYY-MM-DD
         const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, ...dateOpt });
+        // P.14: o'zimizning eksport faylining 2-sarlavha qatori ("№", "Mahsulot nomi", ...) tovar emas
+        if (rows.length && String(rows[0]['№'] ?? '').trim() === '№') rows.shift();
         setImportRows(rows);
         autoMap(rows);
       } catch {
@@ -1785,7 +1790,8 @@ export default function Products() {
                         saleP, "UZS", saleP * qty,
                         whoP, "UZS", whoP * qty,
                         costP, "UZS", costP * qty,
-                        p.unit, catName(p.category_id),
+                        // P.14: kategoriyasiz tovarda bo'sh (catName JSX qaytaradi — Excel'da "[object Object]" bo'lardi)
+                        p.unit, categories.find(c => Number(c.id) === Number(p.category_id))?.name || '',
                         allBarcodes,
                         p.sku || '', p.brand || '—',
                         Number(p.min_stock || 0), status, p.id,
@@ -1797,10 +1803,11 @@ export default function Products() {
                     });
 
                     // P.6/P.8: dorixonada oxiriga MXIK, qadoq, seriya va sanalar (V..AD), sarlavhalar import shablonidagidek
-                    // P.12: AE — partiya ombori (2+ partiyali dori qatorlarida)
+                    // P.12: AE — partiya ombori (2+ partiyali dori qatorlarida); P.14: AF..AO — dori kartochkasi
                     let lastCol = 'U';
                     if (pharmacyOn) {
-                      const pCols = ['V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE'];
+                      const pCols = ['V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE',
+                        'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM', 'AN', 'AO'];
                       const formLabel = (k) => (DOSAGE_FORMS.find(([key]) => key === k) || [k, k])[1];
                       PHARMA_EXPORT_HEADERS.forEach((h, j) => { cell(`${pCols[j]}1`, h, hdr1); cell(`${pCols[j]}2`, h, hdr2); });
                       lines.forEach(({ p, i, b, lotOnly }, k) => {
@@ -1811,7 +1818,7 @@ export default function Products() {
                           ws[`${pCols[j]}${k + 3}`] = { v, t: isNum ? 'n' : 's', s: { ...rowBg, ...(isNum ? numCell : {}) } };
                         });
                       });
-                      lastCol = 'AE';
+                      lastCol = 'AO';
                     }
 
                     // Set sheet range
@@ -1824,7 +1831,8 @@ export default function Products() {
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
                       { wch: 7 }, { wch: 14 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 5 },
-                      ...(pharmacyOn ? [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }] : []),
+                      ...(pharmacyOn ? [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+                        { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 12 }] : []),
                     ];
                     // Freeze top 2 rows
                     ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activeCell: 'C3', sqref: 'C3' };

@@ -1,7 +1,7 @@
 // ── P.4: dorixona rejimida Excel import (faqat modul yoqilgan korxonada ishlatiladi) ─────────────
 // Kalitlar backend (app/routers/product_import.py) ustunlari bilan bir xil. Narx, tan narxi va qoldiq — eng katta
 // qadoq (quti) bo'yicha; qadoq sonlari bo'sh bo'lsa — 1 dona uchun. Blister va dona narxi serverda hisoblanadi.
-import { emptyPack, packLevels, packPrices } from '../../../components/PharmacyProductModal';
+import { CONTROL_CLASSES, emptyPack, packLevels, packPrices } from '../../../components/PharmacyProductModal';
 
 const intOk = (v) => { const n = Number(v); return Number.isInteger(n) && n > 1; };
 const isFilled = (v) => String(v ?? '').trim() !== '';
@@ -88,10 +88,11 @@ export const isoDateCells = (XLSX, ws) => {
 
 export const cleanPharmaNum = (v) => {
   let s = String(v ?? '').replace(/[\s ]/g, '');
+  const neg = /^[-−]\d/.test(s);                                     // P.14: eksportdagi minus qoldiq (-3)
   if (s.includes(',') && s.includes('.')) s = s.replace(/,/g, '');          // 100,000.50
-  else if (/^\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');            // 100,000
+  else if (/^[-−]?\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');       // 100,000
   else s = s.replace(',', '.');                                              // 12,5
-  return s.replace(/[^0-9.]/g, '');
+  return (neg ? '-' : '') + s.replace(/[^0-9.]/g, '');
 };
 
 export const normHeader = (h) => String(h ?? '').toLowerCase()
@@ -99,7 +100,8 @@ export const normHeader = (h) => String(h ?? '').toLowerCase()
 
 // Excel sarlavhasi (o'zbekcha / ruscha / shablon) -> kalit
 const ALIASES = {
-  'Nomi': ['dori nomi', 'nomi', 'nomlanishi', 'mahsulot nomi', 'наименование', 'название', 'препарат', 'товар', 'name'],
+  'Nomi': ['dori nomi', 'nomi', 'nomlanishi', 'mahsulot nomi', 'наименование', 'название', 'препарат', 'товар', 'name',
+    'название товара', 'product name'],
   'Barkod': ['shtrix-kod', 'shtrix kod', 'shtrixkod', 'barkod', 'barcode', 'штрихкод', 'штрих-код', 'штрих код', 'ean',
     // P.12: eksportdagi "barcha shtrix-kodlar" ustuni (bir nechta kod vergul bilan)
     'barcha barkodlar', 'barkodlar', 'shtrix-kodlar', 'shtrix kodlar', 'все штрих-коды', 'штрих-коды', 'штрихкоды',
@@ -142,13 +144,32 @@ const ALIASES = {
   'Min. qoldiq': ['min. qoldiq', 'min. qoldiq (dona)', 'min qoldiq'],
   'SKU': ['sku', 'artikul', 'артикул'],
   'Kod': ['kod'],
-  'Holat': ['holat', 'статус'],
+  'Holat': ['holat', 'статус', 'status'],
 };
 const ALIAS_INDEX = (() => {
   const m = new Map();
   Object.entries(ALIASES).forEach(([key, list]) => list.forEach(a => { const n = normHeader(a); if (!m.has(n)) m.set(n, key); }));
   return m;
 })();
+
+// P.14: o'zimizning eksport fayli (A "№", V "MXIK kodi"): A..U ustunlari tartib bo'yicha taniladi — sarlavha tili
+// (uz/ru/en) va taxalluslardan qat'i nazar ("Розничная цена" — bu yerda 1 dona narxi, quti narxi emas); V va keyingilari
+// — taxalluslar bo'yicha. Ustunlar o'chirilgan / surilgan bo'lsa null (oddiy tanish).
+const EXPORT_BASE_KEYS = {
+  1: 'Nomi', 4: 'Chakana narxi', 7: 'Ulgurji narxi', 10: 'Tan narxi', 14: 'Kategoriya', 15: 'Barkod', 16: 'SKU',
+  18: 'Min. qoldiq', 19: 'Holat',
+};
+export const pharmaExportColMap = (cols, fields) => {
+  if (cols[0] !== '№' || normHeader(cols[21]) !== normHeader(PHARMA_EXPORT_HEADERS[0])) return null;
+  const map = {};
+  const used = new Set();
+  cols.forEach((col, i) => {
+    const key = i < 21 ? (EXPORT_BASE_KEYS[i] || '') : pharmaMapHeader(col, fields);
+    map[col] = key && !used.has(key) ? key : '';
+    if (key) used.add(key);
+  });
+  return map;
+};
 
 // Ustunni tanish: avval taxallus, keyin aynan kalit / yorliq; topilmasa '' (foydalanuvchi o'zi tanlaydi)
 export const pharmaMapHeader = (header, fields) => {
@@ -218,8 +239,7 @@ export const pharmaImportPreview = (m, round, fmtNum, lotRow = false) => {
     const parts = [m['Seriya'], m['Yaroqlilik muddati']].map(v => String(v ?? '').trim()).filter(Boolean);
     if (pcs > 0) parts.push(`qoldiq ${fmtNum(pcs)} dona`);
     else if (box > 0) parts.push(`qoldiq ${fmtNum(box)} ${String(m['Katta qadoq nomi'] ?? '').trim() || 'quti'}`);
-    const warnings = (pcs > 0 || box > 0) && !filled(m['Yaroqlilik muddati']) ? ['lot'] : [];
-    return { line: parts.join(' · '), warnings, lotRow: true };
+    return { line: parts.join(' · '), warnings: [], lotRow: true };   // P.14: muddat ixtiyoriy
   }
   const mid = filled(m["Katta qadoqdagi o'rta qadoq soni"]) ? cleanPharmaNum(m["Katta qadoqdagi o'rta qadoq soni"]) : '';
   const pcs = filled(m["O'rta qadoqdagi dona soni"]) ? cleanPharmaNum(m["O'rta qadoqdagi dona soni"]) : '';
@@ -250,8 +270,8 @@ export const pharmaImportPreview = (m, round, fmtNum, lotRow = false) => {
   const warnings = [];
   if (calc.incomplete) warnings.push('qty');
   if (unitPrice == null) warnings.push('price');
-  if (stock > 0 && !filled(m['Yaroqlilik muddati'])) warnings.push('lot');   // P.5: seriya ixtiyoriy
-  if (!filled(m['MXIK'])) warnings.push('mxik');
+  // P.14: yaroqlilik muddati ixtiyoriy (muddati yo'q tovarlar ham bor) — ogohlantirish yo'q; P.5: seriya ixtiyoriy
+  // P.14: MXIK ixtiyoriy — bo'sh bo'lsa ogohlantirish yo'q
   return { line: parts.join(' · '), warnings };
 };
 
@@ -309,7 +329,21 @@ export const PHARMA_EXPORT_HEADERS = [
   'MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni', 'Quti soni (qoldiq)',
   'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana',   // P.8: eng yaqin muddatli partiya
   'Ombor',   // P.12: partiya ombori (faqat 2+ partiyali dori qatorlarida)
+  // P.14: dori kartochkasi — boshqa bazaga import qilinganda yo'qolmasin
+  "Ta'sir etuvchi modda", 'Doza', 'Ishlab chiqaruvchi', "Retseptli (ha/yo'q)", 'Nazorat toifasi', 'Mamlakat',
+  "Ro'yxat raqami", 'ATX kodi', 'Katta qadoq nomi', "O'rta qadoq nomi",
 ];
+
+// P.14: dori kartochkasi ustunlari (PHARMA_EXPORT_HEADERS oxiridagi 10 ta); qadoq nomlari — faqat oddiy tuzilmada
+const pharmaCardCells = (p, names) => {
+  const ph = p.pharma;
+  if (!ph) return ['', '', '', '', '', '', '', '', ...names];
+  const subs = (Array.isArray(ph.substances) ? ph.substances : [])
+    .map(x => x.name_uz || x.name_ru || x.name_lat).filter(Boolean).join(', ');
+  const ctrl = (CONTROL_CLASSES.find(([k]) => k === ph.control_class) || [])[1] || '';
+  return [subs, ph.strength || '', ph.manufacturer || '', ph.is_rx ? 'ha' : "yo'q", ctrl, ph.country || '',
+    ph.reg_number || '', ph.atc_code || '', ...names];
+};
 
 // P.12: eksport qatorlari — 2+ partiyali dori: har partiya alohida qator (ro'yxat `with_batches` bilan olinadi),
 // aks holda bitta qator (umumiy qoldiq va eng yaqin muddatli partiya, avvalgidek)
@@ -328,14 +362,16 @@ export const pharmaExportRow = (p, formLabel, b = null, lotOnly = false) => {
   const nb = b || p.nearest_batch || {};
   const tail = [nb.lot_number || '', nb.expiry_date || '', form, nb.manufacture_date || '', b ? (b.warehouse || '') : ''];
   const us = (Array.isArray(p.units) ? p.units : [])
-    .map(u => ({ ratio: Number(u.ratio), price: u.sale_price != null ? u.sale_price : u.price }))
+    .map(u => ({ name: u.name || '', ratio: Number(u.ratio), price: u.sale_price != null ? u.sale_price : u.price }))
     .filter(u => u.ratio > 1).sort((a, b) => a.ratio - b.ratio);
   const simple = us.length === 1 || (us.length === 2 && Number.isInteger(us[1].ratio / us[0].ratio));
   const head = (row) => (lotOnly ? ['', '', '', '', row[4]] : row);
-  if (!simple) return [...head([p.mxik_code || '', Number(p.sale_price || 0), '', '', r3(qty)]), ...tail];
+  const card = (names) => (lotOnly ? Array(10).fill('') : pharmaCardCells(p, names));
+  if (!simple) return [...head([p.mxik_code || '', Number(p.sale_price || 0), '', '', r3(qty)]), ...tail, ...card(['', ''])];
   const big = us[us.length - 1];
   const boxPrice = big.price != null ? Number(big.price) : Number(p.sale_price || 0) * big.ratio;
   return us.length === 2
-    ? [...head([p.mxik_code || '', boxPrice, big.ratio / us[0].ratio, us[0].ratio, r3(qty / big.ratio)]), ...tail]
-    : [...head([p.mxik_code || '', boxPrice, '', big.ratio, r3(qty / big.ratio)]), ...tail];
+    ? [...head([p.mxik_code || '', boxPrice, big.ratio / us[0].ratio, us[0].ratio, r3(qty / big.ratio)]), ...tail,
+      ...card([big.name, us[0].name])]
+    : [...head([p.mxik_code || '', boxPrice, '', big.ratio, r3(qty / big.ratio)]), ...tail, ...card([big.name, ''])];
 };

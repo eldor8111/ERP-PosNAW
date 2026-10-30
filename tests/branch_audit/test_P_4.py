@@ -137,8 +137,8 @@ def test_template_rows_import_end_to_end(client, db, pharm):
     rows[0]['Katta qadoq narxi'] = '100000'      # frontend tozalab yuboradi (cleanPharmaNum)
     body = _import(client.login(u), rows, warehouse_id=w.id)
     assert body['created'] == 2 and body['total_errors'] == 0, body
-    # MXIK yo'q, katalog bo'sh — ikkala qatorga ogohlantirish
-    assert len([x for x in body['warnings'] if 'MXIK' in x['warning']]) == 2
+    # P.14: MXIK yo'q, katalog bo'sh — MXIK majburiy emas, ogohlantirish yo'q
+    assert not [x for x in body['warnings'] if 'MXIK' in x['warning']]
 
     p = _prod(db, c, 'Paratsetamol 500 mg')
     assert _units(db, p.id) == [('blister', 10, Decimal(20000)), ('quti', 50, Decimal(100000))]
@@ -186,11 +186,12 @@ def test_mxik_column_catalog_lookup_and_invalid(client, db, pharm):
         {'Nomi': 'M3', 'Barkod': '4780000009003', 'MXIK': '3.0049E+16', 'Katta qadoq narxi': '1000'},
     ]
     body = _import(client.login(u), rows, warehouse_id=w.id)
-    assert body['created'] == 2, body
-    assert [e['row'] for e in body['errors']] == [4] and 'MXIK' in body['errors'][0]['error']
+    # P.14: MXIK majburiy emas — noto'g'ri qiymat qatorni to'xtatmaydi (saqlanmaydi, ogohlantirish)
+    assert body['created'] == 3 and body['errors'] == [], body
     assert _prod(db, c, 'M1').mxik_code == '03004001001000001'
     assert _prod(db, c, 'M2').mxik_code == '03004001001000002'
-    assert not [x for x in body['warnings'] if 'MXIK' in x['warning']]
+    assert _prod(db, c, 'M3').mxik_code in (None, '')
+    assert [x['row'] for x in body['warnings'] if 'MXIK' in x['warning']] == [4]
 
 
 def test_update_price_only_reprices_existing_structure_and_box_stock(client, db, pharm):
@@ -229,7 +230,8 @@ def test_plain_company_ignores_new_pharmacy_columns(client, db, mk):
     assert db.query(ProductPharma).filter(ProductPharma.product_id == p.id).count() == 0
 
 
-def test_box_stock_requires_lot_and_negative_rejected(client, db, pharm):
+def test_box_stock_without_expiry_and_negative_box_stock(client, db, pharm):
+    """P.14: muddatsiz qoldiq rad etilmaydi (muddatsiz partiya); manfiy quti soni yangi doriga yozilmaydi (ogohlantirish)."""
     c, _, w, u = pharm
     rows = [
         {'Nomi': 'S1', 'Barkod': '4780000009301', 'Katta qadoq narxi': '5000', "O'rta qadoqdagi dona soni": '10',
@@ -241,9 +243,13 @@ def test_box_stock_requires_lot_and_negative_rejected(client, db, pharm):
     rows.append({'Nomi': 'S4', 'Barkod': '4780000009304', 'Katta qadoq narxi': '5000', 'Qoldiq (katta qadoq)': '1',
                  'Yaroqlilik muddati': FUTURE})                                               # P.5: seriyasiz — OK
     body = _import(client.login(u), rows, warehouse_id=w.id)
-    assert body['created'] == 2, body
-    errs = {e['row']: e['error'] for e in body['errors']}
-    assert set(errs) == {2, 3} and 'Yaroqlilik' in errs[2] and 'manfiy' in errs[3]
+    assert body['created'] == 4 and body['errors'] == [], body
+    s1 = _prod(db, c, 'S1')
+    b1 = db.query(Batch).filter(Batch.product_id == s1.id).one()
+    assert b1.expiry_date is None and Decimal(str(b1.quantity)) == 20
+    assert any('Minus qoldiq' in x['warning'] for x in body['warnings'] if x['row'] == 3), body
+    s2 = _prod(db, c, 'S2')
+    assert db.query(StockLevel).filter(StockLevel.product_id == s2.id, StockLevel.quantity != 0).count() == 0
     s3 = _prod(db, c, 'S3')
     assert _units(db, s3.id) == [('quti', 10, Decimal(5000))] and Decimal(str(s3.sale_price)) == 500
     assert Decimal(str(db.query(Batch).filter(Batch.product_id == s3.id).one().quantity)) == 20
@@ -272,13 +278,14 @@ def test_frontend_pharmacy_import_only_in_pharmacy_mode():
 def _clean_num(v):
     """cleanPharmaNum ning Python nusxasi."""
     s = re.sub(r'[\s ]', '', str(v))
+    neg = re.match(r'[-−]\d', s) is not None                              # P.14: minus qoldiq
     if ',' in s and '.' in s:
         s = s.replace(',', '')
-    elif re.fullmatch(r'\d{1,3}(,\d{3})+', s):
+    elif re.fullmatch(r'[-−]?\d{1,3}(,\d{3})+', s):
         s = s.replace(',', '')
     else:
         s = s.replace(',', '.', 1)
-    return re.sub(r'[^0-9.]', '', s)
+    return ('-' if neg else '') + re.sub(r'[^0-9.]', '', s)
 
 
 def test_clean_number_rules():
@@ -287,9 +294,10 @@ def test_clean_number_rules():
     assert _clean_num('100,000.50') == '100000.50'
     assert _clean_num('12,5') == '12.5'
     assert _clean_num("25 000 so'm") == '25000'
+    assert _clean_num('-3') == '-3' and _clean_num('-1,234') == '-1234'
     js = _read(PHARM_IMPORT_JS)
     for token in ("if (s.includes(',') && s.includes('.')) s = s.replace(/,/g, '');",
-                  r"else if (/^\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');",
+                  "else if (/^[-−]?\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');",
                   "else s = s.replace(',', '.');"):
         assert token in js, token
 
@@ -337,17 +345,19 @@ def test_update_existing_drug_stock_goes_through_batches(client, db, pharm):
         db.expire_all()
         return Decimal(str(db.query(StockLevel).filter(StockLevel.product_id == pid, StockLevel.warehouse_id == w.id).one().quantity))
 
-    # oshirish muddatsiz — qoldiq o'zgarmaydi, ogohlantirish
-    body = _import(cl, [{'Nomi': 'Sitramon', 'Qoldiq': '30'}], allow_update='true', warehouse_id=w.id)
-    assert body['updated'] == 1 and any('muddati' in x['warning'] for x in body['warnings']), body
-    assert level() == 20
-    # oshirish muddat, seriya va ishlab chiqarilgan sana bilan — farq (10) yangi partiya bo'lib kiradi
+    # P.14: oshirish muddatsiz — farq (5) muddatsiz partiya bo'lib kiradi, ogohlantirishsiz (muddati yo'q tovarlar ham bor)
+    body = _import(cl, [{'Nomi': 'Sitramon', 'Qoldiq': '25'}], allow_update='true', warehouse_id=w.id)
+    assert body['updated'] == 1 and body['warnings'] == [], body
+    assert level() == 25
+    # oshirish muddat, seriya va ishlab chiqarilgan sana bilan — farq (5) yangi partiya bo'lib kiradi; avvalgi
+    # muddatsiz 5 taga ham shu sanalar yoziladi (P.8)
     body = _import(cl, [{'Nomi': 'Sitramon', 'Qoldiq': '30', 'Yaroqlilik muddati': FUTURE, 'Seriya': 'S-NEW',
                          'Ishlab chiqarilgan sana': '01.01.2026'}], allow_update='true', warehouse_id=w.id)
     assert body['updated'] == 1 and body['warnings'] == [], body
     assert level() == 30
-    new = db.query(Batch).filter(Batch.product_id == pid, Batch.lot_number == 'S-NEW').one()
-    assert Decimal(str(new.quantity)) == 10 and new.manufacture_date.date().isoformat() == '2026-01-01'
+    new = db.query(Batch).filter(Batch.product_id == pid, Batch.lot_number == 'S-NEW').all()
+    assert sorted(Decimal(str(b.quantity)) for b in new) == [5, 5]
+    assert all(b.manufacture_date.date().isoformat() == '2026-01-01' and str(b.expiry_date)[:10] == FUTURE for b in new)
     assert sum(Decimal(str(b.quantity)) for b in db.query(Batch).filter(Batch.product_id == pid).all()) == 30
     # kamaytirish — inventarizatsiya orqali (import o'zgartirmaydi)
     body = _import(cl, [{'Nomi': 'Sitramon', 'Qoldiq': '5'}], allow_update='true', warehouse_id=w.id)
@@ -404,10 +414,12 @@ def test_export_columns_roundtrip_with_import(client, db, pharm):
     # JS funksiya va sarlavhalar import shablonidagidek
     js = _read(PHARM_IMPORT_JS)
     blk = js[js.index('export const PHARMA_EXPORT_HEADERS = ['):js.index('];', js.index('export const PHARMA_EXPORT_HEADERS'))]
-    ex_headers = re.findall(r"'([^']*)'", blk)
-    assert ex_headers == ['MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni',
-                          'Quti soni (qoldiq)', 'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana',
-                          'Ombor']
+    blk = re.sub(r'//.*', '', blk)
+    ex_headers = [a or b for a, b in re.findall(r"'([^']*)'|\"([^\"]*)\"", blk)]
+    assert ex_headers[:10] == ['MXIK kodi', '1 quti narxi', 'Qutidagi blister soni', 'Blisterdagi dona soni',
+                               'Quti soni (qoldiq)', 'Seriya', 'Yaroqlilik muddati', 'Dori shakli', 'Ishlab chiqarilgan sana',
+                               'Ombor']
+    assert len(ex_headers) == 20                                           # P.14: + dori kartochkasi (test_P_14)
     idx = _alias_index()
     assert all(idx.get(_norm(h)) for h in ex_headers)                      # qayta import qilinganda tanilad
     assert "return us.length === 2" in js and 'r3(qty / big.ratio)' in js
@@ -417,7 +429,7 @@ def test_export_columns_only_in_pharmacy_mode():
     s = _read(PRODUCTS_JSX)
     blk = s[s.index('// P.6/P.8: dorixonada oxiriga MXIK, qadoq, seriya va sanalar'):s.index("ws['!ref'] = `A1:${lastCol}")]
     assert 'if (pharmacyOn) {' in blk and 'pharmaExportRow(p, formLabel, b, lotOnly)' in blk
-    assert "let lastCol = 'U';" in blk and "lastCol = 'AE';" in blk
+    assert "let lastCol = 'U';" in blk and "lastCol = 'AO';" in blk                 # P.14: AF..AO dori kartochkasi
     assert "...(pharmacyOn ? [{ wch: 20 }" in s
 
 

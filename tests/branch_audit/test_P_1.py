@@ -344,7 +344,8 @@ def test_import_explicit_retail_price_wins(client, db, pharm):
     assert Decimal(str(_prod(db, c, "Qo'lda").sale_price)) == 2500
 
 
-def test_import_stock_requires_lot_and_expiry_with_row_number(client, db, pharm):
+def test_import_stock_expiry_optional_bad_date_is_row_error(client, db, pharm):
+    """P.14: muddati yo'q tovarlar ham bor — muddatsiz / muddati o'tgan qoldiq rad etilmaydi; noto'g'ri sana — qator xatosi."""
     c, _, w, u = pharm
     rows = [
         _imp_row('A1', '4780000002001', Qoldiq=10),
@@ -357,12 +358,11 @@ def test_import_stock_requires_lot_and_expiry_with_row_number(client, db, pharm)
     for i, r in enumerate(rows):
         r['__row_index'] = i + 2
     body = _import(client.login(u), rows, warehouse_id=w.id).json()
-    assert body['created'] == 2, body
+    assert body['created'] == 5, body
     errs = {e['row']: e['error'] for e in body['errors']}
-    assert set(errs) == {2, 3, 4, 5}
-    # P.5: seriya ixtiyoriy — A1 (seriya ham, muddat ham yo'q) muddat uchun rad etiladi
-    assert 'Yaroqlilik' in errs[2] and 'Yaroqlilik' in errs[3] and 'bugundan keyin' in errs[4] and 'sana' in errs[5]
-    assert db.query(Product).filter(Product.company_id == c.id, Product.name.in_(['A1', 'A2', 'A3', 'A4'])).count() == 0
+    assert set(errs) == {5} and 'sana' in errs[5]                            # A4: "xato" — sana emas
+    assert any("Muddati o'tgan" in x['warning'] for x in body['warnings'] if x['row'] == 4), body   # A3
+    assert db.query(Product).filter(Product.company_id == c.id, Product.name == 'A4').count() == 0
 
 
 def test_import_pack_errors_per_row(client, db, pharm):

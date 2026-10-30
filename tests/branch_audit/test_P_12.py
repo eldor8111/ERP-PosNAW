@@ -141,13 +141,15 @@ def test_lots_go_to_their_own_warehouse(client, db, mk, pharm):
     assert _level(db, p.id, w.id) == 20 and _level(db, p.id, w2.id) == 10
 
 
-def test_lot_without_expiry_rejects_whole_new_drug(client, db, pharm):
+def test_lot_without_expiry_is_undated_batch(client, db, pharm):
+    """P.14: muddati yo'q partiya qatori rad etilmaydi — muddatsiz partiya bo'lib yoziladi."""
     c, _, w, u = pharm
     rows = _lots_file()
     rows[1].pop('Yaroqlilik muddati')
     body = _import(client.login(u), rows, warehouse_id=w.id)
-    assert body['created'] == 0 and '3-qator' in body['errors'][0]['error'], body
-    assert db.query(Product).filter(Product.company_id == c.id, Product.name == 'Nurofen 200 mg').first() is None
+    assert body['created'] == 1 and body['errors'] == [], body
+    p = _prod(db, c, 'Nurofen 200 mg')
+    assert _batches(db, p.id) == [(None, 'B2', Decimal(10), w.id), (FUTURE, 'A1', Decimal(20), w.id)]
 
 
 def test_reimport_same_file_changes_nothing_and_increase_goes_to_same_batch(client, db, pharm):
