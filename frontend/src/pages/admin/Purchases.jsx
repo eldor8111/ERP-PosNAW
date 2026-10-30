@@ -720,14 +720,7 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
       return;
     }
     if (poItems.some(i => !(Number(i.qty_ordered) > 0))) { setErr(t('purchase.qtyMustBePositive')); return; }
-    // D1.3: dorixona — qabul qilinadigan xaridda har bir qatorda yaroqlilik muddati majburiy (P.5: seriya ixtiyoriy)
-    if (pharmacy && status === 'received') {
-      const bad = poItems.filter(i => !i.expiry_date);
-      if (bad.length > 0) {
-        setErr(`"${bad.map(i => i.product_name).join(', ')}": ${t('purchase.phExpiryRequired')}`);
-        return;
-      }
-    }
+    // P.15: dorixonada yaroqlilik muddati ixtiyoriy (muddati yo'q tovarlar ham bor; P.5: seriya ixtiyoriy)
     // Dorixona: ishlab chiqarilgan sana (ixtiyoriy) yaroqlilik muddatidan oldin bo'lishi kerak
     if (pharmacy) {
       const badMfg = poItems.filter(i => i.manufacture_date && i.expiry_date && i.manufacture_date >= i.expiry_date);
@@ -1575,22 +1568,16 @@ function KirimlarTab() {
     let rows;
     const extra = {};
     if (pharmacy) {
-      // D1.3: har bir seriya uchun yaroqlilik muddati majburiy (P.5: seriya raqami ixtiyoriy); muddati o'tgan rad etiladi
+      // P.15: yaroqlilik muddati ixtiyoriy (P.5: seriya raqami ham); muddati o'tgani rad etilmaydi — server ogohlantiradi
       rows = [];
-      const nowD = new Date();
-      const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
       for (const i of recModal.items.filter(x => Number(x.qty_ordered) > Number(x.qty_received))) {
         const lots = (i._lots || []).filter(l => Number(l.qty) > 0);
         if (!lots.length) continue;
         const rem = Number(i.qty_ordered) - Number(i.qty_received);
         if (lots.reduce((a, l) => a + Number(l.qty), 0) > rem + 1e-9) { toast.error(`${i.product_name}: ${t('purchase.phLotsExceed')}`); return; }
-        for (const l of lots) {
-          if (!l.exp) { toast.error(`${i.product_name}: ${t('purchase.phExpiryRequired')}`); return; }
-          if (l.exp < today) { toast.error(`${i.product_name}: ${t('purchase.phExpiryPast')}`); return; }
-        }
         rows.push({
           po_item_id: i.id,
-          lots: lots.map(l => ({ lot_number: String(l.lot || '').trim() || null, expiry_date: l.exp, manufacture_date: l.mfg || null, qty: Number(l.qty) })),
+          lots: lots.map(l => ({ lot_number: String(l.lot || '').trim() || null, expiry_date: l.exp || null, manufacture_date: l.mfg || null, qty: Number(l.qty) })),
           ...((i._codes || []).length ? { marking_codes: i._codes.map(c => c.raw) } : {}),
         });
       }
@@ -1905,7 +1892,7 @@ function KirimlarTab() {
                               </td>
                               <td className="px-3 py-2 text-center">
                                 <input value={l.lot} onChange={e => updLot(item.id, li, 'lot', e.target.value)}
-                                  className={`w-28 ${inp} ${l.lot ? 'border-slate-200' : 'border-red-300 bg-red-50'}`} />
+                                  className={`w-28 ${inp} border-slate-200`} />
                               </td>
                               <td className="px-3 py-2 text-center">
                                 <input type="date" value={l.mfg} onChange={e => updLot(item.id, li, 'mfg', e.target.value)}
@@ -1913,7 +1900,7 @@ function KirimlarTab() {
                               </td>
                               <td className="px-3 py-2 text-center">
                                 <input type="date" value={l.exp} onChange={e => updLot(item.id, li, 'exp', e.target.value)}
-                                  className={`${inp} ${l.exp ? 'border-slate-200' : 'border-red-300 bg-red-50'}`} />
+                                  className={`${inp} border-slate-200`} />
                               </td>
                               <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-700">
                                 {li === 0 && (sale != null ? fmt(Number(sale)) : '—')}

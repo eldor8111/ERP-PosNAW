@@ -305,7 +305,7 @@ const GUIDE = [
   ['1 quti tan narxi', "yo'q", "Kelish narxi; donaga bo'linib saqlanadi"],
   ['Quti soni (qoldiq)', "yo'q", "Hozir omborda nechta quti bor. Donaga o'zi aylantiriladi"],
   ['Seriya', "yo'q", 'Qadoqda yozilgan seriya (LOT), ixtiyoriy'],
-  ['Yaroqlilik muddati', 'qoldiq bo\'lsa', 'YYYY-MM-DD yoki DD.MM.YYYY yoki MM.YYYY'],
+  ['Yaroqlilik muddati', "yo'q", "YYYY-MM-DD yoki DD.MM.YYYY yoki MM.YYYY. Muddati yo'q tovarda bo'sh qoldiring"],
   ['Ishlab chiqarilgan sana', "yo'q", 'Ixtiyoriy; yaroqlilik muddatidan oldin bo\'lishi kerak'],
   ['Kategoriya', "yo'q", "Yo'q bo'lsa yangisi ochiladi"],
   ['Bir nechta partiya', "yo'q", "Har partiya alohida qatorda: nomi bir xil, seriya, muddat, ishlab chiqarilgan sana va quti soni o'ziniki. Narx va qadoq birinchi qatordan olinadi"],

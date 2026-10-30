@@ -190,7 +190,8 @@ def test_products_page_list_pack_summary_and_bulk_columns():
     assert s.count('{pharmacyOn && (() => {') >= 1
     # saqlash: units + muddat faqat dorixonada, qoldiq quti sonidan donaga aylantiriladi (P.5: seriya ixtiyoriy)
     assert "...(pharmacyOn && rowUnitPrice != null ? { units: packToUnits(" in s
-    assert "initial_expiry_date: row.pk_expiry," in s and "{ initial_lot_number: row.pk_lot.trim() }" in s
+    assert "...(row.pk_expiry ? { initial_expiry_date: row.pk_expiry } : {})," in s   # P.15: muddat ixtiyoriy
+    assert "{ initial_lot_number: row.pk_lot.trim() }" in s
     assert 'Number(nr.pk_stock_big) * L.topRatio' in s
 
 
@@ -273,17 +274,21 @@ def test_modal_payload_saves_units_and_lot_in_pharmacy(client, db, mk):
     assert [(x['name'], x['ratio']) for x in r2.json()['units']] == [('quti', 20)]
 
 
-def test_modal_payload_requires_lot_and_expiry_with_stock(client, db, mk):
+def test_modal_payload_lot_and_expiry_optional_with_stock(client, db, mk):
+    """P.15: muddati yo'q tovarlar ham bor — boshlang'ich qoldiq muddatsiz partiya bo'lib yoziladi."""
     c, _, _, u = mk.tenant()
     _pharmacy_on(db, c)
-    bad = _modal_payload()
-    bad.pop('initial_expiry_date')
-    r = client.login(u).post(URL, json=bad)
-    assert r.status_code == 400, r.text
+    nodate = _modal_payload()
+    nodate.pop('initial_expiry_date')
+    r = client.login(u).post(URL, json=nodate)
+    assert r.status_code == 201, r.text
+    assert db.query(Batch).filter(Batch.product_id == r.json()['id']).one().expiry_date is None
     # P.5: seriya ixtiyoriy
     ok = _modal_payload(barcode='4780000000002')
     ok.pop('initial_lot_number')
-    assert client.login(u).post(URL, json=ok).status_code == 201
+    ok['sku'], ok['name'] = 'SKU-P2TEST-2', 'Parasetamol 500 mg (2)'
+    r = client.login(u).post(URL, json=ok)
+    assert r.status_code == 201, r.text
 
 
 def test_plain_company_ignores_units_regression(client, db, mk):

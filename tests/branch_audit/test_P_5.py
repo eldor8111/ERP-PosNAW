@@ -191,8 +191,9 @@ def test_batch_edit_validation_and_isolation(client, db, pharm, mk):
     cl = client.login(u)
     _, b = _drug_with_batch(cl, w, barcode='4780000005556')
     url = f"/api/pharmacy/batches/{b['batch_id']}"
-    assert cl.put(url, json={'expiry_date': None}).status_code == 400
     assert cl.put(url, json={'manufacture_date': FUTURE}).status_code == 400              # muddatdan oldin emas
+    r = cl.put(url, json={'expiry_date': None})                                           # P.15: muddatni o'chirish mumkin
+    assert r.status_code == 200 and r.json()['expiry_date'] is None, r.text
     assert cl.put(url, json={'lot_number': 'x' * 101}).status_code == 400
     c2, _, _, u2 = mk.tenant()
     _pharmacy_on(db, c2)
@@ -215,18 +216,18 @@ def test_modal_wide_three_columns_and_simplified():
     # olib tashlangan maydonlar: qadoq shtrix-kodlari, ishlab chiqarilgan sana (qo'shishda), ro'yxat muddati
     for bad in ('big_barcode', 'mid_barcode', 'reg_valid_until', 'BARCODE_FORMATS.map'):
         assert bad not in body, bad
-    # seriya va ishlab chiqarilgan sana ixtiyoriy (yulduzchasiz), yaroqlilik muddati majburiy
+    # seriya, ishlab chiqarilgan sana va (P.15) yaroqlilik muddati ixtiyoriy (yulduzchasiz)
     # P.6: qadoq, narx va qoldiq — "Ko'p mahsulot qo'shish" yashil qatori tartibida
     stock = body[body.index("tf('drugForm.packTitle'"):body.index("{/* 3. Partiyalar (tahrirda) + Batafsil */}")]
     order = [stock.index(k) for k in ("'pharmacyModal.bigPrice'", "tf('packStruct.bulkMidCount'", "tf('packStruct.bulkUnitCount'",
                                       "tf('packStruct.bulkStockBig'", "tf('packStruct.lot'", "tf('packStruct.expiry'",
                                       "tf('drugForm.mfgOptional'")]
     assert order == sorted(order)
-    assert "setP({ mfg: e.target.value })" in stock and "required={stockTotal > 0}" in stock
+    assert "setP({ mfg: e.target.value })" in stock and "required={stockTotal > 0}" not in stock
     assert 'PackStockFields' not in s and 'AutoTag' not in s and "form.mode" not in s
     assert 'if (pack.mfg) payload.initial_manufacture_date = pack.mfg;' in body
     v = s[s.index('export const validatePack'):s.index('export function SubstancePicker')]
-    assert "packStruct.errLot" not in v                  # seriya ixtiyoriy
+    assert "packStruct.errLot" not in v and "packStruct.errExpiry" not in v   # seriya va muddat ixtiyoriy
     # tahrirda partiyalar: seriya, muddat, ishlab chiqarilgan sana
     assert "api.get('/pharmacy/batches', { params: { product_id: product.id" in body
     assert 'await api.put(`/pharmacy/batches/${b.batch_id}`, body' in body

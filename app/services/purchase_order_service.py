@@ -430,22 +430,23 @@ def _plan_sale_price(db: Session, product: Product, item: POItem, settings: dict
 
 
 def _check_pharmacy_lots(label: str, lots: list, settings: dict, today, warnings: List[str]) -> None:
-    """Dorixona: yaroqlilik muddati majburiy (P.5: seriya ixtiyoriy — bo'sh bo'lsa partiya avtomatik nom oladi);
-    muddati o'tgan rad etiladi; qolgan muddat kam bo'lsa ogohlantirish."""
+    """Dorixona: P.15 — yaroqlilik muddati ixtiyoriy (muddati yo'q tovarlar ham bor: muddatsiz partiya); muddati
+    o'tgan rad etilmaydi — ogohlantirish (P.5: seriya ixtiyoriy — bo'sh bo'lsa partiya avtomatik nom oladi);
+    qolgan muddat kam bo'lsa ogohlantirish."""
     min_pct = _d(settings.get("min_shelf_life_pct"))
     for j, (lot, expiry, manufacture, _qty) in enumerate(lots, 1):
         where = f"{label} ({j}-seriya)" if len(lots) > 1 else label
         if expiry is None:
-            raise HTTPException(status_code=400, detail=f"{where}: yaroqlilik muddati majburiy (dorixona rejimi)")
+            continue
         exp_d = expiry.date() if isinstance(expiry, datetime) else expiry
         if exp_d < today:
-            raise HTTPException(status_code=400, detail=f"{where}: yaroqlilik muddati o'tgan ({exp_d:%d.%m.%Y})")
+            warnings.append(f"{where}: yaroqlilik muddati o'tgan ({exp_d:%d.%m.%Y})")
         if manufacture is None:
             continue
         man_d = manufacture.date() if isinstance(manufacture, datetime) else manufacture
         if man_d >= exp_d:
             raise HTTPException(status_code=400, detail=f"{where}: ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak")
-        if min_pct > 0:
+        if min_pct > 0 and exp_d >= today:
             pct = Decimal((exp_d - today).days) * 100 / Decimal((exp_d - man_d).days)
             if pct < min_pct:
                 warnings.append(f"{where}: qolgan yaroqlilik muddati {pct:.0f}% (minimal {min_pct:.0f}%)")

@@ -963,7 +963,7 @@ def receive_goods(
         if not supplier:
             raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
 
-    # D1.3: dorixona rejimida seriya va yaroqlilik muddati majburiy (faqat modul yoqilgan korxonada)
+    # D1.3: dorixona rejimida partiya qoidalari (P.15: seriya va yaroqlilik muddati ixtiyoriy; faqat modul yoqilgan korxonada)
     pharm_on, _pharm_settings = pharmacy_context(db, cid)
     _rcv_warnings: list = []
     if pharm_on:
@@ -979,11 +979,8 @@ def receive_goods(
             if pname is None:
                 raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi: {item.product_id}")
             label = f"{n}-qator '{pname}'"
-            # P.5: seriya ixtiyoriy (bo'sh bo'lsa partiya "manual" nomini oladi); yaroqlilik muddati majburiy
-            if item.expiry_date is None:
-                raise HTTPException(status_code=400, detail=f"{label}: yaroqlilik muddati majburiy (dorixona rejimi)")
-            if item.expiry_date < today:
-                raise HTTPException(status_code=400, detail=f"{label}: yaroqlilik muddati o'tgan ({item.expiry_date:%d.%m.%Y})")
+            # P.5: seriya ixtiyoriy (bo'sh bo'lsa partiya "manual" nomini oladi); P.15: yaroqlilik muddati ham ixtiyoriy,
+            # muddati o'tgani — ogohlantirish (_check_pharmacy_lots)
             # CD.1: ishlab chiqarilgan sana bo'lsa — D1.3 (xarid qabuli) dagi qoida: qolgan muddat foizi < min_shelf_life_pct
             # bo'lsa ogohlantirish (rad etmaydi); sana muddatdan keyin bo'lsa 400
             _check_pharmacy_lots(

@@ -1397,23 +1397,13 @@ export default function Products() {
     for (const row of validRows) {
       try {
         const [primary, ...extras] = row.barcodes.filter(b => b.trim());
-        // P.2: dorixonada qoldiq > 0 bo'lsa yaroqlilik muddati majburiy (P.5: seriya va ishlab chiqarilgan sana ixtiyoriy);
-        // qadoq tuzilmasi `units` bilan yuboriladi
+        // P.15: dorixonada yaroqlilik muddati ham ixtiyoriy (muddati yo'q tovarlar ham bor; P.5: seriya va ishlab chiqarilgan
+        // sana ixtiyoriy) — faqat ikkala sana berilsa tartibi tekshiriladi; qadoq tuzilmasi `units` bilan yuboriladi
         const rowPk = pharmacyOn ? bulkRowPack(row) : null;
         const rowL = rowPk ? packLevels(rowPk) : null;
-        if (pharmacyOn && Number(row.initial_stock) > 0) {
-          if (!row.pk_expiry) {
-            errors.push({ name: row.name, error: tf('packStruct.errExpiry', "Boshlang'ich qoldiq uchun yaroqlilik muddatini kiriting") });
-            continue;
-          }
-          if (row.pk_expiry <= new Date().toISOString().slice(0, 10)) {
-            errors.push({ name: row.name, error: tf('packStruct.errExpiryPast', "Yaroqlilik muddati bugundan keyin bo'lishi kerak") });
-            continue;
-          }
-          if (row.pk_mfg && row.pk_mfg >= row.pk_expiry) {
-            errors.push({ name: row.name, error: tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak") });
-            continue;
-          }
+        if (pharmacyOn && Number(row.initial_stock) > 0 && row.pk_expiry && row.pk_mfg && row.pk_mfg >= row.pk_expiry) {
+          errors.push({ name: row.name, error: tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak") });
+          continue;
         }
         const rowUnitPrice = rowL?.top && row.pk_price ? packPrices(rowPk, row.pk_price, packRound).unit : null;
         await api.post('/products', {
@@ -1441,7 +1431,7 @@ export default function Products() {
           price_currency_id: row.sale_price_cur ? Number(row.sale_price_cur) : null,
           ...(pharmacyOn && rowUnitPrice != null ? { units: packToUnits(rowPk, row.pk_price, packRound, 1) } : {}),
           ...(pharmacyOn && Number(row.initial_stock) > 0 ? {
-            initial_expiry_date: row.pk_expiry,
+            ...(row.pk_expiry ? { initial_expiry_date: row.pk_expiry } : {}),   // P.15: ixtiyoriy
             ...((row.pk_lot || '').trim() ? { initial_lot_number: row.pk_lot.trim() } : {}),
             ...(row.pk_mfg ? { initial_manufacture_date: row.pk_mfg } : {}),
           } : {}),
@@ -4641,7 +4631,6 @@ export default function Products() {
                         const rpk = bulkRowPack(row);
                         const rL = packLevels(rpk);
                         const rPr = rL.top && row.pk_price ? packPrices(rpk, row.pk_price, packRound) : null;
-                        const needLot = Number(row.initial_stock) > 0;
                         const pkInp = "h-8 lg:h-10 px-2 border border-emerald-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-white";
                         const lbl = "block text-[10px] font-bold text-emerald-700 uppercase mb-0.5 truncate";
                         return (
@@ -4672,8 +4661,8 @@ export default function Products() {
                                 onChange={e => updatePkField(row._key, 'pk_lot', e.target.value)} />
                             </div>
                             <div>
-                              <label className={lbl}>{tf('packStruct.expiry', 'Yaroqlilik muddati')}{needLot && <span className="text-red-500"> *</span>}</label>
-                              <input type="date" className={`${pkInp} ${needLot && !row.pk_expiry ? 'border-amber-400 bg-amber-50' : ''}`} value={row.pk_expiry ?? ''}
+                              <label className={lbl}>{tf('packStruct.expiry', 'Yaroqlilik muddati')}</label>
+                              <input type="date" className={pkInp} value={row.pk_expiry ?? ''}
                                 onChange={e => updatePkField(row._key, 'pk_expiry', e.target.value)} />
                             </div>
                             <div>
@@ -4864,7 +4853,7 @@ export default function Products() {
                   <p className="font-bold">{tf('pharmacyImport.hintTitle', "Dorilar importi qanday ishlaydi")}</p>
                   <p>• {tf('pharmacyImport.hint1', "Narx, tan narxi va qoldiq — 1 quti bo'yicha. Blister va dona narxi o'zi hisoblanadi.")}</p>
                   <p>• {tf('pharmacyImport.hint2', "Qadoqsiz dori (sirop) uchun blister va dona sonini bo'sh qoldiring — narx 1 dona uchun bo'ladi.")}</p>
-                  <p>• {tf('pharmacyImport.hint3', "Qoldiq bo'lsa yaroqlilik muddati majburiy (seriya ixtiyoriy). MXIK bo'sh bo'lsa shtrix-kod bo'yicha katalogdan olinadi.")}</p>
+                  <p>• {tf('pharmacyImport.hint3', "Yaroqlilik muddati, seriya va MXIK ixtiyoriy. MXIK bo'sh bo'lsa shtrix-kod bo'yicha katalogdan olinadi.")}</p>
                   <p>• {tf('pharmacyImport.hint4', "\"Shablon\" tugmasi — namunali fayl va yo'riqnoma. Ruscha sarlavhalar ham tanildi (Наименование, Штрихкод, ИКПУ, Серия...).")}</p>
                   <p>• {tf('pharmacyImport.hint5', "Bir nechta partiya: har biri alohida qatorda, nomi bir xil (seriya, muddat, quti soni o'ziniki). Bir nechta shtrix-kod: bitta katakda vergul bilan.")}</p>
                 </div>

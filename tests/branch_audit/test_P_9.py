@@ -127,10 +127,11 @@ def test_edit_window_stock_ui():
     assert "['lot_number', 'expiry_date', 'manufacture_date', 'quantity']" in body
     assert "if (b.quantity !== b._orig.quantity) body.quantity = Number(b.quantity);" in body
     assert "setB(b.batch_id, { quantity: e.target.value.replace(/[^0-9.]/g, '') })" in body
-    # yangi qoldiq: quti soni -> dona, muddat majburiy, ombor, qo'lda kirim
+    # yangi qoldiq: quti soni -> dona, P.15: muddat ixtiyoriy, ombor, qo'lda kirim
     assert "const addQty = isEdit && newStock.open ? (Number(newStock.boxes) || 0) * topRatio : 0;" in body
     assert "await api.post('/inventory/receive', {" in body and 'product_id: product.id, quantity: addQty,' in body
-    assert "if (!newStock.expiry) return fail(" in body
+    assert "if (!newStock.expiry) return fail(" not in body
+    assert "...(newStock.expiry ? { expiry_date: newStock.expiry } : {})," in body
     assert "tf('drugForm.newStockButton'" in body
 
 

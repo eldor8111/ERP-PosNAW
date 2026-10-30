@@ -66,16 +66,17 @@ def test_strip_has_only_requested_new_fields():
     assert fields == ['pk_price', 'pk_big_qty', 'pk_mid_qty', 'pk_stock_big', 'pk_lot', 'pk_expiry', 'pk_form', 'pk_mfg']
     assert 'DOSAGE_FORMS.map(' in strip and "tf('pharmaProduct.dosageForm', 'Dori shakli')" in strip
     assert "tf('drugForm.mfgOptional', 'Ishlab chiqarilgan sana (ixtiyoriy)')" in strip
-    # seriya majburiy emas (yulduzcha yo'q), yaroqlilik muddati qoldiq bo'lsa majburiy
+    # seriya va yaroqlilik muddati majburiy emas (P.15: yulduzcha va sariq belgi yo'q)
     assert "{tf('packStruct.lot', 'Seriya raqami')}</label>" in strip
-    assert "{tf('packStruct.expiry', 'Yaroqlilik muddati')}{needLot && <span className=\"text-red-500\"> *</span>}" in strip
+    assert "{tf('packStruct.expiry', 'Yaroqlilik muddati')}</label>" in strip and 'needLot' not in strip
 
 
 def test_bulk_save_payload_and_validation():
     s = _read(PRODUCTS_JSX)
     body = s[s.index('const handleBulkAddSave = async () => {'):]
     body = body[:body.index('\n  };')]
-    assert "if (!row.pk_expiry) {" in body and "if (row.pk_mfg && row.pk_mfg >= row.pk_expiry) {" in body
+    assert "if (!row.pk_expiry) {" not in body and "errExpiryPast" not in body          # P.15: muddat ixtiyoriy
+    assert "row.pk_expiry && row.pk_mfg && row.pk_mfg >= row.pk_expiry" in body
     assert "pk_lot || '').trim() || !row.pk_expiry" not in body          # seriya majburiy emas
     assert "...(row.pk_mfg ? { initial_manufacture_date: row.pk_mfg } : {})," in body
     assert "...(pharmacyOn && row.pk_form ? { pharma: { dosage_form: row.pk_form } } : {})," in body

@@ -5724,7 +5724,7 @@ export default {
   "pharmacyImport.hintTitle": "Dorilar importi qanday ishlaydi",
   "pharmacyImport.hint1": "Narx, tan narxi va qoldiq — 1 quti bo'yicha. Blister va dona narxi o'zi hisoblanadi.",
   "pharmacyImport.hint2": "Qadoqsiz dori (sirop) uchun blister va dona sonini bo'sh qoldiring — narx 1 dona uchun bo'ladi.",
-  "pharmacyImport.hint3": "Qoldiq bo'lsa yaroqlilik muddati majburiy (seriya ixtiyoriy). MXIK bo'sh bo'lsa shtrix-kod bo'yicha katalogdan olinadi.",
+  "pharmacyImport.hint3": "Yaroqlilik muddati, seriya va MXIK ixtiyoriy. MXIK bo'sh bo'lsa shtrix-kod bo'yicha katalogdan olinadi.",
   "pharmacyImport.hint4": "\"Shablon\" tugmasi — namunali fayl va yo'riqnoma. Ruscha sarlavhalar ham tanildi (Наименование, Штрихкод, ИКПУ, Серия...).",
   "pharmacyImport.previewCol": "Hisob (tekshiring)",
   "pharmacyImport.wQty": "son noto'g'ri",

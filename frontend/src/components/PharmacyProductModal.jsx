@@ -245,10 +245,9 @@ export const validatePack = (pack, { tf, unitName = 'dona', otherBarcodes = [], 
     if (seen.has(c)) return tf('packStruct.errBarcode', "Qadoq shtrix-kodlari takrorlanmasligi kerak");
     seen.add(c);
   }
-  if (stockTotal > 0) {   // P.5: seriya ixtiyoriy, yaroqlilik muddati majburiy
-    if (!p.expiry) return tf('packStruct.errExpiry', "Boshlang'ich qoldiq uchun yaroqlilik muddatini kiriting");
-    if (p.mfg && p.mfg >= p.expiry) return tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak");
-    if (p.expiry <= new Date().toISOString().slice(0, 10)) return tf('packStruct.errExpiryPast', "Yaroqlilik muddati bugundan keyin bo'lishi kerak");
+  // P.5: seriya ixtiyoriy; P.15: yaroqlilik muddati ham ixtiyoriy (muddati yo'q tovarlar ham bor)
+  if (stockTotal > 0 && p.expiry && p.mfg && p.mfg >= p.expiry) {
+    return tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak");
   }
   return '';
 };
@@ -520,21 +519,18 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
     if (pErr) return fail(pErr);
     for (const b of dirtyBatches) {
       if (b.quantity === '' || !(Number(b.quantity) >= 0)) return fail(tf('drugForm.batchQtyInvalid', "Partiya qoldig'i 0 yoki undan katta son bo'lishi kerak"));
-      if (!b.expiry_date) return fail(tf('drugForm.batchExpiryRequired', 'Partiyaning yaroqlilik muddatini kiriting'));
-      if (b.manufacture_date && b.manufacture_date >= b.expiry_date) {
+      if (b.expiry_date && b.manufacture_date && b.manufacture_date >= b.expiry_date) {   // P.15: muddat ixtiyoriy
         return fail(tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"));
       }
     }
 
-    // P.9: tahrirda yangi qoldiq (quti soni -> dona); muddat majburiy, ombor bir nechta bo'lsa tanlanadi
+    // P.9: tahrirda yangi qoldiq (quti soni -> dona); P.15: muddat ixtiyoriy, ombor bir nechta bo'lsa tanlanadi
     const activeWh = warehouses.filter(w => w.is_active !== false);
     const addQty = isEdit && newStock.open ? (Number(newStock.boxes) || 0) * topRatio : 0;
     const addWh = newStock.wh || (activeWh.length === 1 ? String(activeWh[0].id) : '');
     if (addQty > 0) {
       if (!addWh) return fail(tf('drugForm.newStockWarehouse', "Qoldiq qo'shish uchun omborni tanlang"));
-      if (!newStock.expiry) return fail(tf('packStruct.errExpiry', "Boshlang'ich qoldiq uchun yaroqlilik muddatini kiriting"));
-      if (newStock.expiry <= new Date().toISOString().slice(0, 10)) return fail(tf('packStruct.errExpiryPast', "Yaroqlilik muddati bugundan keyin bo'lishi kerak"));
-      if (newStock.mfg && newStock.mfg >= newStock.expiry) return fail(tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"));
+      if (newStock.expiry && newStock.mfg && newStock.mfg >= newStock.expiry) return fail(tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak"));
     }
 
     const payload = {
@@ -556,7 +552,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
       if (stockTotal > 0) {
         payload.initial_stock = stockTotal;
         payload.initial_warehouse_id = whId ? Number(whId) : undefined;
-        payload.initial_expiry_date = pack.expiry;
+        if (pack.expiry) payload.initial_expiry_date = pack.expiry;          // P.15: ixtiyoriy
         if (pack.lot.trim()) payload.initial_lot_number = pack.lot.trim();   // P.5: seriya ixtiyoriy
         if (pack.mfg) payload.initial_manufacture_date = pack.mfg;           // P.5: ixtiyoriy
       }
@@ -569,7 +565,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
       for (const b of dirtyBatches) {
         const body = {};
         if (b.lot_number !== b._orig.lot_number) body.lot_number = b.lot_number;
-        if (b.expiry_date !== b._orig.expiry_date) body.expiry_date = b.expiry_date;
+        if (b.expiry_date !== b._orig.expiry_date) body.expiry_date = b.expiry_date || null;   // P.15: o'chirish mumkin
         if (b.manufacture_date !== b._orig.manufacture_date) body.manufacture_date = b.manufacture_date || null;
         if (b.quantity !== b._orig.quantity) body.quantity = Number(b.quantity);   // P.9: qoldiqni tuzatish
         await api.put(`/pharmacy/batches/${b.batch_id}`, body, { _suppressToast: true });
@@ -583,7 +579,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
           items: [{
             product_id: product.id, quantity: addQty,
             ...(unitCost > 0 ? { purchase_price: unitCost } : {}),
-            expiry_date: newStock.expiry,
+            ...(newStock.expiry ? { expiry_date: newStock.expiry } : {}),   // P.15: ixtiyoriy
             ...(newStock.lot.trim() ? { lot_number: newStock.lot.trim() } : {}),
             ...(newStock.mfg ? { manufacture_date: newStock.mfg } : {}),
           }],
@@ -730,8 +726,8 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
                     </Field>
                   )}
                   {!isEdit && (
-                    <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required={stockTotal > 0}>
-                      <input type="date" className={`${inputCls} ${error && stockTotal > 0 && !pack.expiry ? errCls : ''}`} value={pack.expiry}
+                    <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')}>
+                      <input type="date" className={inputCls} value={pack.expiry}
                         onChange={e => setP({ expiry: e.target.value })} />
                     </Field>
                   )}
@@ -793,8 +789,8 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
                             <Field label={tf('packStruct.lot', 'Seriya raqami')}>
                               <input className={inputCls} value={b.lot_number} maxLength={100} onChange={e => setB(b.batch_id, { lot_number: e.target.value })} />
                             </Field>
-                            <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required>
-                              <input type="date" className={`${inputCls} ${!b.expiry_date ? errCls : ''}`} value={b.expiry_date}
+                            <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')}>
+                              <input type="date" className={inputCls} value={b.expiry_date}
                                 onChange={e => setB(b.batch_id, { expiry_date: e.target.value })} />
                             </Field>
                             <Field label={tf('packStruct.mfg', 'Ishlab chiqarilgan sana')}>
@@ -827,7 +823,7 @@ export default function PharmacyProductModal({ product = null, onClose, onSaved,
                             <input type="text" inputMode="numeric" className={inputCls} value={newStock.boxes} placeholder="0"
                               onChange={e => setNS({ boxes: e.target.value.replace(/[^0-9]/g, '') })} />
                           </Field>
-                          <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')} required>
+                          <Field label={tf('packStruct.expiry', 'Yaroqlilik muddati')}>
                             <input type="date" className={inputCls} value={newStock.expiry} onChange={e => setNS({ expiry: e.target.value })} />
                           </Field>
                           <Field label={tf('packStruct.lot', 'Seriya raqami')}>

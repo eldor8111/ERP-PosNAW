@@ -253,13 +253,10 @@ def _initial_batch_dates(data, pharmacy_on: bool) -> dict:
 
 
 def _validate_initial_lot(data) -> None:
-    """P.1: dorixonada boshlang'ich qoldiq bo'lsa yaroqlilik muddati (bugundan keyin) majburiy.
-    P.5: seriya raqami ixtiyoriy (bo'sh bo'lsa partiya `initial-<id>` nomini oladi)."""
+    """P.1/P.5: boshlang'ich qoldiq partiyasi; seriya ixtiyoriy (bo'sh bo'lsa `initial-<id>`). P.15: yaroqlilik muddati
+    ham ixtiyoriy (muddati yo'q tovarlar ham bor) — faqat ikkala sana berilsa ularning tartibi tekshiriladi."""
     if data.initial_expiry_date is None:
-        raise HTTPException(status_code=400, detail="Dorixona rejimida boshlang'ich qoldiq uchun yaroqlilik muddati majburiy")
-    from app.services.batch_allocator import tashkent_today
-    if data.initial_expiry_date <= tashkent_today():
-        raise HTTPException(status_code=400, detail="Yaroqlilik muddati bugundan keyingi sana bo'lishi kerak")
+        return
     if data.initial_manufacture_date and data.initial_manufacture_date >= data.initial_expiry_date:
         raise HTTPException(status_code=400, detail="Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak")
 

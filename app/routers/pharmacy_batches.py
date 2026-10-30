@@ -197,10 +197,8 @@ def edit_batch(
         if len(lot) > 100:
             raise HTTPException(status_code=400, detail="Seriya raqami 100 belgidan oshmasligi kerak")
         batch.lot_number = lot
-    if "expiry_date" in sent:
-        if data.expiry_date is None:
-            raise HTTPException(status_code=400, detail="Yaroqlilik muddatini kiriting")
-        batch.expiry_date = datetime.combine(data.expiry_date, datetime.min.time())
+    if "expiry_date" in sent:   # P.15: muddatni o'chirish mumkin (muddatsiz partiya)
+        batch.expiry_date = datetime.combine(data.expiry_date, datetime.min.time()) if data.expiry_date else None
     if "manufacture_date" in sent:
         batch.manufacture_date = (datetime.combine(data.manufacture_date, datetime.min.time())
                                   if data.manufacture_date else None)

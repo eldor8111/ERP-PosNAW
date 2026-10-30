@@ -5731,7 +5731,7 @@ export default {
   "pharmacyImport.hintTitle": "How medicine import works",
   "pharmacyImport.hint1": "Price, cost and stock are per 1 box. Blister and piece prices are calculated automatically.",
   "pharmacyImport.hint2": "For medicines without packaging (syrup) leave blister and piece counts empty — the price will be per 1 piece.",
-  "pharmacyImport.hint3": "If there is stock, the expiry date is required (lot is optional). If MXIK is empty, it is taken from the catalog by barcode.",
+  "pharmacyImport.hint3": "Expiry date, lot and MXIK are optional. If MXIK is empty, it is taken from the catalog by barcode.",
   "pharmacyImport.hint4": "The \"Template\" button gives a sample file with instructions. Russian headers are recognized too (Наименование, Штрихкод, ИКПУ, Серия...).",
   "pharmacyImport.previewCol": "Calculation (check)",
   "pharmacyImport.wQty": "invalid count",

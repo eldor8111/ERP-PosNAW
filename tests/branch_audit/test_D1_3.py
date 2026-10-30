@@ -137,37 +137,38 @@ def test_regular_company_manual_receive_unchanged(client, db, world):
     assert 'warnings' not in r.json()
 
 
-# ─── 2. Dorixona: seriya va muddat majburiy ───
+# ─── 2. Dorixona: seriya va muddat (P.15: ikkalasi ham ixtiyoriy) ───
 
-def test_pharmacy_receive_requires_lot_and_expiry(client, db, world):
-    # P.5: yaroqlilik muddati majburiy, seriya ixtiyoriy (bo'sh bo'lsa partiya "PO-<raqam>" nomini oladi)
+def test_pharmacy_receive_lot_and_expiry_optional(client, db, world):
+    # P.5: seriya ixtiyoriy (bo'sh bo'lsa partiya "PO-<raqam>" nomini oladi); P.15: muddati yo'q tovarlar ham bor —
+    # muddatsiz qabul muddatsiz partiya bo'lib yoziladi
     w = world
     p = _product(db, w['ph'])
     po = _create_po(client, w['padmin'], w['pw'], w['psup'], p).json()
     iid = po['items'][0]['id']
-    r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 100, 'lot_number': 'S1'}])
-    assert r.status_code == 400 and 'muddat' in r.json()['detail']
-    assert '1-qator' in r.json()['detail'] and p.name in r.json()['detail']
-    assert _batches(db, p) == []           # hech narsa yozilmadi
-    r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 100, 'lot_number': '  ',
+    r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 60, 'lot_number': 'S1'}])
+    assert r.status_code == 200, r.text
+    r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 40, 'lot_number': '  ',
                                                   'expiry_date': _iso(300)}])
     assert r.status_code == 200, r.text
-    lots = [b.lot_number for b in _batches(db, p)]
-    assert len(lots) == 1 and lots[0].startswith('PO-')
+    b = _batches(db, p)
+    assert [(x.lot_number, x.expiry_date is None) for x in b][0] == ('S1', True)
+    assert b[1].lot_number.startswith('PO-') and b[1].expiry_date is not None
 
 
-def test_pharmacy_rejects_past_expiry_but_accepts_today(client, db, world):
+def test_pharmacy_past_expiry_is_warning_not_rejected(client, db, world):
     w = world
     p = _product(db, w['ph'])
     po = _create_po(client, w['padmin'], w['pw'], w['psup'], p).json()
     iid = po['items'][0]['id']
     r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 40, 'lot_number': 'S1',
                                                   'expiry_date': _iso(-1)}])
-    assert r.status_code == 400 and "o'tgan" in r.json()['detail']
-    assert _batches(db, p) == []
-    r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 40, 'lot_number': 'S1',
+    assert r.status_code == 200, r.text
+    assert any("o'tgan" in x for x in r.json()['warnings']), r.json()
+    r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 40, 'lot_number': 'S2',
                                                   'expiry_date': _iso(0)}])
     assert r.status_code == 200, r.text
+    assert len(_batches(db, p)) == 2
 
 
 def test_pharmacy_single_lot_format_still_works(client, db, world):
@@ -192,15 +193,16 @@ def test_pharmacy_lot_and_expiry_from_po_item(client, db, world):
     assert _batches(db, p)[0].lot_number == 'PRE1'
 
 
-def test_pharmacy_create_received_requires_lot(client, db, world):
+def test_pharmacy_create_received_lot_and_expiry_optional(client, db, world):
     w = world
     p = _product(db, w['ph'])
-    r = _create_po(client, w['padmin'], w['pw'], w['psup'], p, status='received')
-    assert r.status_code == 400 and '1-qator' in r.json()['detail']
+    r = _create_po(client, w['padmin'], w['pw'], w['psup'], p, status='received')        # P.15: muddatsiz ham
+    assert r.status_code == 200, r.text
     r = _create_po(client, w['padmin'], w['pw'], w['psup'], p, status='received',
                    lot_number='Q1', expiry_date=_iso(100))
     assert r.status_code == 200, r.text
-    assert len(_batches(db, p)) == 1
+    b = _batches(db, p)
+    assert len(b) == 2 and b[0].expiry_date is None and b[1].lot_number == 'Q1'
 
 
 # ─── 3. Qatorni seriyalarga bo'lish ───
@@ -230,8 +232,9 @@ def test_split_lots_validation_names_the_lot(client, db, world):
     po = _create_po(client, w['padmin'], w['pw'], w['psup'], p).json()
     iid = po['items'][0]['id']
     r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'lots': [
-        {'lot_number': 'A1', 'expiry_date': _iso(300), 'qty': 60}, {'lot_number': 'B2', 'qty': 40}]}])
-    assert r.status_code == 400 and '2-seriya' in r.json()['detail']
+        {'lot_number': 'A1', 'expiry_date': _iso(300), 'qty': 60},
+        {'lot_number': 'B2', 'expiry_date': _iso(300), 'manufacture_date': _iso(400), 'qty': 40}]}])
+    assert r.status_code == 400 and '2-seriya' in r.json()['detail']        # ishlab chiqarilgan sana muddatdan keyin
     assert _batches(db, p) == []
     # yig'indi qabul miqdoriga teng emas
     r = _receive(client, w['padmin'], po['id'], [{'po_item_id': iid, 'qty_received': 90, 'lots': [
@@ -458,20 +461,19 @@ def test_other_company_cannot_receive_my_po(client, db, world):
 
 # ─── 9. Qo'lda kirim (/inventory/receive) ───
 
-def test_manual_receive_pharmacy_requires_lot_and_expiry(client, db, world):
+def test_manual_receive_pharmacy_lot_and_expiry_optional(client, db, world):
+    """P.15: muddati yo'q tovarlar ham bor — qo'lda kirim muddatsiz ham; muddati o'tgani — ogohlantirish."""
     w = world
+    p0 = _product(db, w['ph'])
     p = _product(db, w['ph'])
     cl = client.login(w['padmin'])
     base = {'warehouse_id': w['pw'].id}
-    r = cl.post('/api/inventory/receive', json={**base, 'items': [{'product_id': p.id, 'quantity': 5}]})
-    assert r.status_code == 400 and '1-qator' in r.json()['detail'] and 'muddat' in r.json()['detail']
+    r = cl.post('/api/inventory/receive', json={**base, 'items': [{'product_id': p0.id, 'quantity': 5}]})
+    assert r.status_code == 200 and r.json()['warnings'] == [], r.text
     r = cl.post('/api/inventory/receive', json={**base, 'items': [
-        {'product_id': p.id, 'quantity': 5, 'lot_number': 'M1', 'expiry_date': _iso(-3)[:10]}]})
-    assert r.status_code == 400 and "o'tgan" in r.json()['detail']
-    r = cl.post('/api/inventory/receive', json={**base, 'items': [
-        {'product_id': p.id, 'quantity': 5, 'lot_number': 'M1'}]})
-    assert r.status_code == 400 and 'muddat' in r.json()['detail']
-    assert _batches(db, p) == []
+        {'product_id': p0.id, 'quantity': 5, 'lot_number': 'M0', 'expiry_date': _iso(-3)[:10]}]})
+    assert r.status_code == 200 and any("o'tgan" in x for x in r.json()['warnings']), r.text
+    assert [b.expiry_date is None for b in _batches(db, p0)] == [True, False]
     r = cl.post('/api/inventory/receive', json={**base, 'items': [
         {'product_id': p.id, 'quantity': 5, 'lot_number': 'M1', 'expiry_date': _iso(200)[:10]},
         {'product_id': p.id, 'quantity': 7, 'lot_number': 'M2', 'expiry_date': _iso(400)[:10]}]})
@@ -491,7 +493,7 @@ def test_manual_receive_second_row_error_names_row(client, db, world):
     p2 = _product(db, w['ph'])
     r = client.login(w['padmin']).post('/api/inventory/receive', json={'warehouse_id': w['pw'].id, 'items': [
         {'product_id': p1.id, 'quantity': 1, 'lot_number': 'M1', 'expiry_date': _iso(100)[:10]},
-        {'product_id': p2.id, 'quantity': 1}]})
+        {'product_id': p2.id, 'quantity': 1, 'expiry_date': _iso(100)[:10], 'manufacture_date': _iso(200)[:10]}]})
     assert r.status_code == 400 and '2-qator' in r.json()['detail'] and p2.name in r.json()['detail']
     assert _batches(db, p1) == []
 
@@ -546,7 +548,8 @@ def test_frontend_i18n_keys_in_pending_file():
     assert set(data['uz']) == set(data['ru']) == set(data['en']) and data['uz']
     jsx = (ROOT / 'frontend' / 'src' / 'pages' / 'admin' / 'Purchases.jsx').read_text(encoding='utf-8')
     for key in data['uz']:
-        if key == 'purchase.phLotRequired':   # P.5: seriya ixtiyoriy — kalit endi ishlatilmaydi
+        # P.5: seriya, P.15: yaroqlilik muddati ixtiyoriy — bu kalitlar endi ishlatilmaydi
+        if key in ('purchase.phLotRequired', 'purchase.phExpiryRequired', 'purchase.phExpiryPast'):
             continue
         assert key in jsx, key
 

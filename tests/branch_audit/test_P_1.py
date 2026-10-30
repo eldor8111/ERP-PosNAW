@@ -178,23 +178,23 @@ def test_unit_barcode_conflicts(client, db, pharm):
 
 # ───────────────────────── 2. boshlang'ich qoldiq ─────────────────────────
 
-def test_initial_stock_requires_lot_and_expiry_in_pharmacy(client, db, pharm):
+def test_initial_stock_lot_and_expiry_optional_in_pharmacy(client, db, pharm):
+    """P.15: muddati yo'q tovarlar ham bor — boshlang'ich qoldiq muddatsiz ham, muddati o'tgan sana bilan ham saqlanadi;
+    ishlab chiqarilgan sana muddatdan keyin bo'lsa — 400."""
     c, _, w, u = pharm
     cl = client.login(u)
     r = cl.post(URL, json=_body(initial_stock=130, initial_warehouse_id=w.id))
-    assert r.status_code == 400 and 'yaroqlilik muddati' in r.json()['detail']
-    r = cl.post(URL, json=_body(initial_stock=130, initial_warehouse_id=w.id, initial_lot_number='L1'))
-    assert r.status_code == 400 and 'yaroqlilik muddati' in r.json()['detail']
+    assert r.status_code == 201, r.text
+    b = db.query(Batch).filter(Batch.product_id == r.json()['id']).one()
+    assert b.expiry_date is None and Decimal(str(b.quantity)) == 130
     past = (tashkent_today() - timedelta(days=1)).isoformat()
-    r = cl.post(URL, json=_body(initial_stock=130, initial_warehouse_id=w.id, initial_lot_number='L1',
-                                initial_expiry_date=past))
-    assert r.status_code == 400 and 'bugundan keyin' in r.json()['detail']
-    r = cl.post(URL, json=_body(initial_stock=130, initial_warehouse_id=w.id, initial_lot_number='L1',
-                                initial_expiry_date=FUTURE, initial_manufacture_date=FUTURE))
+    r = cl.post(URL, json=_body(name='Eski', barcode='4780000009997', initial_stock=5, initial_warehouse_id=w.id,
+                                initial_lot_number='L1', initial_expiry_date=past))
+    assert r.status_code == 201, r.text
+    r = cl.post(URL, json=_body(name='Xato sana', barcode='4780000009998', initial_stock=130, initial_warehouse_id=w.id,
+                                initial_lot_number='L1', initial_expiry_date=FUTURE, initial_manufacture_date=FUTURE))
     assert r.status_code == 400
-    assert db.query(Product).filter(Product.company_id == c.id).count() == 0
-    # qoldiqsiz seriya talab qilinmaydi
-    assert cl.post(URL, json=_body()).status_code == 201
+    assert db.query(Product).filter(Product.company_id == c.id, Product.name == 'Xato sana').count() == 0
     # P.5: seriya ixtiyoriy — bo'sh bo'lsa partiya "initial-<id>" nomini oladi
     r = cl.post(URL, json=_body(name='Seriyasiz', barcode='4780000009999', initial_stock=10, initial_warehouse_id=w.id,
                                 initial_expiry_date=FUTURE))
