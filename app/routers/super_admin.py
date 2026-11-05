@@ -74,7 +74,7 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
     today_logs_q = (
         db.query(BalanceLog)
         .filter(
-            BalanceLog.log_type == "subscription",
+            BalanceLog.log_type.in_(("subscription", "ai_subscription")),
             BalanceLog.created_at >= today_start,
             BalanceLog.amount < 0,          # chiqim = tarif to'lovi
         )
@@ -88,7 +88,7 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
     # Platformaning jami obuna daromadi (E-Code sof tushumi, test to'lovlarsiz)
     tot_platform_q = (
         db.query(func.coalesce(func.sum(func.abs(BalanceLog.amount)), 0))
-        .filter(BalanceLog.log_type == "subscription", BalanceLog.amount < 0)
+        .filter(BalanceLog.log_type.in_(("subscription", "ai_subscription")), BalanceLog.amount < 0)
     )
     if test_comp_ids:
         tot_platform_q = tot_platform_q.filter(~BalanceLog.company_id.in_(test_comp_ids))
@@ -189,7 +189,7 @@ def get_overview(db: Session = Depends(get_db), _: User = Depends(require_super_
         m_rev_q = (
             db.query(func.coalesce(func.sum(func.abs(BalanceLog.amount)), 0))
             .filter(
-                BalanceLog.log_type == "subscription",
+                BalanceLog.log_type.in_(("subscription", "ai_subscription")),
                 BalanceLog.amount < 0,
                 BalanceLog.created_at >= m_start,
                 BalanceLog.created_at < m_end,

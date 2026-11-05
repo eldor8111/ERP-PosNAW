@@ -109,8 +109,7 @@ def get_daily_insight(
     except Exception:
         overdue_count = 0
         
-    # 3. AI API ni chaqirish
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    # 3. AI (Claude) — faqat AI yordamchi paketi faol korxonada; aks holda statik hisobot
     ai_report = generate_daily_insight(
         company_name=ai_company_name,
         total_sales=total_sales,
@@ -122,7 +121,8 @@ def get_daily_insight(
         low_stock_count=low_stock_total,
         overdue_count=overdue_count,
         top_products=top_products,
-        api_key=api_key
+        db=db,
+        company_id=company_id,
     )
     
     # 4. FALLBACK mexanizmi (Agar AI server qulagan bo'lsa yoki API limit tugasa)

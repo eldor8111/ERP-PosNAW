@@ -283,10 +283,12 @@ def get_my_company_features(
         return {
             "manufacturing": False, "distribution": False, "marketplace_agents": False,
             "require_shift": False, "credit_limit_scope": "distributor",
-            "pharmacy": False, "pharmacy_settings": {},
+            "pharmacy": False, "pharmacy_settings": {}, "ai_assistant": False,
         }
     c = db.query(Company).filter(Company.id == cid).first()
+    from app.services.ai_packages import access_for as ai_access_for
     return {
+        "ai_assistant": ai_access_for(db, cid).active,   # E-code AI: menyuda faqat paket faol bo'lsa
         "manufacturing": company_has_feature(db, cid, "manufacturing"),
         "distribution": company_has_feature(db, cid, "distribution"),
         "marketplace_agents": company_has_feature(db, cid, "marketplace_agents"),

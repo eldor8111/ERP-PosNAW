@@ -89,9 +89,9 @@ def t(mk):
 @pytest.fixture(autouse=True)
 def _mock_llm(monkeypatch):
     """LLM chaqiruvlari tarmoqqa chiqmasin."""
-    import app.routers.ai_analytics as ana
     import app.routers.ai_reports as rep
-    monkeypatch.setattr(ana, 'call_copilot_ai', lambda *a, **k: {"intent": "query", "reply": "AI xulosa"})
+    import app.services.claude_text as ct
+    monkeypatch.setattr(ct, 'complete', lambda *a, **k: "AI xulosa")
     monkeypatch.setattr(rep, 'generate_daily_insight', lambda **k: f"AI-{k['company_name']}")
     rep.cache.clear()
     yield
@@ -490,51 +490,50 @@ def test_scope_cache_part():
 
 # ── Copilot chat ─────────────────────────────────────────────────────────────
 
-def test_chat_branch_id_injected_and_label(client, db, t, monkeypatch):
-    import app.routers.ai_analytics as ana
+# /ai/chat va /ai/copilot/chat endi E-code AI (Claude) dvigatelida: vositalar filial doirasini o'zi aniqlaydi
+# (filialga bog'langan xodim — faqat o'z filiali). Claude o'rniga soxta mijoz (test_ai_assistant).
+
+def test_chat_requires_ai_package(client, t):
+    assert client.login(t['admin']).post('/api/ai/chat', json={"message": "salom"}).status_code == 402
+
+
+def test_chat_tool_scope_whole_company_and_branch_name(client, db, t, monkeypatch):
+    from tests.branch_audit.test_ai_assistant import FakeClient, _grant, reply_text, reply_tool
+    import app.services.ai_assistant as svc
+    from app.config import settings
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-key")
+    _grant(db, t['c'])
     _sale(db, t['admin'], t['c'], t['w_yun'], 1000)
     _sale(db, t['admin'], t['c'], t['w_main'], 45000)
-    captured = {}
-
-    def fake(message, context, api_key, user=None, conversation_history=None):
-        captured['context'] = context
-        return {"intent": "execute_tool", "tool_name": "get_sales_summary", "tool_arguments": {"period": "today"}}
-
-    monkeypatch.setattr(ana, 'call_copilot_ai', fake)
-    r = client.login(t['admin']).post('/api/ai/chat', json={"message": "bugun qancha savdo?", "branch_id": t['yun'].id})
-    assert r.status_code == 200, r.text
-    assert 'Yunusobod filiali' in r.json()['reply'] and '46 000' not in r.json()['reply']
-    assert 'Hudud: Yunusobod filiali' in captured['context']
-    # branch_id yo'q - butun korxona, kontekstda filiallar ro'yxati
+    fake = FakeClient(reply_tool("get_sales_summary", {"period": "today"}), reply_text("Jami 46 000 so'm."),
+                      reply_tool("get_sales_summary", {"period": "today", "branch": "Yunusobod"}), reply_text("1 000 so'm."))
+    monkeypatch.setattr(svc, "_client", fake)
     r = client.login(t['admin']).post('/api/ai/chat', json={"message": "bugun qancha savdo?"})
-    assert 'Butun korxona' in r.json()['reply'] and '46 000' in r.json()['reply']
-    assert 'Hudud: Butun korxona' in captured['context'] and 'Filiallar: Yunusobod, Asosiy' in captured['context']
+    assert r.status_code == 200, r.text
+    assert r.json()['reply'] == "Jami 46 000 so'm."
+    whole = fake.calls[1]["messages"][-1]["content"][0]["content"]
+    assert 'Butun korxona' in whole and '46 000' in whole
+    r = client.login(t['admin']).post('/api/ai/chat', json={"message": "Yunusobodda?", "conversation_id": r.json()['conversation_id']})
+    branch = fake.calls[3]["messages"][-1]["content"][0]["content"]
+    assert 'Yunusobod filiali' in branch and '1 000' in branch and '46 000' not in branch
 
 
-def test_chat_llm_branch_name_and_errors(client, db, t, monkeypatch):
-    import app.routers.ai_analytics as ana
+def test_chat_manager_tools_see_only_own_branch(client, db, t, monkeypatch):
+    from tests.branch_audit.test_ai_assistant import FakeClient, _grant, reply_text, reply_tool
+    import app.services.ai_assistant as svc
+    from app.config import settings
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-key")
+    _grant(db, t['c'])
     _sale(db, t['admin'], t['c'], t['w_yun'], 1000)
     _sale(db, t['admin'], t['c'], t['w_main'], 45000)
-    monkeypatch.setattr(ana, 'call_copilot_ai', lambda *a, **k: {
-        "intent": "execute_tool", "tool_name": "get_sales_summary",
-        "tool_arguments": {"period": "today", "branch": "Yunusobod"}})
-    r = client.login(t['admin']).post('/api/ai/chat', json={"message": "Yunusobod filialida bugun qancha savdo?"})
-    assert 'Yunusobod filiali' in r.json()['reply'] and '1 000' in r.json()['reply']
-    # begona filial - 404, boshqa filial (filialli manager) - 403
-    assert client.login(t['admin']).post('/api/ai/chat', json={"message": "x", "branch_id": t['bb'].id}).status_code == 404
-    assert client.login(t['mgr']).post('/api/ai/chat', json={"message": "x", "branch_id": t['main'].id}).status_code == 403
-
-
-def test_chat_manager_context_is_own_branch(client, db, t, monkeypatch):
-    import app.routers.ai_analytics as ana
-    _sale(db, t['admin'], t['c'], t['w_yun'], 1000)
-    _sale(db, t['admin'], t['c'], t['w_main'], 45000)
-    captured = {}
-    monkeypatch.setattr(ana, 'call_copilot_ai', lambda m, ctx, k, **kw: captured.setdefault('ctx', ctx) and {"intent": "query", "reply": "ok"})
+    fake = FakeClient(reply_tool("get_sales_summary", {"period": "today", "branch": "Asosiy"}), reply_text("ok"))
+    monkeypatch.setattr(svc, "_client", fake)
     r = client.login(t['mgr']).post('/api/ai/copilot/chat', json={"message": "salom"})
-    assert r.status_code == 200
-    assert 'Hudud: Yunusobod filiali' in captured['ctx'] and '46 000' not in captured['ctx']
-    assert '45 000' not in captured['ctx'] and 'Filiallar:' not in captured['ctx']
+    assert r.status_code == 200, r.text
+    res = fake.calls[1]["messages"][-1]["content"][0]["content"]
+    assert '45 000' not in res and '46 000' not in res
+    ctx = fake.calls[0]["system"][1]["text"]
+    assert 'menejer' in ctx
 
 
 # ── Statik tekshiruvlar ──────────────────────────────────────────────────────

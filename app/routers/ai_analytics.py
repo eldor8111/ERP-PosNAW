@@ -20,7 +20,6 @@ from app.services.ai_scope import (
 )
 from app.services.stock_report import low_stock_count_for_scope  # T2.3: yagona "kam qoldiq" ta'rifi
 from app.services.ai_tools_registry import AIToolRegistry, summarize_reply
-from app.services.openrouter_copilot_service import call_copilot_ai
 import os
 
 from app.services.debt_scoring import categorize_customers
@@ -43,116 +42,55 @@ def _inject_branch(tool_name, tool_arguments: dict, scope) -> dict:
         args["branch_id"] = scope.branch_id
     return args
 
+AI_FEATURES = [
+    "Savdo, qoldiq, qarz va foyda bo'yicha savollar (E-code AI)",
+    "Rasmdan (nakladnoy) kirim tayyorlash",
+    "Tasdiq bilan amallar: kirim, chiqim, qarz to'lovi, qarz tuzatish, yangi mahsulot",
+    "Har kuni sozlamada belgilangan vaqtda (standart 20:00) Telegram hisoboti",
+]
+
+
 @router.get("/status")
-def get_ai_status(current_user: User = Depends(get_current_user)):
+def get_ai_status(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Eski klientlar uchun: AI holati (endi E-code AI — Claude)."""
+    from app.services import ai_packages
+    from app.services.ai_assistant import is_configured
+    st = ai_packages.status(db, current_user) if current_user.company_id else {"active": False}
     return {
-        "status": "ok",
-        "mode": "openrouter",
-        "message": "OpenRouter AI tizimi ishlayapti.",
-        "features": [
-            "Kunlik savdo tahlili",
-            "Haftalik tendensiya",
-            "Zaxira va qarz holati",
-            "Copilot chat (qarz to'lash / nasiya yozish)",
-            "Har kuni sozlamada belgilangan vaqtda (standart 20:00) Telegram hisoboti",
-        ]
+        "status": "ok" if (is_configured() and st.get("active")) else "inactive",
+        "mode": "claude",
+        "message": "E-code AI (Claude) ishlayapti." if st.get("active") else "AI yordamchi paketi faol emas.",
+        "package": st,
+        "features": AI_FEATURES,
     }
 
 
 def _run_copilot_chat(request: "ChatRequest", db: Session, current_user: User) -> dict:
-    """
-    /chat va /copilot/chat endpointlari uchun umumiy mantiq.
-    Xavfsizlik so'z filtrlariga emas, PostgreSQL RLS va tenant kontekstiga tayanadi.
-    """
-    from app.services.ai_db_context import ai_tenant_context
-
-    scope = resolve_ai_scope(db, current_user, request.branch_id)
-    with ai_tenant_context(db, current_user.company_id, read_only=False):
-        context = build_daily_context(db, current_user.company_id, scope)
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
-
-    from app.models.ai_chat_history import AiChatHistory
-
-    # 1. Oxirgi 10 ta xabarni olish
-    history_records = db.query(AiChatHistory).filter(
-        AiChatHistory.user_id == current_user.id,
-        AiChatHistory.company_id == current_user.company_id
-    ).order_by(AiChatHistory.created_at.desc()).limit(20).all()
-    history_records.reverse()
-
-    conversation_history = [
-        {"role": r.role, "content": r.message}
-        for r in history_records
-    ]
-
-    # 2. Foydalanuvchi xabarini saqlash
-    db.add(AiChatHistory(
-        user_id=current_user.id,
-        company_id=current_user.company_id,
-        role="user",
-        message=request.message,
-        intent="pending"
-    ))
-    db.commit()
-
-    # 3. call_copilot_ai ga conversation_history uzatish
-    intent_data = call_copilot_ai(request.message, context, api_key, user=current_user, conversation_history=conversation_history)
-
-    if intent_data.get("intent") == "execute_tool":
-        tool_name = intent_data.get("tool_name")
-        tool_arguments = _inject_branch(tool_name, intent_data.get("tool_arguments", {}), scope)
-
-        result = AIToolRegistry.execute_tool(
-            db=db,
-            name=tool_name,
-            kwargs=tool_arguments,
-            user=current_user,
-            prompt=request.message,
-            conversation_id=request.conversation_id
-        )
-
-        # Agar bu analitika tool bo'lsa, javobni AI orqali "human-friendly" qilamiz
-        if result.get("action") and result["action"].get("type") == "show_data":
-            from app.services.openrouter_copilot_service import summarize_tool_result_with_llm
-            ai_summary = summarize_tool_result_with_llm(request.message, tool_name, result["reply"], api_key)
-            result["reply"] = ai_summary
-
-        result_reply = result.get("reply", "")
-
-        # 4. AI javobini saqlash
-        db.add(AiChatHistory(
-            user_id=current_user.id,
-            company_id=current_user.company_id,
-            role="assistant",
-            message=result_reply,
-            intent=intent_data.get("intent", "query")
-        ))
-        db.commit()
-        result["scope"] = scope_info(scope)
-        return result
-
-    result_reply = intent_data.get("reply", "Kechirasiz, men bu so'rovni tushunmadim.")
-
-    db.add(AiChatHistory(
-        user_id=current_user.id,
-        company_id=current_user.company_id,
-        role="assistant",
-        message=result_reply,
-        intent=intent_data.get("intent", "query")
-    ))
-    db.commit()
-
-    return {
-        "reply": result_reply,
-        "scope": scope_info(scope),
-    }
+    """/chat va /copilot/chat — eski klientlar uchun oqimsiz javob. Mantiq E-code AI (Claude) dvigatelida:
+    paket va limitlar tekshiriladi, suhbat tarixi saqlanadi, amallar tasdiq kartasi bilan."""
+    from app.routers.ai_assistant import prepare_turn
+    from app.services import ai_assistant as svc
+    from app.services.ai_assistant_tools import CHAT_ROLES
+    if current_user.role not in CHAT_ROLES or not current_user.company_id:
+        raise HTTPException(status_code=403, detail="AI yordamchi sizning lavozimingiz uchun ochilmagan")
+    conv_id = int(request.conversation_id) if str(request.conversation_id or "").isdigit() else None
+    conv, text, files = prepare_turn(db, current_user, conv_id, request.message, [])
+    res = svc.collect_turn(conv.id, current_user.id, text, files)
+    res["conversation_id"] = str(conv.id)
+    first = next((a for a in res.get("actions") or [] if a.get("type") == "confirm"), None)
+    if first:   # eski klient formati: bitta tasdiq kartasi
+        res["action"] = {"type": "confirm_action", "confirmation_id": first["confirmation_id"],
+                         "pending_action_id": first["confirmation_id"], "tool_name": first.get("tool"),
+                         "summary": "\n".join([first.get("summary") or ""] + list(first.get("lines") or [])),
+                         "expires_at": first.get("expires_at")}
+    return res
 
 
 @router.post("/chat")
 def ai_chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
+    current_user: User = Depends(get_current_user)
 ):
     return _run_copilot_chat(request, db, current_user)
 
@@ -170,17 +108,15 @@ def get_daily_summary(
     today = local_today()
     summary = day_sales_summary(db, current_user.company_id, today, sale_filter=scope_sale_filter(scope))
 
-    context = build_daily_context(db, current_user.company_id, scope)
-    prompt = "Bugungi savdoga qisqacha ta'rif ber."
-    ai_summary_data = call_copilot_ai(
-        prompt,
-        context,
-        os.getenv("OPENROUTER_API_KEY", "")
-    )
-    ai_summary = ai_summary_data.get(
-        "reply",
-        "AI xulosa hozircha mavjud emas."
-    )
+    ai_summary = "AI xulosa hozircha mavjud emas."
+    from app.services import claude_text
+    if claude_text.company_has_ai(db, current_user.company_id):
+        context = build_daily_context(db, current_user.company_id, scope)
+        ai_summary = claude_text.complete(
+            "Siz do'kon rahbariga bugungi savdo bo'yicha 2-4 gapli qisqa xulosa yozasiz. Faqat berilgan "
+            "raqamlarni ishlating. O'zbek tilida, lotin yozuvida, emojisiz.",
+            "Bugungi ma'lumotlar:\n" + str(context), max_tokens=600,
+        ) or ai_summary
 
     return {
         "date": str(today),
@@ -322,7 +258,7 @@ def get_daily_report(
 def chat_with_copilot(
     request: ChatRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin))
+    current_user: User = Depends(get_current_user)
 ):
     """
     AI Copilot bilan chat.
@@ -406,80 +342,53 @@ import os
 @router.post("/voice")
 async def process_voice_command(
     file: UploadFile = File(...),
+    conversation_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.director, UserRole.manager, UserRole.super_admin, UserRole.cashier))
+    current_user: User = Depends(get_current_user)
 ):
-    """
-    Ovozli xabarni qabul qilib, uni matnga o'giradi va AI ga yuboradi.
-    """
-    openai_api_key = os.getenv("OPENAI_API_KEY")
+    """Ovozli xabar: OpenAI Whisper bilan matnga o'giriladi va E-code AI ga yuboriladi."""
+    from fastapi.concurrency import run_in_threadpool
+    from app.config import settings
+    from app.routers.ai_assistant import prepare_turn
+    from app.services import ai_assistant as svc
+    from app.services import ai_packages
+    from app.services.ai_assistant_tools import CHAT_ROLES
+
+    if current_user.role not in CHAT_ROLES or not current_user.company_id:
+        raise HTTPException(status_code=403, detail="AI yordamchi sizning lavozimingiz uchun ochilmagan")
+    ai_packages.check_quota(db, current_user)
+    openai_api_key = settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY", "")
     if not openai_api_key:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY sozlanmagan. Ovozli xizmat vaqtincha o'chirilgan.")
+        raise HTTPException(status_code=503, detail="Ovozli xizmat sozlanmagan. Xabarni yozib yuboring.")
+    audio_content = await file.read(25 * 1024 * 1024 + 1)
+    if len(audio_content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Ovozli xabar juda uzun")
+
+    def _transcribe() -> str:
+        resp = requests.post(
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {openai_api_key}"},
+            files={"file": (file.filename or "voice.webm", audio_content, file.content_type or "audio/webm")},
+            data={"model": "whisper-1", "language": "uz"},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        return (resp.json().get("text") or "").strip()
 
     try:
-        # Read the audio file
-        audio_content = await file.read()
-        
-        # Call OpenAI Whisper API directly via requests
-        headers = {
-            "Authorization": f"Bearer {openai_api_key}"
-        }
-        
-        files = {
-            "file": (file.filename, audio_content, file.content_type),
-        }
-        data = {
-            "model": "whisper-1",
-            "language": "uz" # Uzbek tilida tanish
-        }
-        
-        resp = requests.post("https://api.openai.com/v1/audio/transcriptions", headers=headers, files=files, data=data)
-        resp.raise_for_status()
-        
-        transcription = resp.json().get("text", "")
-        
-        if not transcription:
-            raise HTTPException(status_code=400, detail="Ovozni aniqlab bo'lmadi. Iltimos, qaytadan gapiring.")
+        transcription = await run_in_threadpool(_transcribe)
+    except requests.RequestException:
+        raise HTTPException(status_code=502, detail="Ovozni matnga o'girib bo'lmadi. Qayta urinib ko'ring.")
+    if not transcription:
+        raise HTTPException(status_code=400, detail="Ovozni aniqlab bo'lmadi. Iltimos, qaytadan gapiring.")
 
-        # Endi olingan matnni xuddi oddiy chat kabi AIToolRegistry orqali aylantiramiz
-        from app.services.openrouter_copilot_service import call_copilot_ai
-        from app.services.ai_service import build_daily_context
-        
-        scope = resolve_ai_scope(db, current_user, None)
-        daily_context = build_daily_context(db, current_user.company_id, scope)
-        openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
-        
-        intent_data = call_copilot_ai(transcription, daily_context, openrouter_key, user=current_user)
-        
-        if intent_data.get("intent") == "execute_tool":
-            tool_name = intent_data.get("tool_name")
-            tool_arguments = intent_data.get("tool_arguments", {})
-            
-            result = AIToolRegistry.execute_tool(
-                db=db,
-                name=tool_name,
-                kwargs=tool_arguments,
-                user=current_user,
-                prompt=transcription,
-                conversation_id=""
-            )
-            
-            if result.get("action") and result["action"].get("type") == "show_data":
-                from app.services.openrouter_copilot_service import summarize_tool_result_with_llm
-                ai_summary = summarize_tool_result_with_llm(transcription, tool_name, result["reply"], openrouter_key)
-                result["reply"] = ai_summary
-                
-            # Add transcription to the result so the frontend can display what the user said
-            result["transcription"] = transcription
-            return result
-            
-        return {
-            "transcription": transcription,
-            "reply": intent_data.get("reply", "Kechirasiz, men bu so'rovni tushunmadim.")
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ovozli xabarni qayta ishlashda xatolik: {str(e)}")
+    conv_id = int(conversation_id) if str(conversation_id or "").isdigit() else None
+    conv, text, files = prepare_turn(db, current_user, conv_id, transcription, [])
+    res = await run_in_threadpool(svc.collect_turn, conv.id, current_user.id, text, files)
+    res["conversation_id"] = str(conv.id)
+    res["transcription"] = transcription
+    return res
+
 
 class ConfirmRequest(BaseModel):
     confirmation_id: Optional[str] = None

@@ -16,9 +16,26 @@ class AITool:
     risk_level: str = "LOW" # LOW, MEDIUM, HIGH
     read_only: bool = False
     parameters: dict = {}
+    # E-code AI yordamchi (Claude) uchun:
+    title: str = ""                         # chatdagi holat nomi ("Qoldiq tekshirilmoqda")
+    requires_confirmation: bool = None      # None -> risk_level == "HIGH"
+    sensitive: bool = False                 # foyda/tannarx: kassir va omborchiga berilmaydi
+    allowed_roles: tuple = None             # amal vositalari: ruxsat etilgan rollar (None -> o'qish qoidasi)
 
     def execute(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
         raise NotImplementedError()
+
+    def preview(self, db: Session, company_id: int, user: User, **kwargs) -> dict:
+        """Tasdiq kartasi uchun oldindan ko'rish (hech narsa yozmaydi).
+        {"summary": str, "lines": [str], "total": str|None, "arguments": dict (aniqlangan ID lar bilan)}
+        yoki {"error": str} qaytaradi."""
+        return {"summary": generate_action_card_summary(self.name, kwargs), "lines": [], "total": None,
+                "arguments": kwargs}
+
+
+def needs_confirmation(tool_class) -> bool:
+    flag = getattr(tool_class, "requires_confirmation", None)
+    return bool(flag) if flag is not None else tool_class.risk_level == "HIGH"
 
 def _sf(val):
     try: return float(val or 0)

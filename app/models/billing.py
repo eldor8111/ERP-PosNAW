@@ -70,6 +70,12 @@ class FeaturePackage(Base):
     price_per_month = Column(Numeric(12, 2), default=0)  # Agar bhm_percent bo'lmasa qat'iy narx
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
+    # AI yordamchi paketlari (kodi "ai_assistant" bilan boshlanadi) uchun cheklovlar; boshqa paketlarda NULL.
+    # NULL yoki 0 = cheklanmagan.
+    ai_monthly_limit = Column(Integer, nullable=True)       # korxona bo'yicha oylik so'rovlar
+    ai_daily_user_limit = Column(Integer, nullable=True)    # bitta xodimga kunlik so'rovlar
+    ai_allow_actions = Column(Boolean, nullable=True)       # tasdiqli amallar (kirim, chiqim, qarz); NULL = ha
+    ai_allow_vision = Column(Boolean, nullable=True)        # rasm yuklash; NULL = ha
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

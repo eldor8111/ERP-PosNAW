@@ -76,3 +76,4 @@ from .prescription import SalePrescription  # type: ignore  # D2.5: retsept ma'l
 from .marking_code import MarkingCode  # type: ignore  # D3.2: markirovka kodlari
 from .product_units import ProductUnit, SaleItemUnit  # type: ignore  # D2.4: quti/blister/dona birliklari
 from .uzum_transaction import UzumTransaction  # type: ignore  # Uzum Bank Merchant API
+from .ai_assistant import AiConversation, AiMessage, AiFile  # type: ignore  # E-code AI yordamchi (Claude)

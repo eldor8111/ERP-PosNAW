@@ -1,41 +1,23 @@
-import os
 import logging
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
 
 def generate_product_description(
     name: str,
     category: str,
     api_key: Optional[str] = None
 ) -> Optional[str]:
-    """
-    LLMProvider (OpenRouter / Anthropic / OpenAI / Mock) yordamida mahsulot uchun marketing description yaratadi.
-    Fast model orqali tejamkor va tezkor javob qaytaradi.
-    """
-    from app.ai import get_llm_router
+    """Mahsulot uchun qisqa marketing ta'rifi (Claude). Xato bo'lsa None.
+    `api_key` eski chaqiruvlar uchun qoldirilgan, ishlatilmaydi (kalit faqat .env da)."""
+    from app.services import claude_text
 
     prompt = (
-        "Ushbu mahsulot uchun qisqa, jozibador va sotuvchi marketing "
-        "ta'rifi yozing. Faqat ta'rif matnini qaytaring, ortiqcha gaplarsiz.\n\n"
+        "Ushbu mahsulot uchun qisqa (2-3 gap), jozibador va sotuvchi marketing ta'rifi yozing. "
+        "Faqat ta'rif matnini qaytaring, sarlavha va emojisiz.\n\n"
         f"Mahsulot nomi: {name}\n"
         f"Kategoriyasi: {category}\n"
-        "Til: O'zbek tili."
+        "Til: o'zbek tili, lotin yozuvi."
     )
-
-    try:
-        router = get_llm_router()
-        resp = router.chat(
-            system="Siz professional marketing copywritersiz.",
-            messages=[{"role": "user", "content": prompt}],
-            task_type="fast",
-            max_tokens=200,
-            temperature=0.7,
-        )
-        if resp and resp.text:
-            return resp.text.strip()
-        return None
-    except Exception as e:
-        logger.warning(f"[AI Product] Tavsif generatsiyasi xatosi: {e}")
-        return None
-
+    return claude_text.complete("Siz professional marketing kopirayterisiz.", prompt, max_tokens=500)

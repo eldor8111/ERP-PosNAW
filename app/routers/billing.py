@@ -812,6 +812,11 @@ def _package_out(pkg: FeaturePackage, bhm: float) -> dict:
         "price_per_month": price,
         "is_active": pkg.is_active,
         "sort_order": pkg.sort_order,
+        # AI yordamchi paketlari uchun cheklovlar (boshqa paketlarda None)
+        "ai_monthly_limit": pkg.ai_monthly_limit,
+        "ai_daily_user_limit": pkg.ai_daily_user_limit,
+        "ai_allow_actions": pkg.ai_allow_actions,
+        "ai_allow_vision": pkg.ai_allow_vision,
     }
 
 
@@ -976,6 +981,16 @@ def subscribe_my_company_package(
     if not pkg:
         raise HTTPException(status_code=404, detail="Bunday paket topilmadi")
 
+    from app.services.ai_packages import check_switch, is_ai_code
+    is_ai = is_ai_code(data.package_code)
+    if is_ai:
+        # AI yordamchi: faqat korxona rahbari sotib oladi, 1/3/6/12 oy, bir vaqtda bitta AI darajasi
+        if user.role not in (UserRole.admin, UserRole.director):
+            raise HTTPException(status_code=403, detail="AI paketini faqat korxona admini yoki direktori sotib oladi")
+        if data.months not in (1, 3, 6, 12):
+            raise HTTPException(status_code=400, detail="AI paketi 1, 3, 6 yoki 12 oyga sotib olinadi")
+        check_switch(db, c.id, data.package_code)
+
     bhm = get_bhm_amount(db)
     monthly_price = float(pkg.price_per_month or 0)
     if pkg.bhm_percent and pkg.bhm_percent > 0:
@@ -1031,7 +1046,7 @@ def subscribe_my_company_package(
     log = BalanceLog(
         company_id=c.id,
         amount=-total_price,
-        log_type="subscription",
+        log_type="ai_subscription" if is_ai else "subscription",
         note=f"Paket: {pkg.name} × {data.months} oy",
         created_by_id=user.id,
         created_at=now,
@@ -1071,6 +1086,11 @@ def grant_company_package(
     pkg = db.query(FeaturePackage).filter(FeaturePackage.code == data.package_code).first()
     if not pkg:
         raise HTTPException(status_code=404, detail="Paket topilmadi")
+
+    from app.services.ai_packages import deactivate_other_tiers, is_ai_code
+    if is_ai_code(data.package_code):
+        # Super admin boshqa AI darajasini bersa — avvalgi daraja o'chadi (bir vaqtda bitta daraja)
+        deactivate_other_tiers(db, c.id, data.package_code)
 
     now = datetime.now(timezone.utc)
     cp = db.query(CompanyPackage).filter(

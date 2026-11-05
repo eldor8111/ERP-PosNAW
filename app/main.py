@@ -761,6 +761,7 @@ API_PREFIX = "/api"
 from app.routers import hippo as hippo_router  # type: ignore
 from app.admin_tg_bot.bot_routers import admin_router
 from app.routers import ai_analytics, ai_products, ai_reports
+from app.routers import ai_assistant as ai_assistant_router  # E-code AI yordamchi (Claude)
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(roles.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
@@ -821,6 +822,7 @@ app.include_router(admin_router, prefix=API_PREFIX)
 app.include_router(ai_analytics.router, prefix=API_PREFIX)
 app.include_router(ai_products.router, prefix=API_PREFIX)
 app.include_router(ai_reports.router, prefix=API_PREFIX)
+app.include_router(ai_assistant_router.router, prefix=API_PREFIX)
 app.include_router(promotions.router, prefix=API_PREFIX)
 app.include_router(branch_prices_router.router, prefix=API_PREFIX)  # T4.3
 app.include_router(orders.router, prefix=API_PREFIX)

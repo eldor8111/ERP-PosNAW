@@ -13,7 +13,7 @@ import {
   ChevronRight, ShoppingBag, Navigation, Package, DollarSign, BarChart3,
   Settings as SettingsIcon, ShieldAlert, Layers, ShieldCheck, Store, Truck, Shield,
   Users, AlertTriangle, FileText, CheckCircle2, SlidersHorizontal,
-  Building2, Tag, Landmark, Scale, MapPin
+  Building2, Tag, Landmark, Scale, MapPin, MessageSquare
 } from 'lucide-react';
 import AnnouncementModal from './AnnouncementModal';
 import AnnouncementBanner from './AnnouncementBanner';
@@ -41,8 +41,30 @@ function isNavLinkVisible(user, link, features) {
   return !link.roles || link.roles.includes(user.role);
 }
 
+// E-code AI chatiga kiradigan rollar (backend: ai_assistant_tools.CHAT_ROLES)
+const AI_CHAT_ROLES = ['admin', 'director', 'manager', 'accountant', 'warehouse', 'cashier'];
+
 function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
   return [
+    {
+      // E-code AI: menyuda birinchi, faqat AI yordamchi paketi faol bo'lsa (features.ai_assistant)
+      key: 'ecode_ai',
+      label: 'E-code AI',
+      path: '/admin/ai',
+      primaryPath: '/admin/ai',
+      icon: <MessageSquare className="w-[20px] h-[20px]" />,
+      roles: AI_CHAT_ROLES,
+      feature: 'ai_assistant',
+      isDirect: true,
+      links: [
+        {
+          name: 'E-code AI',
+          path: '/admin/ai',
+          roles: AI_CHAT_ROLES,
+          feature: 'ai_assistant',
+        },
+      ],
+    },
     {
       key: 'sotuv',
       label: t('nav.saleScreen') || 'Sotuv',
@@ -328,12 +350,6 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           path: '/admin/branch-plans',
           roles: ROLE_GROUPS.REPORTS_ACCESS,
           icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
-        },
-        {
-          name: 'AI Copilot',
-          path: '/admin/ai',
-          roles: ROLE_GROUPS.REPORTS_ACCESS,
-          icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
         },
         {
           name: t('nav.alerts') || 'Ogohlantirishlar',
@@ -652,7 +668,8 @@ export default function AdminLayout() {
 
   const isFullBleed = useMemo(() => {
     const p = location.pathname;
-    return p.startsWith('/admin/sotuv') || p.startsWith('/admin/pos') || p.startsWith('/admin/settings');
+    return p.startsWith('/admin/sotuv') || p.startsWith('/admin/pos') || p.startsWith('/admin/settings')
+      || p === '/admin/ai' || p === '/admin/ecode-ai' || p === '/admin/ai-copilot';   // E-code AI chat — to'liq ekran
   }, [location.pathname]);
 
   return (

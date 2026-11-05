@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SEC: int = 30
     LLM_MAX_RETRIES: int = 2
     LLM_RETRY_BACKOFF_FACTOR: float = 1.5
+    # --- E-code AI yordamchi (Claude API, rasmiy anthropic SDK). Kalit faqat .env da: ANTHROPIC_API_KEY ---
+    AI_MODEL: str = "claude-sonnet-5-5"
+    AI_EFFORT: str = "medium"           # low | medium | high
+    AI_MAX_TURNS: int = 60              # bitta suhbatdagi foydalanuvchi xabarlari chegarasi
+    AI_DAILY_LIMIT_COMPANY: int = 0     # korxona bo'yicha kunlik so'rov chegarasi (0 = cheklanmagan)
+    AI_SERVER_FALLBACK: bool = True     # rad etilgan javobni server tomonida qayta urinish (beta)
     # Marketplace (mir-maza.uz) — kategoriyalar manbai. API manzili .env da beriladi.
     MARKETPLACE_CATEGORIES_URL: str = "https://mir-maza.uz/api/v1/categories"
     # Mir-maza bilan umumiy maxfiy kalit (X-Integration-Key): chiquvchi so'rovlar VA kiruvchi

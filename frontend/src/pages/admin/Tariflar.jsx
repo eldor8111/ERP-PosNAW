@@ -603,7 +603,7 @@ function SubscriptionHistoryTab({ logs }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {logs && logs.length > 0 ? (
-                logs.filter(item => item.log_type === 'subscription').map((item, index) => (
+                logs.filter(item => item.log_type === 'subscription' || item.log_type === 'ai_subscription').map((item, index) => (
                   <tr
                     key={item.id}
                     className="group hover:bg-violet-50/40 transition-all duration-300"

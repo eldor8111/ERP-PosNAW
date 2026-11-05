@@ -761,8 +761,8 @@ def test_sales_and_order_to_sale_messages_escape_dynamic_values():
 
 
 def test_ai_status_text_matches_default_time():
-    from app.routers.ai_analytics import get_ai_status
-    feats = get_ai_status()['features']
+    from app.routers.ai_analytics import AI_FEATURES   # /ai/status "features" ro'yxati
+    feats = AI_FEATURES
     assert not any('17:30' in f for f in feats)
     assert any('Telegram hisoboti' in f for f in feats)
 
