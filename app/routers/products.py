@@ -270,7 +270,6 @@ def _attach_stock(product: Product, db: Session = None, warehouse_id: int = None
 
     out.stock_quantity = Decimal("0")
     if db:
-        from app.models.inventory import StockLevel
         from sqlalchemy import func
         from app.models.warehouse import Warehouse
         q = db.query(func.coalesce(func.sum(StockLevel.quantity), 0)).outerjoin(
@@ -357,7 +356,6 @@ def get_product_variants(
 ):
     """Parent mahsulotning barcha variantlarini stock bilan qaytaradi."""
     from app.models.product_variant import ProductVariant
-    from app.models.inventory import StockLevel
     from app.models.attribute import AttributeValue, VariantAttributeValue, Attribute
     from sqlalchemy.orm import joinedload
 
@@ -429,7 +427,6 @@ def list_products(
         current_user: User = Depends(get_current_user),
         ctx: BranchContext = Depends(get_branch_context),
 ):
-    from app.models.inventory import StockLevel
     from app.models.warehouse import Warehouse
     from app.schemas.product import WarehouseStockOut
 
@@ -1125,7 +1122,6 @@ def update_product(
     # Variantlarni yangilash
     if product_type == "parent" and "variants" in fields_set:
         from app.models.product_variant import ProductVariant
-        from app.models.inventory import StockLevel
         from sqlalchemy import func
         from app.models.attribute import Attribute, AttributeValue, VariantAttributeValue
         
