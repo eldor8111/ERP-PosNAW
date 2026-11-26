@@ -284,9 +284,12 @@ def get_my_company_features(
             "manufacturing": False, "distribution": False, "marketplace_agents": False,
             "require_shift": False, "credit_limit_scope": "distributor",
             "pharmacy": False, "pharmacy_settings": {}, "ai_assistant": False,
+            "business_type": "retail", "restaurant": False, "restaurant_settings": {},
         }
     c = db.query(Company).filter(Company.id == cid).first()
     from app.services.ai_packages import access_for as ai_access_for
+    from app.services.restaurant import is_restaurant_company, restaurant_settings_of
+    _is_rest = is_restaurant_company(c)
     return {
         "ai_assistant": ai_access_for(db, cid).active,   # E-code AI: menyuda faqat paket faol bo'lsa
         "manufacturing": company_has_feature(db, cid, "manufacturing"),
@@ -296,6 +299,10 @@ def get_my_company_features(
         "pharmacy_settings": pharmacy_settings_of(c),
         "require_shift": bool(c and c.pos_require_shift),
         "credit_limit_scope": (getattr(c, "credit_limit_scope", None) or "distributor") if c else "distributor",
+        # R0.4: biznes turi — sidebar va sahifalar restoran/do'kon bo'yicha ajraladi
+        "business_type": (getattr(c, "business_type", None) or "retail") if c else "retail",
+        "restaurant": _is_rest,
+        "restaurant_settings": restaurant_settings_of(c) if _is_rest else {},
     }
 
 

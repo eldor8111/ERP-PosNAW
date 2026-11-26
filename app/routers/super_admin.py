@@ -4,7 +4,7 @@ Korxonalar (company) → Filiallar (branch) → Tafsilot
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException, Request  # type: ignore
 from pydantic import BaseModel  # type: ignore
 from fastapi.responses import JSONResponse  # type: ignore
 from sqlalchemy.exc import IntegrityError  # type: ignore
@@ -361,6 +361,8 @@ def list_companies(
             "is_trial": bool(c.is_trial),
             "days_left": days_left,
             "subscription_status": sub_status,
+            # R0.5: biznes turi
+            "business_type": getattr(c, "business_type", None) or "retail",
             # Modullar
             "modules": {
                 "pharmacy": bool(c.pharmacy_enabled or "pharmacy" in comp_pkgs),
@@ -480,6 +482,10 @@ def get_company_detail(company_id: int, db: Session = Depends(get_db), _: User =
         "district": company.district,
         "is_active": company.is_active,
         "marketplace_agents_enabled": company.marketplace_agents_enabled,
+        # R0.5: biznes turi va restoran formati
+        "business_type": getattr(company, "business_type", None) or "retail",
+        "restaurant_format": ((company.restaurant_settings or {}).get("format")
+                              if getattr(company, "business_type", None) == "restaurant" else None),
         "created_at": str(company.created_at),
         "balance": float(company.balance or 0),
         "tariff_id": company.tariff_id,
@@ -1075,18 +1081,28 @@ class CompanyUpdate(BaseModel):
     email: Optional[str] = None
     is_active: Optional[bool] = None
     marketplace_agents_enabled: Optional[bool] = None
+    # R0.5: biznes turini almashtirish ('retail' | 'restaurant') va restoran formati
+    business_type: Optional[str] = None
+    restaurant_format: Optional[str] = None
 
 @router.put("/companies/{company_id}")
 def update_company_super(
     company_id: int,
     payload: CompanyUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    _: User = Depends(require_super_admin)
+    admin: User = Depends(require_super_admin)
 ):
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
-    
+    if payload.business_type is not None:
+        # R0.5: noto'g'ri tur/format hech narsa o'zgarmasdan 400
+        from app.services.restaurant import RESTAURANT, normalize_business_type, normalize_format
+        payload.business_type = normalize_business_type(payload.business_type)
+        if payload.business_type == RESTAURANT and payload.restaurant_format is not None:
+            payload.restaurant_format = normalize_format(payload.restaurant_format)
+
     import sqlalchemy.exc
     try:
         if payload.name is not None: c.name = str(payload.name)
@@ -1098,15 +1114,40 @@ def update_company_super(
         if payload.email is not None: c.email = str(payload.email).strip() or None
         if payload.is_active is not None: c.is_active = payload.is_active
         if payload.marketplace_agents_enabled is not None: c.marketplace_agents_enabled = payload.marketplace_agents_enabled
-        
+        if payload.business_type is not None:
+            _change_business_type(db, c, payload.business_type, payload.restaurant_format, admin, request)
+
         db.commit()
         return {"ok": True, "message": "Korxona ma'lumotlari yangilandi"}
     except sqlalchemy.exc.IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Bu ma'lumotlar (masalan: Kod) allaqachon boshqa korxonaga biriktirilgan.")
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Xatolik: {str(e)}")
+
+
+def _change_business_type(db: Session, c: Company, new_type: str, fmt: Optional[str], admin: User, request: Request) -> None:
+    """R0.5: korxona turini almashtirish. Restoranga o'tganda har bir faol filial tayyorlanadi (takroriy xavfsiz);
+    do'konga qaytganda restoran ma'lumotlari o'chirilmaydi, faqat yashiriladi."""
+    from app.core.audit import log_action
+    from app.services.restaurant import RESTAURANT, normalize_business_type, provision_restaurant
+    new_type = normalize_business_type(new_type)
+    old_type = c.business_type or "retail"
+    if new_type == old_type and not (new_type == RESTAURANT and fmt):
+        return
+    c.business_type = new_type
+    if new_type == RESTAURANT:
+        branches = db.query(Branch).filter(Branch.company_id == c.id, Branch.is_active == True).order_by(Branch.id).all()  # noqa: E712
+        for b in branches:
+            provision_restaurant(db, c, b, fmt)
+    log_action(db=db, action="BUSINESS_TYPE_CHANGE", entity_type="company", entity_id=c.id, user_id=admin.id,
+               old_values={"business_type": old_type}, new_values={"business_type": new_type, "format": fmt},
+               ip_address=request.client.host if request.client else None)
+
 
 @router.get("/companies/{company_id}/delete-preview")
 def delete_company_preview(

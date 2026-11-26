@@ -1,0 +1,50 @@
+{
+  "uz": {
+    "auth.bizType": "Biznes turi",
+    "auth.bizRetail": "Savdo / do'kon",
+    "auth.bizRetailDesc": "Do'kon, ulgurji savdo, ombor va distribyutsiya",
+    "auth.bizRestaurant": "Restoran / kafe",
+    "auth.bizRestaurantDesc": "Zal va stollar, oshxona, texnologik kartalar",
+    "auth.restFormat": "Format",
+    "auth.restFormat.full_service": "Restoran (stol xizmati)",
+    "auth.restFormat.cafe": "Kafe / kofeyna",
+    "auth.restFormat.fast_food": "Fast-food / olib ketish",
+    "auth.restFormat.canteen": "Oshxona / choyxona",
+    "superAdmin.bizType": "Biznes turi",
+    "superAdmin.bizTypeHint": "Restoranga o'tkazilganda har bir filial uchun zal, sexlar va oshxona ombori yaratiladi. Do'konga qaytarilganda restoran ma'lumotlari o'chirilmaydi.",
+    "superAdmin.bizConfirm": "Korxona biznes turini o'zgartirasizmi?",
+    "superAdmin.bizSaved": "Biznes turi saqlandi"
+  },
+  "ru": {
+    "auth.bizType": "Тип бизнеса",
+    "auth.bizRetail": "Торговля / магазин",
+    "auth.bizRetailDesc": "Магазин, оптовая торговля, склад и дистрибуция",
+    "auth.bizRestaurant": "Ресторан / кафе",
+    "auth.bizRestaurantDesc": "Зал и столы, кухня, технологические карты",
+    "auth.restFormat": "Формат",
+    "auth.restFormat.full_service": "Ресторан (обслуживание за столом)",
+    "auth.restFormat.cafe": "Кафе / кофейня",
+    "auth.restFormat.fast_food": "Фастфуд / на вынос",
+    "auth.restFormat.canteen": "Столовая / чайхана",
+    "superAdmin.bizType": "Тип бизнеса",
+    "superAdmin.bizTypeHint": "При переводе в ресторан для каждого филиала создаются зал, цеха и склад кухни. При возврате в магазин данные ресторана не удаляются.",
+    "superAdmin.bizConfirm": "Изменить тип бизнеса компании?",
+    "superAdmin.bizSaved": "Тип бизнеса сохранён"
+  },
+  "en": {
+    "auth.bizType": "Business type",
+    "auth.bizRetail": "Retail / store",
+    "auth.bizRetailDesc": "Store, wholesale, warehouse and distribution",
+    "auth.bizRestaurant": "Restaurant / cafe",
+    "auth.bizRestaurantDesc": "Hall and tables, kitchen, recipe cards",
+    "auth.restFormat": "Format",
+    "auth.restFormat.full_service": "Restaurant (table service)",
+    "auth.restFormat.cafe": "Cafe / coffee shop",
+    "auth.restFormat.fast_food": "Fast food / takeaway",
+    "auth.restFormat.canteen": "Canteen / teahouse",
+    "superAdmin.bizType": "Business type",
+    "superAdmin.bizTypeHint": "Switching to restaurant creates a hall, kitchen stations and a kitchen warehouse for every branch. Switching back to retail keeps the restaurant data.",
+    "superAdmin.bizConfirm": "Change the company business type?",
+    "superAdmin.bizSaved": "Business type saved"
+  }
+}

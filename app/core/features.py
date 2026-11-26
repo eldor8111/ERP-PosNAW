@@ -100,3 +100,10 @@ def require_feature(feature: str):
                 detail=f"\"{title}\" moduli kompaniyangiz uchun yoqilmagan (Sozlamalar → Umumiy)",
             )
     return _dep
+
+
+def require_restaurant(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> None:
+    """R0.4: restoran endpointlari faqat `business_type = 'restaurant'` korxonaga ochiq (do'kon chaqirsa 403)."""
+    from app.services.restaurant import is_restaurant
+    if not is_restaurant(db, current_user.company_id):
+        raise HTTPException(status_code=403, detail="Bu bo'lim faqat restoran korxonalari uchun")

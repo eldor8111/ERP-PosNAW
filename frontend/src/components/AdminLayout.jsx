@@ -29,6 +29,8 @@ const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 function isNavLinkVisible(user, link, features) {
   if (!user) return false;
   if (link.feature && !features?.[link.feature]) return false;
+  // R0.4: restoran korxonasida savdoga xos bo'limlar (ulgurji sotuv, SFA, marketplace, dorixona) yashiriladi
+  if (link.hideForRestaurant && features?.restaurant) return false;
   if (user.role === 'super_admin') return true;
 
   const permKey = link.path.split('?')[0].split('/').pop();
@@ -73,11 +75,13 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
       icon: <ShoppingBag className="w-[20px] h-[20px]" />,
       roles: ROLE_GROUPS.SALES,
       isDirect: true,
+      hideForRestaurant: true,
       links: [
         {
           name: t('nav.saleScreen') || 'Sotuv',
           path: '/admin/sotuv',
           roles: ROLE_GROUPS.SALES,
+          hideForRestaurant: true,
         },
       ],
     },
@@ -181,6 +185,7 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           path: '/admin/pharmacy',
           feature: 'pharmacy',
           roles: ROLE_GROUPS.OPS_ACCESS,
+          hideForRestaurant: true,
           icon: <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>,
         },
       ],
@@ -191,6 +196,7 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
       primaryPath: '/admin/sfa',
       icon: <Navigation className="w-[20px] h-[20px]" />,
       feature: 'distribution',
+      hideForRestaurant: true,
       roles: [ROLES.ADMIN, ROLES.DIRECTOR, ROLES.MANAGER],
       links: [
         {
@@ -366,6 +372,7 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
       primaryPath: '/admin/marketplace-agents',
       icon: <Store className="w-[20px] h-[20px]" />,
       feature: 'marketplace_agents',
+      hideForRestaurant: true,
       roles: ROLE_GROUPS.MANAGEMENT,
       links: [
         {
@@ -714,6 +721,7 @@ export default function AdminLayout() {
           {navGroups.map((group) => {
             if (!user) return null;
             if (group.feature && !features?.[group.feature]) return null;
+            if (group.hideForRestaurant && features?.restaurant) return null;
             // Guruh — kamida bitta havolasi ko'rinsagina (rol + huquq filtri havola darajasida)
             if (!group.links.some((l) => isNavLinkVisible(user, l, features))) return null;
 

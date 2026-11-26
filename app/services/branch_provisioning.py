@@ -60,6 +60,12 @@ def provision_branch(
         )
         db.add(wallet)
     db.flush()
+    # R0.3: restoran korxonasining har bir yangi filiali uchun oshxona ombori, sexlar, zal va stollar
+    from app.models.company import Company
+    from app.services.restaurant import is_restaurant_company, provision_restaurant
+    company = db.get(Company, branch.company_id)
+    if is_restaurant_company(company):
+        provision_restaurant(db, company, branch)
     return wh, wallet
 
 

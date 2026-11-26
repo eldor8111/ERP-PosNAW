@@ -229,6 +229,9 @@ class CompanyRegisterRequest(BaseModel):
     password: str
     agent_code: Optional[str] = None
     otp_verified_token: Optional[str] = None  # OTP tasdiqlash tokeni
+    # R0.1: biznes turi va restoran formati (eski mijozlar yubormasa — oddiy do'kon)
+    business_type: Optional[str] = "retail"
+    restaurant_format: Optional[str] = None
 
     @field_validator('phone')
     @classmethod
@@ -292,10 +295,18 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
             raise HTTPException(status_code=400, detail="Agent kodi topilmadi yoki faol emas")
         agent_id = agent.id
 
+    # R0.1: biznes turi (xato qiymat 400); restoranda format ham tekshiriladi
+    from app.services.restaurant import RESTAURANT, normalize_business_type, normalize_format, settings_for_format
+    business_type = normalize_business_type(data.business_type)
+    restaurant_format = normalize_format(data.restaurant_format) if business_type == RESTAURANT else None
+
     org_code = _generate_org_code(db)
 
     from app.models.billing import Tariff
-    trial_tariff = db.query(Tariff).filter(Tariff.is_active == True, Tariff.price_per_month <= 0).first()
+    # R9.1: sinov tarifi biznes turiga mos tanlanadi; restoran uchun alohida sinov tarifi bo'lmasa umumiysi
+    _trial_q = db.query(Tariff).filter(Tariff.is_active == True, Tariff.price_per_month <= 0)  # noqa: E712
+    trial_tariff = (_trial_q.filter(Tariff.business_type == business_type).order_by(Tariff.sort_order, Tariff.id).first()
+                    or _trial_q.filter(Tariff.business_type == "retail").order_by(Tariff.sort_order, Tariff.id).first())
     tariff_id = trial_tariff.id if trial_tariff else None
     subs_ends_at = datetime.now(timezone.utc) + timedelta(days=7) if trial_tariff else None
 
@@ -310,6 +321,8 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
         tariff_id=tariff_id,
         subscription_ends_at=subs_ends_at,
         is_trial=True,
+        business_type=business_type,
+        restaurant_settings=settings_for_format(restaurant_format) if restaurant_format else None,
     )
     db.add(company)
     db.flush()
@@ -324,6 +337,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
     db.flush()
     # T1.4: asosiy filial uchun asosiy ombor ("Asosiy ombor", is_default) va kassa ("Asosiy kassa", yopiq)
     from app.services.branch_provisioning import provision_branch
+    # R0.3: restoranda provision_branch oshxona ombori, sexlar, zal/stollar va menyu kategoriyalarini ham yaratadi
     provision_branch(db, branch, create_warehouse=True, create_wallet=True)
 
 
@@ -389,6 +403,7 @@ def register_company(request: Request, data: CompanyRegisterRequest, db: Session
         "token_type": "bearer",
         "org_code": org_code,
         "company_name": company.name,
+        "business_type": business_type,
         "user": UserOut.model_validate(user),
     }
 

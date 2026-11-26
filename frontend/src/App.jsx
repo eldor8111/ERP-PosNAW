@@ -11,6 +11,7 @@ import PosLogin from './pages/PosLogin'
 import RegisterCompany from './pages/RegisterCompany'
 import AdminLayout from './components/AdminLayout'
 import FeatureGate from './components/FeatureGate'
+import useCompanyFeatures from './hooks/useCompanyFeatures'
 
 // Lazy-loaded pages — faqat kerak bo'lganda yuklanadi
 const Products        = lazy(() => import('./pages/admin/Products'))
@@ -89,15 +90,18 @@ function PageLoader() {
 }
 
 function AdminIndex() {
-  const userStr = localStorage.getItem('user')
-  let user = null
-  try {
-    user = JSON.parse(userStr || '{}')
-  } catch {
-    // ignore error
-  }
+  // R0.4: restoran korxonasi bosh sahifasi kassa (ulgurji sotuv ekrani restoranda yo'q)
+  const features = useCompanyFeatures()
+  if (features === null) return <PageLoader />
+  return <Navigate to={features.restaurant ? "pos-kassa" : "sotuv"} replace />
+}
 
-  return <Navigate to="sotuv" replace />
+// R0.4: savdoga xos sahifa restoran korxonasida ochilmaydi (eski havola yoki /admin/sotuv ga yo'naltirish bo'lsa)
+function RetailOnly({ children }) {
+  const features = useCompanyFeatures()
+  if (features === null) return <PageLoader />
+  if (features.restaurant) return <Navigate to="/admin/pos-kassa" replace />
+  return children
 }
 
 function DocsRedirect() {
@@ -153,7 +157,7 @@ export default function App() {
             <Route path="distributors" element={<FeatureGate feature="distribution"><Suspense fallback={<PageLoader />}><Customers key="distributors" initialTab="distributors" /></Suspense></FeatureGate>} />
             <Route path="orders" element={<Navigate to="/admin/customers" replace />} />
             <Route path="promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
-            <Route path="sotuv" element={<Suspense fallback={<PageLoader />}><UlgurjiSotuv /></Suspense>} />
+            <Route path="sotuv" element={<RetailOnly><Suspense fallback={<PageLoader />}><UlgurjiSotuv /></Suspense></RetailOnly>} />
             <Route path="pos-kassa" element={<Suspense fallback={<PageLoader />}><PosKassa /></Suspense>} />
             <Route path="pos-return" element={<Suspense fallback={<PageLoader />}><PosReturn /></Suspense>} />
             <Route path="operations" element={<Suspense fallback={<PageLoader />}><Operations /></Suspense>} />

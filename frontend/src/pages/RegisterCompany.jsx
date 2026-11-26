@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLang } from '../context/LangContext'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api/axios'
 import ECodeLogo, { ECodeIcon } from '../components/ECodeLogo'
 import { REGIONS } from '../constants/regions'
 import { LANGUAGES } from '../i18n/index.js'
 import { 
+  Store,
+  UtensilsCrossed,
   Building2, 
   MapPin, 
   User, 
@@ -165,14 +167,21 @@ function FloatingSelect({ label, value, onChange, options, disabled, error }) {
   )
 }
 
+// R0.1: restoran formatlari (backend: app/services/restaurant.py FORMATS)
+const REST_FORMATS = ['full_service', 'cafe', 'fast_food', 'canteen']
+
 export default function RegisterCompany() {
   const { t, lang, setLang } = useLang()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // /register?type=restaurant — restoran reklamasidan kelganda karta oldindan tanlangan
+  const initialType = searchParams.get('type') === 'restaurant' ? 'restaurant' : 'retail'
 
   const [step, setStep] = useState(1)
   const [otpSession, setOtpSession] = useState(null)
   const [otpCode, setOtpCode] = useState('')
   const [form, setForm] = useState({
+    business_type: initialType, restaurant_format: 'full_service',
     company_name: '', region: '', district: '',
     name: '', phone: '', agent_code: 'A0001',
     password: '', confirm_password: '', oferta: false,
@@ -271,6 +280,8 @@ export default function RegisterCompany() {
         otp_verified_token: verifyData.verified_token
       }
       if (form.agent_code.trim()) payload.agent_code = form.agent_code.trim().toUpperCase()
+      payload.business_type = form.business_type
+      if (form.business_type === 'restaurant') payload.restaurant_format = form.restaurant_format
       const { data } = await api.post('/auth/register', payload)
       localStorage.setItem('access_token', data.access_token)
       localStorage.setItem('refresh_token', data.refresh_token)
@@ -423,6 +434,63 @@ export default function RegisterCompany() {
               {/* ── STEP 1: Korxona ── */}
               {step === 1 && (
                 <div className="space-y-5 animate-in fade-in">
+                  {/* R0.1: biznes turi */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                      {t('auth.bizType')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { v: 'retail', icon: Store, title: t('auth.bizRetail'), desc: t('auth.bizRetailDesc') },
+                        { v: 'restaurant', icon: UtensilsCrossed, title: t('auth.bizRestaurant'), desc: t('auth.bizRestaurantDesc') },
+                      ].map(o => {
+                        const on = form.business_type === o.v
+                        const Icon = o.icon
+                        return (
+                          <button
+                            key={o.v}
+                            type="button"
+                            onClick={() => set('business_type', o.v)}
+                            className={`text-left p-3.5 rounded-2xl border transition-colors ${
+                              on ? 'border-blue-600 bg-blue-50/60' : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Icon className={`w-4 h-4 shrink-0 ${on ? 'text-blue-600' : 'text-slate-400'}`} />
+                              <span className={`text-sm font-bold ${on ? 'text-blue-700' : 'text-slate-800'}`}>{o.title}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-1 leading-snug">{o.desc}</p>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {form.business_type === 'restaurant' && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                        {t('auth.restFormat')}
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {REST_FORMATS.map(f => {
+                          const on = form.restaurant_format === f
+                          return (
+                            <button
+                              key={f}
+                              type="button"
+                              onClick={() => set('restaurant_format', f)}
+                              className={`px-3 py-2 rounded-xl border text-xs font-semibold text-left transition-colors ${
+                                on ? 'border-blue-600 bg-blue-50/60 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                              }`}
+                            >
+                              {t(`auth.restFormat.${f}`)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
                       {t('auth.companyNameLabel') || "Korxona nomi"}

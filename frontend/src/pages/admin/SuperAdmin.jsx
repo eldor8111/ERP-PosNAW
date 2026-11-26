@@ -245,6 +245,26 @@ function CompanyDetailPanel({ companyId, companyName, onClose, initialTab = 'bra
     }
   };
 
+  // R0.5: biznes turini almashtirish (restoranga o'tganda filiallar uchun zal, sexlar va oshxona ombori yaratiladi)
+  const changeBusinessType = async (business_type, restaurant_format) => {
+    if (!detail) return;
+    if (business_type !== (detail.business_type || 'retail')
+        && !window.confirm(t('superAdmin.bizConfirm'))) return;
+    try {
+      setLoading(true);
+      const body = { business_type };
+      if (business_type === 'restaurant') body.restaurant_format = restaurant_format || detail.restaurant_format || 'full_service';
+      await api.put(`/super-admin/companies/${companyId}`, body);
+      const r = await api.get(`/super-admin/companies/${companyId}`);
+      setDetail(r.data);
+      toast.success(t('superAdmin.bizSaved'));
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('superAdmin.errorOccurred'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleClose = () => {
     setVisible(false);
     setTimeout(onClose, 280);
@@ -447,6 +467,31 @@ function CompanyDetailPanel({ companyId, companyName, onClose, initialTab = 'bra
             {/* ── SOZLAMALAR ── */}
             {tab === 'settings' && (
               <div className="space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                  <h4 className="font-bold text-slate-800 text-sm">{t('superAdmin.bizType')}</h4>
+                  <p className="text-xs text-slate-500 mt-1">{t('superAdmin.bizTypeHint')}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <select
+                      value={detail.business_type || 'retail'}
+                      onChange={e => changeBusinessType(e.target.value)}
+                      className="px-3 py-2 border border-slate-200 rounded-xl bg-white text-sm font-semibold text-slate-800"
+                    >
+                      <option value="retail">{t('auth.bizRetail')}</option>
+                      <option value="restaurant">{t('auth.bizRestaurant')}</option>
+                    </select>
+                    {detail.business_type === 'restaurant' && (
+                      <select
+                        value={detail.restaurant_format || 'full_service'}
+                        onChange={e => changeBusinessType('restaurant', e.target.value)}
+                        className="px-3 py-2 border border-slate-200 rounded-xl bg-white text-sm font-semibold text-slate-800"
+                      >
+                        {['full_service', 'cafe', 'fast_food', 'canteen'].map(f => (
+                          <option key={f} value={f}>{t(`auth.restFormat.${f}`)}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex items-center justify-between">
                   <div>
                     <h4 className="font-bold text-slate-800 text-sm">Marketplace Agentlari</h4>

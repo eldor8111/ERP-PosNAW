@@ -435,6 +435,10 @@ def _run_auto_migrations(engine):
         # D1.1: Dorixona moduli
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS pharmacy_enabled BOOLEAN NOT NULL DEFAULT FALSE;",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS pharmacy_settings JSON;",
+        # R0.2: biznes turi va restoran sozlamalari (alembic r0_1 bilan bir xil)
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS business_type VARCHAR(20) NOT NULL DEFAULT 'retail';",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS restaurant_settings JSON;",
+        "ALTER TABLE tariffs ADD COLUMN IF NOT EXISTS business_type VARCHAR(20) NOT NULL DEFAULT 'retail';",
         # Dorixona moduli: alembic (d1_3, d3_3) bilan bir xil, server alembic'siz ishga tushsa ham ustunlar bo'lsin
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_number VARCHAR(100);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_date DATE;",
@@ -860,6 +864,8 @@ from app.routers import pharmacy_recall as _pharmacy_recall_router  # noqa: E402
 app.include_router(_pharmacy_recall_router.router, prefix=API_PREFIX)  # D4.2: seriya kuzatuvi va qaytarib olish
 from app.routers import pharmacy_units as _pharmacy_units_router  # noqa: E402  # D2.4
 app.include_router(_pharmacy_units_router.router, prefix=API_PREFIX)  # D2.4: quti/blister/dona birliklari
+from app.routers import restaurant as _restaurant_router  # noqa: E402  # R0
+app.include_router(_restaurant_router.router, prefix=API_PREFIX)  # R0: restoran rejimi (sozlamalar, sexlar, zal va stollar)
 
 # Serve uploaded static files
 import os

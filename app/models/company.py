@@ -59,6 +59,12 @@ class Company(Base):
     # Dorixona sozlamalari (app/services/pharmacy.py DEFAULT_SETTINGS): muddat chegaralari, retsept rejimi
     pharmacy_settings = Column(JSON, nullable=True)
 
+    # R0.2: biznes turi (ro'yxatdan o'tishda tanlanadi). 'retail' — oddiy savdo ERP (sukut),
+    # 'restaurant' — restoran rejimi (zal, oshxona, tex karta). Restoran jadvallari faqat 'restaurant' da to'ladi.
+    business_type = Column(String(20), nullable=False, default="retail", server_default="retail")
+    # Restoran sozlamalari (app/services/restaurant.py DEFAULT_SETTINGS): format, xizmat haqi, yechish vaqti
+    restaurant_settings = Column(JSON, nullable=True)
+
     # ── Ixtiyoriy modullar (oddiy do'konlarga ko'rinmasligi uchun) ──
     # manufacturing — Ishlab chiqarish (retseptura, buyurtma, tannarx)
     # distribution — Distribyutorlar, Logistika, sotuvdan yetkazib berish
@@ -115,4 +121,5 @@ class Company(Base):
 
     __table_args__ = (
         CheckConstraint("credit_limit_scope IN ('distributor','all')", name="ck_companies_credit_limit_scope"),
+        CheckConstraint("business_type IN ('retail','restaurant')", name="ck_companies_business_type"),
     )
