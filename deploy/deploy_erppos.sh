@@ -52,6 +52,9 @@ if changed '^frontend/' || [ "${FORCE:-0}" = "1" ]; then
   fi
   rm -rf dist_new
   npx vite build --outDir dist_new --emptyOutDir --logLevel warn
+  # Tezlik: JS/CSS/SVG ning oldindan siqilgan .gz nusxalari (nginx gzip_static — deploy/nginx_speed.sh)
+  find dist_new/assets -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' \) -size +1k \
+    -exec gzip -9 -k -f {} \; 2>/dev/null || true
   # Eski bo'laklarni saqlaymiz (hash'li nomlar to'qnashmaydi)
   if [ -d dist/assets ]; then
     cp -n dist/assets/* dist_new/assets/ 2>/dev/null || true
@@ -66,6 +69,9 @@ if changed '^frontend/' || [ "${FORCE:-0}" = "1" ]; then
 else
   echo "frontend o'zgarmagan — o'tkazildi"
 fi
+
+# Tezlik: nginx siqish sozlamasi (bir marta o'rnatiladi; xato bo'lsa o'zi qaytaradi, deploy to'xtamaydi)
+bash deploy/nginx_speed.sh || true
 
 step "5/5 Backend (to'xtovsiz qayta yuklash)"
 MAIN_PID=$(systemctl show -p MainPID --value "$SERVICE")

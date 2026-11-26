@@ -1,8 +1,29 @@
 import uz from './uz.js';
-import ru from './ru.js';
-import en from './en.js';
 
-const translations = { uz, ru, en };
+// Tezlik: faqat sukut til (uz) asosiy bundle'da. ru/en (~700 KB) alohida chunk bo'lib, shu til
+// tanlanganda yuklanadi (main.jsx saqlangan tilni ilova chizilishidan oldin yuklaydi).
+const translations = { uz };
+const LOADERS = {
+  ru: () => import('./ru.js'),
+  en: () => import('./en.js'),
+};
+const _pending = {};
+
+export function isLangLoaded(code) {
+  return Boolean(translations[code]);
+}
+
+/** Til lug'atini yuklaydi (bir marta). Noma'lum til yoki xato — uz ishlatiladi (rad etilmaydi). */
+export function loadLang(code) {
+  if (translations[code] || !LOADERS[code]) return Promise.resolve();
+  if (!_pending[code]) {
+    _pending[code] = LOADERS[code]()
+      .then((m) => { translations[code] = m.default; })
+      .catch(() => {})
+      .finally(() => { delete _pending[code]; });
+  }
+  return _pending[code];
+}
 
 // Supported languages
 export const LANGUAGES = [
@@ -15,7 +36,7 @@ export const LANGUAGES = [
 export function getStoredLang() {
   try {
     const stored = localStorage.getItem('app_language');
-    if (stored && translations[stored]) return stored;
+    if (stored && (translations[stored] || LOADERS[stored])) return stored;
   } catch {}
   return 'uz';
 }

@@ -11,7 +11,10 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import translations, { createTranslator } from '../index.js';
+import translations, { createTranslator, loadLang } from '../index.js';
+
+// ru/en lug'atlari kerak bo'lganda yuklanadi — testda hammasi oldindan
+await Promise.all(['ru', 'en'].map(loadLang));
 
 const here = dirname(fileURLToPath(import.meta.url));
 const i18nDir = join(here, '..');

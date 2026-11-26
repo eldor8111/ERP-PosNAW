@@ -570,6 +570,24 @@ const ProductSearch = memo(forwardRef(function ProductSearch({ onSelect, placeho
 }));
 
 /* ─── Asosiy komponent ──────────────────────────────────── */
+// Soat (soat:daqiqa) — faqat o'zi yangilanadi, daqiqa almashganda. Avval sahifa holati edi va
+// 270 KB lik sahifani har soniyada qayta chizdirardi (katta savat/ro'yxatda qotish).
+function LiveClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let timer;
+    const tick = () => {
+      const d = new Date();
+      setNow(d);
+      timer = setTimeout(tick, 60000 - (d.getSeconds() * 1000 + d.getMilliseconds()) + 50);
+    };
+    timer = setTimeout(tick, 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 50);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+}
+
 export default function UlgurjiSotuv() {
   const { t } = useLang();
   const [customers, setCustomers] = useState([]);
@@ -658,13 +676,7 @@ export default function UlgurjiSotuv() {
   // Mobile tab: 'form' | 'cart'
   const [mobileTab, setMobileTab] = useState('form');
 
-  // Clock
-  const [currentTime, setCurrentTime] = useState(new Date());
   const selected = useMemo(() => customers.find(c => String(c.id) === String(custId)), [customers, custId]);
-  useEffect(() => {
-    const t = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // Mijoz narx turini o'zgartirish (Chakana ↔ Ulgurji ↔ Tannarx)
   const changePriceType = useCallback(() => {
@@ -2540,7 +2552,7 @@ export default function UlgurjiSotuv() {
       <div className="shrink-0 bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex items-center justify-between shadow-sm gap-2">
         <div className="hidden lg:flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
           <Ic d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" cls="w-4 h-4" />
-          <span className="text-sm font-bold font-mono tracking-tight">{currentTime.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="text-sm font-bold font-mono tracking-tight"><LiveClock /></span>
         </div>
 
         {/* Mijoz narx turi badge — bosib o'zgartirish mumkin */}

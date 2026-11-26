@@ -7,8 +7,6 @@ import { ROLE_GROUPS, ROLES } from './constants/roles'
 import Toast from './components/Toast'
 import { Toaster } from 'react-hot-toast'
 import Login from './pages/Login'
-import PosLogin from './pages/PosLogin'
-import RegisterCompany from './pages/RegisterCompany'
 import AdminLayout from './components/AdminLayout'
 import FeatureGate from './components/FeatureGate'
 import useCompanyFeatures from './hooks/useCompanyFeatures'
@@ -57,6 +55,9 @@ const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const MarketplaceAgents = lazy(() => import('./pages/admin/MarketplaceAgents'))
 const AICopilot       = lazy(() => import('./pages/admin/EcodeAI'))
 const Register        = lazy(() => import('./pages/Register'))
+// Tezlik: kam ochiladigan sahifalar asosiy bundle'dan chiqarildi
+const PosLogin        = lazy(() => import('./pages/PosLogin'))
+const RegisterCompany = lazy(() => import('./pages/RegisterCompany'))
 const Landing         = lazy(() => import('./pages/Landing'))
 const VebSaytlar      = lazy(() => import('./pages/VebSaytlar'))
 const TelegramBotlar  = lazy(() => import('./pages/TelegramBotlar'))
@@ -134,8 +135,8 @@ export default function App() {
         <BranchProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/pos-login" element={<PosLogin />} />
-          <Route path="/register" element={<RegisterCompany />} />
+          <Route path="/pos-login" element={<Suspense fallback={<PageLoader />}><PosLogin /></Suspense>} />
+          <Route path="/register" element={<Suspense fallback={<PageLoader />}><RegisterCompany /></Suspense>} />
           <Route path="/shop" element={<Suspense fallback={<PageLoader />}><TelegramShop /></Suspense>} />
           <Route path="/courier-app" element={<Suspense fallback={<PageLoader />}><CourierApp /></Suspense>} />
 

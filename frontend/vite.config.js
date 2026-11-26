@@ -13,15 +13,25 @@ const mobileBuild = (mode) => mode === 'mobile' && {
   },
 }
 
+// Tezlik: React va router alohida "vendor" chunk — kod o'zgarganda (har deploy) uning nomi o'zgarmaydi,
+// brauzer keshidan olinadi; faqat ilova kodi qayta yuklanadi.
+const output = {
+  codeSplitting: {
+    groups: [
+      { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/, priority: 20 },
+    ],
+  },
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   base: process.env.VITE_ELECTRON || mode === 'mobile' ? './' : '/',
   plugins: [react(), mobileBuild(mode)].filter(Boolean),
-  ...(mode === 'mobile' && {
-    build: {
-      outDir: 'dist-mobile',
-      emptyOutDir: true,
-      rollupOptions: { input: resolve(__dirname, 'mobile.html') },
-    },
-  }),
+  build: mode === 'mobile'
+    ? {
+        outDir: 'dist-mobile',
+        emptyOutDir: true,
+        rolldownOptions: { input: resolve(__dirname, 'mobile.html'), output },
+      }
+    : { rolldownOptions: { output } },
 }))
