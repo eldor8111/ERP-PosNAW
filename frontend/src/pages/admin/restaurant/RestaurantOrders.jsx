@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Minus, Search, X, Send, Printer, Lock, Unlock, Percent, ArrowRightLeft, Merge, Ban, KeyRound, ShoppingBag } from 'lucide-react';
+import { Plus, Minus, Search, X, Send, Printer, Lock, Unlock, Percent, ArrowRightLeft, Merge, Ban, KeyRound, ShoppingBag, Wallet, Trash2 } from 'lucide-react';
+import { fiscalizeAndPrint } from '../../../api/hippoLocal';
 import api from '../../../api/axios';
 import { useLang } from '../../../context/LangContext';
 import { useBranch } from '../../../context/BranchContext';
@@ -11,6 +12,90 @@ import { useBranch } from '../../../context/BranchContext';
 
 const CELL = 24;
 const REASONS = ['guest_refused', 'mistake', 'spoiled', 'long_wait', 'other'];
+const PAY_TYPES = ['cash', 'card', 'uzcard', 'humo', 'click', 'payme', 'uzum'];
+const num = v => Number(String(v ?? '').replace(/\s/g, '').replace(',', '.')) || 0;
+
+// R5: mahalliy fiskal modul (PosKassa bilan bir xil sozlama: fiskalSend + fiskalId)
+function fiscalFactoryId() {
+  try {
+    if (!JSON.parse(localStorage.getItem('fiskalSend') || 'false')) return null;
+    return JSON.parse(localStorage.getItem('fiskalId') || 'null');
+  } catch { return null; }
+}
+
+async function sendFiscal(fiscal, t) {
+  const factoryId = fiscalFactoryId();
+  if (!factoryId || !fiscal?.cart?.length) return;
+  try {
+    const { fiscal: res } = await fiscalizeAndPrint({ factoryId, cart: fiscal.cart, payments: fiscal.payments, discountAmount: 0 });
+    const sign = res?.fiscal_sign ?? res?.FiscalSign;
+    if (fiscal.sale_id && sign) {
+      const seq = Number(res?.receipt_seq ?? res?.receipt_number ?? res?.ReceiptSeq);
+      const txId = res?.transaction_id ?? res?.TransactionID;
+      await api.patch(`/sales/${fiscal.sale_id}/fiscal`, {
+        fiscal_sign: String(sign),
+        fiscal_qr_url: res?.qr_code_url ?? res?.QRCodeURL ?? undefined,
+        fiscal_receipt_seq: Number.isFinite(seq) && seq >= 0 ? seq : undefined,
+        fiscal_transaction_id: txId != null ? String(txId) : undefined,
+        fiscal_at: new Date().toISOString().slice(0, 19),
+        fiscal_factory_id: factoryId,
+      }, { _suppressToast: true }).catch(() => toast.error(t('restOrd.fiscalSaveFailed')));
+    }
+    toast.success(t('restOrd.fiscalSent'));
+  } catch (err) {
+    toast.error(`${t('restOrd.fiscalFailed')}: ${err?.message || ''}`);
+  }
+}
+
+// -- to'lov oynasi --
+function PayModal({ order, onClose, onPay, busy, t }) {
+  const [rows, setRows] = useState([{ type: 'cash', amount: String(Math.round(order.total)) }]);
+  const [tips, setTips] = useState('');
+  const received = rows.reduce((s, r) => s + num(r.amount), 0);
+  const cash = rows.filter(r => r.type === 'cash').reduce((s, r) => s + num(r.amount), 0);
+  const noncash = received - cash;
+  const change = received - order.total;
+  const err = noncash > order.total ? t('restOrd.noncashTooMuch') : received < order.total ? t('restOrd.notEnough') : '';
+  const setRow = (i, k, v) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const fill = type => setRows([{ type, amount: String(Math.round(order.total)) }]);
+  return (
+    <Modal wide title={`${t('restOrd.payment')}: ${money(order.total)}`} onClose={onClose}>
+      <div className="flex flex-wrap gap-1">
+        {['cash', 'card', 'click', 'payme'].map(tp => (
+          <button key={tp} className="px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-semibold text-slate-700" onClick={() => fill(tp)}>{t(`restOrd.pay.${tp}`)}</button>
+        ))}
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} className="flex gap-2">
+          <select className={`${inputCls} w-36`} value={r.type} onChange={e => setRow(i, 'type', e.target.value)}>
+            {PAY_TYPES.map(tp => <option key={tp} value={tp}>{t(`restOrd.pay.${tp}`)}</option>)}
+          </select>
+          <input className={inputCls} inputMode="decimal" value={r.amount} onChange={e => setRow(i, 'amount', e.target.value)} />
+          {rows.length > 1 && <button className="p-2 text-slate-400 hover:text-rose-600" onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}><Trash2 className="w-4 h-4" /></button>}
+        </div>
+      ))}
+      <button className="text-xs text-blue-700 font-semibold" onClick={() => setRows(rs => [...rs, { type: 'card', amount: String(Math.max(0, Math.round(order.total - received))) }])}>
+        + {t('restOrd.addPayment')}
+      </button>
+      <label className="block">
+        <span className="block text-xs font-semibold text-slate-600 mb-1">{t('restOrd.tips')}</span>
+        <input className={inputCls} inputMode="decimal" value={tips} onChange={e => setTips(e.target.value)} placeholder="0" />
+      </label>
+      <div className="text-sm space-y-0.5">
+        <div className="flex justify-between text-slate-600"><span>{t('restOrd.received')}</span><span className="tabular-nums">{money(received)}</span></div>
+        <div className="flex justify-between font-bold text-slate-800"><span>{t('restOrd.change')}</span><span className="tabular-nums">{money(Math.max(0, change))}</span></div>
+      </div>
+      {err && <p className="text-xs text-rose-600">{err}</p>}
+      <div className="flex justify-end gap-2">
+        <button className={btnGhost} onClick={onClose}>{t('restOrd.back')}</button>
+        <button className={btnPrimary} disabled={busy || !!err}
+                onClick={() => onPay({ payments: rows.filter(r => num(r.amount) > 0).map(r => ({ type: r.type, amount: num(r.amount) })), tips: num(tips) })}>
+          {t('restOrd.payConfirm')}
+        </button>
+      </div>
+    </Modal>
+  );
+}
 const TABLE_STYLE = {
   free: 'border-slate-300 bg-white text-slate-600',
   busy: 'border-blue-500 bg-blue-50 text-blue-800',
@@ -139,6 +224,9 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   const [moveOpen, setMoveOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(null);  // list of candidate orders
   const [showPrecheck, setShowPrecheck] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [perms, setPerms] = useState(null);
+  useEffect(() => { api.get('/restaurant/me/perms', { _silent: true }).then(r => setPerms(r.data)).catch(() => setPerms({})); }, []);
 
   const load = useCallback(() => api.get(`/restaurant/orders/${orderId}`).then(r => setOrder(r.data))
     .catch(err => toast.error(err.response?.data?.detail || t('restOrd.failed'))), [orderId, t]);
@@ -283,6 +371,12 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
               </div>
             )}
 
+            {(order.status === 'open' || order.status === 'prechecked') && perms?.take_payment && drafts.length === 0 && order.items.some(i => i.status !== 'cancelled') && (
+              <button className={`${btn} w-full bg-emerald-600 hover:bg-emerald-700 text-white`} disabled={busy} onClick={() => setPayOpen(true)}>
+                <Wallet className="w-4 h-4" />{t('restOrd.payment')} &middot; {money(order.total)}
+              </button>
+            )}
+
             <div className="grid grid-cols-3 gap-2">
               {order.status === 'open' && (
                 <button className={btnGhost} disabled={busy} onClick={async () => { const o = await call('post', '/precheck'); if (o) setShowPrecheck(true); }}>
@@ -375,6 +469,17 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
                        onConfirm={a => { const run = approval.run; setApproval(null); run(a); }} />
       )}
       {showPrecheck && <PrecheckView order={order} t={t} onClose={() => setShowPrecheck(false)} />}
+      {payOpen && (
+        <PayModal order={order} busy={busy} t={t} onClose={() => setPayOpen(false)}
+                  onPay={async body => {
+                    const res = await call('post', '/pay', body);
+                    if (!res) return;
+                    setPayOpen(false);
+                    toast.success(res.change > 0 ? `${t('restOrd.paid')}. ${t('restOrd.change')}: ${money(res.change)}` : t('restOrd.paid'));
+                    await sendFiscal(res.fiscal, t);
+                    onClose();
+                  }} />
+      )}
     </div>
   );
 }

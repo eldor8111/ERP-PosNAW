@@ -137,6 +137,10 @@ def create_return_sale(
     # ko'rinmay qoladi (inventarizatsiyada yo'qolib qoladi).
     if not data.warehouse_id:
         raise HTTPException(status_code=400, detail="Ombor tanlanmagan — qaytarish uchun ombor majburiy")
+    # R5: restoran cheki va taomlari restoran bo'limidan qaytariladi (taom qoldig'i yuritilmaydi)
+    from app.services.restaurant_guard import assert_no_restaurant_items, assert_not_restaurant_sale
+    assert_not_restaurant_sale(db, getattr(data, "original_sale_id", None))
+    assert_no_restaurant_items(db, [i.product_id for i in data.items])
     # Ombor shu korxonaning faol ombori bo'lishi shart (T0.13); filial ruxsati joriy korxona bo'yicha
     # (T1.2: uc.branch_id ∪ user_branches), global users.branch_id bo'yicha emas
     validate_sale_warehouse(db, current_user, data.warehouse_id)

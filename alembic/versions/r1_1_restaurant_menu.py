@@ -54,7 +54,7 @@ def upgrade() -> None:
                                                    name='fk_products_station_id'), nullable=True))
     if 'ck_products_item_kind' not in _checks(insp, 'products'):
         op.create_check_constraint('ck_products_item_kind', 'products',
-                                   "item_kind IN ('goods','dish','semi','ingredient','modifier')")
+                                   "item_kind IN ('goods','dish','semi','ingredient','modifier','service')")
     _add(insp, 'categories', sa.Column('station_id', sa.Integer(),
                                        sa.ForeignKey('kitchen_stations.id', ondelete='SET NULL',
                                                      name='fk_categories_station_id'), nullable=True))

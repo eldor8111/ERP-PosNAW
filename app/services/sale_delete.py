@@ -61,6 +61,9 @@ def cancel_sale_effects(db: Session, sale: Sale, current_user: User, locked_cust
     `delete_sale` va `update_sale` (completed -> cancelled) bir xil funksiyadan foydalanadi.
     Qulf tartibi: mijoz (chaqiruvchida) -> qoldiq -> hamyon.
     """
+    # R5: restoran cheki sotuvi bu yerdan bekor qilinmaydi (taom qoldig'i yo'q, ingredientlar yechilgan)
+    from app.services.restaurant_guard import assert_not_restaurant_sale
+    assert_not_restaurant_sale(db, sale.id)
     if keep_movement_history:
         _restore_sale_stock_with_storno(db, sale, current_user.id)
     else:

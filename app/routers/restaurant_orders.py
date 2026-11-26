@@ -7,7 +7,7 @@ qurilmada o'zgargan bo'lsa 409 `ORDER_CHANGED` (13-bo'lim, optimistik qulf).
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -98,6 +98,18 @@ class OrderPatch(BaseModel):
     comment: Optional[str] = None
 
 
+class PayRow(BaseModel):
+    type: str
+    amount: float
+    reference: Optional[str] = None
+    terminal_id: Optional[int] = None
+
+
+class PayIn(BaseModel):
+    payments: List[PayRow]
+    tips: float = 0
+
+
 class PinIn(BaseModel):
     pin: str
     password: Optional[str] = None
@@ -143,6 +155,8 @@ def _order_out(db: Session, o: RestaurantOrder, settings: dict) -> dict:
         "comment": o.comment, "version": o.version, "opened_at": _iso(o.opened_at),
         "prechecked_at": _iso(o.prechecked_at), "closed_at": _iso(o.closed_at),
         "cancel_reason": o.cancel_reason, "merged_into_id": o.merged_into_id,
+        "sale_id": o.sale_id, "payments": o.payments or [], "tips_amount": _f(o.tips_amount),
+        "change_amount": _f(o.change_amount),
         "locked": o.status == "prechecked" and bool(settings.get("precheck_lock", True)),
         "items": [_item_out(it) for it in o.items],
     }
@@ -380,6 +394,61 @@ def change_waiter(order_id: int, payload: WaiterIn, version: Optional[int] = Non
     o, settings = _ctx_order(db, user, ctx, order_id, version)
     svc.transfer_waiter(db, user, o, settings, payload.waiter_id)
     return _done(db, o, settings)
+
+
+# ───────────────────────── to'lov (R5) ─────────────────────────
+
+@router.post("/orders/{order_id}/pay")
+def pay(order_id: int, payload: PayIn, request: Request, version: Optional[int] = None, db: Session = Depends(get_db),
+        user: User = Depends(get_current_user), ctx: BranchContext = Depends(get_branch_context)):
+    from app.services.restaurant_payment import pay_order
+    o, settings = _ctx_order(db, user, ctx, order_id, version)
+    sale, change = pay_order(db, user, o, settings, [p.model_dump() for p in payload.payments], payload.tips,
+                             ip=request.client.host if request.client else None)
+    db.refresh(o)
+    out = _order_out(db, o, settings)
+    out["sale"] = {"id": sale.id, "number": sale.number}
+    out["change"] = float(change)
+    out["fiscal"] = _fiscal_payload(db, o)
+    return out
+
+
+def _fiscal_payload(db: Session, o: RestaurantOrder) -> dict:
+    """Mahalliy fiskal modul (hippoLocal.fiscalizeAndPrint) uchun savat: qatorlar, chegirma taqsimoti, to'lovlar.
+    Chegirma taom qatorlariga summasiga mutanosib taqsimlanadi (xizmat haqi qatoriga tushmaydi)."""
+    from decimal import ROUND_HALF_UP, Decimal
+    from app.models.product import Product
+    from app.services.restaurant_payment import service_product
+    live = [it for it in o.items if it.status != "cancelled"]
+    gross = [Decimal(str(it.quantity)) * (Decimal(str(it.unit_price)) + Decimal(str(it.modifiers_total or 0))) for it in live]
+    total_gross = sum(gross, Decimal("0"))
+    disc = Decimal(str(o.discount_amount or 0))
+    cart, left = [], disc
+    for idx, (it, g) in enumerate(zip(live, gross)):
+        p = db.get(Product, it.product_id)
+        d = (left if idx == len(live) - 1 else (disc * g / total_gross).quantize(Decimal("1"), rounding=ROUND_HALF_UP)) if total_gross > 0 else Decimal("0")
+        left -= d
+        cart.append({"name": it.name, "barcode": p.barcode if p else "", "mxik_code": getattr(p, "mxik_code", None) or "",
+                     "package_code": getattr(p, "package_code", None),
+                     "vat_rate_type": getattr(getattr(p, "vat_rate_type", None), "value", None),
+                     "unit_price": float(Decimal(str(it.unit_price)) + Decimal(str(it.modifiers_total or 0))),
+                     "quantity": float(it.quantity), "discount": float(d)})
+    if o.service_amount and Decimal(str(o.service_amount)) > 0:
+        sp = service_product(db, o.company_id)
+        cart.append({"name": sp.name, "barcode": sp.barcode, "mxik_code": sp.mxik_code or "",
+                     "package_code": sp.package_code,
+                     "vat_rate_type": getattr(sp.vat_rate_type, "value", None),
+                     "unit_price": float(o.service_amount), "quantity": 1.0, "discount": 0.0})
+    return {"cart": cart, "payments": o.payments or [], "discount": 0, "sale_id": o.sale_id}
+
+
+@router.get("/orders/{order_id}/fiscal")
+def fiscal_payload(order_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                   ctx: BranchContext = Depends(get_branch_context)):
+    o, _ = _ctx_order(db, user, ctx, order_id, lock=False)
+    if o.status != "paid":
+        raise HTTPException(status_code=409, detail="Chek hali to'lanmagan")
+    return _fiscal_payload(db, o)
 
 
 # ───────────────────────── stol holatlari ─────────────────────────

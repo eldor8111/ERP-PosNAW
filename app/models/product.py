@@ -10,6 +10,10 @@ from app.database import Base
 from app.models.mxik import VatRateType
 
 
+# R5: restoran turlari — o'z qoldig'i yuritilmaydi (taom ingredientlari restoran servisida yechiladi)
+NO_STOCK_ITEM_KINDS = ("dish", "modifier", "service")
+
+
 class ProductStatus(str, enum.Enum):
     active = "active"
     inactive = "inactive"
@@ -82,7 +86,8 @@ class Product(Base):
     requires_marking = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # R1.1: restoran rejimida mahsulot turi: goods (tayyor tovar), dish (taom, tex karta bilan),
-    # semi (yarim tayyor), ingredient (xom ashyo), modifier (qo'shimcha). Do'konda doim 'goods'.
+    # semi (yarim tayyor), ingredient (xom ashyo), modifier (qo'shimcha), service (xizmat haqi qatori, R5).
+    # Do'konda doim 'goods'. dish/modifier/service o'z qoldig'isiz (sale_create qoldiqni yechmaydi).
     item_kind = Column(String(20), nullable=False, default="goods", server_default="goods")
     # R1.4: taom qaysi oshxona sexiga yuboriladi (NULL = kategoriyaning sexi)
     station_id = Column(Integer, ForeignKey("kitchen_stations.id", ondelete="SET NULL"), nullable=True)
@@ -130,7 +135,7 @@ class Product(Base):
         Index('uq_products_plu_active', 'company_id', 'plu_code', unique=True,
               postgresql_where=text('is_deleted = false AND plu_code IS NOT NULL')),
         CheckConstraint('plu_code BETWEEN 1 AND 99999', name='ck_products_plu_range'),
-        CheckConstraint("item_kind IN ('goods','dish','semi','ingredient','modifier')", name='ck_products_item_kind'),
+        CheckConstraint("item_kind IN ('goods','dish','semi','ingredient','modifier','service')", name='ck_products_item_kind'),
     )
 
 

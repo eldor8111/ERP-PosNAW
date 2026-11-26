@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.models.bom import BOM, BOMItem
 from app.models.category import Category
-from app.models.product import Product, ProductStatus
+from app.models.product import NO_STOCK_ITEM_KINDS, Product, ProductStatus
 from app.models.restaurant import KitchenStation
 
 ITEM_KINDS = ("goods", "dish", "semi", "ingredient", "modifier")
@@ -25,7 +25,7 @@ CARD_KINDS = ("dish", "semi")
 # Tex karta tarkibiga kira oladigan turlar
 COMPONENT_KINDS = ("ingredient", "semi", "goods")
 # O'z qoldig'i yuritilmaydigan turlar (taom ingredientlari yechiladi)
-NO_STOCK_KINDS = ("dish", "modifier")
+NO_STOCK_KINDS = NO_STOCK_ITEM_KINDS   # ("dish", "modifier", "service")
 UNITS = ("dona", "porsiya", "kg", "g", "l", "ml")
 MAX_DEPTH = 8
 

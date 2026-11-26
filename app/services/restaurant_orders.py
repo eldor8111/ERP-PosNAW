@@ -342,6 +342,8 @@ def send_to_kitchen(db: Session, user: User, order: RestaurantOrder, settings: d
         it.status = "sent"
         it.sent_at = now
     tickets = _make_tickets(db, user, order, drafts, "order")
+    from app.services.restaurant_payment import on_sent
+    on_sent(db, user, order, drafts, settings)          # R7.1: 'sent' rejimida ingredientlar shu yerda yechiladi
     bump(order)
     return tickets
 
@@ -392,6 +394,8 @@ def cancel_item(db: Session, user: User, order: RestaurantOrder, settings: dict,
     item.cancel_approved_by = approver.id if approver else None
     if was != "served":
         _make_tickets(db, user, order, [item], "cancel")
+    from app.services.restaurant_payment import on_cancelled
+    on_cancelled(db, user, order, item, settings)       # R7.3: tayyorlangan — chiqim, aks holda qaytarish
     recalc(db, order, settings)
     bump(order)
     log_action(db=db, action="REST_ITEM_CANCEL", entity_type="restaurant_order", entity_id=order.id, user_id=user.id,
@@ -521,6 +525,9 @@ def cancel_order(db: Session, user: User, order: RestaurantOrder, settings: dict
     db.flush()
     if kitchen_cancel:
         _make_tickets(db, user, order, kitchen_cancel, "cancel")
+    from app.services.restaurant_payment import on_cancelled
+    for it in sent:
+        on_cancelled(db, user, order, it, settings)
     order.status = "cancelled"
     order.cancelled_at = now
     order.cancel_reason = (reason or "empty")[:300]

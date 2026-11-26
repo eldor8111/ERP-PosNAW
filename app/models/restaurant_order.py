@@ -53,6 +53,11 @@ class RestaurantOrder(Base):
     cancelled_at = Column(DateTime, nullable=True)
     cancel_reason = Column(String(300), nullable=True)
     merged_into_id = Column(Integer, ForeignKey("restaurant_orders.id", ondelete="SET NULL"), nullable=True)
+    # R5: to'lov. payments — [{type, amount, reference, terminal_id}] surati; tips — choy puli (tushumga kirmaydi)
+    payments = Column(JSON, nullable=True)
+    tips_amount = Column(Numeric(16, 2), nullable=False, default=0, server_default="0")
+    change_amount = Column(Numeric(16, 2), nullable=False, default=0, server_default="0")
+    paid_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     items = relationship("RestaurantOrderItem", back_populates="order", cascade="all, delete-orphan",
                          order_by="RestaurantOrderItem.id")
@@ -94,6 +99,10 @@ class RestaurantOrderItem(Base):
     cancel_approved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     # Tayyorlangan taom bekor qilinsa ingredientlari chiqimga yoziladi (R7.3)
     write_off = Column(Boolean, nullable=False, default=False, server_default="false")
+    # R7.1: ingredientlar ombordan yechildimi (to'lovda, 'sent' rejimida yuborishda yoki chiqimda)
+    stock_deducted = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Yechilgan ingredientlar: [{product_id, quantity, warehouse_id}] — bekor qilinsa aynan shular qaytariladi
+    stock_lines = Column(JSON, nullable=True)
 
     order = relationship("RestaurantOrder", back_populates="items")
 

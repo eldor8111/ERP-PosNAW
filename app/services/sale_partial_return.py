@@ -37,6 +37,8 @@ def process_partial_return(
     original_sale = apply_sale_branch_filter(original_q, db, current_user).first()
     if not original_sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
+    from app.services.restaurant_guard import assert_not_restaurant_sale   # R5
+    assert_not_restaurant_sale(db, original_sale.id)
     if original_sale.status in (SaleStatus.refunded, SaleStatus.cancelled):
         raise HTTPException(status_code=400, detail="Bekor qilingan yoki to'liq qaytarilgan sotuvdan tovar qaytarib bo'lmaydi")
 

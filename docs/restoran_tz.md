@@ -591,6 +591,14 @@ Hali ochiq:
 | R3.4 Chegirma (rol limiti, sabab, tasdiq), xizmat haqi (zal yoki korxona foizi, chegirmadan keyin) | Bajarildi. Qatorga chegirma va choy puli R5 da |
 | Optimistik qulf (`version`, 409 `ORDER_CHANGED`) | Bajarildi |
 | `/admin/restaurant/orders` sahifasi (zal sxemasi, chek, menyu, tasdiq oynasi, pre-chek chop etish, "Mening PIN") | Bajarildi |
+| R5.1-R5.2 To'lov: aralash to'lov, qaytim (faqat naqddan), choy puli, `Sale` yaratish (`create_sale` orqali: kassa, smena, hamyon), xizmat haqi alohida "Xizmat haqi" qatori, chegirma sotuvga | Bajarildi |
+| Fiskal chek: mavjud mahalliy modul (`fiskalSend`/`fiskalId` sozlamasi), chegirma taom qatorlariga taqsimlanadi, natija `PATCH /sales/{id}/fiscal` | Bajarildi. "Xizmat haqi" mahsulotiga MXIK kodini korxona kiritadi |
+| R7.1 Ingredientlarni yechish: sotuv paytidagi tex karta versiyasi, filial "Oshxona" omboridan; `paid` va `sent` rejimlari; yarim tayyor qoldig'i yetmasa o'z kartasi bo'yicha yoyiladi; taom tannarxi sotuv qatoriga | Bajarildi |
+| R7.3 Tayyorlangan taom bekor qilinsa chiqim (`rest_writeoff`), pishmagani `sent` rejimida omborga qaytadi | Bajarildi |
+| Taom, modifikator va xizmat haqi qatorlarining o'z qoldig'i yo'q (`sale_create` ularni yechmaydi, oddiy POS'da ham) | Bajarildi |
+| Restoran sotuvini umumiy qaytarish va o'chirish yo'llaridan himoya (409 `RESTAURANT_SALE`, `RESTAURANT_ITEM`) | Bajarildi |
+| R5.4 Restoran chekini qaytarish (pul qaytadi, tayyorlangan taom omborga qaytmaydi) | Keyingi qadam |
+| R5.2 Hisobni bo'lish (mehmon / qator bo'yicha) | 2-bosqich |
 
 Ruxsatlar (`restaurant` bo'limi, rol ruxsatlarida yoki xodimning shaxsiy ruxsatlarida): `orders`, `all_tables`,
 `cancel_sent`, `discount_max` (foiz), `unlock_precheck`, `move_table`, `kitchen`, `take_payment`, `waiter`.

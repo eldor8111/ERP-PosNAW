@@ -41,6 +41,7 @@ from app.services.warehouse_resolver import resolve_warehouse
 from app.services.promotion_service import load_sale_pricing_context
 from app.services.wallet_resolver import resolve_wallet
 from app.services.tenant_guards import NO_BRANCH_COMPANY
+from app.models.product import NO_STOCK_ITEM_KINDS  # R5: restoran turlari (o'z qoldig'isiz)
 
 
 def _is_open_box_line(unit_ctx) -> bool:
@@ -854,6 +855,20 @@ def create_sale(
         stock_variant_id = None if is_virtual else variant_id
         ratio = Decimal(str(item_d["conversion"].ratio)) if is_virtual else Decimal("1")
         qty_to_deduct = qty_needed * ratio if is_virtual else qty_needed
+
+        # R5: restoran taomi / modifikator / xizmat haqi — o'z qoldig'i yo'q (qoldiq va partiya yechilmaydi);
+        # taom ingredientlarini restoran servisi tex karta bo'yicha yechadi va tannarxni yozadi.
+        if getattr(product, "item_kind", "goods") in NO_STOCK_ITEM_KINDS:
+            new_sale_items.append((SaleItem(
+                sale_id=sale.id, product_id=product.id, variant_id=variant_id,
+                warehouse_id=item_d.get("item_warehouse_id") or preferred_wh_id,
+                unit=product.unit or "dona", quantity=qty_needed, unit_price=item_d["unit_price"],
+                cost_price=Decimal("0"), discount=item_d["discount"], subtotal=item_d["subtotal"],
+                currency_code=item_d["currency_code"], exchange_rate=item_d["exchange_rate"],
+                marking_codes=item_d["marking_codes"] or None,
+                promotion_id=item_d.get("promotion_id"), promotion_discount=item_d.get("promotion_discount"),
+            ), []))
+            continue
 
         item_preferred_wh = item_d.get("item_warehouse_id") or preferred_wh_id
         if not item_preferred_wh:
