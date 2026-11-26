@@ -584,4 +584,15 @@ Hali ochiq:
 | Menyu sahifasi `/admin/restaurant/menu` (taomlar, yarim tayyor, ingredientlar, tovarlar, sexlar) | Bajarildi |
 | R2.1 Zallar va stollar: qo'shish, tahrirlash, nofaol qilish, zal bo'yicha xizmat haqi, filial doirasi | Bajarildi |
 | R2.2 Zal sxemasi `/admin/restaurant/floor`: sudrab joylash, o'lcham, shakl, bir yo'la saqlash (audit) | Bajarildi. Stol holatlari ranglari R3 da (ochiq cheklarga bog'liq) |
-| R2.3 Stolni ko'chirish, birlashtirish, bir stolda bir nechta chek | R3 da, cheklar bilan birga |
+| R2.3 Stolni ko'chirish, birlashtirish, bir stolda bir nechta chek, chekni boshqa xodimga o'tkazish | Bajarildi (R3 bilan) |
+| R2.2 Stol holatlari: bo'sh, band, taom tayyor, hisob so'ralgan (15 soniyada yangilanadi) | Bajarildi. Bron holati R8.1 da |
+| R3.1-R3.2 Chek, qatorlar (narx va tex karta versiyasi surati), kurslar, oshxonaga yuborish (sex tiketlari), pre-chek va qulf | Bajarildi |
+| R3.3 Bekor qilish: sabab, menejer PIN tasdig'i (5 xato urinishdan keyin 10 daqiqa blok), chiqim belgisi, oshxonaga "bekor" tiketi, audit | Bajarildi |
+| R3.4 Chegirma (rol limiti, sabab, tasdiq), xizmat haqi (zal yoki korxona foizi, chegirmadan keyin) | Bajarildi. Qatorga chegirma va choy puli R5 da |
+| Optimistik qulf (`version`, 409 `ORDER_CHANGED`) | Bajarildi |
+| `/admin/restaurant/orders` sahifasi (zal sxemasi, chek, menyu, tasdiq oynasi, pre-chek chop etish, "Mening PIN") | Bajarildi |
+
+Ruxsatlar (`restaurant` bo'limi, rol ruxsatlarida yoki xodimning shaxsiy ruxsatlarida): `orders`, `all_tables`,
+`cancel_sent`, `discount_max` (foiz), `unlock_precheck`, `move_table`, `kitchen`, `take_payment`, `waiter`.
+Sukut: admin, direktor, menejer hammasi; kassir cheklar, ko'chirish va to'lov, bekor qilish va chegirma tasdiq bilan.
+Ofitsiant uchun maxsus rolga `waiter: true` beriladi: "hamma stollar" va "to'lov olish" restoran sozlamasidan.

@@ -78,3 +78,4 @@ from .product_units import ProductUnit, SaleItemUnit  # type: ignore  # D2.4: qu
 from .uzum_transaction import UzumTransaction  # type: ignore  # Uzum Bank Merchant API
 from .ai_assistant import AiConversation, AiMessage, AiFile  # type: ignore  # E-code AI yordamchi (Claude)
 from .restaurant import KitchenStation, Hall, RestaurantTable  # type: ignore  # R0.3: restoran sexlari, zallar, stollar
+from .restaurant_order import RestaurantOrder, RestaurantOrderItem, KitchenTicket  # type: ignore  # R3: restoran cheklari

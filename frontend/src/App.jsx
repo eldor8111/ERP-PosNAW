@@ -52,6 +52,7 @@ const PaymentReconciliation = lazy(() => import('./pages/admin/PaymentReconcilia
 const PharmacyHub     = lazy(() => import('./pages/admin/PharmacyHub'))  // D4.6
 const RestaurantMenu  = lazy(() => import('./pages/admin/restaurant/RestaurantMenu'))  // R1
 const RestaurantFloor = lazy(() => import('./pages/admin/restaurant/RestaurantFloor'))  // R2
+const RestaurantOrders = lazy(() => import('./pages/admin/restaurant/RestaurantOrders'))  // R3
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const MarketplaceAgents = lazy(() => import('./pages/admin/MarketplaceAgents'))
 const AICopilot       = lazy(() => import('./pages/admin/EcodeAI'))
@@ -94,17 +95,17 @@ function PageLoader() {
 }
 
 function AdminIndex() {
-  // R0.4: restoran korxonasi bosh sahifasi kassa (ulgurji sotuv ekrani restoranda yo'q)
+  // R0.4/R3: restoran korxonasi bosh sahifasi zal buyurtmalari (ulgurji sotuv ekrani restoranda yo'q)
   const features = useCompanyFeatures()
   if (features === null) return <PageLoader />
-  return <Navigate to={features.restaurant ? "pos-kassa" : "sotuv"} replace />
+  return <Navigate to={features.restaurant ? "restaurant/orders" : "sotuv"} replace />
 }
 
 // R0.4: savdoga xos sahifa restoran korxonasida ochilmaydi (eski havola yoki /admin/sotuv ga yo'naltirish bo'lsa)
 function RetailOnly({ children }) {
   const features = useCompanyFeatures()
   if (features === null) return <PageLoader />
-  if (features.restaurant) return <Navigate to="/admin/pos-kassa" replace />
+  if (features.restaurant) return <Navigate to="/admin/restaurant/orders" replace />
   return children
 }
 
@@ -173,6 +174,7 @@ export default function App() {
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             {/* D4.6: Dorixona markazi — faqat pharmacy moduli yoqilgan korxonada */}
+            <Route path="restaurant/orders" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantOrders /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/floor" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantFloor /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/menu" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantMenu /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="pharmacy" element={<PrivateRoute roles={PHARMACY_ROUTE_ROLES}><FeatureGate feature="pharmacy"><Suspense fallback={<PageLoader />}><PharmacyHub /></Suspense></FeatureGate></PrivateRoute>} />

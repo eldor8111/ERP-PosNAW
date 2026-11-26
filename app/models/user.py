@@ -50,6 +50,8 @@ class User(Base):
     status = Column(Enum(UserStatus), default=UserStatus.active)
     tg_chat_id = Column(String(50), nullable=True)  # Telegram OTP uchun
     fcm_token = Column(String(255), nullable=True)  # Push bildirishnomalar uchun
+    # R3.3: restoranda tasdiqlash (bekor qilish, chegirma) va keyin planshetga tez kirish uchun PIN (bcrypt xeshi)
+    pin_hash = Column(String(200), nullable=True)
     subscription_ends_at = Column(DateTime, nullable=True)
     is_trial = Column(Boolean, default=False)
     paid_amount = Column(Numeric(18, 2), default=0)

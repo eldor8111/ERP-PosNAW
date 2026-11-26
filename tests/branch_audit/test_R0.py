@@ -307,10 +307,10 @@ def test_sidebar_hides_retail_only_items_for_restaurant():
     assert 'hideForRestaurant: true' in sfa
 
 
-def test_admin_index_redirects_restaurant_to_pos():
+def test_admin_index_redirects_restaurant_to_orders():
     s = _read('frontend/src/App.jsx')
     block = s[s.index('function AdminIndex()'):s.index('function AdminIndex()') + 900]
-    assert 'useCompanyFeatures' in block and "features.restaurant" in block and '"pos-kassa"' in block
+    assert 'useCompanyFeatures' in block and "features.restaurant" in block and '"restaurant/orders"' in block
 
 
 def test_super_admin_page_can_change_business_type():

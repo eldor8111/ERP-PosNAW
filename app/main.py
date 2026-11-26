@@ -453,6 +453,8 @@ def _run_auto_migrations(engine):
         "ALTER TABLE bom_items ADD COLUMN IF NOT EXISTS net_qty NUMERIC(14, 4);",
         "ALTER TABLE bom_items ADD COLUMN IF NOT EXISTS loss_cold_pct NUMERIC(5, 2);",
         "ALTER TABLE bom_items ADD COLUMN IF NOT EXISTS loss_hot_pct NUMERIC(5, 2);",
+        # R3: xodim PIN kodi (users jadvali har so'rovda o'qiladi — alembic'siz ham ustun bo'lsin)
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_hash VARCHAR(200);",
         # Dorixona moduli: alembic (d1_3, d3_3) bilan bir xil, server alembic'siz ishga tushsa ham ustunlar bo'lsin
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_number VARCHAR(100);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_date DATE;",
@@ -884,6 +886,8 @@ from app.routers import restaurant_menu as _restaurant_menu_router  # noqa: E402
 app.include_router(_restaurant_menu_router.router, prefix=API_PREFIX)  # R1: restoran menyusi, tex kartalar, sexlar
 from app.routers import restaurant_floor as _restaurant_floor_router  # noqa: E402  # R2
 app.include_router(_restaurant_floor_router.router, prefix=API_PREFIX)  # R2: zallar, stollar va zal sxemasi
+from app.routers import restaurant_orders as _restaurant_orders_router  # noqa: E402  # R3
+app.include_router(_restaurant_orders_router.router, prefix=API_PREFIX)  # R3: restoran cheklari, oshxona tiketlari, PIN
 
 # Serve uploaded static files
 import os
