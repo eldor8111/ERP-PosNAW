@@ -13,7 +13,7 @@ import {
   ChevronRight, ShoppingBag, Navigation, Package, DollarSign, BarChart3,
   Settings as SettingsIcon, ShieldAlert, Layers, ShieldCheck, Store, Truck, Shield,
   Users, AlertTriangle, FileText, CheckCircle2, SlidersHorizontal,
-  Building2, Tag, Landmark, Scale, MapPin, MessageSquare
+  Building2, Tag, Landmark, Scale, MapPin, MessageSquare, UtensilsCrossed
 } from 'lucide-react';
 import AnnouncementModal from './AnnouncementModal';
 import AnnouncementBanner from './AnnouncementBanner';
@@ -82,6 +82,24 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           path: '/admin/sotuv',
           roles: ROLE_GROUPS.SALES,
           hideForRestaurant: true,
+        },
+      ],
+    },
+    {
+      // R1: restoran bo'limi — faqat restoran korxonasida (features.restaurant)
+      key: 'restaurant_group',
+      label: t('nav.restaurant') || 'Restoran',
+      primaryPath: '/admin/restaurant/menu',
+      icon: <UtensilsCrossed className="w-[20px] h-[20px]" />,
+      feature: 'restaurant',
+      roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+      links: [
+        {
+          name: t('nav.restaurantMenu') || 'Menyu va tex kartalar',
+          path: '/admin/restaurant/menu',
+          feature: 'restaurant',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <UtensilsCrossed className="w-[18px] h-[18px]" />,
         },
       ],
     },

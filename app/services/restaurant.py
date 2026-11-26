@@ -152,11 +152,10 @@ def provision_restaurant(db: Session, company, branch, fmt: Optional[str] = None
         db.flush()
         created["warehouse"] = True
 
-    existing_st = {n for (n,) in db.query(KitchenStation.name).filter(
-        KitchenStation.company_id == company.id, KitchenStation.branch_id == branch.id)}
-    for i, name in enumerate(DEFAULT_STATIONS):
-        if name not in existing_st:
-            db.add(KitchenStation(company_id=company.id, branch_id=branch.id, name=name, sort_order=i))
+    # sexlar korxona darajasida: faqat korxonada hali birorta sex bo'lmasa yaratiladi
+    if not db.query(KitchenStation.id).filter(KitchenStation.company_id == company.id).first():
+        for i, name in enumerate(DEFAULT_STATIONS):
+            db.add(KitchenStation(company_id=company.id, name=name, sort_order=i))
             created["stations"] += 1
 
     if settings.get("table_service"):

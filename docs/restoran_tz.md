@@ -116,15 +116,17 @@ ma'lumotlari o'chirilmaydi, faqat yashiriladi.
 
 Mavjud `boms` / `bom_items` kengaytiriladi (yangi jadval ochilmaydi):
 
-- `boms`: `output_qty` (chiqish, masalan 1 porsiya = 350 g), `cooking_time_min`, `instructions Text`,
-  `photo_url`.
-- `bom_items`: `gross_qty` (brutto), `net_qty` (netto), `loss_cold_pct`, `loss_hot_pct`, `unit`.
-  Ombordan **brutto** kamayadi; tannarx brutto bo'yicha hisoblanadi.
+- `boms`: `output_qty` (karta beradigan chiqish, mahsulot birligida: taom uchun 1 porsiya, yarim tayyor uchun
+  masalan 5 kg), `output_weight_g` (porsiya og'irligi, ma'lumot uchun), `cooking_time_min`, `instructions`,
+  `version`, `created_by`. Rasm mahsulotning o'z rasmidan olinadi.
+- `bom_items`: `gross_qty` (brutto, butun karta uchun), `net_qty` (netto), `loss_cold_pct`, `loss_hot_pct`.
+  Birlik ingredient mahsulotining birligi. `quantity_per_unit = gross_qty / output_qty` (1 birlik uchun), shu
+  qiymatni ishlab chiqarish va R7.1 yechish ishlatadi. Ombordan **brutto** kamayadi; tannarx brutto bo'yicha.
 - Ingredient sifatida `semi` ham bo'lishi mumkin (ichma-ich karta). Aylana bog'lanish taqiqlanadi.
 - Tex karta o'zgarsa yangi versiya yaratiladi, eski sotuvlar eski versiya bo'yicha qoladi.
 - Ekranda: har bir qatorning narxi, taomning to'liq tannarxi, **food cost %** = tannarx / sotuv narxi.
   Food cost belgilangan chegaradan (sukut 35%) oshsa qizil.
-- Excel import/eksport (mavjud mahsulot importi kabi).
+- Excel import/eksport (mavjud mahsulot importi kabi): 2-bosqichga ko'chirildi.
 
 ### R1.3 Modifikatorlar
 
@@ -135,7 +137,10 @@ Mavjud `boms` / `bom_items` kengaytiriladi (yangi jadval ochilmaydi):
 
 ### R1.4 Sexlar (stansiyalar) va yo'naltirish
 
-- `kitchen_stations`: filial, nomi, printer (pos-desktop orqali ESC/POS), KDS yoqilganmi.
+- `kitchen_stations`: korxona darajasida (nomi, KDS yoqilganmi, tartib). Taom yoki kategoriya bitta sexga
+  biriktiriladi va hamma filialda shu sexga ketadi.
+- Filial bo'yicha printer manzili (pos-desktop orqali ESC/POS) R4.1 da alohida jadvalda: `station_printers`
+  (sex, filial, printer).
 - Kategoriya yoki taomga sex biriktiriladi (taomdagi qiymat ustun).
 - Buyurtma yuborilganda har bir sexga faqat o'zining qatorlari ketadi.
 
@@ -573,3 +578,7 @@ Hali ochiq:
 | R0.3 Oshxona ombori, sexlar, zal va 10 stol, kategoriyalar, sozlamalar (yangi filialda ham) | Bajarildi. Rollar R3/R6 da, ruxsat kalitlari bilan birga |
 | R0.4 Menyu ajratish, `require_restaurant`, `/restaurant/settings`, `/restaurant/layout` | Bajarildi |
 | R0.5 Super Admin'da biznes turi va formatni almashtirish (audit bilan) | Bajarildi |
+| R1.1 `products.item_kind`, taom o'z qoldig'isiz (`product_type = service`), ichki kod | Bajarildi (`min_stock` ni kasr songa o'tkazish R7 da) |
+| R1.2 Tex karta: brutto/netto/yo'qotish, chiqish, versiyalar, ichma-ich tannarx, food cost, valyuta | Bajarildi (Excel import 2-bosqichda) |
+| R1.4 Sexlar (korxona darajasida), kategoriya va taom bo'yicha sex | Bajarildi |
+| Menyu sahifasi `/admin/restaurant/menu` (taomlar, yarim tayyor, ingredientlar, tovarlar, sexlar) | Bajarildi |

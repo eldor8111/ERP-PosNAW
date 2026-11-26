@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -19,6 +19,14 @@ class BOM(Base):
     is_active = Column(Boolean, default=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # R1.2: restoran texnologik kartasi. output_qty — karta beradigan chiqish (mahsulot birligida, taom uchun
+    # 1 porsiya); bom_items.quantity_per_unit = gross_qty / output_qty. output_weight_g — porsiya og'irligi (ma'lumot).
+    output_qty = Column(Numeric(14, 3), nullable=True)
+    output_weight_g = Column(Numeric(10, 1), nullable=True)
+    cooking_time_min = Column(Integer, nullable=True)
+    instructions = Column(Text, nullable=True)
+    version = Column(Integer, nullable=False, default=1, server_default="1")
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     product = relationship("Product", foreign_keys=[product_id])
     variant = relationship("ProductVariant", foreign_keys=[variant_id])
@@ -35,6 +43,11 @@ class BOMItem(Base):
     component_variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True)
     # 1 dona (yoki 1 birlik) tayyor mahsulot uchun kerak bo'ladigan xom ashyo miqdori
     quantity_per_unit = Column(Numeric(14, 4), nullable=False)
+    # R1.2: tex karta qatori (butun karta uchun): brutto ombordan yechiladi, netto va yo'qotishlar ma'lumot uchun
+    gross_qty = Column(Numeric(14, 4), nullable=True)
+    net_qty = Column(Numeric(14, 4), nullable=True)
+    loss_cold_pct = Column(Numeric(5, 2), nullable=True)
+    loss_hot_pct = Column(Numeric(5, 2), nullable=True)
 
     bom = relationship("BOM", back_populates="items")
     component_product = relationship("Product", foreign_keys=[component_product_id])

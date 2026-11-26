@@ -61,9 +61,7 @@ def upgrade() -> None:
             'kitchen_stations',
             sa.Column('id', sa.Integer(), primary_key=True),
             sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
-            sa.Column('branch_id', sa.Integer(), sa.ForeignKey('branches.id', ondelete='CASCADE'), nullable=False),
             sa.Column('name', sa.String(100), nullable=False),
-            sa.Column('printer', sa.String(200), nullable=True),
             sa.Column('kds_enabled', sa.Boolean(), nullable=False, server_default=sa.false()),
             sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0'),
             sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
@@ -71,7 +69,6 @@ def upgrade() -> None:
         )
         op.create_index('ix_kitchen_stations_id', 'kitchen_stations', ['id'])
         op.create_index('ix_kitchen_stations_company_id', 'kitchen_stations', ['company_id'])
-        op.create_index('ix_kitchen_stations_branch_id', 'kitchen_stations', ['branch_id'])
 
     if 'halls' not in tables:
         op.create_table(

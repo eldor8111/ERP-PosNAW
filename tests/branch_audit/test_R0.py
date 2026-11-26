@@ -162,7 +162,8 @@ def test_new_branch_of_restaurant_is_provisioned(db, mk, client):
     r = client.login(u).post("/api/branches", json={"name": "Ikkinchi filial"})
     assert r.status_code in (200, 201), r.text
     b2 = db.query(Branch).filter(Branch.company_id == c.id, Branch.name == "Ikkinchi filial").one()
-    assert db.query(KitchenStation).filter(KitchenStation.branch_id == b2.id).count() == 3
+    # sexlar korxona darajasida: ikkinchi filialda qayta yaratilmaydi
+    assert db.query(KitchenStation).filter(KitchenStation.company_id == c.id).count() == 3
     assert db.query(Hall).filter(Hall.branch_id == b2.id).count() == 1
     assert get_kitchen_warehouse(db, c.id, b2.id).name == "Oshxona"
     # kategoriyalar korxona darajasida: takrorlanmaydi
@@ -213,7 +214,9 @@ def test_restaurant_layout_and_isolation(db, mk, client):
     c1, b1, u1 = _restaurant(db, mk)
     c2, b2, u2 = _restaurant(db, mk)
     data = client.login(u1).get("/api/restaurant/layout").json()
-    assert {s["branch_id"] for s in data["stations"]} == {b1.id}
+    assert [s["name"] for s in data["stations"]] == ["Issiq sex", "Sovuq sex", "Bar"]
+    own = {s.id for s in db.query(KitchenStation).filter(KitchenStation.company_id == c1.id)}
+    assert {s["id"] for s in data["stations"]} == own
     assert len(data["halls"]) == 1 and len(data["halls"][0]["tables"]) == 10
     assert all(h["branch_id"] == b1.id for h in data["halls"])
 
@@ -250,7 +253,7 @@ def test_super_admin_switches_type_and_back(db, mk, client):
     assert r.status_code == 200, r.text
     db.refresh(c)
     assert c.business_type == "restaurant" and restaurant_settings_of(c)["format"] == "cafe"
-    assert db.query(KitchenStation).filter(KitchenStation.company_id == c.id).count() == 6   # 2 filial x 3 sex
+    assert db.query(KitchenStation).filter(KitchenStation.company_id == c.id).count() == 3   # korxona darajasida
     assert db.query(Hall).filter(Hall.company_id == c.id).count() == 2
     assert db.query(AuditLog).filter(AuditLog.action == "BUSINESS_TYPE_CHANGE", AuditLog.entity_id == c.id).count() == 1
     listing = {x["id"]: x for x in cl.get("/api/super-admin/companies").json()}
@@ -258,7 +261,7 @@ def test_super_admin_switches_type_and_back(db, mk, client):
 
     # takroriy chaqiruv hech narsani ikkilamchi yaratmaydi
     assert cl.put(f"/api/super-admin/companies/{c.id}", json={"business_type": "restaurant"}).status_code == 200
-    assert db.query(KitchenStation).filter(KitchenStation.company_id == c.id).count() == 6
+    assert db.query(KitchenStation).filter(KitchenStation.company_id == c.id).count() == 3
 
     # do'konga qaytish: restoran ma'lumotlari o'chmaydi, faqat yashiriladi
     assert cl.put(f"/api/super-admin/companies/{c.id}", json={"business_type": "retail"}).status_code == 200

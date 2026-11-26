@@ -81,6 +81,12 @@ class Product(Base):
     # Milliy raqamli markirovka (Data Matrix / Chestny Znak) talab qilinadimi
     requires_marking = Column(Boolean, nullable=False, default=False, server_default="false")
 
+    # R1.1: restoran rejimida mahsulot turi: goods (tayyor tovar), dish (taom, tex karta bilan),
+    # semi (yarim tayyor), ingredient (xom ashyo), modifier (qo'shimcha). Do'konda doim 'goods'.
+    item_kind = Column(String(20), nullable=False, default="goods", server_default="goods")
+    # R1.4: taom qaysi oshxona sexiga yuboriladi (NULL = kategoriyaning sexi)
+    station_id = Column(Integer, ForeignKey("kitchen_stations.id", ondelete="SET NULL"), nullable=True)
+
     @property
     def category_name(self):
         return self.category.name if self.category else None
@@ -124,6 +130,7 @@ class Product(Base):
         Index('uq_products_plu_active', 'company_id', 'plu_code', unique=True,
               postgresql_where=text('is_deleted = false AND plu_code IS NOT NULL')),
         CheckConstraint('plu_code BETWEEN 1 AND 99999', name='ck_products_plu_range'),
+        CheckConstraint("item_kind IN ('goods','dish','semi','ingredient','modifier')", name='ck_products_item_kind'),
     )
 
 

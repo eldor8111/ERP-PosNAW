@@ -439,6 +439,20 @@ def _run_auto_migrations(engine):
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS business_type VARCHAR(20) NOT NULL DEFAULT 'retail';",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS restaurant_settings JSON;",
         "ALTER TABLE tariffs ADD COLUMN IF NOT EXISTS business_type VARCHAR(20) NOT NULL DEFAULT 'retail';",
+        # R1: restoran menyusi (alembic r1_1 bilan bir xil; FK va CHECK alembic'da)
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS item_kind VARCHAR(20) NOT NULL DEFAULT 'goods';",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS station_id INTEGER;",
+        "ALTER TABLE categories ADD COLUMN IF NOT EXISTS station_id INTEGER;",
+        "ALTER TABLE boms ADD COLUMN IF NOT EXISTS created_by INTEGER;",
+        "ALTER TABLE boms ADD COLUMN IF NOT EXISTS output_qty NUMERIC(14, 3);",
+        "ALTER TABLE boms ADD COLUMN IF NOT EXISTS output_weight_g NUMERIC(10, 1);",
+        "ALTER TABLE boms ADD COLUMN IF NOT EXISTS cooking_time_min INTEGER;",
+        "ALTER TABLE boms ADD COLUMN IF NOT EXISTS instructions TEXT;",
+        "ALTER TABLE boms ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;",
+        "ALTER TABLE bom_items ADD COLUMN IF NOT EXISTS gross_qty NUMERIC(14, 4);",
+        "ALTER TABLE bom_items ADD COLUMN IF NOT EXISTS net_qty NUMERIC(14, 4);",
+        "ALTER TABLE bom_items ADD COLUMN IF NOT EXISTS loss_cold_pct NUMERIC(5, 2);",
+        "ALTER TABLE bom_items ADD COLUMN IF NOT EXISTS loss_hot_pct NUMERIC(5, 2);",
         # Dorixona moduli: alembic (d1_3, d3_3) bilan bir xil, server alembic'siz ishga tushsa ham ustunlar bo'lsin
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_number VARCHAR(100);",
         "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_invoice_date DATE;",
@@ -866,6 +880,8 @@ from app.routers import pharmacy_units as _pharmacy_units_router  # noqa: E402  
 app.include_router(_pharmacy_units_router.router, prefix=API_PREFIX)  # D2.4: quti/blister/dona birliklari
 from app.routers import restaurant as _restaurant_router  # noqa: E402  # R0
 app.include_router(_restaurant_router.router, prefix=API_PREFIX)  # R0: restoran rejimi (sozlamalar, sexlar, zal va stollar)
+from app.routers import restaurant_menu as _restaurant_menu_router  # noqa: E402  # R1
+app.include_router(_restaurant_menu_router.router, prefix=API_PREFIX)  # R1: restoran menyusi, tex kartalar, sexlar
 
 # Serve uploaded static files
 import os

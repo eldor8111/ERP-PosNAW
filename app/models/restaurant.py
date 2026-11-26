@@ -16,15 +16,15 @@ def _now():
 
 
 class KitchenStation(Base):
-    """Oshxona sexi (Issiq sex, Sovuq sex, Bar): buyurtma qatorlari sex bo'yicha printer/KDS ga yo'naltiriladi."""
+    """Oshxona sexi (Issiq sex, Sovuq sex, Bar): buyurtma qatorlari sex bo'yicha printer/KDS ga yo'naltiriladi.
+
+    Korxona darajasida: taom yoki kategoriya bitta sexga biriktiriladi va hamma filialda shu sexga ketadi.
+    Filial bo'yicha printer manzili R4.1 da alohida jadvalda saqlanadi."""
     __tablename__ = "kitchen_stations"
 
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
-    branch_id = Column(Integer, ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
-    # pos-desktop orqali chop etish: printer nomi yoki LAN manzili (ip:port); bo'sh = chop etilmaydi
-    printer = Column(String(200), nullable=True)
     kds_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")

@@ -16,6 +16,8 @@ class Category(Base):
     is_perishable = Column(Boolean, default=False)
     # D1.3: dorixona rejimida kirimda sotuv narxi ustamasi (foiz); NULL — korxona sozlamasi ishlatiladi
     markup_pct = Column(Numeric(6, 2), nullable=True)
+    # R1.4: restoranda shu kategoriya taomlari yuboriladigan oshxona sexi
+    station_id = Column(Integer, ForeignKey("kitchen_stations.id", ondelete="SET NULL"), nullable=True)
     is_deleted = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),

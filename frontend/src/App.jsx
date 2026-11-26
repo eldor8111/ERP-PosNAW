@@ -50,6 +50,7 @@ const BranchPlans     = lazy(() => import('./pages/admin/BranchPlans'))  // T4.7
 const Approvals       = lazy(() => import('./pages/admin/Approvals'))  // T4.6
 const PaymentReconciliation = lazy(() => import('./pages/admin/PaymentReconciliation'))  // T3.18
 const PharmacyHub     = lazy(() => import('./pages/admin/PharmacyHub'))  // D4.6
+const RestaurantMenu  = lazy(() => import('./pages/admin/restaurant/RestaurantMenu'))  // R1
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const MarketplaceAgents = lazy(() => import('./pages/admin/MarketplaceAgents'))
 const AICopilot       = lazy(() => import('./pages/admin/EcodeAI'))
@@ -76,6 +77,8 @@ const FINANCE_ROUTE_ROLES = [...ROLE_GROUPS.FINANCE_ACCESS, ROLES.SUPER_ADMIN]
 const MANAGEMENT_ROUTE_ROLES = [...ROLE_GROUPS.MANAGEMENT, ROLES.SUPER_ADMIN]
 // D4.6: Dorixona markazi — backend pharmacy_* routerlari bilan mos (admin/direktor/menejer/buxgalter/omborchi)
 const PHARMACY_ROUTE_ROLES = [...ROLE_GROUPS.OPS_ACCESS, ROLES.SUPER_ADMIN]
+// R1: restoran sahifalari (backend: restaurant_menu READ_ROLES)
+const RESTAURANT_ROUTE_ROLES = [...ROLE_GROUPS.WAREHOUSE_ACCESS, ROLES.ACCOUNTANT, ROLES.SUPER_ADMIN]
 
 // Sahifa almashinayotganda ko'rinadigan loading spinner
 function PageLoader() {
@@ -169,6 +172,7 @@ export default function App() {
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             {/* D4.6: Dorixona markazi — faqat pharmacy moduli yoqilgan korxonada */}
+            <Route path="restaurant/menu" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantMenu /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="pharmacy" element={<PrivateRoute roles={PHARMACY_ROUTE_ROLES}><FeatureGate feature="pharmacy"><Suspense fallback={<PageLoader />}><PharmacyHub /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="production" element={<FeatureGate feature="manufacturing"><Suspense fallback={<PageLoader />}><Production /></Suspense></FeatureGate>} />
             {/* T1.19: audit jurnali — faqat admin/director (+ super_admin) */}

@@ -53,19 +53,17 @@ def get_layout(
     user: User = Depends(get_current_user),
     ctx: BranchContext = Depends(get_branch_context),
 ):
-    """Filial bo'yicha sexlar, zallar va stollar (faqat ruxsat etilgan filiallar)."""
+    """Korxona sexlari va filial bo'yicha zallar va stollar (faqat ruxsat etilgan filiallar)."""
     scope = ctx.scope_ids()
     if branch_id is not None and scope is not None and branch_id not in scope:
         raise HTTPException(status_code=403, detail="Bu filialga ruxsat yo'q")
     st_q = db.query(KitchenStation).filter(KitchenStation.company_id == user.company_id)
     hall_q = db.query(Hall).filter(Hall.company_id == user.company_id)
     if branch_id is not None:
-        st_q = st_q.filter(KitchenStation.branch_id == branch_id)
         hall_q = hall_q.filter(Hall.branch_id == branch_id)
     elif scope is not None:
-        st_q = st_q.filter(KitchenStation.branch_id.in_(scope))
         hall_q = hall_q.filter(Hall.branch_id.in_(scope))
-    stations = st_q.order_by(KitchenStation.branch_id, KitchenStation.sort_order, KitchenStation.id).all()
+    stations = st_q.order_by(KitchenStation.sort_order, KitchenStation.id).all()
     halls = hall_q.order_by(Hall.branch_id, Hall.sort_order, Hall.id).all()
     tables = []
     if halls:
@@ -80,8 +78,8 @@ def get_layout(
             "shape": t.shape, "is_active": t.is_active,
         })
     return {
-        "stations": [{"id": s.id, "branch_id": s.branch_id, "name": s.name, "printer": s.printer,
-                      "kds_enabled": s.kds_enabled, "is_active": s.is_active} for s in stations],
+        "stations": [{"id": s.id, "name": s.name, "kds_enabled": s.kds_enabled, "is_active": s.is_active,
+                      "sort_order": s.sort_order} for s in stations],
         "halls": [{"id": h.id, "branch_id": h.branch_id, "name": h.name,
                    "service_pct": float(h.service_pct) if h.service_pct is not None else None,
                    "is_active": h.is_active, "tables": by_hall.get(h.id, [])} for h in halls],
