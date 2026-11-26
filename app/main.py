@@ -882,6 +882,8 @@ from app.routers import restaurant as _restaurant_router  # noqa: E402  # R0
 app.include_router(_restaurant_router.router, prefix=API_PREFIX)  # R0: restoran rejimi (sozlamalar, sexlar, zal va stollar)
 from app.routers import restaurant_menu as _restaurant_menu_router  # noqa: E402  # R1
 app.include_router(_restaurant_menu_router.router, prefix=API_PREFIX)  # R1: restoran menyusi, tex kartalar, sexlar
+from app.routers import restaurant_floor as _restaurant_floor_router  # noqa: E402  # R2
+app.include_router(_restaurant_floor_router.router, prefix=API_PREFIX)  # R2: zallar, stollar va zal sxemasi
 
 # Serve uploaded static files
 import os

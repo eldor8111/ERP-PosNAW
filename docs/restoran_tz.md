@@ -582,3 +582,6 @@ Hali ochiq:
 | R1.2 Tex karta: brutto/netto/yo'qotish, chiqish, versiyalar, ichma-ich tannarx, food cost, valyuta | Bajarildi (Excel import 2-bosqichda) |
 | R1.4 Sexlar (korxona darajasida), kategoriya va taom bo'yicha sex | Bajarildi |
 | Menyu sahifasi `/admin/restaurant/menu` (taomlar, yarim tayyor, ingredientlar, tovarlar, sexlar) | Bajarildi |
+| R2.1 Zallar va stollar: qo'shish, tahrirlash, nofaol qilish, zal bo'yicha xizmat haqi, filial doirasi | Bajarildi |
+| R2.2 Zal sxemasi `/admin/restaurant/floor`: sudrab joylash, o'lcham, shakl, bir yo'la saqlash (audit) | Bajarildi. Stol holatlari ranglari R3 da (ochiq cheklarga bog'liq) |
+| R2.3 Stolni ko'chirish, birlashtirish, bir stolda bir nechta chek | R3 da, cheklar bilan birga |

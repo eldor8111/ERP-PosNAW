@@ -1,7 +1,7 @@
 """Restoran rejimi API (R0): sozlamalar va boshlang'ich tuzilma (sexlar, zallar, stollar).
 
 Hamma endpoint `require_restaurant` ostida: do'kon korxonasi chaqirsa 403.
-Zal/stol va sexlarni tahrirlash R2.x / R1.4 da qo'shiladi.
+Sexlar: restaurant_menu.py (R1.4); zal va stollar: restaurant_floor.py (R2).
 """
 from typing import Optional
 
