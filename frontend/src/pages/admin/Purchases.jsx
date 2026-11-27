@@ -343,6 +343,20 @@ function SupSearch({ suppliers, value, onChange, placeholder }) {
   );
 }
 
+// R7.5: restoranda xarid qabul qilingach tex karta tannarxi o'zgargan bo'lsa qisqa xabar (batafsil: Food cost sahifasi)
+function notifyFoodCost(poId, t) {
+  api.get('/restaurant/food-cost/changes', { params: { limit: 1 }, _silent: true }).then(r => {
+    const ev = r.data?.items?.[0];
+    if (!ev || ev.source !== 'purchase' || ev.reference_id !== poId) return;
+    const dishes = (ev.dishes || []).filter(d => d.kind === 'dish').length;
+    if (!dishes) return;
+    const msg = ev.over_count > 0
+      ? t('restFc.toastOver', { n: dishes, over: ev.over_count })
+      : t('restFc.toast', { n: dishes });
+    toast(msg, { duration: 10000 });
+  }).catch(() => {});
+}
+
 /* ══════════════════════════════════════════════════════════
    KIRIM CREATE VIEW — split panel
 ══════════════════════════════════════════════════════════ */
@@ -770,7 +784,10 @@ function KirimCreateView({ onBack, onSaved, editPo = null }) {
     // (avval darrov chiqib ketilar, xato faqat konsolga yozilardi).
     try {
       if (editPo) await api.patch(`/purchase-orders/${editPo.id}`, payload);
-      else await api.post('/purchase-orders', payload);
+      else {
+        const created = await api.post('/purchase-orders', payload);
+        if (features?.restaurant && created?.data?.status === 'received') notifyFoodCost(created.data.id, t);
+      }
       toast.success(t('purchase.poSaved'));
       setShowPay(false);
       onSaved();
@@ -1606,6 +1623,7 @@ function KirimlarTab() {
         } catch { /* xabarni axios interceptor ko'rsatadi; qabul allaqachon bajarilgan */ }
       }
       toast.success(t('purchase.receivedOk'));
+      if (features?.restaurant) notifyFoodCost(recModal.id, t);
       setRec(null); setDetail(null); load();
     } catch { /* xabarni axios interceptor ko'rsatadi, oyna ochiq qoladi */ } finally { setRS(false); }
   };

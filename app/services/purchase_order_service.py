@@ -693,9 +693,12 @@ def create_purchase_order(db: Session, data, current_user: User) -> PurchaseOrde
             qty = _d(item.qty_ordered)
             lots = [(item.lot_number, item.expiry_date, item.manufacture_date, qty)]
             plan.append((item, qty, lots, _plan_receipt(db, po, n, item, lots, pharm, warnings)))
+        from app.services import restaurant_costs  # R7.5: restoranda tex karta tannarxi o'zgarishi
+        cost_before = restaurant_costs.snapshot(db, cid, [p[0].product_id for p in plan])
         for item, qty, lots, sale_price in plan:
             _receive_item(db, po, item, qty, current_user, lot=item.lot_number, manufacture=item.manufacture_date,
                           sale_price=sale_price, pharmacy=pharm[0])
+        restaurant_costs.record(db, cid, cost_before, "purchase", po.id, current_user.id)
         po.status = POStatus.received
         po.receive_warnings = warnings
     else:
@@ -756,9 +759,12 @@ def receive_purchase_order(db: Session, po_id: int, data, current_user: User) ->
                      getattr(r, "marking_codes", None), n))   # D3.2: markirovka kodlari (ixtiyoriy)
     if not plan:
         raise HTTPException(status_code=400, detail="Qabul qilinadigan miqdor kiritilmagan")
+    from app.services import restaurant_costs  # R7.5: restoranda tex karta tannarxi o'zgarishi
+    cost_before = restaurant_costs.snapshot(db, po.company_id, [p[0].product_id for p in plan])
     for item, qty, lots, sale_price, mk_codes, n in plan:
         _receive_item(db, po, item, qty, current_user, lots=lots, sale_price=sale_price, pharmacy=pharm[0])
         _register_marking(db, po, n, item, qty, mk_codes, pharm, warnings)
+    restaurant_costs.record(db, po.company_id, cost_before, "purchase", po.id, current_user.id)
     if getattr(data, "supplier_invoice_number", None):
         po.supplier_invoice_number = data.supplier_invoice_number.strip() or po.supplier_invoice_number
     if getattr(data, "supplier_invoice_date", None):

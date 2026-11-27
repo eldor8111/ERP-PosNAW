@@ -184,10 +184,13 @@ def update_menu_item(item_id: int, payload: ItemIn, db: Session = Depends(get_db
         _guard_edit(user, data["kind"] or p.item_kind)
     data.pop("barcode", None)
     old_price = p.sale_price
+    from app.services import restaurant_costs  # R7.5: tannarx qo'lda o'zgarsa ham kartalar qayta hisoblanadi
+    cost_before = restaurant_costs.snapshot(db, user.company_id, [p.id]) if "cost_price" in data else None
     apply_item_fields(db, user.company_id, p, data, creating=False)
     if "sale_price" in data and old_price != p.sale_price:
         log_action(db=db, action="MENU_PRICE_CHANGE", entity_type="product", entity_id=p.id, user_id=user.id,
                    old_values={"sale_price": float(old_price or 0)}, new_values={"sale_price": float(p.sale_price or 0)})
+    restaurant_costs.record(db, user.company_id, cost_before, "manual", None, user.id)
     db.commit()
     db.refresh(p)
     return _item_out(p, CostCalc(db, user.company_id), active_card(db, user.company_id, p.id) is not None,
@@ -381,3 +384,23 @@ def set_item_modifier_groups(item_id: int, payload: ProductGroupsIn, db: Session
     ids = mod_svc.set_product_groups(db, user.company_id, p, payload.group_ids)
     db.commit()
     return {"product_id": p.id, "modifier_group_ids": ids}
+
+
+# ── R7.5: food cost nazorati ─────────────────────────────────────
+
+COST_ROLES = EDIT_ROLES + (UserRole.accountant, UserRole.warehouse)
+
+
+@router.get("/food-cost")
+def food_cost_overview(db: Session = Depends(get_db), user: User = Depends(require_roles(*COST_ROLES))):
+    """Kartasi bor taomlar: tannarx, food cost %, chegaradan oshganlari (tavsiya narx bilan) birinchi."""
+    from app.services import restaurant_costs
+    return restaurant_costs.overview(db, user.company_id)
+
+
+@router.get("/food-cost/changes")
+def food_cost_changes(limit: int = Query(30, ge=1, le=200), db: Session = Depends(get_db),
+                      user: User = Depends(require_roles(*COST_ROLES))):
+    """Ingredient tannarxi o'zgarishlari (kirim yoki qo'lda) va ta'sirlangan taomlar: eski / yangi tannarx va food cost."""
+    from app.services import restaurant_costs
+    return {"items": restaurant_costs.list_changes(db, user.company_id, limit)}

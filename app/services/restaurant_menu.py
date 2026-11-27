@@ -234,16 +234,19 @@ def save_card(db: Session, company_id: int, product: Product, data: dict, user_i
 class CostCalc:
     """Tannarx hisoblagichi (UZS). Ingredient: mahsulot tannarxi; yarim tayyor: faol kartasi bo'lsa karta bo'yicha."""
 
-    def __init__(self, db: Session, company_id: int):
+    def __init__(self, db: Session, company_id: int, overrides: Optional[dict] = None):
+        """overrides — {product_id: cost_price} (mahsulot tannarx valyutasida): eski narxlar bilan hisoblash uchun (R7.5)."""
         from app.services.currency_service import rate_map
         self.db = db
         self.company_id = company_id
         self.rates = rate_map(db, company_id)
+        self.overrides = overrides or {}
         self._cache = {}
 
     def _own_cost(self, p: Product) -> Decimal:
         from app.services.currency_service import to_uzs
-        return to_uzs(p.cost_price or 0, p.cost_currency, self.rates)
+        raw = self.overrides[p.id] if p.id in self.overrides else p.cost_price
+        return to_uzs(raw or 0, p.cost_currency, self.rates)
 
     def unit_cost(self, p: Product, depth: int = 0) -> Decimal:
         """1 birlik mahsulot tannarxi."""

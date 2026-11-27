@@ -1002,6 +1002,8 @@ def receive_goods(
                         raise HTTPException(status_code=400, detail=f"{label}: kod allaqachon ro'yxatda — {canon}")
 
     movements = []
+    from app.services import restaurant_costs  # R7.5: restoranda tex karta tannarxi o'zgarishi
+    cost_before = restaurant_costs.snapshot(db, cid, [it.product_id for it in data.items])
     for _n, item in enumerate(data.items, 1):
         product = db.query(Product).filter(
             Product.id == item.product_id, Product.company_id == cid, Product.is_deleted == False,
@@ -1046,6 +1048,7 @@ def receive_goods(
         movements.append({"product_id": product.id, "variant_id": item.variant_id,
                           "qty_added": str(item.quantity), "new_qty": str(m.qty_after)})
 
+    cost_change = restaurant_costs.record(db, cid, cost_before, "receive", None, current_user.id)
     log_action_for(
         db, current_user, "STOCK_RECEIVE", "warehouse", warehouse.id,
         new_values={"supplier_id": supplier.id if supplier else None, "items": movements},
@@ -1054,6 +1057,10 @@ def receive_goods(
     db.commit()
     result = {"message": f"{len(movements)} ta mahsulot qabul qilindi", "details": movements,
               "warehouse_id": warehouse.id}
+    if cost_change is not None:
+        # R7.5: tex karta tannarxi o'zgardi; food cost chegarasidan oshgan taomlar soni
+        result["food_cost"] = {"change_id": cost_change.id, "dishes": len(cost_change.dishes or []),
+                               "over_count": cost_change.over_count}
     if pharm_on:
         result["warnings"] = _rcv_warnings  # D1.3/CD.1: qolgan muddat foizi, markirovka kodlari ogohlantirishlari
     return result
