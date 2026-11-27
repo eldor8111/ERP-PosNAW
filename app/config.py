@@ -38,11 +38,13 @@ class Settings(BaseSettings):
     ESKIZ_BASE_URL: str = "https://notify.eskiz.uz/api"
     # AI Pending actions TTL (daqiqalarda)
     AI_PENDING_ACTION_TTL_MIN: int = 10
-    # --- Hippo Communicator (fiskalizatsiya) ---
-    HIPPO_COMMUNICATOR_URL: str = "http://127.0.0.1:8081"
-    HIPPO_API_PREFIX: str = "/api"
+    # --- Universal Communicator (fiskalizatsiya) ---
+    HIPPO_COMMUNICATOR_URL: str = "http://127.0.0.1:8347"
+    HIPPO_UC_ENDPOINT: str = "/uzpos"       # UC yagona endpoint
+    HIPPO_API_PREFIX: str = "/api"          # Zaxira (eski REST)
     HIPPO_TIMEOUT: int = 30
-    # T3.18: server tomonidagi Hippo kommunikatori (/api/hippo/* va X-Hippo-Factory-Id orqali fonda fiskallash).
+    HIPPO_TOKEN: str = ""                   # UC token (.env da HIPPO_TOKEN=DXJFX32CN... bering)
+    # T3.18: server tomonidagi kommunikator (/api/hippo/* va X-Hippo-Factory-Id orqali fonda fiskallash).
     # Standart O'CHIQ: fiskallash kassir kompyuteridagi lokal ko'prik orqali bajariladi, natija PATCH /sales/{id}/fiscal
     # bilan yoziladi. Server kommunikatori prodda ishlatilsa .env da HIPPO_SERVER_ENABLED=true qiling.
     HIPPO_SERVER_ENABLED: bool = False

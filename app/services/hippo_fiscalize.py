@@ -1,12 +1,43 @@
 """
 hippo_fiscalize.py
 ──────────────────
-Sotuv yakunlangandan so'ng Hippo Communicator ga fiskal chek yuborish servisi.
+Sotuv yakunlangandan so'ng Universal Communicator (UC) ga fiskal chek yuborish servisi.
+
+UC format:
+    POST http://localhost:8347/uzpos
+    {
+      "token": "...",
+      "method": "sale",           # "refund" qaytarish uchun
+      "companyName": "...",
+      "companyAddress": "...",
+      "companyINN": "...",
+      "staffName": "...",
+      "printerSize": 58,
+      "params": {
+        "receivedCash": 150000,
+        "receivedCard": 650000,
+        "items": [
+          {
+            "name": "...",
+            "barcode": "...",
+            "classCode": "02202003001002001",  # MXIK
+            "packageCode": "1254782",
+            "label": "",                        # markirovka (string)
+            "amount": 1,                        # miqdor (dona)
+            "price": 500000,                    # dona narxi (so'm)
+            "discount": 0,                      # chegirma (so'm)
+            "vatPercent": 12,
+            "vat": 54054,                       # QQS summasi (hisoblangan)
+            "ownerType": 0,                     # 0=o'z, 1=komissioner
+          }
+        ]
+      }
+    }
 
 Ishlatilish tartibi:
     1. sales.py router -> make_sale() -> background_tasks.add_task(fiscalize_sale, sale.id, factory_id)
-    2. Bu servis Sale + SaleItem larni DB dan o'qib, Hippo formatiga o'giradi va yuboradi.
-    3. Xatolik yuz bersa faqat log yoziladi — sotuv bekor qilinmaydi (fiskal xato kritik emas).
+    2. Bu servis Sale + SaleItem larni DB dan o'qib, UC formatiga o'giradi va yuboradi.
+    3. Xatolik yuz bersa faqat log yoziladi — sotuv bekor qilinmaydi.
 """
 
 import logging
@@ -35,20 +66,26 @@ _VAT_PERCENT_MAP: dict[Optional[VatRateType], int] = {
 
 
 def _vat_percent(product: Product, default_vat: Optional[int] = None) -> int:
-    """Mahsulot VAT turini Hippo uchun foizga (int) aylantiradi.
-
-    C4.1 (T4.2): turi belgilanmagan (NULL) mahsulot uchun `default_vat` (Company.fiscal_default_vat) ishlatiladi;
-    u ham NULL bo'lsa standart 12%."""
+    """Mahsulot VAT turini UC uchun foizga (int) aylantiradi."""
     if product.vat_rate_type is None:
         fallback = default_vat if default_vat is not None else 12
-        # T4.2: QQS turi belgilanmagan mahsulot korxona standarti (yoki 12%) bilan fiskallanadi (soliq natijasiga
-        # ta'sir qiladi) — mahsulotni to'g'rilash uchun ogohlantirish yoziladi.
         logger.warning(
-            "[Hippo] Product id=%s (%s): vat_rate_type belgilanmagan — standart %s%% QQS bilan fiskallanadi",
+            "[UC] Product id=%s (%s): vat_rate_type belgilanmagan — standart %s%% QQS bilan fiskallanadi",
             getattr(product, "id", None), getattr(product, "name", ""), fallback,
         )
         return int(fallback)
     return _VAT_PERCENT_MAP.get(product.vat_rate_type, 12)
+
+
+def _calc_vat(price: int, amount: int, discount: int, vat_percent: int) -> int:
+    """
+    UC uchun QQS summasi (so'mda):
+        vat = round((price * amount - discount) * vatPercent / (100 + vatPercent))
+    """
+    gross = max(0, price * amount - discount)
+    if vat_percent <= 0:
+        return 0
+    return round(gross * vat_percent / (100 + vat_percent))
 
 
 def _company_default_vat(sale: Sale) -> Optional[int]:
@@ -60,18 +97,54 @@ def _company_default_vat(sale: Sale) -> Optional[int]:
         if db is None or not getattr(sale, "company_id", None):
             return None
         return db.query(Company.fiscal_default_vat).filter(Company.id == sale.company_id).scalar()
-    except Exception as exc:  # noqa: BLE001 — standart QQS topilmasa 12% ga qaytiladi
-        logger.warning("[Hippo] Korxona standart QQS ni o'qib bo'lmadi: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[UC] Korxona standart QQS ni o'qib bo'lmadi: %s", exc)
         return None
+
+
+def _company_info(sale: Sale) -> dict:
+    """
+    Korxona ma'lumotlarini UC so'rovi uchun tayyorlaydi.
+    Sale.company -> Company modelidan olinadi.
+    """
+    info = {
+        "companyName": "",
+        "companyAddress": "",
+        "companyINN": "",
+        "staffName": "",
+        "printerSize": 58,
+    }
+    try:
+        from sqlalchemy.orm import object_session
+        from app.models.company import Company
+        from app.models.user import User
+        db = object_session(sale)
+        if db is None:
+            return info
+        # Korxona
+        company = db.query(Company).filter(Company.id == sale.company_id).first()
+        if company:
+            info["companyName"] = company.name or ""
+            info["companyAddress"] = getattr(company, "address", "") or ""
+            info["companyINN"] = str(getattr(company, "inn", "") or "")
+        # Kassir (Sale.user_id bo'lsa)
+        if sale.user_id:
+            user = db.query(User).filter(User.id == sale.user_id).first()
+            if user:
+                full = f"{user.first_name or ''} {user.last_name or ''}".strip()
+                info["staffName"] = full or user.username or ""
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[UC] Korxona ma'lumotlarini o'qib bo'lmadi: %s", exc)
+    return info
 
 
 # ── Receipt builder ──────────────────────────────────────────────────────────
 
-def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
+def _build_uc_payload(sale: Sale) -> dict:
     """
-    Sale ORM obyektidan Hippo RegisterReceiptRequestModel formatiga o'giradi.
+    Sale ORM obyektidan UC `sale`/`refund` formatiga o'giradi.
 
-    Pul birligi: so'm (butun son) — Hippo ichida tiyinga (×100) o'tkazadi.
+    Pul birligi: so'm (butun son).
     """
     # To'lov turlarini ajratamiz
     received_cash = 0
@@ -88,44 +161,44 @@ def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
                 received_cash += amt
             elif pt in CARD_TYPES:
                 received_card += amt
-            # "debt", "cashback" → Hippo da maxsus maydon yo'q, naqd sifatida hisoblanadi
     else:
-        # Eski format: paid_cash / paid_card
         received_cash = int(sale.paid_cash or 0)
         received_card = int(sale.paid_card or 0)
 
     # Chek qatorlarini qurish
-    default_vat = _company_default_vat(sale)  # C4.1 (T4.2): NULL turdagi mahsulotlar uchun
+    default_vat = _company_default_vat(sale)
     items = []
     for item in sale.items:
         product: Optional[Product] = item.product
         if not product:
-            logger.warning(
-                "[Hippo] SaleItem id=%s uchun product topilmadi — o'tkazib yuborildi",
-                item.id,
-            )
+            logger.warning("[UC] SaleItem id=%s uchun product topilmadi — o'tkazib yuborildi", item.id)
             continue
 
-        # Chet el valyutasida sotilgan tovarlar uchun narx/chegirmani UZS'ga
-        # aylantiramiz - Hippo faqat so'mda qabul qiladi, aylantirilmasa
-        # soliq organiga notogri (juda kam) summa yuborilib qoladi.
+        # Chet el valyutasini UZS ga o'tkazamiz
         item_currency = (item.currency_code or "UZS").upper()
         item_rate = Decimal(str(item.exchange_rate or 1)) if item_currency != "UZS" else Decimal("1")
 
         unit_price = int((Decimal(str(item.unit_price or 0)) * item_rate).to_integral_value())
-        quantity   = int(item.quantity or 1)
+        amount     = int(item.quantity or 1)
         discount   = int((Decimal(str(item.discount or 0)) * item_rate).to_integral_value())
+        vat_pct    = _vat_percent(product, default_vat)
+
+        # Markirovka: UC da string "label" (birinchi kod yoki bo'sh)
+        labels = item.marking_codes or product.labels or []
+        label = labels[0] if labels else ""
 
         items.append({
-            "name":         product.name,
-            "barcode":      product.barcode or "",
-            "spic":         product.mxik_code or "",
-            "package_code": str(product.package_code) if product.package_code else "",
-            "labels":       item.marking_codes or product.labels or [],
-            "quantity":     quantity,
-            "price":        unit_price,
-            "discount":     discount,
-            "vat_percent":  _vat_percent(product, default_vat),
+            "name":        product.name,
+            "barcode":     product.barcode or "",
+            "classCode":   product.mxik_code or "",          # UC: classCode = MXIK/SPIC
+            "packageCode": str(product.package_code) if product.package_code else "",
+            "label":       label,                             # UC: string (1 ta)
+            "amount":      amount,                            # UC: miqdor (dona)
+            "price":       unit_price,                        # UC: dona narxi (so'm)
+            "discount":    discount,                          # UC: chegirma (so'm)
+            "vatPercent":  vat_pct,                           # UC: camelCase
+            "vat":         _calc_vat(unit_price, amount, discount, vat_pct),  # hisoblangan QQS
+            "ownerType":   0,                                 # 0 = o'z tovar
         })
 
     if not items:
@@ -134,23 +207,20 @@ def _build_receipt_payload(sale: Sale, factory_id: str) -> dict:
     # Chek darajasidagi chegirma
     receipt_discount = int(sale.discount_amount or 0)
 
-    return {
-        "factory_id": factory_id,
-        "receipt": {
-            "receivedCash":  received_cash,
-            "received_card": received_card,
-            "discount":      receipt_discount,
-            "type":     0,  # 0 = oddiy sotuv (Sale)
-            "operation": 0,  # 0 = sotuv
-            "items": items,
-        },
+    params = {
+        "receivedCash":  received_cash,
+        "receivedCard":  received_card,
+        "discount":      receipt_discount,
+        "items":         items,
     }
 
+    return params
 
-# ── Natijani Sale ga yozish (T3.18) ──────────────────────────────────────────
+
+# ── Natijani Sale ga yozish ───────────────────────────────────────────────────
 
 def _first(result: dict, *keys):
-    """Kommunikator javobidan birinchi mavjud (bo'sh bo'lmagan) kalit qiymati."""
+    """UC javobidan birinchi mavjud (bo'sh bo'lmagan) kalit qiymati."""
     for k in keys:
         v = result.get(k)
         if v not in (None, ""):
@@ -167,37 +237,38 @@ def _to_int(v) -> Optional[int]:
 
 
 def save_fiscal_result(db: Session, sale: Sale, result: Optional[dict], factory_id: str) -> bool:
-    """Muvaffaqiyatli fiskal natijani (`fiscal_sign`, QR, ketma-ketlik, tranzaksiya, vaqt, qurilma) `Sale` ga yozadi.
+    """
+    Muvaffaqiyatli fiskal natijani (`fiscal_sign`, QR, ketma-ketlik, tranzaksiya, vaqt, qurilma) `Sale` ga yozadi.
 
-    `fiscal_sign` bo'lmasa (chek lokal saqlangan, lekin fiskallanmagan) hech narsa yozilmaydi.
-    Xato bo'lsa log yoziladi va False qaytadi — sotuv va fiskal chek bekor qilinmaydi."""
+    UC javobida `fiscal_sign` / `fiscalSign` bo'lmasa hech narsa yozilmaydi.
+    """
     if not result or not isinstance(result, dict):
         return False
-    sign = _first(result, "fiscal_sign", "FiscalSign")
+    sign = _first(result, "fiscal_sign", "fiscalSign", "FiscalSign")
     if not sign:
         return False
     try:
         sale.fiscal_sign = str(sign)[:64]
-        qr = _first(result, "qr_code_url", "QRCodeURL")
+        qr = _first(result, "qr_code_url", "qrCodeUrl", "QRCodeURL")
         if qr:
             sale.fiscal_qr_url = str(qr)
-        seq = _to_int(_first(result, "receipt_seq", "receipt_number", "ReceiptSeq"))
+        seq = _to_int(_first(result, "receipt_seq", "receiptSeq", "receipt_number", "ReceiptSeq"))
         if seq is not None:
             sale.fiscal_receipt_seq = seq
-        tx = _first(result, "transaction_id", "TransactionID")
+        tx = _first(result, "transaction_id", "transactionId", "TransactionID")
         if tx is not None:
             sale.fiscal_transaction_id = str(tx)[:64]
         sale.fiscal_at = datetime.utcnow()
         sale.fiscal_factory_id = str(factory_id)[:64]
         db.commit()
         return True
-    except Exception as exc:  # noqa: BLE001 — fiskal natijani yozish xatosi sotuvni buzmasligi kerak
+    except Exception as exc:  # noqa: BLE001
         db.rollback()
-        logger.error("[Hippo] Sale id=%s fiskal natijani saqlashda xato: %s", sale.id, exc)
+        logger.error("[UC] Sale id=%s fiskal natijani saqlashda xato: %s", sale.id, exc)
         return False
 
 
-# ── Asosiy funksiya ──────────────────────────────────────────────────────────
+# ── Asosiy funksiyalar ────────────────────────────────────────────────────────
 
 def fiscalize_sale(
     db: Session,
@@ -205,15 +276,10 @@ def fiscalize_sale(
     factory_id: str,
 ) -> Optional[dict]:
     """
-    Sotuv ID si bo'yicha DB dan sale o'qib, Hippo ga chek yuboradi.
+    Sotuv ID si bo'yicha DB dan sale o'qib, UC ga chek yuboradi.
 
     Background task sifatida chaqiriladi — xatolik sotuv tranzaksiyasiga ta'sir qilmaydi.
-
-    Qaytaradi:
-        dict — muvaffaqiyatli fiskalizatsiya natijasi (fiscal_sign, qr_code_url, ...)
-        None — xatolik yuz berdi (log yozildi)
     """
-    # Sale ni products bilan birgalikda yuklash
     sale = (
         db.query(Sale)
         .options(
@@ -225,99 +291,91 @@ def fiscalize_sale(
     )
 
     if not sale:
-        logger.error("[Hippo] Sale id=%s topilmadi — fiskalizatsiya o'tkazilmadi", sale_id)
+        logger.error("[UC] Sale id=%s topilmadi — fiskalizatsiya o'tkazilmadi", sale_id)
         return None
 
     try:
-        payload = _build_receipt_payload(sale, factory_id)
+        params = _build_uc_payload(sale)
     except ValueError as exc:
-        logger.warning("[Hippo] Sale id=%s payload xatosi: %s", sale_id, exc)
+        logger.warning("[UC] Sale id=%s payload xatosi: %s", sale_id, exc)
         return None
 
+    company_info = _company_info(sale)
+
     logger.info(
-        "[Hippo] Sale id=%s fiskalizatsiya boshlanmoqda. factory_id=%s, items=%d",
-        sale_id, factory_id, len(payload["receipt"]["items"]),
+        "[UC] Sale id=%s fiskalizatsiya boshlanmoqda. factory_id=%s, items=%d",
+        sale_id, factory_id, len(params["items"]),
     )
 
     try:
-        result = hippo_client.post("/fiscalization/v1/receipt/register", payload)
+        result = hippo_client.sale(params, **company_info)
         logger.info(
-            "[Hippo] Sale id=%s muvaffaqiyatli fiskallandi. fiscal_sign=%s, qr=%s",
-            sale_id,
-            result.get("fiscal_sign"),
-            result.get("qr_code_url"),
+            "[UC] Sale id=%s muvaffaqiyatli fiskallandi. fiscal_sign=%s",
+            sale_id, result.get("fiscal_sign") or result.get("fiscalSign"),
         )
-        # T3.18: natija Sale ga yoziladi (avval faqat qaytarilardi, saqlanmasdi)
         save_fiscal_result(db, sale, result, factory_id)
         return result
 
     except HippoFiscalizationError as exc:
-        # 422 — chek Hippo lokal bazasida saqlandi, lekin fiskal qurilmaga etib bormadi.
-        # Bu kritik emas: Hippo keyinchalik o'zi qayta urinadi yoki sync qilish mumkin.
         logger.warning(
-            "[Hippo] Sale id=%s: chek lokal saqlandi, fiskalizatsiya muvaffaqiyatsiz. "
-            "Payload: %s. Xato: %s",
-            sale_id, exc.payload, exc.message,
-        )
-        return exc.payload  # local_id ni qaytaradi — keyinroq retry uchun
-
-    except HippoClientError as exc:
-        logger.error(
-            "[Hippo] Sale id=%s fiskalizatsiya xatosi [%s]: %s",
-            sale_id, exc.status_code, exc.message,
-        )
-        return None
-
-
-# ── Qaytarish (Return) fiskalizatsiyasi ──────────────────────────────────────
-
-def fiscalize_return(
-    db: Session,
-    sale_id: int,
-    factory_id: str,
-) -> Optional[dict]:
-    """
-    Qaytarish chekini Hippo ga yuboradi. operation=1 (refund).
-    """
-    sale = (
-        db.query(Sale)
-        .options(
-            joinedload(Sale.items).joinedload(SaleItem.product),
-            joinedload(Sale.payments),
-        )
-        .filter(Sale.id == sale_id)
-        .first()
-    )
-
-    if not sale:
-        logger.error("[Hippo] Return sale id=%s topilmadi", sale_id)
-        return None
-
-    try:
-        payload = _build_receipt_payload(sale, factory_id)
-        # Qaytarish uchun operation ni 1 ga o'zgartiramiz
-        payload["receipt"]["operation"] = 1
-    except ValueError as exc:
-        logger.warning("[Hippo] Return sale id=%s payload xatosi: %s", sale_id, exc)
-        return None
-
-    logger.info("[Hippo] Return sale id=%s fiskalizatsiya boshlanmoqda", sale_id)
-
-    try:
-        result = hippo_client.post("/fiscalization/v1/receipt/register", payload)
-        logger.info("[Hippo] Return sale id=%s muvaffaqiyatli fiskallandi", sale_id)
-        return result
-
-    except HippoFiscalizationError as exc:
-        logger.warning(
-            "[Hippo] Return sale id=%s lokal saqlandi, fiskalizatsiya muvaffaqiyatsiz: %s",
+            "[UC] Sale id=%s: chek lokal saqlandi, fiskalizatsiya muvaffaqiyatsiz. Xato: %s",
             sale_id, exc.message,
         )
         return exc.payload
 
     except HippoClientError as exc:
         logger.error(
-            "[Hippo] Return sale id=%s xato [%s]: %s",
+            "[UC] Sale id=%s fiskalizatsiya xatosi [%s]: %s",
+            sale_id, exc.status_code, exc.message,
+        )
+        return None
+
+
+def fiscalize_return(
+    db: Session,
+    sale_id: int,
+    factory_id: str,
+) -> Optional[dict]:
+    """Qaytarish chekini UC ga yuboradi (method=refund)."""
+    sale = (
+        db.query(Sale)
+        .options(
+            joinedload(Sale.items).joinedload(SaleItem.product),
+            joinedload(Sale.payments),
+        )
+        .filter(Sale.id == sale_id)
+        .first()
+    )
+
+    if not sale:
+        logger.error("[UC] Return sale id=%s topilmadi", sale_id)
+        return None
+
+    try:
+        params = _build_uc_payload(sale)
+    except ValueError as exc:
+        logger.warning("[UC] Return sale id=%s payload xatosi: %s", sale_id, exc)
+        return None
+
+    company_info = _company_info(sale)
+
+    logger.info("[UC] Return sale id=%s fiskalizatsiya boshlanmoqda", sale_id)
+
+    try:
+        result = hippo_client.refund(params, **company_info)
+        logger.info("[UC] Return sale id=%s muvaffaqiyatli fiskallandi", sale_id)
+        return result
+
+    except HippoFiscalizationError as exc:
+        logger.warning(
+            "[UC] Return sale id=%s lokal saqlandi, fiskalizatsiya muvaffaqiyatsiz: %s",
+            sale_id, exc.message,
+        )
+        return exc.payload
+
+    except HippoClientError as exc:
+        logger.error(
+            "[UC] Return sale id=%s xato [%s]: %s",
             sale_id, exc.status_code, exc.message,
         )
         return None
