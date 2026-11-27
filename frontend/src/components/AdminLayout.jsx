@@ -13,7 +13,7 @@ import {
   ChevronRight, ShoppingBag, Navigation, Package, DollarSign, BarChart3,
   Settings as SettingsIcon, ShieldAlert, Layers, ShieldCheck, Store, Truck, Shield,
   Users, AlertTriangle, FileText, CheckCircle2, SlidersHorizontal,
-  Building2, Tag, Landmark, Scale, MapPin, MessageSquare, UtensilsCrossed, LayoutGrid, ClipboardList, ChefHat, Printer, Ban
+  Building2, Tag, Landmark, Scale, MapPin, MessageSquare, UtensilsCrossed, LayoutGrid, ClipboardList, ChefHat, Printer, Ban, Tablet
 } from 'lucide-react';
 import AnnouncementModal from './AnnouncementModal';
 import AnnouncementBanner from './AnnouncementBanner';
@@ -121,6 +121,13 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           feature: 'restaurant',
           roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
           icon: <Ban className="w-[18px] h-[18px]" />,
+        },
+        {
+          name: t('nav.restaurantTerminals') || 'Ofitsiant planshetlari',
+          path: '/admin/restaurant/terminals',
+          feature: 'restaurant',
+          roles: ROLE_GROUPS.POS_ACCESS,
+          icon: <Tablet className="w-[18px] h-[18px]" />,
         },
         {
           name: t('nav.restaurantPrint') || 'Chop etish stansiyasi',

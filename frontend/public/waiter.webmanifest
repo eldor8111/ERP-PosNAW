@@ -1,0 +1,13 @@
+{
+  "name": "E-Code Ofitsiant",
+  "short_name": "Ofitsiant",
+  "start_url": "/waiter",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#1e293b",
+  "icons": [
+    { "src": "/ecode-logo-icon.png", "sizes": "any", "type": "image/png", "purpose": "any" }
+  ]
+}

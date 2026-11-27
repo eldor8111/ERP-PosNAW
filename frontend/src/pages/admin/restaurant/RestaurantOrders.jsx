@@ -803,10 +803,11 @@ function RefundModal({ order, onClose, onDone, t }) {
   );
 }
 
-export default function RestaurantOrders() {
+// fixedBranchId: R6.1 ofitsiant plansheti — filial planshetga biriktirilgan (tanlanmaydi)
+export default function RestaurantOrders({ fixedBranchId = null } = {}) {
   const { t } = useLang();
   const { branches, currentBranchId, assignedBranchId } = useBranch();
-  const [branchId, setBranchId] = useState(null);
+  const [branchId, setBranchId] = useState(fixedBranchId);
   const [halls, setHalls] = useState([]);
   const [hallId, setHallId] = useState(null);
   const [status, setStatus] = useState({});        // table_id -> {status, orders}

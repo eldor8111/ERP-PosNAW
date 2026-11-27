@@ -77,5 +77,5 @@ from .marking_code import MarkingCode  # type: ignore  # D3.2: markirovka kodlar
 from .product_units import ProductUnit, SaleItemUnit  # type: ignore  # D2.4: quti/blister/dona birliklari
 from .uzum_transaction import UzumTransaction  # type: ignore  # Uzum Bank Merchant API
 from .ai_assistant import AiConversation, AiMessage, AiFile  # type: ignore  # E-code AI yordamchi (Claude)
-from .restaurant import KitchenStation, Hall, RestaurantTable, ModifierGroup, Modifier, ProductModifierGroup, MenuStop  # type: ignore  # R0.3, R1.3, R1.5: restoran sexlari, zallar, stollar
+from .restaurant import KitchenStation, Hall, RestaurantTable, ModifierGroup, Modifier, ProductModifierGroup, MenuStop, RestaurantTerminal  # type: ignore  # R0.3, R1.3, R1.5, R6.1: restoran sexlari, zallar, stollar
 from .restaurant_order import RestaurantOrder, RestaurantOrderItem, KitchenTicket  # type: ignore  # R3: restoran cheklari

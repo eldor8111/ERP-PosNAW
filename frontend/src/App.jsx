@@ -55,6 +55,8 @@ const RestaurantReports = lazy(() => import('./pages/admin/restaurant/Restaurant
 const RestaurantKds = lazy(() => import('./pages/admin/restaurant/RestaurantKds'))  // R4.2
 const RestaurantPrintStation = lazy(() => import('./pages/admin/restaurant/RestaurantPrintStation'))  // R4.1
 const RestaurantStopList = lazy(() => import('./pages/admin/restaurant/RestaurantStopList'))  // R1.5
+const RestaurantTerminals = lazy(() => import('./pages/admin/restaurant/RestaurantTerminals'))  // R6.1
+const WaiterApp = lazy(() => import('./pages/waiter/WaiterApp'))  // R6.1: ofitsiant plansheti (PIN bilan)
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const MarketplaceAgents = lazy(() => import('./pages/admin/MarketplaceAgents'))
 const AICopilot       = lazy(() => import('./pages/admin/EcodeAI'))
@@ -139,6 +141,7 @@ export default function App() {
         <BranchProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/waiter" element={<Suspense fallback={<PageLoader />}><WaiterApp /></Suspense>} />
           <Route path="/pos-login" element={<Suspense fallback={<PageLoader />}><PosLogin /></Suspense>} />
           <Route path="/register" element={<Suspense fallback={<PageLoader />}><RegisterCompany /></Suspense>} />
           <Route path="/shop" element={<Suspense fallback={<PageLoader />}><TelegramShop /></Suspense>} />
@@ -179,6 +182,7 @@ export default function App() {
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             {/* D4.6: Dorixona markazi — faqat pharmacy moduli yoqilgan korxonada */}
+            <Route path="restaurant/terminals" element={<PrivateRoute roles={ROLE_GROUPS.POS_ACCESS}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantTerminals /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/stop-list" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantStopList /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/print" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantPrintStation /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/kds" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantKds /></Suspense></FeatureGate></PrivateRoute>} />

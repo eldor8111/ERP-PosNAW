@@ -136,3 +136,20 @@ class MenuStop(Base):
     updated_at = Column(DateTime, default=_now)
 
     __table_args__ = (UniqueConstraint("branch_id", "product_id", name="uq_menu_stop_branch_product"),)
+
+
+class RestaurantTerminal(Base):
+    """Ofitsiant plansheti (R6.1): menejer bir marta ulaydi, keyin xodimlar shu qurilmada PIN bilan almashib kiradi.
+    Token faqat xeshi bilan saqlanadi; PIN bilan berilgan sessiya tokeni `term` claim orqali shu qurilmaga bog'langan,
+    qurilma bekor qilinsa (revoked_at) sessiyalar darhol yaroqsiz bo'ladi."""
+    __tablename__ = "restaurant_terminals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=_now)
+    last_used_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)

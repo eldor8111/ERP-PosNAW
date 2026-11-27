@@ -28,6 +28,13 @@ def _enforce_mobile_boundary(user: User, payload: dict, request: Request, db: Se
         ).first()
         if not device or device.revoked_at is not None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Qurilma sessiyasi bekor qilingan")
+    term_id = payload.get("term")
+    if term_id is not None:
+        # R6.1: ofitsiant plansheti orqali PIN bilan berilgan sessiya — planshet bekor qilinsa yaroqsiz
+        from app.models.restaurant import RestaurantTerminal
+        term = db.query(RestaurantTerminal).filter(RestaurantTerminal.id == int(term_id)).first()
+        if not term or term.revoked_at is not None or term.company_id != payload.get("company_id"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Planshet sessiyasi bekor qilingan")
     if user.role in MOBILE_ONLY_ROLES:
         if dev_id is None or not request.url.path.startswith(MOBILE_ALLOWED_PREFIXES):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu bo'lim mobil xodimlar uchun yopiq")

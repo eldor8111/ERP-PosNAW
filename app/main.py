@@ -896,6 +896,9 @@ from app.routers import restaurant_print as _restaurant_print_router  # noqa: E4
 app.include_router(_restaurant_print_router.router, prefix=API_PREFIX)  # R4.1: oshxona tiketlari chop etish navbati
 from app.routers import restaurant_stops as _restaurant_stops_router  # noqa: E402  # R1.5
 app.include_router(_restaurant_stops_router.router, prefix=API_PREFIX)  # R1.5: stop-list va porsiya hisoblagichi
+from app.routers import restaurant_terminal as _restaurant_terminal_router  # noqa: E402  # R6.1
+app.include_router(_restaurant_terminal_router.router, prefix=API_PREFIX)  # R6.1: ofitsiant planshetlari (boshqaruv)
+app.include_router(_restaurant_terminal_router.public, prefix=API_PREFIX)  # R6.1: planshetda PIN bilan kirish
 
 # Serve uploaded static files
 import os
