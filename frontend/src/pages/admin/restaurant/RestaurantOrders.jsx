@@ -49,17 +49,26 @@ async function sendFiscal(fiscal, t) {
 
 // -- to'lov oynasi --
 function PayModal({ order, onClose, onPay, busy, t }) {
-  const [rows, setRows] = useState([{ type: 'cash', amount: String(Math.round(order.total)) }]);
+  // R8.1: bron depoziti chek summasidan ayiriladi (server o'zi qo'llaydi), qolgani to'lanadi
+  const deposit = Math.min(Number(order.deposit) || 0, Number(order.total) || 0);
+  const due = Math.max(0, Math.round((Number(order.total) || 0) - deposit));
+  const [rows, setRows] = useState(due > 0 ? [{ type: 'cash', amount: String(due) }] : []);
   const [tips, setTips] = useState('');
   const received = rows.reduce((s, r) => s + num(r.amount), 0);
   const cash = rows.filter(r => r.type === 'cash').reduce((s, r) => s + num(r.amount), 0);
   const noncash = received - cash;
-  const change = received - order.total;
-  const err = noncash > order.total ? t('restOrd.noncashTooMuch') : received < order.total ? t('restOrd.notEnough') : '';
+  const change = received - due + Math.max(0, (Number(order.deposit) || 0) - (Number(order.total) || 0));
+  const err = noncash > due ? t('restOrd.noncashTooMuch') : received < due ? t('restOrd.notEnough') : '';
   const setRow = (i, k, v) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
-  const fill = type => setRows([{ type, amount: String(Math.round(order.total)) }]);
+  const fill = type => setRows(due > 0 ? [{ type, amount: String(due) }] : []);
   return (
     <Modal wide title={`${t('restOrd.payment')}: ${money(order.total)}`} onClose={onClose}>
+      {deposit > 0 && (
+        <div className="text-sm rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 text-violet-900 space-y-0.5">
+          <div className="flex justify-between"><span>{t('restRes.depositApplied')}</span><span className="tabular-nums">-{money(deposit)}</span></div>
+          <div className="flex justify-between font-bold"><span>{t('restRes.toPay')}</span><span className="tabular-nums">{money(due)}</span></div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {['cash', 'card', 'click', 'payme'].map(tp => (
           <button key={tp} className="px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-semibold text-slate-700" onClick={() => fill(tp)}>{t(`restOrd.pay.${tp}`)}</button>
@@ -89,7 +98,7 @@ function PayModal({ order, onClose, onPay, busy, t }) {
       <div className="flex justify-end gap-2">
         <button className={btnGhost} onClick={onClose}>{t('restOrd.back')}</button>
         <button className={btnPrimary} disabled={busy || !!err}
-                onClick={() => onPay({ payments: rows.filter(r => num(r.amount) > 0).map(r => ({ type: r.type, amount: num(r.amount) })), tips: num(tips) })}>
+                onClick={() => onPay({ payments: due > 0 ? rows.filter(r => num(r.amount) > 0).map(r => ({ type: r.type, amount: num(r.amount) })) : [], tips: num(tips) })}>
           {t('restOrd.payConfirm')}
         </button>
       </div>
@@ -101,7 +110,9 @@ const TABLE_STYLE = {
   busy: 'border-blue-500 bg-blue-50 text-blue-800',
   ready: 'border-emerald-600 bg-emerald-50 text-emerald-800',
   precheck: 'border-amber-500 bg-amber-50 text-amber-800',
+  reserved: 'border-violet-500 bg-violet-50 text-violet-800',   // R8.1: bron vaqti yaqin
 };
+const hhmm = iso => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const ITEM_BADGE = {
   draft: 'bg-slate-100 text-slate-600', sent: 'bg-blue-50 text-blue-700', cooking: 'bg-orange-50 text-orange-700',
   ready: 'bg-emerald-50 text-emerald-700', served: 'bg-slate-50 text-slate-500', cancelled: 'bg-rose-50 text-rose-600',
@@ -819,6 +830,7 @@ export default function RestaurantOrders({ fixedBranchId = null } = {}) {
   const [orderId, setOrderId] = useState(null);
   const [choose, setChoose] = useState(null);      // {table, orders}
   const [newFor, setNewFor] = useState(null);      // {table|null, order_type}
+  const [resFor, setResFor] = useState(null);      // R8.1: {table, reservation}
   const [guests, setGuests] = useState('2');
   const [pinOpen, setPinOpen] = useState(false);
   const timer = useRef(null);
@@ -883,9 +895,22 @@ export default function RestaurantOrders({ fixedBranchId = null } = {}) {
 
   const clickTable = tb => {
     const st = status[tb.id];
+    if (st?.reservation && st.orders.length === 0) { setResFor({ table: tb, reservation: st.reservation }); return; }
     if (!st || st.orders.length === 0) { setGuests(String(Math.min(tb.seats, 2) || 2)); setNewFor({ table: tb, order_type: 'dine_in' }); return; }
     if (st.orders.length === 1) { setOrderId(st.orders[0].id); return; }
     setChoose({ table: tb, orders: st.orders });
+  };
+
+  const arrive = async () => {
+    try {
+      const r = await api.post(`/restaurant/reservations/${resFor.reservation.id}/arrive`, {});
+      setResFor(null);
+      if (r.data.order_id) setOrderId(r.data.order_id);
+      refresh();
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : d?.message || t('restOrd.failed'));
+    }
   };
 
   const create = async () => {
@@ -919,7 +944,7 @@ export default function RestaurantOrders({ fixedBranchId = null } = {}) {
       </div>
 
       <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
-        {['free', 'busy', 'ready', 'precheck'].map(s => (
+        {['free', 'reserved', 'busy', 'ready', 'precheck'].map(s => (
           <span key={s} className="inline-flex items-center gap-1"><span className={`w-3 h-3 rounded border-2 ${TABLE_STYLE[s]}`} />{t(`restOrd.st.${s}`)}</span>
         ))}
       </div>
@@ -946,6 +971,7 @@ export default function RestaurantOrders({ fixedBranchId = null } = {}) {
                     <span className="text-sm font-bold leading-none">{tb.name}</span>
                     {o && <span className="text-[10px] leading-tight mt-0.5 tabular-nums">{money(o.total)}</span>}
                     {o && <span className="text-[9px] leading-tight opacity-75">{o.minutes ?? 0}{t('restOrd.min')}{st.orders.length > 1 ? ` +${st.orders.length - 1}` : ''}</span>}
+                    {!o && st?.reservation && <span className="text-[10px] leading-tight mt-0.5">{t('restRes.badge')} {hhmm(st.reservation.starts_at)}</span>}
                   </button>
                 );
               })}
@@ -991,6 +1017,21 @@ export default function RestaurantOrders({ fixedBranchId = null } = {}) {
             </button>
           ))}
           <button className={`${btnPrimary} w-full`} onClick={() => { setNewFor({ table: choose.table, order_type: 'dine_in' }); setChoose(null); }}><Plus className="w-4 h-4" />{t('restOrd.newCheck')}</button>
+        </Modal>
+      )}
+
+      {resFor && (
+        <Modal title={`${t('restOrd.table')} ${resFor.table.name}: ${t('restRes.badge')} ${hhmm(resFor.reservation.starts_at)}`} onClose={() => setResFor(null)}>
+          <div className="text-sm text-slate-700 space-y-0.5">
+            <div className="font-semibold text-slate-800">{resFor.reservation.name}{resFor.reservation.phone ? `, ${resFor.reservation.phone}` : ''}</div>
+            <div>{hhmm(resFor.reservation.starts_at)} - {hhmm(resFor.reservation.ends_at)}, {t('restOrd.guests')}: {resFor.reservation.guests}</div>
+            {resFor.reservation.deposit_held > 0 && <div>{t('restRes.deposit')}: {money(resFor.reservation.deposit_held)}</div>}
+            {resFor.reservation.note && <div className="text-slate-500">{resFor.reservation.note}</div>}
+          </div>
+          <button className={`${btnPrimary} w-full`} onClick={arrive}>{t('restRes.arrive')}</button>
+          <button className={`${btnGhost} w-full`} onClick={() => { const tb = resFor.table; setResFor(null); setGuests(String(Math.min(tb.seats, 2) || 2)); setNewFor({ table: tb, order_type: 'dine_in' }); }}>
+            {t('restRes.walkIn')}
+          </button>
         </Modal>
       )}
 

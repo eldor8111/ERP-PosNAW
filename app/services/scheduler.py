@@ -796,6 +796,13 @@ async def _scheduler_tick(uz_now: datetime = None) -> None:
 
     await _company_reports_tick(uz_now, today)
 
+    # R8.1: restoran bron eslatmalari (har bron bir marta, atomar egallanadi)
+    try:
+        from app.services.restaurant_reservations import send_reminders
+        await send_reminders()
+    except Exception as e:
+        logger.error("[Scheduler] Bron eslatmalari xatoligi: %s", e)
+
 
 # ─── Mir-maza buyurtmalarini tortish (alohida sikl) ──────────────────────
 

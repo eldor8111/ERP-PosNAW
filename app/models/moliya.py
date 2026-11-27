@@ -7,7 +7,7 @@ from app.database import Base  # type: ignore
 # Haqiqiy pul tushadigan to'lov turlari (KassaMovement/Transaction faqat shular uchun).
 CASH_PAYMENT_TYPES = ("cash", "card", "uzcard", "humo", "bank", "click", "payme", "uzum", "visa")
 # Naqd bo'lmagan turlar: qarz, keshbek (bonus) va aralash — pul oqimiga yozilmaydi.
-NON_CASH_PAYMENT_TYPES = ("debt", "cashback", "mixed")
+NON_CASH_PAYMENT_TYPES = ("debt", "cashback", "mixed", "deposit")  # deposit: R8.1, pul bron paytida kirim qilingan
 # "keshbek" — eski kassa harakatlari yo'qolmasligi uchun qoladi.
 PAYMENT_TYPES = list(CASH_PAYMENT_TYPES) + ["keshbek"]
 

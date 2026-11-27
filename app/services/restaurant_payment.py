@@ -264,7 +264,19 @@ def pay_order(db: Session, user: User, order: RestaurantOrder, settings: dict, p
         raise HTTPException(status_code=400, detail="Chek bo'sh")
     recalc(db, order, settings)
     total = _money(order.total)
-    rows, change, received = _payments(payments, total)
+    # R8.1: bron depoziti (bron paytida kassaga kirim qilingan) chek summasigacha qo'llanadi, ortig'i qaytariladi
+    from app.services import restaurant_reservations as rsv
+    rest = total - min(rsv.order_deposit(db, order), total)
+    if rest > 0:
+        rows, change, received = _payments(payments, rest)          # avval tekshiruv, keyin depozit qo'llanadi
+    else:
+        if any(_money(p.get("amount")) > 0 for p in (payments or [])):
+            raise HTTPException(status_code=400, detail="Chek depozit bilan to'liq to'langan: boshqa to'lov kerak emas")
+        rows, change, received = [], ZERO, ZERO
+    dep_rows, dep_applied, dep_excess = rsv.apply_to_order(db, user, order, total)
+    rows = dep_rows + rows
+    received += dep_applied
+    change += dep_excess
     tips = _money(tips)
     if tips < 0:
         raise HTTPException(status_code=400, detail="Choy puli manfiy bo'lmasin")
@@ -296,7 +308,7 @@ def pay_order(db: Session, user: User, order: RestaurantOrder, settings: dict, p
         table = db.get(RestaurantTable, order.table_id)
     data = SaleCreate(
         items=items,
-        payment_type=rows[0]["type"] if len(rows) == 1 else "mixed",
+        payment_type=rows[0]["type"] if len(rows) == 1 and rows[0]["type"] != "deposit" else "mixed",
         paid_amount=total,
         payments=[{"type": r["type"], "amount": r["amount"], "reference": r["reference"],
                    "terminal_id": r["terminal_id"]} for r in rows],
@@ -321,6 +333,7 @@ def pay_order(db: Session, user: User, order: RestaurantOrder, settings: dict, p
             it.served_at = it.served_at or now
     from app.services.restaurant_orders import bump
     bump(order)
+    rsv.close_for_order(db, order)
     db.flush()
 
     sale = create_sale(db, data, user, ip=ip)          # o'zi commit qiladi (yuqoridagi o'zgarishlar bilan birga)

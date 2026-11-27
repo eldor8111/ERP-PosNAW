@@ -156,6 +156,9 @@ def _build_uc_payload(sale: Sale) -> dict:
     if hasattr(sale, "payments") and sale.payments:
         for p in sale.payments:
             pt = p.payment_type if isinstance(p.payment_type, str) else p.payment_type.value
+            if pt == "deposit":
+                # R8.1: bron depoziti — mijoz qanday to'lagan bo'lsa (reference: cash / card / ...)
+                pt = (getattr(p, "reference", None) or "cash")
             amt = int(p.amount or 0)
             if pt in CASH_TYPES:
                 received_cash += amt

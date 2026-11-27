@@ -38,6 +38,10 @@ DEFAULT_SETTINGS = {
     "auto_stop_on_no_stock": False,
     "delivery_auto_send_kitchen": False,
     "order_number_screen": False,
+    "reservation_duration_min": 120,     # R8.1: bron davomiyligi (sukut)
+    "reservation_hold_min": 60,          # stol bron vaqtidan shuncha daqiqa oldin zalda "bron" ko'rinadi
+    "reservation_remind_hours": 2,       # eslatma bron vaqtidan shuncha soat oldin (0 = o'chiq)
+    "reservation_sms_reminder": False,   # Telegram bo'lmasa SMS (pullik) yuborilsinmi
 }
 
 DEFAULT_CATEGORIES = (
@@ -50,7 +54,7 @@ KITCHEN_WAREHOUSE_NAME = "Oshxona"
 
 _BOOL_KEYS = ("table_service", "service_after_discount", "semi_auto_expand", "precheck_lock",
               "waiter_can_take_payment", "waiter_sees_all_tables", "auto_stop_on_no_stock",
-              "delivery_auto_send_kitchen", "order_number_screen")
+              "delivery_auto_send_kitchen", "order_number_screen", "reservation_sms_reminder")
 
 
 def normalize_business_type(value: Optional[str]) -> str:
@@ -81,7 +85,8 @@ def normalize_restaurant_settings(raw) -> dict:
     out = {}
     if raw.get("format") is not None:
         out["format"] = normalize_format(raw["format"])
-    for key, lo, hi in (("service_pct", 0, 50), ("food_cost_alert_pct", 0, 100)):
+    for key, lo, hi in (("service_pct", 0, 50), ("food_cost_alert_pct", 0, 100), ("reservation_duration_min", 15, 720),
+                        ("reservation_hold_min", 0, 240), ("reservation_remind_hours", 0, 48)):
         if raw.get(key) is not None:
             try:
                 v = float(raw[key])

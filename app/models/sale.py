@@ -20,6 +20,7 @@ class PaymentType(str, enum.Enum):
     debt = "debt"
     mixed = "mixed"
     cashback = "cashback"  # Mijoz bonus_balance hisobidan to'lov
+    deposit = "deposit"    # R8.1: restoran bron depoziti (pul bron paytida kassaga tushgan; faqat SalePayment qatori)
 
 
 class SaleStatus(str, enum.Enum):

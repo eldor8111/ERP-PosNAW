@@ -230,7 +230,7 @@ def test_visa_visible_in_balances(client, db, w):
 
 def test_payment_type_constants():
     assert "bank" in CASH_PAYMENT_TYPES and "visa" in CASH_PAYMENT_TYPES
-    assert set(NON_CASH_PAYMENT_TYPES) == {"debt", "cashback", "mixed"}
+    assert set(NON_CASH_PAYMENT_TYPES) == {"debt", "cashback", "mixed", "deposit"}   # deposit: R8.1 bron depoziti
     assert not set(CASH_PAYMENT_TYPES) & set(NON_CASH_PAYMENT_TYPES)
     assert "keshbek" in PAYMENT_TYPES and set(CASH_PAYMENT_TYPES) <= set(PAYMENT_TYPES)
 

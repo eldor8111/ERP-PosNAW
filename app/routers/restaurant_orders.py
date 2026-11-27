@@ -187,8 +187,17 @@ def _order_out(db: Session, o: RestaurantOrder, settings: dict) -> dict:
         "change_amount": _f(o.change_amount),
         "refunded_amount": _f(o.refunded_amount or 0), "refunds": o.refunds or [],
         "locked": o.status == "prechecked" and bool(settings.get("precheck_lock", True)),
+        "deposit": _deposit_of(db, o),
         "items": [_item_out(it) for it in o.items],
     }
+
+
+def _deposit_of(db: Session, o: RestaurantOrder) -> float:
+    """R8.1: ochiq chekka bog'langan bronning ishlatilmagan depoziti (to'lovda avtomatik qo'llanadi)."""
+    if o.status not in ("open", "prechecked"):
+        return 0.0
+    from app.services.restaurant_reservations import order_deposit
+    return float(order_deposit(db, o))
 
 
 def _ticket_out(t: KitchenTicket, station_names: dict) -> dict:
@@ -492,7 +501,9 @@ def _fiscal_payload(db: Session, o: RestaurantOrder) -> dict:
                      "package_code": sp.package_code,
                      "vat_rate_type": getattr(sp.vat_rate_type, "value", None),
                      "unit_price": float(o.service_amount), "quantity": 1.0, "discount": 0.0})
-    return {"cart": cart, "payments": o.payments or [], "discount": 0, "sale_id": o.sale_id}
+    # R8.1: depozit qatori fiskal modulga mijoz to'lagan usulda (reference: cash / card / ...) beriladi
+    pays = [({**p, "type": p.get("reference") or "cash"} if p.get("type") == "deposit" else p) for p in (o.payments or [])]
+    return {"cart": cart, "payments": pays, "discount": 0, "sale_id": o.sale_id}
 
 
 @router.post("/orders/{order_id}/refund")
@@ -568,7 +579,7 @@ def tables_status(branch_id: Optional[int] = None, db: Session = Depends(get_db)
                                               RestaurantOrder.status.in_(("open", "prechecked")),
                                               RestaurantOrder.table_id.isnot(None)).all()
     now = datetime.now(timezone.utc)
-    rank = {"free": 0, "busy": 1, "ready": 2, "precheck": 3}
+    rank = {"free": 0, "reserved": 0, "busy": 1, "ready": 2, "precheck": 3}
     out = {}
     waiters = {}
     for o in orders:
@@ -587,6 +598,13 @@ def tables_status(branch_id: Optional[int] = None, db: Session = Depends(get_db)
             "minutes": int((now - opened).total_seconds() // 60) if opened else None,
             "mine": o.waiter_id == user.id,
         })
+    # R8.1: bugungi eng yaqin bron; bo'sh stol bron vaqtiga yaqinlashganda `reserved`
+    from app.services.restaurant_reservations import floor_info
+    for tid, info in floor_info(db, user.company_id, bid, settings).items():
+        rec = out.get(tid)
+        if rec is None:
+            rec = out[tid] = {"table_id": tid, "status": "reserved" if info["reserved"] else "free", "orders": []}
+        rec["reservation"] = info["reservation"]
     return list(out.values())
 
 

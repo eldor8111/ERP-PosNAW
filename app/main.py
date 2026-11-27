@@ -901,6 +901,8 @@ app.include_router(_restaurant_terminal_router.router, prefix=API_PREFIX)  # R6.
 app.include_router(_restaurant_terminal_router.public, prefix=API_PREFIX)  # R6.1: planshetda PIN bilan kirish
 from app.routers import restaurant_production as _restaurant_production_router  # noqa: E402  # R7.2
 app.include_router(_restaurant_production_router.router, prefix=API_PREFIX)  # R7.2: yarim tayyor mahsulot tayyorlash
+from app.routers import restaurant_reservations as _restaurant_reservations_router  # noqa: E402  # R8.1
+app.include_router(_restaurant_reservations_router.router, prefix=API_PREFIX)  # R8.1: stol bron qilish
 
 # Serve uploaded static files
 import os

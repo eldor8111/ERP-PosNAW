@@ -28,7 +28,7 @@ from app.utils.report_utils import is_return_doc, date_bounds
 router = APIRouter(prefix="/shifts", tags=["shifts"])
 
 # Haqiqiy pul tushmaydigan to'lov turlari — inkassatsiyaga kirmaydi (qarz, keshbek, aralash)
-NON_CASH_PAYMENT_TYPES = ("debt", "cashback", "mixed")
+NON_CASH_PAYMENT_TYPES = ("debt", "cashback", "mixed", "deposit")
 HANDOVER_BRANCH_MISMATCH = "Kassalar turli filialga tegishli: inkassatsiya mumkin emas"
 SHIFT_ALREADY_CLOSED = "Smena allaqachon yopilgan"
 SHIFT_ALREADY_OPEN = "Kassir uchun faol smena allaqachon mavjud"
