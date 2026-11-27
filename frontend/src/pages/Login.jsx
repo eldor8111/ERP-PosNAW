@@ -19,7 +19,13 @@ import {
   CheckCircle2, 
   AlertCircle,
   KeyRound,
-  RotateCcw
+  RotateCcw,
+  Download,
+  Monitor,
+  Pill,
+  Headphones,
+  Printer,
+  X
 } from 'lucide-react'
 
 function LoginLangSwitcher({ lang, setLang }) {
@@ -389,6 +395,177 @@ function ForgotPasswordModal({ onClose, t }) {
   )
 }
 
+const DOWNLOAD_APPS = [
+  {
+    id: 'pos-dokon',
+    name: "E-Code POS — Do'kon",
+    nameRu: 'E-Code POS — Магазин',
+    nameEn: 'E-Code POS — Store',
+    version: 'v1.1.30',
+    size: '80.2 MB',
+    desc: "Do'konlar uchun kassa ilovasi (quti, ichki quti va dona sotuv)",
+    descRu: 'Кассовая программа для магазинов (коробка, внутр. коробка, шт)',
+    descEn: 'Desktop POS app for retail stores (box, inner box & piece)',
+    filename: 'E-Code-POS-Dokon-Setup-1.1.30.exe',
+    url: '/pos-updates/apps/E-Code-POS-Dokon-Setup-1.1.30.exe',
+    icon: Monitor,
+    accent: 'bg-blue-50 text-blue-600 border-blue-200',
+    badge: 'bg-blue-600 text-white',
+  },
+  {
+    id: 'pos-dorixona',
+    name: 'E-Code POS — Dorixona',
+    nameRu: 'E-Code POS — Аптека',
+    nameEn: 'E-Code POS — Pharmacy',
+    version: 'v1.1.23',
+    size: '80.1 MB',
+    desc: 'Dorixonalar uchun kassa ilovasi (quti/blister, muddat, retsept)',
+    descRu: 'Кассовая программа для аптек (упаковки, сроки, рецепты)',
+    descEn: 'Desktop POS app for pharmacies (packs, expiry, prescriptions)',
+    filename: 'E-Code-POS-Dorixona-Setup-1.1.23.exe',
+    url: '/pos-updates/apps/E-Code-POS-Dorixona-Setup-1.1.23.exe',
+    icon: Pill,
+    accent: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    badge: 'bg-emerald-600 text-white',
+  },
+  {
+    id: 'anydesk',
+    name: 'AnyDesk',
+    nameRu: 'AnyDesk',
+    nameEn: 'AnyDesk',
+    version: 'Windows',
+    size: '2.8 MB',
+    desc: 'Masofaviy texnik yordam va ulanish dasturi',
+    descRu: 'Программа для удалённой технической поддержки',
+    descEn: 'Remote desktop support utility',
+    filename: 'AnyDesk.exe',
+    url: '/pos-updates/apps/AnyDesk.exe',
+    icon: Headphones,
+    accent: 'bg-rose-50 text-rose-600 border-rose-200',
+    badge: 'bg-slate-100 text-slate-700',
+  },
+  {
+    id: 'rustdesk',
+    name: 'RustDesk',
+    nameRu: 'RustDesk',
+    nameEn: 'RustDesk',
+    version: 'v1.5.0',
+    size: '24.7 MB',
+    desc: "Masofaviy boshqaruv va qo'llab-quvvatlash ilovasi (x86_64)",
+    descRu: 'Удалённый доступ и техническая поддержка (x86_64)',
+    descEn: 'Open-source remote desktop app (x86_64)',
+    filename: 'rustdesk-1.5.0-x86_64.exe',
+    url: '/pos-updates/apps/rustdesk-1.5.0-x86_64.exe',
+    icon: Headphones,
+    accent: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+    badge: 'bg-slate-100 text-slate-700',
+  },
+  {
+    id: 'xprinter-v777',
+    name: 'Xprinter Driver Setup (v7.77)',
+    nameRu: 'Драйвер Xprinter Setup (v7.77)',
+    nameEn: 'Xprinter Driver Setup (v7.77)',
+    version: 'v7.77',
+    size: '3.6 MB',
+    desc: 'Xprinter chek printerlari uchun tezkor o‘rnatish drayveri',
+    descRu: 'Установочный драйвер для чековых принтеров Xprinter',
+    descEn: 'Official setup driver for Xprinter receipt printers',
+    filename: 'XPrinter-Driver-Setup-V7.77.rar',
+    url: '/pos-updates/apps/XPrinter-Driver-Setup-V7.77.rar',
+    icon: Printer,
+    accent: 'bg-teal-50 text-teal-600 border-teal-200',
+    badge: 'bg-slate-100 text-slate-700',
+  },
+  {
+    id: 'xprinter',
+    name: 'Xprinter Driver (2018-3)',
+    nameRu: 'Драйвер Xprinter (2018-3)',
+    nameEn: 'Xprinter Driver (2018-3)',
+    version: 'RAR',
+    size: '38.9 MB',
+    desc: 'Chek va etiketka printerlari uchun drayverlar to‘plami',
+    descRu: 'Набор драйверов для чековых и этикеточных принтеров',
+    descEn: 'Driver package for receipt & label printers',
+    filename: 'Xprinter_2018-3.rar',
+    url: '/pos-updates/apps/Xprinter_2018-3.rar',
+    icon: Printer,
+    accent: 'bg-amber-50 text-amber-600 border-amber-200',
+    badge: 'bg-slate-100 text-slate-700',
+  },
+]
+
+function AppsDownloadModal({ onClose, lang }) {
+  const title = lang === 'ru' ? 'Программы для загрузки' : lang === 'en' ? 'Downloadable Apps' : 'Dasturlar yuklab olish'
+  const subtitle = lang === 'ru'
+    ? 'Выберите нужную программу для Windows и нажмите «Скачать»'
+    : lang === 'en'
+      ? 'Select any app below to download directly'
+      : 'Kerakli dasturni tanlab to‘g‘ridan-to‘g‘ri yuklab oling'
+  const dlLabel = lang === 'ru' ? 'Скачать' : lang === 'en' ? 'Download' : 'Yuklab olish'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white/95 backdrop-blur-xl border border-blue-100 rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-7 relative max-h-[90vh] flex flex-col">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="mb-5 pr-8">
+          <div className="inline-flex p-2.5 bg-blue-50 text-blue-600 rounded-2xl mb-3 border border-blue-100">
+            <Download className="w-5 h-5" />
+          </div>
+          <h3 className="text-xl font-black text-slate-900">{title}</h3>
+          <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+        </div>
+
+        <div className="space-y-2.5 overflow-y-auto pr-1">
+          {DOWNLOAD_APPS.map((app) => {
+            const Icon = app.icon
+            const label = lang === 'ru' ? app.nameRu : lang === 'en' ? app.nameEn : app.name
+            const desc = lang === 'ru' ? app.descRu : lang === 'en' ? app.descEn : app.desc
+            return (
+              <div
+                key={app.id}
+                className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-slate-200/90 bg-white hover:border-blue-300 hover:shadow-md hover:shadow-blue-500/5 transition-all"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 ${app.accent}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm truncate">{label}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${app.badge}`}>{app.version}</span>
+                      <span className="text-[11px] font-semibold text-slate-400">{app.size}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{desc}</p>
+                  </div>
+                </div>
+                <a
+                  href={app.url}
+                  download={app.filename}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm shadow-blue-500/20 transition-all active:scale-95"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{dlLabel}</span>
+                </a>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Login() {
   const { login, applyAuthResponse } = useAuth()
   const { t, lang, setLang } = useLang()
@@ -398,6 +575,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
+  const [showApps, setShowApps] = useState(false)
 
   // OTP bosqich
   const [otpStep, setOtpStep] = useState(false)
@@ -643,6 +821,8 @@ export default function Login() {
 
               {/* Forgot Password Modal */}
               {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} t={t} />}
+              {/* Apps Download Modal */}
+              {showApps && <AppsDownloadModal onClose={() => setShowApps(false)} lang={lang} />}
 
               {/* ── Multi-company Selection Step ── */}
               {companyStep ? (
@@ -815,9 +995,17 @@ export default function Login() {
                     )}
                   </button>
 
-                  {/* Register Link */}
-                  <div className="pt-6 border-t border-slate-100 text-center">
-                    <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                  {/* Bottom Row: Dasturlar + Register Link */}
+                  <div className="pt-5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowApps(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{lang === 'ru' ? 'Программы' : lang === 'en' ? 'Apps' : 'Dasturlar'}</span>
+                    </button>
+                    <p className="text-xs text-slate-500 font-medium">
                       {lang === 'ru' ? 'Нет вашей организации?' : lang === 'en' ? "Don't have a company?" : "Korxonangiz yo'qmi?"}{' '}
                       <Link 
                         to="/register" 

@@ -40,10 +40,10 @@ const BIN_WRITE_ROLES = ['super_admin', 'admin', 'director', 'warehouse', 'manag
 
 /* MXIK sinxronizatsiya holati — rang va izoh */
 const getMxikStatusMeta = (t) => ({
-  unknown:  { color: 'bg-slate-300',  label: t('product.mxikStatusUnknown') },
-  active:   { color: 'bg-emerald-500', label: t('product.mxikStatusActive') },
-  disabled: { color: 'bg-red-500',    label: t('product.mxikStatusDisabled') },
-  error:    { color: 'bg-amber-500',  label: t('product.mxikStatusError') },
+  unknown: { color: 'bg-slate-300', label: t('product.mxikStatusUnknown') },
+  active: { color: 'bg-emerald-500', label: t('product.mxikStatusActive') },
+  disabled: { color: 'bg-red-500', label: t('product.mxikStatusDisabled') },
+  error: { color: 'bg-amber-500', label: t('product.mxikStatusError') },
 });
 
 /* ═══════════════════════════════════════════════════ */
@@ -198,7 +198,7 @@ export default function Products() {
   const loadBarcodeLimit = useCallback(() => {
     api.get('/products/barcode-limit')
       .then(r => setBarcodeLimit(r.data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /* product modal */
@@ -578,8 +578,79 @@ export default function Products() {
     conversion_ratio: p.conversion?.ratio ?? 1,
   });
 
+  const emptyBoxCalc = { open: false, cost_price: '', sale_price: '', big_qty: '', mid_qty: '', stock_big: '' };
+  const [boxCalc, setBoxCalc] = useState(emptyBoxCalc);
+
+  const buildBoxConfigAttr = ({ sale_price, cost_price, big_qty, mid_qty }, baseSalePrice, baseCostPrice) => {
+    const packObj = { ...emptyPack, big_name: 'quti', mid_name: 'ichki quti', big_qty: big_qty ?? '', mid_qty: mid_qty ?? '' };
+    const L = packLevels(packObj);
+    if (!L.top || L.topRatio <= 1) return null;
+    const baseSale = Number(baseSalePrice) || 0;
+    const baseCost = Number(baseCostPrice) || 0;
+    const rawBoxSale = Number(String(sale_price || '').replace(/\s/g, '')) || 0;
+    const rawBoxCost = Number(String(cost_price || '').replace(/\s/g, '')) || 0;
+    const boxSale = rawBoxSale > 0 ? rawBoxSale : Math.round(baseSale * L.topRatio * 100) / 100;
+    const boxCost = rawBoxCost > 0 ? rawBoxCost : Math.round(baseCost * L.topRatio * 100) / 100;
+    const P = packPrices(packObj, String(boxSale), packRound);
+    const units = [];
+    if (L.hasBig && L.hasMid) {
+      const innerPrice = P.mid != null ? Number(P.mid) : Math.round(baseSale * L.midQty * 100) / 100;
+      units.push({
+        id: 'ichki_quti',
+        name: 'ichki quti',
+        ratio: L.midQty,
+        sale_price: innerPrice,
+        price: innerPrice,
+      });
+    }
+    units.push({
+      id: 'quti',
+      name: 'quti',
+      ratio: L.topRatio,
+      sale_price: boxSale,
+      price: boxSale,
+    });
+    return {
+      key: 'pack_config',
+      sale_price: boxSale,
+      cost_price: boxCost,
+      big_qty: String(big_qty ?? ''),
+      mid_qty: String(mid_qty ?? ''),
+      pack_ratio: L.topRatio,
+      units,
+    };
+  };
+
+  const updateBoxCalc = (field, value) => {
+    setBoxCalc(prev => {
+      const next = { ...prev, [field]: value };
+      const packObj = { ...emptyPack, big_qty: next.big_qty ?? '', mid_qty: next.mid_qty ?? '' };
+      const L = packLevels(packObj);
+      if (L.top && (next.sale_price || next.cost_price) && (next.stock_big === '' || next.stock_big == null) && field !== 'stock_big') {
+        next.stock_big = '1';
+      }
+      setForm(f => {
+        const patch = {};
+        if (L.top && ['sale_price', 'big_qty', 'mid_qty'].includes(field) && next.sale_price) {
+          const u = packPrices(packObj, next.sale_price, packRound).unit;
+          if (u != null) patch.sale_price = String(u);
+        }
+        if (L.top && ['cost_price', 'big_qty', 'mid_qty'].includes(field) && next.cost_price) {
+          const cu = packPrices(packObj, next.cost_price, packRound).unit;
+          if (cu != null) patch.cost_price = String(cu);
+        }
+        if (L.top && ['stock_big', 'big_qty', 'mid_qty', 'sale_price', 'cost_price'].includes(field) && next.stock_big !== '' && next.stock_big != null) {
+          patch.initial_stock = String(Number(next.stock_big) * L.topRatio);
+        }
+        return Object.keys(patch).length ? { ...f, ...patch } : f;
+      });
+      return next;
+    });
+  };
+
   const openAdd = () => {
     setForm({ ...emptyProduct, barcode: genBarcodeByFormat('ean8') });
+    setBoxCalc(emptyBoxCalc);
     setMxikCode('');
     setBarcodeInput('');
     setError('');
@@ -589,6 +660,7 @@ export default function Products() {
   const openAddComponent = (parentProduct) => {
     if (!parentProduct || parentProduct.product_type === 'sell') return;
     setSelected(null);
+    setBoxCalc(emptyBoxCalc);
     setForm({
       ...emptyProduct,
       barcode: genBarcodeByFormat('ean8'),
@@ -605,6 +677,7 @@ export default function Products() {
 
   const openEdit = async (p) => {
     setError('');
+    setBoxCalc(emptyBoxCalc);
     try {
       const { data: full } = await api.get(`/products/${p.id}`);
       // Ro'yxatdan kelgan qiymatlarni fallback sifatida ishlatamiz
@@ -622,6 +695,15 @@ export default function Products() {
       if (pharmacyOn && full.pharma) { setSelected(null); setPharmModal({ product: full }); return; }
       setSelected(full);
       setForm(fillFormFromProduct(full));
+      const packAttr = Array.isArray(full.attributes) ? full.attributes.find(a => a && a.key === 'pack_config') : null;
+      setBoxCalc(packAttr ? {
+        open: true,
+        sale_price: packAttr.sale_price != null ? String(packAttr.sale_price) : '',
+        cost_price: packAttr.cost_price != null ? String(packAttr.cost_price) : '',
+        big_qty: packAttr.big_qty != null ? String(packAttr.big_qty) : '',
+        mid_qty: packAttr.mid_qty != null ? String(packAttr.mid_qty) : '',
+        stock_big: '',
+      } : emptyBoxCalc);
       setMxikCode(full.mxik_code || '');
       setBarcodeInput(full.parent_code || '');
       setModal('edit');
@@ -740,6 +822,11 @@ export default function Products() {
           barcode: v.barcode?.trim() || null
         })) : undefined,
       };
+      const otherAttrs = Array.isArray(selected?.attributes)
+        ? selected.attributes.filter(a => !a || a.key !== 'pack_config')
+        : [];
+      const boxAttr = buildBoxConfigAttr(boxCalc, payload.sale_price, payload.cost_price);
+      payload.attributes = boxAttr ? [...otherAttrs, boxAttr] : otherAttrs;
       if (effectiveType === 'sell') {
         payload.conversion = {
           source_product_id: Number(form.conversion_source_id),
@@ -1278,7 +1365,14 @@ export default function Products() {
         const u = packPrices(bulkRowPack(nr), nr.pk_price, packRound).unit;
         if (u != null) nr.sale_price = String(u);
       }
-      if (L.top && ['pk_stock_big', 'pk_big_qty', 'pk_mid_qty'].includes(field) && nr.pk_stock_big) {
+      if (L.top && ['pk_cost_price', 'pk_big_qty', 'pk_mid_qty'].includes(field) && nr.pk_cost_price) {
+        const cu = packPrices(bulkRowPack(nr), nr.pk_cost_price, packRound).unit;
+        if (cu != null) nr.cost_price = String(cu);
+      }
+      if (L.top && (nr.pk_price || nr.pk_cost_price) && (nr.pk_stock_big === undefined || nr.pk_stock_big === '') && field !== 'pk_stock_big') {
+        nr.pk_stock_big = '1';
+      }
+      if (L.top && ['pk_stock_big', 'pk_big_qty', 'pk_mid_qty', 'pk_price', 'pk_cost_price'].includes(field) && nr.pk_stock_big) {
         nr.initial_stock = String(Number(nr.pk_stock_big) * L.topRatio);
       }
       return nr;
@@ -1399,13 +1493,19 @@ export default function Products() {
         const [primary, ...extras] = row.barcodes.filter(b => b.trim());
         // P.15: dorixonada yaroqlilik muddati ham ixtiyoriy (muddati yo'q tovarlar ham bor; P.5: seriya va ishlab chiqarilgan
         // sana ixtiyoriy) — faqat ikkala sana berilsa tartibi tekshiriladi; qadoq tuzilmasi `units` bilan yuboriladi
-        const rowPk = pharmacyOn ? bulkRowPack(row) : null;
-        const rowL = rowPk ? packLevels(rowPk) : null;
+        const rowPk = bulkRowPack(row);
+        const rowL = packLevels(rowPk);
         if (pharmacyOn && Number(row.initial_stock) > 0 && row.pk_expiry && row.pk_mfg && row.pk_mfg >= row.pk_expiry) {
           errors.push({ name: row.name, error: tf('drugForm.batchMfgBeforeExpiry', "Ishlab chiqarilgan sana yaroqlilik muddatidan oldin bo'lishi kerak") });
           continue;
         }
         const rowUnitPrice = rowL?.top && row.pk_price ? packPrices(rowPk, row.pk_price, packRound).unit : null;
+        const rowEffectiveSale = rowUnitPrice != null ? rowUnitPrice : (Number(row.sale_price) || 0);
+        const rowBoxAttr = buildBoxConfigAttr(
+          { sale_price: row.pk_price, cost_price: row.pk_cost_price, big_qty: row.pk_big_qty, mid_qty: row.pk_mid_qty },
+          rowEffectiveSale,
+          Number(row.cost_price) || 0,
+        );
         await api.post('/products', {
           name: row.name.trim(),
           sku: row.sku?.trim() || undefined,
@@ -1419,7 +1519,7 @@ export default function Products() {
           cost_currency: getPureCode(row.cost_price_cur),
           wholesale_price: row.wholesale_price !== '' ? Number(row.wholesale_price) : null,
           wholesale_currency: getPureCode(row.wholesale_price_cur),
-          sale_price: rowUnitPrice != null ? rowUnitPrice : (Number(row.sale_price) || 0),
+          sale_price: rowEffectiveSale,
           sale_currency: getPureCode(row.sale_price_cur),
           unit: row.unit || 'dona',
           category_id: row.category_id ? Number(row.category_id) : null,
@@ -1429,6 +1529,7 @@ export default function Products() {
           min_stock: Number(row.min_stock) || 0,
           status: row.status || 'active',
           price_currency_id: row.sale_price_cur ? Number(row.sale_price_cur) : null,
+          ...(rowBoxAttr ? { attributes: [rowBoxAttr] } : {}),
           ...(pharmacyOn && rowUnitPrice != null ? { units: packToUnits(rowPk, row.pk_price, packRound, 1) } : {}),
           ...(pharmacyOn && Number(row.initial_stock) > 0 ? {
             ...(row.pk_expiry ? { initial_expiry_date: row.pk_expiry } : {}),   // P.15: ixtiyoriy
@@ -1659,15 +1760,15 @@ export default function Products() {
                 </button>
               </>
             ) : (
-            <button
-              onClick={activeTab === 'products' ? openAdd : activeTab === 'categories' ? openAddCat : openAddBl}
-              className="inline-flex leading-none cursor-pointer items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-blue-600 hover:bg-blue-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg shadow-sm transition-colors"
-            >
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
-              {activeTab === 'products' ? t('product.addProduct') : activeTab === 'categories' ? t('product.addCategory') : t('product.addLocation')}
-            </button>
+              <button
+                onClick={activeTab === 'products' ? openAdd : activeTab === 'categories' ? openAddCat : openAddBl}
+                className="inline-flex leading-none cursor-pointer items-center gap-1 sm:gap-2 px-2 xl:px-4 py-1 xl:py-2 bg-blue-600 hover:bg-blue-700 text-white text-[12px] xl:text-[15px] font-semibold rounded-md xl:rounded-lg shadow-sm transition-colors"
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+                {activeTab === 'products' ? t('product.addProduct') : activeTab === 'categories' ? t('product.addCategory') : t('product.addLocation')}
+              </button>
             )}
 
             {activeTab === 'products' && (
@@ -1822,7 +1923,7 @@ export default function Products() {
                       { wch: 10 }, { wch: 7 }, { wch: 12 },
                       { wch: 7 }, { wch: 14 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 5 },
                       ...(pharmacyOn ? [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
-                        { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 12 }] : []),
+                      { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 12 }] : []),
                     ];
                     // Freeze top 2 rows
                     ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activeCell: 'C3', sqref: 'C3' };
@@ -1849,17 +1950,15 @@ export default function Products() {
                 {barcodeLimit && barcodeLimit.limit && (
                   <div
                     title={`Shtrix-kodlar limiti: ${barcodeLimit.used} / ${barcodeLimit.limit}`}
-                    className={`inline-flex items-center gap-1.5 px-2.5 xl:px-3 py-1 xl:py-2 rounded-md xl:rounded-lg border text-[11px] xl:text-[13px] font-semibold transition-colors ${
-                      barcodeLimit.is_exceeded
+                    className={`inline-flex items-center gap-1.5 px-2.5 xl:px-3 py-1 xl:py-2 rounded-md xl:rounded-lg border text-[11px] xl:text-[13px] font-semibold transition-colors ${barcodeLimit.is_exceeded
                         ? 'bg-red-50 border-red-300 text-red-700'
                         : barcodeLimit.is_warning
-                        ? 'bg-amber-50 border-amber-300 text-amber-800'
-                        : 'bg-slate-50 border-slate-200 text-slate-700'
-                    }`}
+                          ? 'bg-amber-50 border-amber-300 text-amber-800'
+                          : 'bg-slate-50 border-slate-200 text-slate-700'
+                      }`}
                   >
-                    <Binary className={`w-3.5 h-3.5 xl:w-4 xl:h-4 ${
-                      barcodeLimit.is_exceeded ? 'text-red-600' : barcodeLimit.is_warning ? 'text-amber-600' : 'text-slate-500'
-                    }`} />
+                    <Binary className={`w-3.5 h-3.5 xl:w-4 xl:h-4 ${barcodeLimit.is_exceeded ? 'text-red-600' : barcodeLimit.is_warning ? 'text-amber-600' : 'text-slate-500'
+                      }`} />
                     <span>
                       {barcodeLimit.is_exceeded ? '🚫 Limit:' : barcodeLimit.is_warning ? '⚠️ Shtrix-kod:' : 'Shtrix-kod:'}{' '}
                       <span className="font-bold">{barcodeLimit.used}</span> / {barcodeLimit.limit}
@@ -2787,11 +2886,10 @@ export default function Products() {
                   <button
                     key={f.key}
                     onClick={() => setCatFilter(f.key)}
-                    className={`px-3 py-1 rounded-lg transition-all ${
-                      catFilter === f.key
+                    className={`px-3 py-1 rounded-lg transition-all ${catFilter === f.key
                         ? 'bg-white text-blue-600 shadow-xs'
                         : 'hover:text-slate-800'
-                    }`}
+                      }`}
                   >
                     {f.label}
                   </button>
@@ -2842,106 +2940,105 @@ export default function Products() {
                   const isCollapsed = collapsedCatIds.has(c.id);
 
                   return (
-                  <tr
-                    key={c.id}
-                    className={`transition-colors group ${
-                      isChecked
-                        ? 'bg-blue-50/50'
-                        : isRoot
-                          ? 'bg-slate-50/30 hover:bg-blue-50/20'
-                          : 'hover:bg-blue-50/20'
-                    }`}
-                  >
-                    <td className="px-4 py-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => handleToggleCat(c.id)}
-                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-6 py-4 text-xs text-slate-400 font-mono">#{c.id}</td>
-                    <td className="px-6 py-4">
-                      <div
-                        className="flex items-center gap-2"
-                        style={{ paddingLeft: `${c._depth * 24}px` }}
-                      >
-                        {isRoot ? (
-                          <>
-                            {c._hasChildren ? (
-                              <button
-                                onClick={() => toggleCollapseCat(c.id)}
-                                className="p-1 -ml-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                title={isCollapsed ? "Quyi kategoriyalarni ko'rsatish" : "Yig'ish"}
-                              >
-                                {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
-                              </button>
-                            ) : (
-                              <div className="w-5" />
-                            )}
-                            <FolderOpen size={17} className="text-blue-600 shrink-0" />
-                            <span className="text-[13px] sm:text-sm font-bold text-slate-800">{c.name}</span>
-                            {c._childrenCount > 0 && (
-                              <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                {c._childrenCount} ta quyi
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-slate-300 font-mono text-xs select-none pl-1">└─</span>
-                            <CornerDownRight size={13} className="text-blue-400 shrink-0" />
-                            <span className="text-[13px] font-semibold text-slate-700">{c.name}</span>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-[13px]">
-                      {isRoot ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                          Asosiy (Ota)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
-                          <Folder size={12} className="text-blue-500 shrink-0" />
-                          {c._parentName || catName(c.parent_id)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-[13px] text-slate-500">{c.sort_order}</td>
-                    <td className="px-6 py-4 text-xs">
-                      {c.is_perishable ? <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase tracking-wider">{t('product.enabledLabel')}</span> : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 text-xs text-slate-400">
-                      {new Date(c.created_at).toLocaleDateString('uz-UZ')}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${(c.products_count || 0) > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
-                        {c.products_count || 0} {t('common.item')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openAddSubCat(c)}
-                          className="p-2 cursor-pointer text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                          title="Quyi kategoriya qo'shish"
+                    <tr
+                      key={c.id}
+                      className={`transition-colors group ${isChecked
+                          ? 'bg-blue-50/50'
+                          : isRoot
+                            ? 'bg-slate-50/30 hover:bg-blue-50/20'
+                            : 'hover:bg-blue-50/20'
+                        }`}
+                    >
+                      <td className="px-4 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleCat(c.id)}
+                          className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-400 font-mono">#{c.id}</td>
+                      <td className="px-6 py-4">
+                        <div
+                          className="flex items-center gap-2"
+                          style={{ paddingLeft: `${c._depth * 24}px` }}
                         >
-                          <Plus size={16} />
-                        </button>
-                        <button onClick={() => openEditCat(c)} className="p-2 cursor-pointer text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button onClick={() => handleDeleteCat(c.id)} className="p-2 cursor-pointer text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title={t('common.delete')}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                          {isRoot ? (
+                            <>
+                              {c._hasChildren ? (
+                                <button
+                                  onClick={() => toggleCollapseCat(c.id)}
+                                  className="p-1 -ml-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title={isCollapsed ? "Quyi kategoriyalarni ko'rsatish" : "Yig'ish"}
+                                >
+                                  {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                                </button>
+                              ) : (
+                                <div className="w-5" />
+                              )}
+                              <FolderOpen size={17} className="text-blue-600 shrink-0" />
+                              <span className="text-[13px] sm:text-sm font-bold text-slate-800">{c.name}</span>
+                              {c._childrenCount > 0 && (
+                                <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                  {c._childrenCount} ta quyi
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-slate-300 font-mono text-xs select-none pl-1">└─</span>
+                              <CornerDownRight size={13} className="text-blue-400 shrink-0" />
+                              <span className="text-[13px] font-semibold text-slate-700">{c.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-[13px]">
+                        {isRoot ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            Asosiy (Ota)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                            <Folder size={12} className="text-blue-500 shrink-0" />
+                            {c._parentName || catName(c.parent_id)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-[13px] text-slate-500">{c.sort_order}</td>
+                      <td className="px-6 py-4 text-xs">
+                        {c.is_perishable ? <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase tracking-wider">{t('product.enabledLabel')}</span> : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-400">
+                        {new Date(c.created_at).toLocaleDateString('uz-UZ')}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${(c.products_count || 0) > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
+                          {c.products_count || 0} {t('common.item')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openAddSubCat(c)}
+                            className="p-2 cursor-pointer text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="Quyi kategoriya qo'shish"
+                          >
+                            <Plus size={16} />
+                          </button>
+                          <button onClick={() => openEditCat(c)} className="p-2 cursor-pointer text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title={t('common.edit')}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button onClick={() => handleDeleteCat(c.id)} className="p-2 cursor-pointer text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title={t('common.delete')}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
                 {displayedCategories.length === 0 && (
@@ -3062,11 +3159,10 @@ export default function Products() {
                 <button
                   key={f.key}
                   onClick={() => setMpStatus(f.key)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    mpStatus === f.key
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${mpStatus === f.key
                       ? 'bg-indigo-600 text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                    }`}
                 >
                   {f.label}
                 </button>
@@ -3424,7 +3520,7 @@ export default function Products() {
                           {t('product.sizeMatrix')}
                         </button>
                         <button type="button"
-                          onClick={() => setForm(f => ({ ...f, variants: [...(f.variants||[]), { size: '', color: '', sku: '', barcode: '', cost_price: '', wholesale_price: '', sale_price: '' }] }))}
+                          onClick={() => setForm(f => ({ ...f, variants: [...(f.variants || []), { size: '', color: '', sku: '', barcode: '', cost_price: '', wholesale_price: '', sale_price: '' }] }))}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                           {t('product.addVariant')}
@@ -3436,7 +3532,7 @@ export default function Products() {
                       {(form.variants || []).map((v, idx) => (
                         <div key={idx} className="bg-white p-3 rounded-xl border border-emerald-100 flex flex-wrap gap-3 items-end relative shadow-sm">
                           <button type="button" onClick={() => setForm(f => ({ ...f, variants: f.variants.filter((_, i) => i !== idx) }))} className="absolute -top-2 -right-2 bg-red-100 hover:bg-red-200 text-red-600 p-1.5 rounded-full shadow-sm z-10"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
-                          
+
                           <div className="flex-1 min-w-[100px]">
                             <label className="block text-[11px] font-semibold text-slate-500 mb-1">{t('product.variantSizeLabel')}</label>
                             <input className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" value={v.size || ''} onChange={e => { const nv = [...form.variants]; nv[idx].size = e.target.value; setForm({ ...form, variants: nv }); }} placeholder={t('product.variantSizePlaceholder')} />
@@ -3495,10 +3591,114 @@ export default function Products() {
 
                 {/* ── PRICES BLOCK (Moved from below) ── */}
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 shadow-sm space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-3 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    {t('product.pricesAndProfitTitle')}
-                  </h4>
+                  <div className="border-b border-slate-200 pb-3 flex items-center justify-between gap-2 flex-wrap">
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      {t('product.pricesAndProfitTitle')}
+                    </h4>
+                    {form.product_type !== 'sell' && (
+                      <button
+                        type="button"
+                        onClick={() => setBoxCalc(b => ({ ...b, open: !b.open }))}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${boxCalc.open
+                            ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                          }`}
+                      >
+                        <Box className="w-3.5 h-3.5" />
+                        {boxCalc.open
+                          ? tf('boxCalc.hideBtn', "Quti hisobini yopish")
+                          : tf('boxCalc.openBtn', "Quti (karobka) bo'yicha hisoblash")}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quti / karobka bo'yicha hisoblash (faqat tugma bosilganda ochiladi) */}
+                  {form.product_type !== 'sell' && boxCalc.open && (() => {
+                    const bpk = { ...emptyPack, big_qty: boxCalc.big_qty ?? '', mid_qty: boxCalc.mid_qty ?? '' };
+                    const bL = packLevels(bpk);
+                    const bPr = bL.top && boxCalc.sale_price ? packPrices(bpk, boxCalc.sale_price, packRound) : null;
+                    const bCostUnit = bL.top && boxCalc.cost_price ? packPrices(bpk, boxCalc.cost_price, packRound).unit : null;
+                    const hasInnerBox = Number(boxCalc.big_qty) > 1;
+                    const bxInp = "h-10 px-3 border border-emerald-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-white";
+                    const bxLbl = "block text-[11px] font-bold text-emerald-800 mb-1 truncate";
+                    return (
+                      <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-emerald-800">
+                            {tf('boxCalc.title', "Quti (karobka) bo'yicha hisoblash — ixtiyoriy")}
+                          </span>
+                          <span className="text-[11px] text-emerald-700">
+                            {tf('boxCalc.hint', "1 quti narxi va ichidagi dona sonini kiritsangiz, 1 dona narxi va jami qoldiq avto to'ldiriladi")}
+                          </span>
+                        </div>
+                        <div className={`grid grid-cols-2 ${modal === 'add' ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2.5`}>
+                          <div>
+                            <label className={bxLbl}>{tf('boxCalc.boxSalePrice', '1 quti sotuv narxi')}</label>
+                            <input type="text" inputMode="decimal" className={bxInp}
+                              value={fmtPrice(boxCalc.sale_price)}
+                              onChange={e => updateBoxCalc('sale_price', parsePrice(e.target.value))}
+                              placeholder="100 000" />
+                          </div>
+                          <div>
+                            <label className={bxLbl}>{tf('boxCalc.boxCostPrice', '1 quti tan narxi')}</label>
+                            <input type="text" inputMode="decimal" className={bxInp}
+                              value={fmtPrice(boxCalc.cost_price)}
+                              onChange={e => updateBoxCalc('cost_price', parsePrice(e.target.value))}
+                              placeholder="0" />
+                          </div>
+                          <div>
+                            <label className={bxLbl}>{tf('boxCalc.innerBoxCount', 'Quti ichidagi quti soni')}</label>
+                            <input type="text" inputMode="numeric" className={bxInp}
+                              value={boxCalc.big_qty}
+                              onChange={e => updateBoxCalc('big_qty', e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder={tf('boxCalc.optional', 'Ixtiyoriy (masalan: 5)')} />
+                          </div>
+                          <div>
+                            <label className={bxLbl}>
+                              {hasInnerBox
+                                ? tf('boxCalc.piecesPerInnerBox', 'Ichki qutidagi dona soni')
+                                : tf('boxCalc.piecesPerBox', 'Quti ichidagi dona soni')}
+                            </label>
+                            <input type="text" inputMode="numeric" className={bxInp}
+                              value={boxCalc.mid_qty}
+                              onChange={e => updateBoxCalc('mid_qty', e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder="10" />
+                          </div>
+                          {modal === 'add' && (
+                            <div>
+                              <label className={bxLbl}>{tf('boxCalc.boxStockCount', 'Quti soni (qoldiq)')}</label>
+                              <input type="text" inputMode="numeric" className={bxInp}
+                                value={boxCalc.stock_big}
+                                onChange={e => updateBoxCalc('stock_big', e.target.value.replace(/[^0-9]/g, ''))}
+                                placeholder="1" />
+                            </div>
+                          )}
+                        </div>
+                        {bL.top && (
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-xs font-semibold text-emerald-900">
+                            <span>
+                              {bL.bigQty && bL.midQty
+                                ? `1 quti = ${bL.bigQty} ichki quti = ${bL.topRatio} ${form.unit || 'dona'}`
+                                : `1 quti = ${bL.topRatio} ${form.unit || 'dona'}`}
+                            </span>
+                            {bPr?.mid != null && (
+                              <span>· {tf('boxCalc.innerBoxPrice', '1 ichki quti')}: <strong>{fmt(bPr.mid)}</strong></span>
+                            )}
+                            {bPr?.unit != null && (
+                              <span>· {tf('boxCalc.unitSalePrice', '1 dona sotuv')}: <strong>{fmt(bPr.unit)}</strong></span>
+                            )}
+                            {bCostUnit != null && (
+                              <span>· {tf('boxCalc.unitCostPrice', '1 dona tan narx')}: <strong>{fmt(bCostUnit)}</strong></span>
+                            )}
+                            {modal === 'add' && Number(form.initial_stock) > 0 && (
+                              <span>· {tf('boxCalc.totalStock', 'Jami qoldiq')}: <strong>{fmt(form.initial_stock)} {form.unit || 'dona'}</strong></span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {/* Prices — each field has its own currency dropdown */}
                   <div className="space-y-4">
                     {/* Row 1: Tan + Ulgurji */}
@@ -4035,7 +4235,7 @@ export default function Products() {
               <input type="text" inputMode="numeric" className={inputCls} value={catForm.sort_order}
                 onChange={e => setCatForm({ ...catForm, sort_order: e.target.value.replace(/[^0-9]/g, '') })} />
             </Field>
-            
+
             <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
               <input type="checkbox" className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-600 focus:ring-2"
                 checked={catForm.is_perishable || false}
@@ -4689,6 +4889,82 @@ export default function Products() {
                           </div>
                         );
                       })()}
+                      {!pharmacyOn && (!row.pk_open ? (
+                        <div className="mt-1.5 ml-[34px]">
+                          <button
+                            type="button"
+                            onClick={() => updateBulkRow(row._key, 'pk_open', true)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors cursor-pointer"
+                          >
+                            <Box className="w-3.5 h-3.5" />
+                            {tf('boxCalc.openBtn', "Quti (karobka) bo'yicha hisoblash")}
+                          </button>
+                        </div>
+                      ) : (() => {
+                        const rpk = bulkRowPack(row);
+                        const rL = packLevels(rpk);
+                        const rPr = rL.top && row.pk_price ? packPrices(rpk, row.pk_price, packRound) : null;
+                        const rCostUnit = rL.top && row.pk_cost_price ? packPrices(rpk, row.pk_cost_price, packRound).unit : null;
+                        const hasInner = Number(row.pk_big_qty) > 1;
+                        const pkInp = "h-8 lg:h-10 px-2 border border-emerald-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full bg-white";
+                        const lbl = "block text-[10px] font-bold text-emerald-700 uppercase mb-0.5 truncate";
+                        return (
+                          <div className="mt-2 ml-[34px] relative grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 bg-emerald-50/60 border border-emerald-200 rounded-lg p-2 pr-8">
+                            <button
+                              type="button"
+                              onClick={() => updateBulkRow(row._key, 'pk_open', false)}
+                              title={t('common.close')}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-200/60 transition-colors cursor-pointer"
+                            >
+                              ×
+                            </button>
+                            <div>
+                              <label className={lbl}>{tf('boxCalc.boxSalePrice', '1 quti sotuv narxi')}</label>
+                              <input type="text" inputMode="decimal" className={pkInp} value={fmtPrice(row.pk_price ?? '')}
+                                onChange={e => updatePkField(row._key, 'pk_price', parsePrice(e.target.value))} placeholder="100 000" />
+                            </div>
+                            <div>
+                              <label className={lbl}>{tf('boxCalc.boxCostPrice', '1 quti tan narxi')}</label>
+                              <input type="text" inputMode="decimal" className={pkInp} value={fmtPrice(row.pk_cost_price ?? '')}
+                                onChange={e => updatePkField(row._key, 'pk_cost_price', parsePrice(e.target.value))} placeholder="0" />
+                            </div>
+                            <div>
+                              <label className={lbl}>{tf('boxCalc.innerBoxCount', 'Quti ichidagi quti soni')}</label>
+                              <input type="text" inputMode="numeric" className={pkInp} value={row.pk_big_qty ?? ''}
+                                onChange={e => updatePkField(row._key, 'pk_big_qty', e.target.value.replace(/[^0-9]/g, ''))} placeholder="5" />
+                            </div>
+                            <div>
+                              <label className={lbl}>
+                                {hasInner
+                                  ? tf('boxCalc.piecesPerInnerBox', 'Ichki qutidagi dona soni')
+                                  : tf('boxCalc.piecesPerBox', 'Quti ichidagi dona soni')}
+                              </label>
+                              <input type="text" inputMode="numeric" className={pkInp} value={row.pk_mid_qty ?? ''}
+                                onChange={e => updatePkField(row._key, 'pk_mid_qty', e.target.value.replace(/[^0-9]/g, ''))} placeholder="10" />
+                            </div>
+                            <div>
+                              <label className={lbl}>{tf('boxCalc.boxStockCount', 'Quti soni (qoldiq)')}</label>
+                              <input type="text" inputMode="numeric" className={pkInp} value={row.pk_stock_big ?? ''}
+                                onChange={e => updatePkField(row._key, 'pk_stock_big', e.target.value.replace(/[^0-9]/g, ''))} placeholder="1" />
+                            </div>
+                            <div className="text-[11px] text-emerald-800 font-semibold self-end pb-1">
+                              {rL.top ? (
+                                <>
+                                  <div>
+                                    {rL.bigQty && rL.midQty
+                                      ? `1 quti = ${rL.bigQty} ichki quti = ${rL.topRatio} ${row.unit || 'dona'}`
+                                      : `1 quti = ${rL.topRatio} ${row.unit || 'dona'}`}
+                                  </div>
+                                  {rPr?.mid != null && <div>{tf('boxCalc.innerBoxShort', 'ichki quti')}: {fmt(rPr.mid)}</div>}
+                                  {rPr?.unit != null && <div>{tf('boxCalc.unitShort', '1 dona')}: {fmt(rPr.unit)}</div>}
+                                  {rCostUnit != null && <div>{tf('boxCalc.costShort', 'tan narx')}: {fmt(rCostUnit)}</div>}
+                                  {Number(row.initial_stock) > 0 && <div>{tf('boxCalc.totalShort', 'jami')}: {Number(row.initial_stock)} {row.unit || 'dona'}</div>}
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })())}
                     </div>
                   ))}
                 </div>

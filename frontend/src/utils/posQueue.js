@@ -195,8 +195,20 @@ export function buildRxPayload(items, rxData, reason, rxMode = 'warn') {
 export function unitLinePrice(basePrice, productSalePrice, unit) {
   if (!unit) return Number(basePrice) || 0;
   const ratio = Number(unit.ratio) || 1;
-  if (unit.price != null && Number(basePrice) === (Number(productSalePrice) || 0)) return Number(unit.price);
+  const uPrice = unit.price != null ? unit.price : unit.sale_price;
+  if (uPrice != null && Number(basePrice) === (Number(productSalePrice) || 0)) return Number(uPrice);
   return (Number(basePrice) || 0) * ratio;
+}
+
+/** Mahsulotning qadoq birliklari: dorixonada `p.units`, oddiy do'konda `p.attributes` ichidagi `pack_config.units` */
+export function getProductPackUnits(p) {
+  if (!p) return [];
+  if (Array.isArray(p.units) && p.units.length > 0) return p.units;
+  if (Array.isArray(p.attributes)) {
+    const packAttr = p.attributes.find(a => a && a.key === 'pack_config' && Array.isArray(a.units));
+    if (packAttr && packAttr.units.length > 0) return packAttr.units;
+  }
+  return [];
 }
 
 /** P.13: omborda butun quti yo'q, faqat ochilgan quti bor — skanerda/tanlashda quti o'rniga kichik birlik taklif

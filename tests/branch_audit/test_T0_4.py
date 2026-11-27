@@ -375,4 +375,44 @@ def test_kassa_user_wallet_routes_removed(client, two):
     r = c.post('/api/kassa/assign-wallet', json={"user_id": t['cash_a'].id, "wallet_id": t['wb'].id})
     assert r.status_code in (404, 405, 422)
     src = open(os.path.join(ROOT, 'app', 'routers', 'kassa.py'), encoding='utf-8').read()
-    assert 'user_wallets' not in src and 'AssignWalletIn' not in src
+    # eski dublikat endpointlar va ularning sxemasi qaytmasin (yangi /kassa/{id}/users — pastdagi testlar)
+    assert 'AssignWalletIn' not in src and '"/user-wallets"' not in src and '"/assign-wallet"' not in src
+
+
+# ─── 8. /kassa/{wallet_id}/users — kassaga xodim biriktirish (2026-11-27) ──────
+
+def test_wallet_users_admin_only(client, db, two):
+    t = two
+    c = client.login(t['cash_a'])
+    assert c.get(f"/api/kassa/{t['wa'].id}/users").status_code == 403
+    assert c.put(f"/api/kassa/{t['wa'].id}/users", json={"user_ids": [t['cash_a'].id]}).status_code == 403
+    assert _links(db, t['cash_a'].id) == {}
+
+
+def test_wallet_users_foreign_wallet_and_user_404(client, db, two):
+    t = two
+    c = client.login(t['ua'])
+    assert c.get(f"/api/kassa/{t['wb'].id}/users").status_code == 404
+    assert c.put(f"/api/kassa/{t['wb'].id}/users", json={"user_ids": [t['cash_a'].id]}).status_code == 404
+    # B korxona xodimini A kassasiga biriktirib bo'lmaydi
+    r = c.put(f"/api/kassa/{t['wa'].id}/users", json={"user_ids": [t['ub'].id]})
+    assert r.status_code == 404
+    assert _links(db, t['ub'].id) == {}
+
+
+def test_wallet_users_assign_exclusive_and_list(client, db, two):
+    t = two
+    c = client.login(t['ua'])
+    r = c.put(f"/api/kassa/{t['wa'].id}/users", json={"user_ids": [t['cash_a'].id]})
+    assert r.status_code == 200, r.text
+    assert set(_links(db, t['cash_a'].id)) == {t['wa'].id}
+    # exclusive (sukut): boshqa kassaga o'tkazilsa avvalgisidan chiqariladi
+    r = c.put(f"/api/kassa/{t['wa2'].id}/users", json={"user_ids": [t['cash_a'].id]})
+    assert r.status_code == 200, r.text
+    assert set(_links(db, t['cash_a'].id)) == {t['wa2'].id}
+    data = c.get(f"/api/kassa/{t['wa2'].id}/users").json()
+    assert data['assigned_user_ids'] == [t['cash_a'].id]
+    assert all(u['id'] != t['ub'].id for u in data['users'])        # begona korxona xodimi ro'yxatda yo'q
+    # bo'sh ro'yxat — kassadan hamma olib tashlanadi
+    assert c.put(f"/api/kassa/{t['wa2'].id}/users", json={"user_ids": []}).status_code == 200
+    assert _links(db, t['cash_a'].id) == {}

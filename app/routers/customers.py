@@ -97,12 +97,32 @@ def _has_role(user: User, roles) -> bool:
     return user.role == UserRole.super_admin or user.role in roles
 
 
+_BULK_TEXT_LIMITS = {
+    "name": 100,
+    "phone": 20,
+    "card_number": 20,
+    "address": 500,
+    "region": 100,
+    "district": 100,
+}
+
+
+def _clean_bulk_text(field: str, raw) -> str:
+    s = " ".join(str(raw).split())
+    if field == "phone" and s.endswith(".0") and s[:-2].isdigit():
+        s = s[:-2]
+    return s
+
+
 def _check_bulk_value(field: str, val) -> None:
     """Import qiymatlari CustomerIn validatorlari bilan bir xil chegarada bo'lishi shart (CHECK cheklovlari)."""
     if field == "cashback_percent" and not (Decimal("0") <= val <= Decimal("100")):
         raise ValueError("Cashback 0-100 oralig'ida bo'lishi kerak")
     if field in ("debt_limit", "loyalty_points", "bonus_balance") and val < 0:
         raise ValueError("Qiymat manfiy bo'lmasligi kerak")
+    limit = _BULK_TEXT_LIMITS.get(field)
+    if limit and isinstance(val, str) and len(val) > limit:
+        raise ValueError(f"Matn uzunligi {limit} belgidan oshmasligi kerak")
 
 
 class CustomerIn(BaseModel):
@@ -938,6 +958,22 @@ def create_customer(data: CustomerIn, db: Session = Depends(get_db), current_use
     return customer
 
 
+class _BulkRowError(Exception):
+    """Bitta import qatorini bekor qilish va savepoint ni orqaga qaytarish uchun xato."""
+
+
+def _parse_bulk_field(field: str, cast, raw):
+    if cast == Decimal:
+        val = parse_decimal_clean(raw)
+    elif cast == int:
+        # integer fields like loyalty_points may have decimals (e.g. 100.0) from Excel
+        val = int(str(raw).split(".")[0].strip())
+    else:
+        val = _clean_bulk_text(field, raw)
+    _check_bulk_value(field, val)
+    return val
+
+
 @router.post("/bulk-import")
 def bulk_import_customers(
         rows: list[dict],
@@ -950,6 +986,9 @@ def bulk_import_customers(
     FIELD_MAP = {
         "Ism": ("name", str),
         "Telefon": ("phone", str),
+        "Manzil": ("address", str),
+        "Viloyat": ("region", str),
+        "Tuman": ("district", str),
         "Qarz": ("debt_balance", Decimal),
         "Kredit limit": ("debt_limit", Decimal),
         "Sodiqlik ballari": ("loyalty_points", int),
@@ -1009,28 +1048,26 @@ def bulk_import_customers(
                     "warning": "Moliyaviy ustunlar e'tiborsiz qoldirildi (ruxsat yo'q): " + ", ".join(ignored),
                 })
             row = {k: v for k, v in row.items() if k not in FINANCIAL_COLS and k != "__cur_Qarz"}
+        existing = None
         try:
             with db.begin_nested():
-                name = str(row.get("Ism") or "").strip()
-                phone = str(row.get("Telefon") or "").strip()
-                card = str(row.get("Karta raqami") or "").strip() or None
+                name = _clean_bulk_text("name", row.get("Ism") or "")
+                phone = _clean_bulk_text("phone", row.get("Telefon") or "")
+                card = _clean_bulk_text("card_number", row.get("Karta raqami") or "") or None
 
                 if not name and not phone:
-                    errors.append({"row": row_num, "error": "Mijoz ismi yoki telefoni majburiy"})
-                    continue
+                    raise _BulkRowError("Mijoz ismi yoki telefoni majburiy")
+                if name:
+                    _check_bulk_value("name", name)
 
                 branch_raw = str(row.get("Filial") or "").strip()
                 row_branch_id = None
                 if branch_raw:
                     _br = branches_by_name.get(branch_raw.casefold())
                     if not _br:
-                        errors.append({"row": row_num, "name": name or phone,
-                                       "error": f"Filial topilmadi: {branch_raw}"})
-                        continue
+                        raise _BulkRowError(f"Filial topilmadi: {branch_raw}")
                     if _branch_forbidden(_br.id):
-                        errors.append({"row": row_num, "name": name or phone,
-                                       "error": f"Filialga import qilish uchun ruxsat yo'q: {branch_raw}"})
-                        continue
+                        raise _BulkRowError(f"Filialga import qilish uchun ruxsat yo'q: {branch_raw}")
                     row_branch_id = _br.id
                 if row_branch_id is None:
                     row_branch_id = default_branch_id   # so'rov parametridagi standart filial
@@ -1041,10 +1078,8 @@ def bulk_import_customers(
                     try:
                         qarz_val = parse_decimal_clean(qarz_raw)
                     except Exception:
-                        errors.append({"row": row_num, "name": name, "error": f"'Joriy qarz' qiymati noto'g'ri: {qarz_raw}"})
-                        continue
+                        raise _BulkRowError(f"'Joriy qarz' qiymati noto'g'ri: {qarz_raw}")
 
-                existing = None
                 if phone:
                     existing = dup_q_base.filter(Customer.phone == phone).first()
                 if not existing and name:
@@ -1054,11 +1089,7 @@ def bulk_import_customers(
 
                 if existing:
                     if not allow_update:
-                        errors.append({
-                            "row": row_num, "name": name or phone,
-                            "error": f"'{name or phone}' allaqachon mavjud — o'tkazib yuborildi"
-                        })
-                        continue
+                        raise _BulkRowError(f"'{name or phone}' allaqachon mavjud — o'tkazib yuborildi")
 
                     terms_before = {f: getattr(existing, f) for f in BULK_TERMS_FIELDS}
                     for row_key, (field, cast) in FIELD_MAP.items():
@@ -1068,19 +1099,18 @@ def bulk_import_customers(
                         if raw is None or str(raw).strip() == "":
                             continue
                         try:
-                            if cast == Decimal:
-                                val = parse_decimal_clean(raw)
-                            elif cast == int:
-                                # integer fields like loyalty_points may have decimals (e.g. 100.0) from Excel
-                                val_str = str(raw).split(".")[0].strip()
-                                val = int(val_str)
-                            else:
-                                val = str(raw).strip()
-                            _check_bulk_value(field, val)
-                            setattr(existing, field, val)
-                        except Exception:
-                            errors.append({"row": row_num, "name": name, "error": f"'{row_key}' qiymati xato: {raw}"})
-                            continue
+                            val = _parse_bulk_field(field, cast, raw)
+                        except Exception as exc:
+                            raise _BulkRowError(f"'{row_key}' qiymati xato: {raw} ({exc})")
+                        if field == "phone" and val != existing.phone and dup_q_base.filter(
+                            Customer.phone == val, Customer.id != existing.id
+                        ).first():
+                            raise _BulkRowError(f"Bu telefon raqami boshqa mijozga biriktirilgan: {val}")
+                        if field == "card_number" and val != existing.card_number and dup_q_base.filter(
+                            Customer.card_number == val, Customer.id != existing.id
+                        ).first():
+                            raise _BulkRowError(f"Bu karta raqami boshqa mijozga biriktirilgan: {val}")
+                        setattr(existing, field, val)
 
                     # Bo'sh "Filial" qiymati mavjud filialni o'zgartirmaydi
                     if row_branch_id is not None and existing.branch_id != row_branch_id:
@@ -1123,8 +1153,7 @@ def bulk_import_customers(
                     continue
 
                 if not name:
-                    errors.append({"row": row_num, "error": "Yangi mijoz uchun Ism majburiy"})
-                    continue
+                    raise _BulkRowError("Yangi mijoz uchun Ism majburiy")
 
                 kwargs = {"name": name, "company_id": current_user.company_id}
                 if row_branch_id is not None:
@@ -1135,15 +1164,7 @@ def bulk_import_customers(
                     raw = row.get(row_key)
                     if raw is not None and str(raw).strip() != "":
                         try:
-                            if cast == Decimal:
-                                val = parse_decimal_clean(raw)
-                            elif cast == int:
-                                val_str = str(raw).split(".")[0].strip()
-                                val = int(val_str)
-                            else:
-                                val = str(raw).strip()
-                            _check_bulk_value(field, val)
-                            kwargs[field] = val
+                            kwargs[field] = _parse_bulk_field(field, cast, raw)
                         except Exception:
                             warnings.append({"row": row_num, "warning": f"'{row_key}' qiymati xato, e'tiborsiz qoldirildi: {raw}"})
 
@@ -1163,10 +1184,12 @@ def bulk_import_customers(
                 check_card = kwargs.get("card_number")
                 if check_card and dup_q_base.filter(Customer.card_number == check_card).first():
                     kwargs.pop("card_number")
+                    warnings.append({"row": row_num, "warning": f"'{check_card}' karta raqami boshqa mijozda bor, kartasiz saqlandi"})
 
                 check_phone = kwargs.get("phone")
                 if check_phone and dup_q_base.filter(Customer.phone == check_phone).first():
                     kwargs.pop("phone")
+                    warnings.append({"row": row_num, "warning": f"'{check_phone}' telefoni boshqa mijozda bor, telefonsiz saqlandi"})
 
                 cust = Customer(**kwargs)
                 if kwargs.get("debt_balances"):
@@ -1179,7 +1202,17 @@ def bulk_import_customers(
                     ledger.log_opening(db, cust, user=current_user, reason="bulk-import")
                 created += 1
 
+        except (ValueError, _BulkRowError) as exc:
+            if existing is not None:
+                db.expire(existing)
+            err_entry = {"row": row_num, "error": str(exc)}
+            row_label = str(row.get("Ism") or row.get("Telefon") or "").strip()
+            if row_label:
+                err_entry["name"] = row_label
+            errors.append(err_entry)
         except SQLAlchemyError as exc:
+            if existing is not None:
+                db.expire(existing)
             logger.warning("Bulk import row %s failed: %s", row_num, exc)
             errors.append({"row": row_num, "name": str(row.get("Ism") or row.get("Telefon") or ""), "error": row_db_error(exc)})
 

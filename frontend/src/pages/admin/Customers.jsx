@@ -288,7 +288,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
   const [importPage, setImportPage] = useState(1);
-  const [skipRows, setSkipRows] = useState(1);
+  const [skipRows, setSkipRows] = useState(0);
   const [allowUpdate, setAllowUpdate] = useState(false);
   const [importDebtCurrency, setImportDebtCurrency] = useState('');
   const [importBranchId, setImportBranchId] = useState('');   // T4.5: barcha qatorlar uchun standart filial
@@ -304,6 +304,9 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     { key: '', label: t('customer.importSelectField') },
     { key: 'Ism', label: t('customer.importFieldName') },
     { key: 'Telefon', label: t('common.phone') },
+    { key: 'Manzil', label: t('common.address') },
+    { key: 'Viloyat', label: t('auth.region') },
+    { key: 'Tuman', label: t('auth.district') },
     { key: 'Qarz', label: t('customer.importFieldCurrentDebt') },
     { key: 'Kredit limit', label: t('customer.creditLimit') },
     { key: 'Sodiqlik ballari', label: t('customer.loyaltyPoints') },
@@ -317,7 +320,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
   const resetImport = () => {
     setImportOpen(false); setImportRows([]); setImportFile(null);
     setImportResult(null); setImportError(''); setColMap({}); setImportPage(1);
-    setSkipRows(1); setAllowUpdate(false); setImportProgress(0);
+    setSkipRows(0); setAllowUpdate(false); setImportProgress(0);
     setImportDebtCurrency(''); setImportBranchId('');
   };
   const openImport = () => { resetImport(); setImportOpen(true); };
@@ -328,14 +331,45 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     return cur ? cur.code : 'UZS';
   };
 
+  const IMPORT_HEADER_ALIASES = {
+    'Ism': ['ism', 'f.i.o', 'fio', 'mijoz', 'mijoz ismi', 'name', 'full name', 'имя', 'фио', 'клиент'],
+    'Telefon': ['telefon', 'telefon raqami', 'tel', 'phone', 'номер', 'телефон'],
+    'Manzil': ['manzil', 'adres', 'address', 'адрес', 'uy manzili'],
+    'Viloyat': ['viloyat', 'region', 'область', 'регион'],
+    'Tuman': ['tuman', 'shahar', 'district', 'район', 'город'],
+    'Qarz': ['qarz', 'joriy qarz', 'qarzdorlik', 'debt', 'долг', 'баланс долга'],
+    'Kredit limit': ['kredit limit', 'kredit limiti', 'credit limit', 'лимит'],
+    'Sodiqlik ballari': ['sodiqlik ballari', 'bonus ballar', 'ball', 'points', 'баллы'],
+    'Karta raqami': ['karta raqami', 'karta', 'card', 'card number', 'карта', 'номер карты'],
+    'Cashback': ['cashback', 'keshbek', 'кэшбэк', 'кешбэк'],
+    'Bonus': ['bonus', 'bonus balansi', 'бонус', 'бонусный баланс'],
+    'Filial': ['filial', 'branch', 'филиал'],
+  };
+
   const autoMap = (rows) => {
     if (!rows.length) return;
     const cols = Object.keys(rows[0]);
     const map = {};
+    const used = new Set();
     cols.forEach(col => {
       const lc = col.trim().toLowerCase();
-      const found = IMPORT_FIELDS.find(f => f.label.toLowerCase().includes(lc) || f.key.toLowerCase() === lc);
-      map[col] = found?.key && found.key !== '__SKIP__' ? found.key : '';
+      if (!lc || lc.startsWith('__empty')) {
+        map[col] = '';
+        return;
+      }
+      let matched = IMPORT_FIELDS.find(f =>
+        f.key && f.key !== '__SKIP__' && !used.has(f.key) && (
+          f.key.toLowerCase() === lc ||
+          f.label.replace(/\s*\*$/, '').toLowerCase() === lc
+        )
+      )?.key || '';
+      if (!matched) {
+        matched = Object.keys(IMPORT_HEADER_ALIASES).find(key =>
+          !used.has(key) && IMPORT_HEADER_ALIASES[key].some(alias => lc === alias || (lc.length >= 3 && alias.includes(lc)))
+        ) || '';
+      }
+      if (matched) used.add(matched);
+      map[col] = matched;
     });
     setColMap(map);
   };
@@ -359,7 +393,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
   };
 
   const buildPayload = () => {
-    const actualRows = skipRows > 0 ? importRows.slice(skipRows - 1) : importRows;
+    const actualRows = skipRows > 0 ? importRows.slice(skipRows) : importRows;
     return actualRows.map((row, idx) => {
       const obj = {};
       Object.entries(colMap).forEach(([excelCol, fieldKey]) => {
@@ -374,7 +408,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
       if (obj['Qarz'] !== undefined && obj['Qarz'] !== '') {
         obj['__cur_Qarz'] = getDebtCurrencyCode();
       }
-      obj.__row_index = (skipRows > 0 ? skipRows - 1 : 0) + idx + 2;
+      obj.__row_index = skipRows + idx + 2;
       return obj;
     }).filter(r => r['Ism'] || r['Telefon'] || r['Karta raqami']);
   };
@@ -383,6 +417,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
     const ws = XLSX.utils.json_to_sheet([{
       'Ism': 'Javohir Toshmatov', 'Telefon': '+998901234567',
+      'Manzil': 'Chilonzor tumani, 5-mavze, 12-uy', 'Viloyat': 'Toshkent sh.', 'Tuman': 'Chilonzor',
       'Qarz': 0, 'Kredit limit': 1000000, 'Sodiqlik ballari': 100,
       'Karta raqami': '8888 1234 5678 9012', 'Cashback': 3.5, 'Bonus': 0, 'Filial': ''
     }]);
@@ -398,6 +433,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
     try {
       let totC = 0, totU = 0, totS = 0;
       let errs = [];
+      let warns = [];
       const CHUNK_SIZE = 1000;
 
       for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
@@ -406,11 +442,12 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
         totC += data.created || 0;
         totU += data.updated || 0;
         totS += data.skipped || 0;
-        if (data.errors) errs = [...errs, ...data.errors];
+        if (data.errors?.length && errs.length < 300) errs = [...errs, ...data.errors].slice(0, 300);
+        if (data.warnings?.length && warns.length < 300) warns = [...warns, ...data.warnings].slice(0, 300);
         setImportProgress(Math.round(((i + chunk.length) / payload.length) * 100));
       }
 
-      setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs });
+      setImportResult({ created: totC, updated: totU, skipped: totS, errors: errs, warnings: warns });
       if (totC > 0 || totU > 0) { load(); reloadStats?.(); }
     } catch (err) {
       setImportError(err.response?.data?.detail || t('error.serverError'));
@@ -2080,7 +2117,7 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
               <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg border border-slate-200 cursor-pointer">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 {t('customer.chooseFile')}
-                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { if (e.target.files[0]) parseExcel(e.target.files[0]); }} />
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) parseExcel(f); }} />
               </label>
               <button
                 onClick={handleImport}
@@ -2316,13 +2353,23 @@ export function SotuvMijozlar({ stats, reloadStats, customerType }) {
                     <div className={`text-3xl font-black ${importResult.skipped > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{importResult.skipped}</div>
                     <div className={`text-sm font-semibold ${importResult.skipped > 0 ? 'text-amber-500' : 'text-slate-400'}`}>{t('customer.importSkippedLabel')}</div>
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 space-y-2">
                     {importResult.errors?.length > 0 && (
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {importResult.errors.map((e, i) => (
-                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm bg-destructive/10 animate-shake">
+                          <div key={`e-${i}`} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm bg-destructive/10 animate-shake">
                             <span className="font-bold text-amber-600 shrink-0">#{e.row}</span>
                             <span className="text-amber-700">{e.name && <span className="font-semibold">{e.name}: </span>}{e.error}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {importResult.warnings?.length > 0 && (
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {importResult.warnings.map((w, i) => (
+                          <div key={`w-${i}`} className="flex items-start gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm">
+                            <span className="font-bold text-blue-600 shrink-0">#{w.row}</span>
+                            <span className="text-blue-700">{w.warning}</span>
                           </div>
                         ))}
                       </div>

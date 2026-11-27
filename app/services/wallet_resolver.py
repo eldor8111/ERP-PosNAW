@@ -366,22 +366,39 @@ def list_visible_wallets(
 
 
 def wallet_meta(db: Session, user, wallets) -> dict:
-    """Ro'yxat javobi uchun qo'shimcha maydonlar: {wallet_id: {branch_name, is_personal, is_default_for_me}}."""
+    """Ro'yxat javobi uchun qo'shimcha maydonlar: {wallet_id: {branch_name, is_personal, is_default_for_me, assigned_users}}."""
     from app.models.branch import Branch
+    from app.models.user import User
     branch_ids = {w.branch_id for w in wallets if w.branch_id}
     names = {}
     if branch_ids:
         names = dict(db.query(Branch.id, Branch.name).filter(Branch.id.in_(branch_ids)).all())
-    defaults = {
-        r[0] for r in db.query(UserWallet.wallet_id).filter(
-            UserWallet.user_id == user.id, UserWallet.is_default == True,  # noqa: E712
-        ).all()
-    }
+    wallet_ids = [w.id for w in wallets]
+    defaults = set()
+    assigned_map: dict = {wid: [] for wid in wallet_ids}
+    if wallet_ids:
+        rows = (
+            db.query(UserWallet.wallet_id, UserWallet.user_id, UserWallet.is_default, User.name, User.role)
+            .join(User, User.id == UserWallet.user_id)
+            .filter(UserWallet.wallet_id.in_(wallet_ids))
+            .order_by(UserWallet.is_default.desc(), User.name.asc())
+            .all()
+        )
+        for wid, uid, is_def, uname, urole in rows:
+            if uid == user.id and is_def:
+                defaults.add(wid)
+            assigned_map[wid].append({
+                "id": uid,
+                "name": uname,
+                "role": urole.value if hasattr(urole, "value") else str(urole),
+                "is_default": bool(is_def),
+            })
     return {
         w.id: {
             "branch_name": names.get(w.branch_id),
             "is_personal": bool(getattr(w, "is_personal", False)),
             "is_default_for_me": w.id in defaults and w.is_active is not False,
+            "assigned_users": assigned_map.get(w.id, []),
         }
         for w in wallets
     }

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import usePosSync from '../../hooks/usePosSync';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import {
-  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, buildRxPayload, unitLinePrice, openedBoxOnly,
+  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, buildRxPayload, unitLinePrice, getProductPackUnits, openedBoxOnly,
   parseWholeBoxError, getPending, setPending, REJECTED_SALES_KEY, getCurrentCompanyId,
 } from '../../utils/posQueue';
 import { toast } from '../../utils/toast';
@@ -562,16 +562,27 @@ const navigate = useNavigate();
   // Savat boshqaruvi
   // D2.6: dorixona qatorining qo'shimcha maydonlari (muddat, retsept, birliklar); oddiy korxonada bo'sh
   const pharmaCartFields = (p, unit) => {
-    if (!pharmacy) return {};
-    const packRatio = p.pack_ratio != null ? Number(p.pack_ratio) : null;
+    const pUnits = getProductPackUnits(p);
     const ratio = unit ? Number(unit.ratio) || 1 : 1;
+    if (!pharmacy) {
+      if (!pUnits.length) return {};
+      return {
+        units: pUnits,
+        unit_id: unit ? unit.id : null,
+        unit_name: unit ? unit.name : null,
+        unit_ratio: ratio,
+        base_unit_name: p.unit || 'dona',
+        orig_sale_price: Number(p.sale_price) || 0,
+      };
+    }
+    const packRatio = p.pack_ratio != null ? Number(p.pack_ratio) : null;
     return {
       nearest_expiry: p.nearest_expiry || null,
       expiry_warn: !!p.expiry_warn,
       expired_qty: Number(p.expired_qty) || 0,   // P.7
       is_rx: !!p.is_rx,
       control_class: p.control_class || 'none',
-      units: Array.isArray(p.units) ? p.units : [],
+      units: pUnits,
       pack_ratio: packRatio,
       full_boxes: p.full_boxes != null ? Number(p.full_boxes) : null,
       loose_units: p.loose_units != null ? Number(p.loose_units) : null,
@@ -580,6 +591,7 @@ const navigate = useNavigate();
       unit_name: unit ? unit.name : null,
       unit_ratio: ratio,
       base_unit_name: p.unit || 'dona',
+      orig_sale_price: Number(p.sale_price) || 0,
     };
   };
 
@@ -589,7 +601,7 @@ const navigate = useNavigate();
 
   const addToCart = (p, overrideQty, unitArg, opts = {}) => {
     // nisbati 1 bo'lgan birlik = asosiy birlik (unit_id yuborilmaydi)
-    let unit = pharmacy && unitArg && (Number(unitArg.ratio) || 1) !== 1 ? unitArg : null;
+    let unit = unitArg && (Number(unitArg.ratio) || 1) !== 1 ? unitArg : null;
     // Qoldiq yo'q — analoglar avtomatik taklif qilinadi (savatga qo'shish avvalgidek davom etadi)
     if (pharmacy && isOnline && !opts.noAnalogs && Number(p.stock_quantity) <= 0 && (p.product_type || 'stock') === 'stock') {
       openAnalogs(p, true);
@@ -627,7 +639,7 @@ const navigate = useNavigate();
   // P.7: dorixona — shtrix-kod skanerlanganda (yoki kartochka bosilganda) quti / blister / dona tanlanadi
   const unitOptions = (p) => {
     const base = priceFor(p);
-    const us = (Array.isArray(p.units) ? p.units : [])
+    const us = getProductPackUnits(p)
       .filter(u => (Number(u.ratio) || 1) !== 1)
       .map(u => (u.price == null && u.sale_price != null ? { ...u, price: u.sale_price } : u))
       .sort((a, b) => Number(b.ratio) - Number(a.ratio));
@@ -840,7 +852,7 @@ const navigate = useNavigate();
         unit_name: unit ? unit.name : null,
         unit_ratio: newRatio,
         unit_price: price,
-        qty_ordered: Number.isInteger(q) && q >= 1 ? q : 1,
+        qty_ordered: pharmacy ? (Number.isInteger(q) && q >= 1 ? q : 1) : (Number(it.qty_ordered) || 1),
       };
       if (nextItem.discount_type === 'sum') nextItem.discount_val = Math.min(nextItem.discount_val || 0, price * nextItem.qty_ordered);
       _trimMarkingCodes(nextItem);
@@ -1113,19 +1125,25 @@ const navigate = useNavigate();
       });
 
       const payload = {
-        items: cart.map(c => ({
-          product_id: c.product_id,
-          quantity: c.qty_ordered,
-          unit_price: c.unit_price,
-          // T3.19: faqat kassir narxni qo'lda o'zgartirgan qator true; aks holda server ro'yxat narxini hal qiladi
-          price_manual: c.price_manual === true,
-          discount: c.discount_type === 'pct'
-             ? c.unit_price * c.qty_ordered * (c.discount_val / 100)
-             : c.discount_val,
-          marking_codes: c.marking_codes && c.marking_codes.length ? c.marking_codes : undefined,
-          // D2.6: qadoq birligi (quti/blister) — miqdor shu birlikda; asosiy birlik (dona) uchun yuborilmaydi
-          unit_id: pharmacy && c.unit_id ? c.unit_id : undefined,
-        })),
+        items: cart.map(c => {
+          const packMult = (!pharmacy && (Number(c.unit_ratio) || 1) > 1) ? Number(c.unit_ratio) : 1;
+          const effQty = c.qty_ordered * packMult;
+          const effUnitPrice = packMult > 1 ? Math.round((c.unit_price / packMult) * 10000) / 10000 : c.unit_price;
+          const isPackPriceDiff = packMult > 1 && Math.abs(effUnitPrice - Number(c.orig_sale_price || effUnitPrice)) > 0.001;
+          return {
+            product_id: c.product_id,
+            quantity: effQty,
+            unit_price: effUnitPrice,
+            // T3.19: faqat kassir narxni qo'lda o'zgartirgan qator true; aks holda server ro'yxat narxini hal qiladi
+            price_manual: c.price_manual === true || isPackPriceDiff,
+            discount: c.discount_type === 'pct'
+               ? c.unit_price * c.qty_ordered * (c.discount_val / 100)
+               : c.discount_val,
+            marking_codes: c.marking_codes && c.marking_codes.length ? c.marking_codes : undefined,
+            // D2.6: qadoq birligi (quti/blister) — miqdor shu birlikda; asosiy birlik (dona) uchun yuborilmaydi
+            unit_id: pharmacy && c.unit_id ? c.unit_id : undefined,
+          };
+        }),
         payment_type: mainType,
         // paid_amount keshbek/ballni o'z ichiga olmaydi (server: paid_amount + paid_cashback + ball*qiymat < jami => qarz)
         paid_amount: finalPaid > payableNet ? payableNet : finalPaid,
@@ -1440,7 +1458,7 @@ const navigate = useNavigate();
                         >
                           <option value="">{item.base_unit_name || 'dona'}</option>
                           {item.units.filter(u => (Number(u.ratio) || 1) !== 1).map(u => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
+                            <option key={u.id} value={u.id}>{u.name}{!pharmacy && u.ratio ? ` (${u.ratio})` : ''}</option>
                           ))}
                         </select>
                       )}

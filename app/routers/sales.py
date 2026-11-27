@@ -22,7 +22,7 @@ from app.schemas.sale import SaleCreate, SaleItemOut, SaleListOut, SaleOut, Sale
 from app.models.prescription import SalePrescription  # D2.5
 from app.services.sale_service import create_sale, create_return_sale, delete_sale, update_sale, create_pending_sale, reassign_sale_customer
 from app.services.sale_partial_return import process_partial_return
-from app.services.sale_helpers import apply_sale_branch_filter
+from app.services.sale_helpers import apply_sale_branch_filter, apply_sale_wallet_filter
 from app.services.hippo_fiscalize import fiscalize_sale
 from app.routers.fiscal_devices import company_has_active_devices, device_allowed_for_branch
 from app.routers.payment_terminals import attach_payment_references, validate_sale_payment_terminals
@@ -49,14 +49,16 @@ def _load_sale(db: Session, sale_id: int, user: Optional[User] = None) -> Sale:
             joinedload(Sale.cashier),
             joinedload(Sale.customer),
             joinedload(Sale.branch),
+            joinedload(Sale.wallet),
             joinedload(Sale.warehouse).joinedload(Warehouse.branch),  # T3.7: chek rekvizitlari
         )
         .filter(Sale.id == sale_id)
     )
     if user and user.role != UserRole.super_admin:
         q = q.filter(Sale.company_id == user.company_id)
-        # Filial ruxsati (admin/director/super_admin cheklanmaydi)
+        # Filial va biriktirilgan kassa ruxsati (admin/director/super_admin cheklanmaydi)
         q = apply_sale_branch_filter(q, db, user)
+        q = apply_sale_wallet_filter(q, db, user)
     return q.first()
 
 
@@ -198,6 +200,8 @@ def _build_sale_out(sale: Sale, hide_cost: bool = False) -> SaleOut:
         customer_id=sale.customer_id,  # type: ignore
         customer_name=sale.customer.name if getattr(sale, 'customer', None) and sale.customer.company_id == sale.company_id else None,
         warehouse_id=sale.warehouse_id,  # type: ignore
+        wallet_id=sale.wallet_id,  # type: ignore
+        wallet_name=sale.wallet.name if getattr(sale, 'wallet', None) else None,
         branch_id=sale.branch_id,  # type: ignore
         **_sale_receipt_meta(sale),
         total_amount=sale.total_amount,  # type: ignore
@@ -582,6 +586,7 @@ def list_sales(
         response: Response,
         cashier_id: Optional[int] = Query(None),
         branch_id: Optional[int] = Query(None),
+        wallet_id: Optional[int] = Query(None),
         customer_id: Optional[int] = Query(None),
         date_from: Optional[date] = Query(None),
         date_to: Optional   [date] = Query(None),
@@ -609,6 +614,8 @@ def list_sales(
         return {"items": [], "total": 0} if with_total else []
     # T1.9: filial — sotuv snapshot'i (Sale.branch_id); ombori yo'q (NULL) sotuv ham o'z filialida ko'rinadi
     q = apply_branch_scope(q, ctx, Sale.branch_id, explicit_branch_id=branch_id)
+    # Kassa bo'yicha ajratish: biriktirilgan kassir faqat o'z kassasini ko'radi, admin/direktor filter qila oladi
+    q = apply_sale_wallet_filter(q, db, current_user, explicit_wallet_id=wallet_id)
 
     if cashier_id:
         q = q.filter(Sale.cashier_id == cashier_id)
@@ -632,7 +639,7 @@ def list_sales(
     total = q.count()
     response.headers["X-Total-Count"] = str(total)
     rows = (
-        q.options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency), joinedload(Sale.branch))
+        q.options(joinedload(Sale.cashier), joinedload(Sale.customer), joinedload(Sale.currency), joinedload(Sale.branch), joinedload(Sale.wallet))
         .order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
     )
 
@@ -654,6 +661,8 @@ def list_sales(
             number=s.number,
             branch_id=s.branch_id,
             branch_name=s.branch.name if s.branch else None,
+            wallet_id=s.wallet_id,
+            wallet_name=s.wallet.name if getattr(s, 'wallet', None) else None,
             cashier_name=s.cashier.name if s.cashier else f"ID={s.cashier_id}",
             total_amount=s.total_amount,
             discount_amount=s.discount_amount,
@@ -701,6 +710,7 @@ def _sale_date_filter(q, date_from, date_to, date_today):
 def export_sales_pdf(
         cashier_id: Optional[int] = Query(None),
         branch_id: Optional[int] = Query(None),
+        wallet_id: Optional[int] = Query(None),
         customer_id: Optional[int] = Query(None),
         date_from: Optional[date] = Query(None),
         date_to: Optional[date] = Query(None),
@@ -723,6 +733,7 @@ def export_sales_pdf(
         sales = []
     else:
         q = apply_branch_scope(q, ctx, Sale.branch_id, explicit_branch_id=branch_id)
+        q = apply_sale_wallet_filter(q, db, current_user, explicit_wallet_id=wallet_id)
         if cashier_id:
             q = q.filter(Sale.cashier_id == cashier_id)
         if customer_id:

@@ -1,8 +1,8 @@
 """T0.15 — Sotuv detali/tahrir/o'chirish/chek uchun filial izolyatsiyasi.
 
 Tekshiriladi: boshqa filial sotuvi (non-admin) -> 404, admin/director cheklanmaydi,
-boshqa korxona -> 404, kassir bekor qila olmaydi (403) va faqat o'z ochiq smenasidagi
-sotuvni tahrirlaydi, mobil rollar 403, cost_price kassirdan yashiriladi.
+boshqa korxona -> 404, mobil rollar 403, cost_price kassirdan yashiriladi.
+2026-11-27 dan: kassir sotuvni bekor qila va istalgan sotuvni tahrirlay oladi (korxona egasi qarori).
 """
 from decimal import Decimal
 
@@ -176,22 +176,35 @@ def test_other_company_404(client, w, who):
 
 # ---------- kassir cheklovlari ----------
 
-@pytest.mark.parametrize("st", ["cancelled", "refunded"])
-def test_cashier_cannot_cancel(client, db, w, st):
-    r = _call(client, w.cash_a, "put", f"/api/sales/{w.sale_a.id}", json={"status": st})
-    assert r.status_code == 403
-    assert "menejer" in r.json()["detail"]
+# 2026-11-27 korxona egasi qarori: kassir cheklovi olib tashlandi — kassir sotuvni bekor qila oladi va
+# boshqa kassirning, yopilgan smenadagi yoki smenasiz sotuvini ham tahrirlay oladi (filial/kassa doirasida).
+# Filial va korxona izolyatsiyasi (yuqoridagi 404 testlari) o'zgarmaydi. "refunded" holati PUT bilan
+# hech kimga qo'yilmaydi (T0.30, 400).
+
+def test_cashier_can_cancel(client, db, w):
+    r = _call(client, w.cash_a, "put", f"/api/sales/{w.sale_a.id}", json={"status": "cancelled"})
+    assert r.status_code == 200, r.text
+    db.refresh(w.sale_a)
+    assert w.sale_a.status == SaleStatus.cancelled
+
+
+def test_refunded_status_not_settable_via_put(client, db, w):
+    r = _call(client, w.cash_a, "put", f"/api/sales/{w.sale_a.id}", json={"status": "refunded"})
+    assert r.status_code == 400
     db.refresh(w.sale_a)
     assert w.sale_a.status == SaleStatus.completed
 
 
-def test_cancel_keeps_sale_in_shift_expected_cash(client, db, w):
+def test_cancel_removes_sale_from_shift_expected_cash(client, db, w):
     def shift_total():
         return db.query(func.coalesce(func.sum(Sale.paid_amount), 0)).filter(
             Sale.shift_id == w.sh_a.id, Sale.status != SaleStatus.cancelled).scalar()
-    before = shift_total()
-    _call(client, w.cash_a, "put", f"/api/sales/{w.sale_a.id}", json={"status": "cancelled"})
-    assert Decimal(str(shift_total())) == Decimal(str(before)) == Decimal("100")
+    assert Decimal(str(shift_total())) == Decimal("100")
+    r = _call(client, w.cash_a, "put", f"/api/sales/{w.sale_a.id}", json={"status": "cancelled"})
+    assert r.status_code == 200, r.text
+    db.refresh(w.sale_a)
+    assert w.sale_a.shift_id == w.sh_a.id                      # sotuv smenada qoladi, faqat holati bekor
+    assert Decimal(str(shift_total())) == Decimal("0")
 
 
 def test_cashier_edits_own_open_shift_sale(client, db, w):
@@ -200,26 +213,25 @@ def test_cashier_edits_own_open_shift_sale(client, db, w):
     assert r.json()["note"] == "oz izohi"
 
 
-def test_cashier_cannot_edit_other_cashier_sale_same_branch(client, db, w):
-    r = _call(client, w.cash_a2, "put", f"/api/sales/{w.sale_a.id}", json={"note": "begona"})
-    assert r.status_code == 403
-    assert "ochiq smenangizdagi" in r.json()["detail"]
+def test_cashier_edits_other_cashier_sale_same_branch(client, db, w):
+    r = _call(client, w.cash_a2, "put", f"/api/sales/{w.sale_a.id}", json={"note": "hamkasb"})
+    assert r.status_code == 200, r.text
     db.refresh(w.sale_a)
-    assert w.sale_a.note is None
+    assert w.sale_a.note == "hamkasb"
 
 
-def test_cashier_cannot_edit_closed_shift_sale(client, db, w):
+def test_cashier_edits_closed_shift_sale(client, db, w):
     w.sh_a.status = "closed"
     db.flush()
     r = _call(client, w.cash_a, "put", f"/api/sales/{w.sale_a.id}", json={"note": "kech"})
-    assert r.status_code == 403
+    assert r.status_code == 200, r.text
     db.refresh(w.sale_a)
-    assert w.sale_a.note is None
+    assert w.sale_a.note == "kech"
 
 
-def test_cashier_cannot_edit_sale_without_shift(client, db, w):
+def test_cashier_edits_sale_without_shift(client, db, w):
     s = _sale(db, w.c, w.cash_a, w.wa, None)
-    assert _call(client, w.cash_a, "put", f"/api/sales/{s.id}", json={"note": "x"}).status_code == 403
+    assert _call(client, w.cash_a, "put", f"/api/sales/{s.id}", json={"note": "x"}).status_code == 200
 
 
 def test_cashier_edits_own_pending_any_shift(client, db, w):
@@ -228,9 +240,9 @@ def test_cashier_edits_own_pending_any_shift(client, db, w):
     assert r.status_code == 200, r.text
 
 
-def test_cashier_cannot_edit_other_cashier_pending(client, db, w):
+def test_cashier_edits_other_cashier_pending(client, db, w):
     s = _sale(db, w.c, w.cash_a, w.wa, None, status=SaleStatus.pending)
-    assert _call(client, w.cash_a2, "put", f"/api/sales/{s.id}", json={"note": "x"}).status_code == 403
+    assert _call(client, w.cash_a2, "put", f"/api/sales/{s.id}", json={"note": "x"}).status_code == 200
 
 
 def test_manager_can_cancel_in_branch(client, db, w):

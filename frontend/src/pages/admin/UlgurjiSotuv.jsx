@@ -20,7 +20,7 @@ import SaleDeliveryBlock from '../../components/sale/SaleDeliveryBlock';
 import CustomerPicker from '../../components/CustomerPicker';
 import useCompanyFeatures from '../../hooks/useCompanyFeatures';
 import {
-  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, buildRxPayload, unitLinePrice, openedBoxOnly,
+  describeRejection, fmtExpiry, todayLocalIso, rxProductsOf, isControlled, buildRxPayload, unitLinePrice, getProductPackUnits, openedBoxOnly,
   parseWholeBoxError,
 } from '../../utils/posQueue';
 import { EMPTY_DELIVERY, deliveryFromSale, deliveryPayload } from '../../components/sale/saleDelivery';
@@ -45,7 +45,7 @@ const pharmaFieldsOf = (p, unit) => ({
   expiry_warn: !!p.expiry_warn,
   is_rx: !!p.is_rx,
   control_class: p.control_class || 'none',
-  units: Array.isArray(p.units) ? p.units : [],
+  units: getProductPackUnits(p),
   pack_ratio: p.pack_ratio != null ? Number(p.pack_ratio) : null,
   full_boxes: p.full_boxes != null ? Number(p.full_boxes) : null,
   loose_units: p.loose_units != null ? Number(p.loose_units) : null,
@@ -845,8 +845,9 @@ export default function UlgurjiSotuv() {
 
   const [tab, setTab] = useState('new');
   const [sales, setSales] = useState([]);
+  const [saleWallets, setSaleWallets] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
-  const [filters, setFilters] = useState({ date_from: today(), date_to: today(), status: '', search: '' });
+  const [filters, setFilters] = useState({ date_from: today(), date_to: today(), status: '', search: '', wallet_id: '' });
   const [selectedSale, setSelectedSale] = useState(null);
   const [page, setPage] = useState(0);
   const LIMIT = 100;
@@ -897,6 +898,7 @@ export default function UlgurjiSotuv() {
   useEffect(() => {
     api.get('/customers/?limit=200').then(r => setCustomers(Array.isArray(r.data) ? r.data : (r.data?.items || []))).catch(() => { });
     api.get('/warehouses/').then(r => setWarehouses(Array.isArray(r.data) ? r.data : [])).catch(() => { });
+    api.get('/finance/wallets', { _silent: true, _suppressToast: true }).then(r => setSaleWallets(Array.isArray(r.data) ? r.data.filter(w => !w.is_personal) : [])).catch(() => { });
     api.get('/currencies/').then(r => setCurrencies(Array.isArray(r.data) ? r.data : [])).catch(() => { });
     api.get('/companies/me/receipt_templates').then(r => {
       const d = r.data?.receipt_templates || {};
@@ -915,6 +917,7 @@ export default function UlgurjiSotuv() {
     const params = { skip: page * LIMIT, limit: LIMIT, with_total: true, ...filters };
     if (!params.status) delete params.status;
     if (!params.search) delete params.search;
+    if (!params.wallet_id) delete params.wallet_id;
     api.get('/sales/', { params })
       .then(r => {
         const d = r.data || {};
@@ -943,28 +946,58 @@ export default function UlgurjiSotuv() {
       if (cart.length > 0 && !window.confirm(t('wholesale.confirmDiscardCartSimple'))) return;
       const r = await api.get(`/sales/${s.id}`);
       const sale = r.data;
-      setCart((sale.items || []).map(it => ({
-        product_id: it.product_id, name: it.product_name,
-        unit: it.unit || 'dona',            // ← SaleItem dan haqiqiy unit
-        qty: Number(it.quantity), price: Number(it.unit_price),
-        currency: it.currency_code || 'UZS',
-        rate: it.exchange_rate ? Number(it.exchange_rate) : 1,
-        discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
-        wholesale_price: Number(it.unit_price), sale_price: Number(it.unit_price), stock_quantity: 9999,
-        price_manual: true,   // T3.19: saqlangan (buyurtma/sotuv) narxi qayta hisoblanmasin
-        variant_id: it.variant_id || null,     // ← variant tahrirda yo'qolmasin
-        warehouse_id: it.warehouse_id || null, // ← per-item sklad (Desktop POS dan)
-        warehouse_name: it.warehouse_name || null,
-      })));
+      // Qutili mahsulotlar birliklarini (dona / ichki quti / quti) yuklash uchun mahsulot ma'lumotlarini olamiz
+      const prodById = new Map();
+      const missingIds = [...new Set((sale.items || []).map(it => it.product_id).filter(Boolean))];
+      if (missingIds.length) {
+        try {
+          const pr = await api.post('/products/by-ids', { product_ids: missingIds }, { _silent: true, _suppressToast: true });
+          (Array.isArray(pr.data) ? pr.data : []).forEach(p => { if (p?.id) prodById.set(String(p.id), p); });
+        } catch { /* fallback: mavjud ma'lumotdan foydalanamiz */ }
+      }
+      setCart((sale.items || []).map(it => {
+        const prod = prodById.get(String(it.product_id));
+        const packUnits = prod ? getProductPackUnits(prod) : [];
+        const ui = it.unit_info && it.unit_info.unit_id ? it.unit_info : null;
+        const unitObj = ui ? (packUnits.find(u => String(u.id) === String(ui.unit_id)) || { id: ui.unit_id, name: ui.unit_name, ratio: ui.unit_ratio }) : null;
+        const basePrice = Number(it.unit_price);
+        return {
+          ...((pharmacy || packUnits.length > 0) && prod ? { ...pharmaFieldsOf(prod, unitObj), base_price: basePrice } : {}),
+          product_id: it.product_id, name: it.product_name,
+          unit: it.unit || 'dona',            // ← SaleItem dan haqiqiy unit
+          qty: ui ? Number(ui.unit_qty) : Number(it.quantity),
+          price: ui && ui.unit_price != null ? Number(ui.unit_price) : Number(it.unit_price),
+          currency: it.currency_code || 'UZS',
+          rate: it.exchange_rate ? Number(it.exchange_rate) : 1,
+          discount_type: 'sum', discount_val: it.discount > 0 ? String(it.discount) : '',
+          wholesale_price: prod?.wholesale_price != null ? Number(prod.wholesale_price) : Number(it.unit_price),
+          sale_price: prod?.sale_price != null ? Number(prod.sale_price) : Number(it.unit_price),
+          stock_quantity: prod?.stock_quantity != null ? Number(prod.stock_quantity) : 9999,
+          price_manual: true,   // T3.19: saqlangan (buyurtma/sotuv) narxi qayta hisoblanmasin
+          variant_id: it.variant_id || null,     // ← variant tahrirda yo'qolmasin
+          warehouse_id: it.warehouse_id || null, // ← per-item sklad (Desktop POS dan)
+          warehouse_name: it.warehouse_name || null,
+        };
+      }));
       setCustId(sale.customer_id ? String(sale.customer_id) : '');
       setNote(sale.note || ''); setDelivery(deliveryFromSale(sale.delivery)); setDiscType('sum');
       setDiscVal(sale.discount_amount > 0 ? String(sale.discount_amount) : '');
 
-      // Load existing payments to prevent wipeout on save
+      // Load existing payments (with currency preserved) to prevent wipeout on save
       if (sale.payments && sale.payments.length > 0) {
-        setPayments(sale.payments.map(p => ({ id: p.id || Math.random(), type: p.payment_type, amt: String(p.amount) })));
+        setPayments(sale.payments.map(p => ({
+          id: p.id || Math.random(),
+          type: p.payment_type,
+          amt: String(p.amount),
+          currency: p.currency || p.currency_code || sale.currency_code || 'UZS',
+        })));
       } else if (sale.paid_amount > 0) {
-        setPayments([{ id: Math.random(), type: sale.payment_type || 'cash', amt: String(sale.paid_amount) }]);
+        setPayments([{
+          id: Math.random(),
+          type: sale.payment_type || 'cash',
+          amt: String(sale.paid_amount),
+          currency: sale.currency_code || 'UZS',
+        }]);
       } else {
         setPayments([]);
       }
@@ -1167,6 +1200,7 @@ export default function UlgurjiSotuv() {
     const base = { ...filters };
     if (!base.status) delete base.status;
     if (!base.search) delete base.search;
+    if (!base.wallet_id) delete base.wallet_id;
     const all = [];
     for (let skip = 0; skip < 100000; skip += 200) {
       const r = await api.get('/sales/', { params: { ...base, skip, limit: 200 } });
@@ -1203,6 +1237,7 @@ export default function UlgurjiSotuv() {
           "Qarz (so'm)": debt,
           "To'lov turi": pType,
           "Holati": st,
+          "Kassa": s.wallet_name || '—',
           "Kassir": s.cashier_name || '—',
           "Sana": dStr,
         };
@@ -1245,6 +1280,7 @@ export default function UlgurjiSotuv() {
         date_to: filters.date_to || undefined,
         status: filters.status || undefined,
         search: filters.search || undefined,
+        wallet_id: filters.wallet_id || undefined,
       };
       const res = await api.get('/sales/export/pdf', { params, responseType: 'blob' });
       const fallbackName = `sotuvlar_hisoboti_${filters.date_from || today()}_${filters.date_to || today()}.pdf`;
@@ -1576,7 +1612,7 @@ export default function UlgurjiSotuv() {
           : i);
       }
       return [...prev, {
-        ...(isPharma ? { ...pharmaFieldsOf(p, scanUnit), base_price: basePrice } : {}),
+        ...((isPharma || getProductPackUnits(p).length > 0) ? { ...pharmaFieldsOf(p, scanUnit), base_price: basePrice } : {}),
         product_id: p.id, name: p.name, sku: p.sku || '', unit: p.unit || 'dona', qty: 1, price,
         currency, rate,
         discount_type: promoDisc > 0 ? 'sum' : 'pct',
@@ -1634,7 +1670,7 @@ export default function UlgurjiSotuv() {
       unit_ratio: newRatio,
       price: unitLinePrice(basePrice, it.sale_price, unit),
       base_price: basePrice,
-      qty: Number.isInteger(q) && q >= 1 ? q : 1,
+      qty: pharmaRef.current.pharmacy ? (Number.isInteger(q) && q >= 1 ? q : 1) : (Number(it.qty) || 1),
     };
     if (nextItem.discount_type !== 'pct') nextItem.discount_val = Math.min(parseN(nextItem.discount_val), nextItem.price * nextItem.qty);
     if (nextItem.requires_marking && (nextItem.marking_codes || []).length > nextItem.qty) {
@@ -1775,7 +1811,7 @@ export default function UlgurjiSotuv() {
         ? { ...i, qty: i.qty + qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0 }
         : i);
       return [...prev, {
-        ...(pharmacy ? pharmaFieldsOf(formProduct, null) : {}),
+        ...((pharmacy || getProductPackUnits(formProduct).length > 0) ? { ...pharmaFieldsOf(formProduct, null), base_price: price } : {}),
         product_id: formProduct.id, name: formProduct.name, unit: formProduct.unit || 'dona',
         qty, price, currency, rate, discount_type: formDiscType, discount_val: parseFloat(formDiscVal) || 0,
         promo_id: formPromoId || null,
@@ -2000,9 +2036,13 @@ export default function UlgurjiSotuv() {
         const disc = it.discount_type === 'pct'
           ? it.price * it.qty * (parseN(it.discount_val) / 100)
           : parseN(it.discount_val);
+        const packMult = (!pharmacy && (Number(it.unit_ratio) || 1) > 1) ? Number(it.unit_ratio) : 1;
+        const effQty = it.qty * packMult;
+        const effUnitPrice = packMult > 1 ? Math.round((it.price / packMult) * 10000) / 10000 : it.price;
+        const isPackPriceDiff = packMult > 1 && Math.abs(effUnitPrice - Number(it.base_price || effUnitPrice)) > 0.001;
         return {
-          product_id: it.product_id, quantity: it.qty, unit_price: it.price,
-          price_manual: isPriceManual(it),
+          product_id: it.product_id, quantity: effQty, unit_price: effUnitPrice,
+          price_manual: isPriceManual(it) || isPackPriceDiff,
           discount: disc,
           promotion_id: (it.promo_id && disc > 0) ? it.promo_id : undefined,   // T4.3: server tekshiradi, qo'shimcha chegirma qo'shmaydi
           variant_id: it.variant_id || undefined,
@@ -2336,7 +2376,7 @@ export default function UlgurjiSotuv() {
           : parseN(it.discount_val);
         // D2.6: pending sotuv unit_id ni qabul qilmaydi — birlik (quti/blister) qatori asosiy birlikka (dona) o'tkaziladi
         // (miqdor * nisbat, narx / nisbat; summa o'zgarmaydi). Oddiy korxonada unit_id yo'q — ratio 1.
-        const unitRatio = pharmacy && it.unit_id ? (Number(it.unit_ratio) || 1) : 1;
+        const unitRatio = it.unit_id ? (Number(it.unit_ratio) || 1) : 1;
         return {
           product_id: it.product_id, quantity: it.qty * unitRatio, unit_price: it.price / unitRatio,
           price_manual: isPriceManual(it),
@@ -2991,6 +3031,16 @@ export default function UlgurjiSotuv() {
                               <div className="font-semibold text-slate-800 text-xs md:text-sm leading-tight">{it.name}</div>
                               <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                 <span className="text-[11px] text-slate-400">{it.unit}</span>
+                                {Array.isArray(it.units) && it.units.some(u => (Number(u.ratio) || 1) !== 1) && (
+                                  <select value={it.unit_id || ''} onChange={e => switchUnit(idx, e.target.value)}
+                                    className="border border-slate-200 rounded px-0.5 text-[10px] font-bold text-slate-700 bg-white outline-none"
+                                    title={tfb('pos.unitSelect', 'Birlik')}>
+                                    <option value="">{it.base_unit_name || 'dona'}</option>
+                                    {it.units.filter(u => (Number(u.ratio) || 1) !== 1).map(u => (
+                                      <option key={u.id} value={u.id}>{u.name}{!pharmacy && u.ratio ? ` (${u.ratio})` : ''}</option>
+                                    ))}
+                                  </select>
+                                )}
                                 {pharmacy && (
                                   <>
                                     {it.nearest_expiry && (
@@ -3004,16 +3054,6 @@ export default function UlgurjiSotuv() {
                                         className={`text-[9px] font-bold px-1 rounded ${isControlled(it) ? 'bg-red-100 text-red-700' : 'bg-violet-100 text-violet-700'}`}>
                                         {isControlled(it) ? tfb('pos.rxControlled', 'Nazoratda') : 'Rx'}
                                       </button>
-                                    )}
-                                    {Array.isArray(it.units) && it.units.some(u => (Number(u.ratio) || 1) !== 1) && (
-                                      <select value={it.unit_id || ''} onChange={e => switchUnit(idx, e.target.value)}
-                                        className="border border-slate-200 rounded px-0.5 text-[10px] font-bold text-slate-700 bg-white outline-none"
-                                        title={tfb('pos.unitSelect', 'Birlik')}>
-                                        <option value="">{it.base_unit_name || 'dona'}</option>
-                                        {it.units.filter(u => (Number(u.ratio) || 1) !== 1).map(u => (
-                                          <option key={u.id} value={u.id}>{u.name}</option>
-                                        ))}
-                                      </select>
                                     )}
                                     <button type="button" onClick={() => openAnalogs(it)}
                                       className="text-[9px] font-bold px-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
@@ -3266,6 +3306,15 @@ export default function UlgurjiSotuv() {
               <option value="pending">{t('wholesale.statusPendingApproval')}</option>
               <option value="cancelled">{t('wholesale.statusCancelledShort')}</option>
             </select>
+            {saleWallets.length > 1 && (
+              <select value={filters.wallet_id} onChange={e => setFilter('wallet_id', e.target.value)}
+                className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white font-medium text-slate-700">
+                <option value="">{tfb('kassa.allKassas', 'Barcha kassalar')}</option>
+                {saleWallets.map(w => (
+                  <option key={w.id} value={String(w.id)}>{w.name}</option>
+                ))}
+              </select>
+            )}
             <input value={filters.search} onChange={e => setFilter('search', e.target.value)}
               placeholder={t('wholesale.saleNumberOrCustomerPlaceholder')} className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-full max-w-100" />
             <button onClick={loadSales} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5">
@@ -3358,7 +3407,14 @@ export default function UlgurjiSotuv() {
                         </td>
                         <td className="px-4 py-3"><span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{(PAY_META_KEYS[s.payment_type] && t(PAY_META_KEYS[s.payment_type])) || s.payment_type}</span></td>
                         <td className="px-4 py-3"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_META[s.status]?.c || 'bg-slate-100 text-slate-500'}`}>{(STATUS_META[s.status]?.lKey && t(STATUS_META[s.status].lKey)) || s.status}</span></td>
-                        <td className="px-4 py-3 text-sm text-slate-500">{s.cashier_name}</td>
+                        <td className="px-4 py-3 text-sm text-slate-500">
+                          <div>{s.cashier_name}</div>
+                          {s.wallet_name && (
+                            <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {s.wallet_name}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{s.created_at ? new Date(s.created_at).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                         <td className="px-3 py-3 relative text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                           <div className="inline-flex items-center gap-1.5 justify-end">

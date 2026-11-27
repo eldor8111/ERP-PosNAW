@@ -52,6 +52,10 @@ class WalletUpdate(BaseModel):
     # T1.10: filialga bog'lash; yuborilsa va null bo'lsa — umumiy (filialsiz) kassa
     branch_id: Optional[int] = None
 
+class WalletUsersUpdate(BaseModel):
+    user_ids: List[int] = Field(default_factory=list)
+    exclusive: bool = True
+
 class OpenKassaIn(BaseModel):
     opening_balance: float = 0
     currency: str = "UZS"
@@ -213,6 +217,7 @@ def wallet_out(wallet, db, current_user, meta=None, balances=None, session_id=..
         "is_personal": meta.get("is_personal", bool(getattr(wallet, "is_personal", False))),
         "is_default_for_me": meta.get("is_default_for_me", False),
         "is_default": bool(meta.get("is_default_for_me", False)),
+        "assigned_users": meta.get("assigned_users", []),
         "opening_balance": float(wallet.opening_balance or 0),
         "opened_at": wallet.opened_at,
         "closed_at": wallet.closed_at,
@@ -875,6 +880,87 @@ def reconcile_wallets(
     return {"items": items, "mismatched": sum(1 for i in items if abs(i["diff"]) >= 0.01)}
 
 
+@router.get("/all-history")
+def all_kassa_history(
+    wallet_id: Optional[int] = Query(None),
+    branch_id: Optional[int] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    direction: Optional[str] = Query(None),
+    payment_type: Optional[str] = Query(None),
+    reference_type: Optional[str] = Query(None),
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Umumiy kassa tarixi: barcha ko'rinadigan faol kassalar harakatlari birgalikda."""
+    wallets = wallet_service.list_wallets(db, current_user, branch_id=branch_id, active_only=True)
+    w_names = {w.id: w.name for w in wallets}
+    visible_ids = list(w_names.keys())
+    if wallet_id is not None:
+        if wallet_id not in w_names:
+            return {"total": 0, "summary": {"total_in": 0.0, "total_out": 0.0, "balance": 0.0}, "items": []}
+        visible_ids = [wallet_id]
+    if not visible_ids:
+        return {"total": 0, "summary": {"total_in": 0.0, "total_out": 0.0, "balance": 0.0}, "items": []}
+
+    q = db.query(KassaMovement).filter(
+        KassaMovement.company_id == current_user.company_id,
+        KassaMovement.wallet_id.in_(visible_ids),
+    )
+    if date_from or date_to:
+        start, end = date_bounds(date_from, date_to)
+        q = q.filter(KassaMovement.created_at >= start, KassaMovement.created_at < end)
+    if direction:
+        q = q.filter(KassaMovement.direction == direction)
+    if payment_type:
+        q = q.filter(KassaMovement.payment_type == payment_type)
+    if reference_type:
+        q = q.filter(KassaMovement.reference_type == reference_type)
+
+    total = q.count()
+    items = q.order_by(KassaMovement.created_at.desc(), KassaMovement.id.desc()).offset(skip).limit(limit).all()
+
+    by_currency: dict = {}
+    for currency, dirn, amount in q.order_by(None).with_entities(
+        KassaMovement.currency, KassaMovement.direction, func.sum(KassaMovement.amount),
+    ).group_by(KassaMovement.currency, KassaMovement.direction).all():
+        c = by_currency.setdefault(currency or "UZS", {"total_in": 0.0, "total_out": 0.0, "balance": 0.0})
+        if dirn == "in":
+            c["total_in"] += float(amount or 0)
+        elif dirn == "out":
+            c["total_out"] += float(amount or 0)
+        c["balance"] = c["total_in"] - c["total_out"]
+    uzs = by_currency.get("UZS", {"total_in": 0.0, "total_out": 0.0, "balance": 0.0})
+
+    return {
+        "total": total,
+        "summary": {
+            "total_in": uzs["total_in"],
+            "total_out": uzs["total_out"],
+            "balance": uzs["balance"],
+            **by_currency,
+        },
+        "items": [
+            {
+                "id": m.id,
+                "wallet_id": m.wallet_id,
+                "wallet_name": w_names.get(m.wallet_id),
+                "direction": m.direction,
+                "payment_type": m.payment_type,
+                "amount": float(m.amount),
+                "currency": m.currency,
+                "reference_type": m.reference_type,
+                "reference_id": m.reference_id,
+                "description": m.description,
+                "created_at": m.created_at,
+            }
+            for m in items
+        ],
+    }
+
+
 def _create_wallet(db: Session, user, data: WalletCreate) -> Wallet:
     """Kassa yaratish mantig'i (POST /kassa va POST /kassa/bulk uchun umumiy; commit chaqiruvchida)."""
     # T2.8: /finance/wallets bilan bir xil qoida (`wallet_service.create_wallet`): filial shu korxonaniki va faol
@@ -988,6 +1074,169 @@ def delete_wallet(wallet_id: int, db: Session = Depends(get_db), current_user=De
     )
     db.commit()
     return {"ok": True}
+
+
+@router.get("/{wallet_id}/users", dependencies=_ADMIN_ONLY)
+def get_wallet_users(wallet_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Kassaga biriktirilgan xodimlar va korxonaning barcha faol xodimlari ro'yxati."""
+    from sqlalchemy import or_
+    from app.models.user import User, UserStatus, UserWallet
+    from app.models.user_company import UserCompany
+
+    cid = current_user.company_id
+    w = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == cid).first()
+    if not w:
+        raise HTTPException(404, "Kassa topilmadi")
+
+    member_ids = [
+        r[0] for r in db.query(UserCompany.user_id).filter(
+            UserCompany.company_id == cid, UserCompany.is_active == True,  # noqa: E712
+        ).all()
+    ]
+    u_q = db.query(User).filter(User.status == UserStatus.active)
+    if member_ids:
+        u_q = u_q.filter(or_(User.company_id == cid, User.id.in_(member_ids)))
+    else:
+        u_q = u_q.filter(User.company_id == cid)
+    users = u_q.order_by(User.name.asc()).all()
+
+    # Korxonaning barcha faol, shaxsiy bo'lmagan kassalaridagi biriktirishlar
+    links = (
+        db.query(UserWallet.user_id, UserWallet.wallet_id, UserWallet.is_default, Wallet.name)
+        .join(Wallet, Wallet.id == UserWallet.wallet_id)
+        .filter(
+            Wallet.company_id == cid,
+            Wallet.is_active == True,  # noqa: E712
+            Wallet.is_personal == False,  # noqa: E712
+        )
+        .order_by(UserWallet.is_default.desc(), UserWallet.wallet_id.asc())
+        .all()
+    )
+    assigned_ids = set()
+    user_current_wallet: dict = {}
+    for uid, wid, is_def, wname in links:
+        if wid == wallet_id:
+            assigned_ids.add(uid)
+        if uid not in user_current_wallet:
+            user_current_wallet[uid] = {"id": wid, "name": wname, "is_default": bool(is_def)}
+
+    return {
+        "wallet_id": w.id,
+        "wallet_name": w.name,
+        "assigned_user_ids": sorted(assigned_ids),
+        "users": [
+            {
+                "id": u.id,
+                "name": u.name,
+                "phone": u.phone,
+                "role": u.role.value if hasattr(u.role, "value") else str(u.role),
+                "branch_id": u.branch_id,
+                "assigned": u.id in assigned_ids,
+                "current_wallet_id": user_current_wallet.get(u.id, {}).get("id"),
+                "current_wallet_name": user_current_wallet.get(u.id, {}).get("name"),
+            }
+            for u in users
+        ],
+    }
+
+
+@router.put("/{wallet_id}/users", dependencies=_ADMIN_ONLY)
+def set_wallet_users(
+    wallet_id: int,
+    data: WalletUsersUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Kassaga xodimlarni biriktirish/olib tashlash. `exclusive=True` — xodim boshqa kassadan chiqariladi,
+    shunda 2 ta kassa xodimlarining sotuvlari va pullari aralashmaydi."""
+    from sqlalchemy import text as _sa_text
+    from app.models.user import User, UserWallet
+    from app.services.wallet_access import get_company_user
+
+    cid = current_user.company_id
+    w = db.query(Wallet).filter(Wallet.id == wallet_id, Wallet.company_id == cid).first()
+    if not w:
+        raise HTTPException(404, "Kassa topilmadi")
+    if w.is_active is False:
+        raise HTTPException(400, "Kassa faol emas")
+
+    selected_ids = list(dict.fromkeys(int(uid) for uid in (data.user_ids or [])))
+    for uid in selected_ids:
+        get_company_user(db, uid, cid)
+
+    old_ids = sorted(
+        r[0] for r in db.query(UserWallet.user_id).filter(UserWallet.wallet_id == wallet_id).all()
+    )
+
+    # Tanlanmagan xodimlarni shu kassadan olib tashlash
+    if selected_ids:
+        db.query(UserWallet).filter(
+            UserWallet.wallet_id == wallet_id,
+            ~UserWallet.user_id.in_(selected_ids),
+        ).delete(synchronize_session=False)
+    else:
+        db.query(UserWallet).filter(UserWallet.wallet_id == wallet_id).delete(synchronize_session=False)
+
+    # Tanlangan xodimlarni shu kassaga default qilib biriktirish
+    non_personal_ids = [
+        r[0] for r in db.query(Wallet.id).filter(
+            Wallet.company_id == cid,
+            Wallet.is_personal == False,  # noqa: E712
+        ).all()
+    ]
+    for uid in selected_ids:
+        if data.exclusive and non_personal_ids:
+            other_ids = [oid for oid in non_personal_ids if oid != wallet_id]
+            if other_ids:
+                db.query(UserWallet).filter(
+                    UserWallet.user_id == uid,
+                    UserWallet.wallet_id.in_(other_ids),
+                ).delete(synchronize_session=False)
+        db.execute(
+            _sa_text(
+                "UPDATE user_wallets SET is_default = false "
+                "WHERE user_id = :uid AND is_default = true "
+                "AND wallet_id IN (SELECT id FROM wallets WHERE company_id = :cid)"
+            ),
+            {"uid": uid, "cid": cid},
+        )
+        db.execute(
+            _sa_text(
+                "INSERT INTO user_wallets(user_id, wallet_id, is_default, company_id) "
+                "VALUES(:uid, :wid, true, :cid) "
+                "ON CONFLICT(user_id, wallet_id) DO UPDATE SET is_default = true, company_id = EXCLUDED.company_id"
+            ),
+            {"uid": uid, "wid": wallet_id, "cid": cid},
+        )
+
+    log_action_for(
+        db, current_user, "WALLET_USERS_UPDATE", "wallet", w.id,
+        old_values={"user_ids": old_ids},
+        new_values={"user_ids": sorted(selected_ids), "exclusive": data.exclusive},
+        branch_id=w.branch_id,
+    )
+    db.commit()
+
+    assigned = (
+        db.query(User.id, User.name, User.role, UserWallet.is_default)
+        .join(UserWallet, UserWallet.user_id == User.id)
+        .filter(UserWallet.wallet_id == wallet_id)
+        .order_by(User.name.asc())
+        .all()
+    )
+    return {
+        "ok": True,
+        "wallet_id": w.id,
+        "assigned_users": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "role": r.role.value if hasattr(r.role, "value") else str(r.role),
+                "is_default": bool(r.is_default),
+            }
+            for r in assigned
+        ],
+    }
 
 
 # ─── Kassa ochish/yopish ─────────────────────────────────────────────────────

@@ -710,6 +710,18 @@ def create_sale(
             db, current_user, branch_id=sale_branch_id, purpose="sale",
             requested_wallet_id=getattr(data, "wallet_id", None),
         )
+    else:
+        # Qarzga sotuvda ham xodimga biriktirilgan kassa bor bo'lsa sotuv shu kassaga tegishli sifatida belgilanadi
+        # (kassaga pul tushmaydi; biriktirilgan kassa bo'lmasa None qoladi).
+        from app.services.wallet_resolver import user_wallet_ids
+        _u_wids = user_wallet_ids(db, current_user)
+        if _u_wids:
+            from app.models.moliya import Wallet as _Wallet
+            _sale_wallet = db.query(_Wallet).filter(
+                _Wallet.id == _u_wids[0],
+                _Wallet.company_id == current_user.company_id,
+                _Wallet.is_active == True,  # noqa: E712
+            ).first()
 
     # ── Sale yozuvi ───────────────────────────────────────────────────────────
     # Hujjat raqami korxona/filial kesimida (T1.14); filial tranzaksiya filiali bilan bir xil aniqlanadi
@@ -1330,12 +1342,17 @@ def create_pending_sale(
                 sale_currency_id = cur_obj.id
                 sale_exchange_rate = sale_items_data[0]["exchange_rate"]
 
+    from app.services.wallet_resolver import user_wallet_ids as _pend_user_wids
+    _pend_wids = _pend_user_wids(db, current_user)
+    _pend_wallet_id = _pend_wids[0] if _pend_wids else None
+
     sale = Sale(
         number=generate_sale_number(db, current_user.company_id, pend_branch_id),
         cashier_id=current_user.id,
         company_id=current_user.company_id,
         warehouse_id=data.warehouse_id,
         branch_id=pend_branch_id,
+        wallet_id=_pend_wallet_id,
         customer_id=data.customer_id,
         total_amount=total_amount,
         discount_amount=data.discount_amount,

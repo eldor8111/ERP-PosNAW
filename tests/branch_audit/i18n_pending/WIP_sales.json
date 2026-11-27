@@ -1,0 +1,32 @@
+{
+  "uz": {
+    "kassa.allKassas": "Barcha kassalar",
+    "customer.debtAdjusted": "Qarz muvaffaqiyatli 0 qilindi",
+    "customer.deleted": "Mijoz o'chirildi",
+    "settings.receipt.saveSuccess": "Chek sozlamalari muvaffaqiyatli saqlandi",
+    "wholesale.excelExportSuccess": "Excel fayl muvaffaqiyatli yuklab olindi",
+    "wholesale.exportError": "Excel yuklab olishda xatolik yuz berdi",
+    "m.cancelled": "Bekor qilingan",
+    "m.unplannedVisits": "Rejalanmagan tashriflar"
+  },
+  "ru": {
+    "kassa.allKassas": "Все кассы",
+    "customer.debtAdjusted": "Долг успешно обнулён",
+    "customer.deleted": "Клиент удалён",
+    "settings.receipt.saveSuccess": "Настройки чека успешно сохранены",
+    "wholesale.excelExportSuccess": "Файл Excel успешно загружен",
+    "wholesale.exportError": "Ошибка при выгрузке в Excel",
+    "m.cancelled": "Отменён",
+    "m.unplannedVisits": "Внеплановые визиты"
+  },
+  "en": {
+    "kassa.allKassas": "All cash desks",
+    "customer.debtAdjusted": "Debt was reset to 0",
+    "customer.deleted": "Customer deleted",
+    "settings.receipt.saveSuccess": "Receipt settings saved",
+    "wholesale.excelExportSuccess": "Excel file downloaded",
+    "wholesale.exportError": "Failed to export to Excel",
+    "m.cancelled": "Cancelled",
+    "m.unplannedVisits": "Unplanned visits"
+  }
+}

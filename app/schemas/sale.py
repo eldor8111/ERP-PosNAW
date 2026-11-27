@@ -243,6 +243,8 @@ class SaleOut(BaseModel):
     created_at: datetime
     debt_due_date: Optional[date] = None
     warehouse_id: Optional[int] = None
+    wallet_id: Optional[int] = None
+    wallet_name: Optional[str] = None
     # T1.9: sotuv filiali (snapshot) va uning rekvizitlari — chek uchun
     branch_id: Optional[int] = None
     branch_name: Optional[str] = None
@@ -310,6 +312,8 @@ class SaleListOut(BaseModel):
     # T1.9: sotuv filiali (snapshot)
     branch_id: Optional[int] = None
     branch_name: Optional[str] = None
+    wallet_id: Optional[int] = None
+    wallet_name: Optional[str] = None
     # T3.7: POS chekni qo'shimcha so'rovsiz chiqarishi uchun filial rekvizitlari
     branch_address: Optional[str] = None
     branch_phone: Optional[str] = None

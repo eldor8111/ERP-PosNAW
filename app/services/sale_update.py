@@ -220,18 +220,6 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
     _old_status = sale.status
 
-    # Kassir cheklovlari (mutatsiyadan oldin): bekor qilish/qaytarish — menejer/admin ishi;
-    # tugallangan sotuvni faqat o'z ochiq smenasida tahrirlay oladi
-    if current_user.role == UserRole.cashier:
-        if data.status in (SaleStatus.cancelled, SaleStatus.refunded):
-            raise HTTPException(status_code=403, detail="Sotuvni bekor qilish uchun menejer/admin kerak")
-        if sale.status != SaleStatus.pending:
-            _shift = db.get(Shift, sale.shift_id) if sale.shift_id else None
-            if sale.cashier_id != current_user.id or not _shift or _shift.status != "open":
-                raise HTTPException(status_code=403, detail="Faqat o'z ochiq smenangizdagi sotuvni tahrirlay olasiz")
-        elif sale.cashier_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Faqat o'zingiz yaratgan sotuvni tahrirlay olasiz")
-
     # Qaytarish holati faqat qaytarish amali orqali qo'yiladi (PUT bilan emas) (T0.30)
     if data.status == SaleStatus.refunded:
         raise HTTPException(status_code=400, detail="Qaytarish holatini tahrirlash orqali qo'yib bo'lmaydi")
@@ -245,10 +233,8 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
     if _wants_change and is_return_linked(db, sale):
         raise HTTPException(status_code=400, detail=CANNOT_EDIT_RETURNED)
 
-    # Kompaniya sozlamasi: minus qoldiqda sotish taqiqlanganmi
-    from app.models.company import Company as _Company
-    _neg_company = db.query(_Company).filter(_Company.id == sale.company_id).first()
-    allow_negative_stock = not (_neg_company is not None and _neg_company.pos_allow_negative_stock is False)
+    # Sotuvni tahrirlashda minus qoldiq cheklovi qo'llanmaydi
+    allow_negative_stock = True
 
     if data.items is not None:
         # ── To'liq tahrirlash ─────────────────────────────────────────────────
@@ -564,8 +550,6 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     sale.loyalty_points_used = 0  # type: ignore
                 new_debt_uzs = max(Decimal("0"), total_amount - paid_amount)
                 if new_debt_uzs > Decimal("0.01"):
-                    # Kredit limit (T2.12): to'liq tahrirda ham majburlanadi (sotuvning eski qarzi yuqorida qaytarilgan)
-                    check_credit_limit(db, new_customer, new_debt_uzs)
                     new_customer.debt_balance = (new_customer.debt_balance or Decimal("0")) + new_debt_uzs  # type: ignore
 
                     # Sync with multi-currency debt_balances
@@ -752,7 +736,6 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                     new_debt = (sale.total_amount - data.paid_amount) * (sale.exchange_rate or Decimal("1"))
                     if confirming:
                         if new_debt > 0:
-                            check_credit_limit(db, customer, new_debt)  # T2.12: yakunlashda kredit limit majburlanadi
                             customer.debt_balance = (customer.debt_balance or Decimal("0")) + new_debt
                             
                             # Sync JSON
@@ -825,7 +808,6 @@ def update_sale(db: Session, sale_id: int, data, current_user: User) -> Sale:
                 if customer:
                     remaining_debt = (sale.total_amount - sale.paid_amount) * (sale.exchange_rate or Decimal("1"))
                     if remaining_debt > 0:
-                        check_credit_limit(db, customer, remaining_debt)  # T2.12
                         customer.debt_balance = (customer.debt_balance or Decimal("0")) + remaining_debt  # type: ignore
 
                         # Sync JSON

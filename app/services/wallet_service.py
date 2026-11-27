@@ -92,5 +92,6 @@ def deactivate_wallet(db: Session, user, wallet: Wallet) -> bool:
     if abs(Decimal(str(wallet.balance or 0))) >= _EPS:
         raise HTTPException(status_code=409, detail=WALLET_HAS_BALANCE)
     wallet.is_active = False
+    wallet.is_open = False
     clear_wallet_assignments(db, wallet.id)
     return old_active

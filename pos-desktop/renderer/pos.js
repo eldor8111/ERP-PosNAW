@@ -805,6 +805,38 @@ function addToCartById(id, qtyToAdd = 1) {
   addToCart(prod, qtyToAdd);
 }
 
+function getPackUnits(prod) {
+  if (!prod) return [];
+  if (Array.isArray(prod.units) && prod.units.length > 0) return prod.units;
+  if (Array.isArray(prod.attributes)) {
+    const packAttr = prod.attributes.find(a => a && a.key === 'pack_config' && Array.isArray(a.units));
+    if (packAttr && packAttr.units.length > 0) return packAttr.units;
+  }
+  return [];
+}
+
+function switchCartUnit(idx, unitIdRaw) {
+  const item = cart[idx];
+  if (!item) return;
+  const units = getPackUnits(item);
+  const unit = unitIdRaw ? units.find(u => String(u.id) === String(unitIdRaw)) || null : null;
+  const newRatio = unit ? (Number(unit.ratio) || 1) : 1;
+  const basePrice = Number(item.base_sale_price != null ? item.base_sale_price : (item.sale_price / (Number(item.unit_ratio) || 1))) || 0;
+  let newPrice = Math.round(basePrice * newRatio * 100) / 100;
+  if (unit) {
+    const rawUnitPrice = unit.price != null ? Number(unit.price) : (unit.sale_price != null ? Number(unit.sale_price) : null);
+    if (rawUnitPrice != null && rawUnitPrice > 0) {
+      newPrice = item.sale_currency === 'USD' ? Math.round(rawUnitPrice * (CFG.usdRate || 12800)) : rawUnitPrice;
+    }
+  }
+  item.base_sale_price = basePrice;
+  item.unit_id = unit ? unit.id : null;
+  item.unit_name = unit ? unit.name : (item.unit || 'dona');
+  item.unit_ratio = newRatio;
+  item.sale_price = newPrice;
+  renderCart();
+}
+
 function addToCart(prod, qtyToAdd = 1) {
   const existing = cart.find(x => x.id === prod.id);
   if (existing) existing.qty += qtyToAdd;
@@ -833,7 +865,14 @@ function renderCart() {
     payEl.style.display = 'none';
     return;
   }
-  itemsEl.innerHTML = cart.map((item, i) => `
+  itemsEl.innerHTML = cart.map((item, i) => {
+    const packUnits = getPackUnits(item).filter(u => (Number(u.ratio) || 1) !== 1);
+    const unitSelHtml = packUnits.length ? `
+      <select class="ci-unit-sel" onchange="switchCartUnit(${i}, this.value)" title="Birlikni tanlash" style="height:24px;padding:0 4px;border:1px solid var(--border,#cbd5e1);border-radius:5px;font-size:11px;font-weight:700;background:#fff;color:var(--ink,#1e293b);cursor:pointer;">
+        <option value="" ${!item.unit_id ? 'selected' : ''}>${esc(item.unit || 'dona')}</option>
+        ${packUnits.map(u => `<option value="${esc(String(u.id))}" ${String(item.unit_id || '') === String(u.id) ? 'selected' : ''}>${esc(u.name)} (${Number(u.ratio)})</option>`).join('')}
+      </select>` : '';
+    return `
     <div class="cart-item">
       <div class="ci-top">
         <div class="ci-name">${esc(item.name)}</div>
@@ -845,9 +884,11 @@ function renderCart() {
           <span class="qty-disp">${item.qty}</span>
           <button class="qty-btn" onclick="changeQty(${i},1)">+</button>
         </div>
+        ${unitSelHtml}
         <span class="ci-price">${fmt(item.sale_price * item.qty)} so'm</span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   totalsEl.style.display = 'flex';
   payEl.style.display = 'flex';
   calcCart();
@@ -956,14 +997,20 @@ async function processSale() {
   try {
     // Payload must match SaleCreate schema exactly
     const payload = {
-      items: cart.map(p => ({
-        product_id: p.id,
-        quantity: p.qty,
-        // T3.19: unit_price faqat kassir narxni qo'lda o'zgartirgan bo'lsa yuboriladi; aks holda server
-        // narxni hal qiladi (mijozning individual narxi > narx turi > sotuv narxi) va mijoz chegirmasini qo'llaydi
-        ...(p.price_manual ? { unit_price: p.sale_price, price_manual: true } : {}),
-        discount: 0,
-      })),
+      items: cart.map(p => {
+        const ratio = Number(p.unit_ratio) || 1;
+        const effQty = p.qty * ratio;
+        const effUnitPrice = ratio > 1 ? Math.round((p.sale_price / ratio) * 10000) / 10000 : p.sale_price;
+        const isPackDiff = ratio > 1;
+        return {
+          product_id: p.id,
+          quantity: effQty,
+          // T3.19: unit_price faqat kassir narxni qo'lda o'zgartirgan bo'lsa yuboriladi; aks holda server
+          // narxni hal qiladi (mijozning individual narxi > narx turi > sotuv narxi) va mijoz chegirmasini qo'llaydi
+          ...(p.price_manual || isPackDiff ? { unit_price: effUnitPrice, price_manual: true } : {}),
+          discount: 0,
+        };
+      }),
       payment_type: payMethod,      // 'cash' | 'card' | 'debt'
       paid_amount: paid,            // required Decimal
       discount_amount: discountAmount,

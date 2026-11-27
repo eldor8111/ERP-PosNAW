@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
-import { Banknote, CreditCard, Gem, HandCoins, Landmark, PiggyBank } from 'lucide-react';
+import { Banknote, CreditCard, Gem, HandCoins, Landmark, Layers, Trash2, Users } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
+import { useAuth } from '../../context/AuthContext';
 import { tOr } from '../../utils/shiftBalances'; // T4.6
 
 const fmt = v => Number(v || 0).toLocaleString('uz-UZ');
@@ -87,7 +88,7 @@ function CurrencyField({ currencies, value, amount, onChange, t, selectClass }) 
   );
 }
 
-function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
+function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [], canManage = false }) {
   const { t } = useLang();
   const [modal, setModal] = useState(null);
   const [history, setHistory] = useState(null);
@@ -101,6 +102,9 @@ function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
   const [editExpense, setEditExpense] = useState(null);
   const [pendingExpenses, setPendingExpenses] = useState([]); // T4.6: tasdiq kutayotgan xarajatlar
   const [editForm, setEditForm] = useState({ name: '', branch_id: '' }); // T1.10: kassani tahrirlash (nom + filial)
+  const [usersData, setUsersData] = useState(null);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
 
   const filteredHistory = (history?.items && Array.isArray(history.items) ? history.items : []).filter(it => {
     if (directionFilter !== 'all' && it.direction !== directionFilter) return false;
@@ -157,6 +161,20 @@ function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
     setCloseResult(null);
     if (type === 'history') await loadHistory();
     if (type === 'expense') await loadCategories();
+    if (type === 'users') {
+      setUserSearch('');
+      setUsersData(null);
+      setModal('users');
+      try {
+        const r = await api.get(`/kassa/${kassa.id}/users`);
+        setUsersData(r.data);
+        setSelectedUserIds(Array.isArray(r.data?.assigned_user_ids) ? r.data.assigned_user_ids : []);
+      } catch (e) {
+        toast.error(e.response?.data?.detail || t('common.error'));
+        setModal(null);
+      }
+      return;
+    }
     if (['open', 'expense', 'invest', 'withdraw'].includes(type)) {
       try {
         const r = await api.get('/currencies/active', { _suppressToast: true });
@@ -164,6 +182,30 @@ function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
       } catch { setCurrencies([]); }
     }
     setModal(type);
+  };
+
+  const handleSaveUsers = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/kassa/${kassa.id}/users`, { user_ids: selectedUserIds, exclusive: true });
+      toast.success(tfOr(t, 'kassa.usersSaved', 'Kassa xodimlari saqlandi'));
+      setModal(null);
+      onRefresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('common.error'));
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteKassa = async () => {
+    setSaving(true);
+    try {
+      await api.delete(`/kassa/${kassa.id}`);
+      toast.success(tfOr(t, 'kassa.kassaDeleted', "Kassa o'chirildi"));
+      setModal(null);
+      onRefresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('common.error'));
+    } finally { setSaving(false); }
   };
 
   const save = async (action) => {
@@ -312,9 +354,22 @@ function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
             {kassa.is_default && (
               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">{tfOr(t, 'kassa.defaultForMe', 'Standart kassa')}</span>
             )}
-            {!kassa.is_personal && (
-              <button type="button" onClick={() => { setEditForm({ name: kassa.name, branch_id: kassa.branch_id ?? '' }); setModal('edit'); }}
-                className="text-[11px] font-semibold text-slate-400 hover:text-blue-600">✎ {t('kassa.editKassa')}</button>
+            {!kassa.is_personal && canManage && (
+              <>
+                <button type="button" onClick={() => { setEditForm({ name: kassa.name, branch_id: kassa.branch_id ?? '' }); setModal('edit'); }}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-blue-600 cursor-pointer">✎ {t('kassa.editKassa')}</button>
+                <button type="button" onClick={() => openModal('users')}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer">
+                  <Users className="w-3 h-3" />
+                  {tfOr(t, 'kassa.assignUsers', 'Xodimlar')} ({(kassa.assigned_users || []).length})
+                </button>
+                <button type="button" onClick={() => setModal('delete')}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                  title={tfOr(t, 'kassa.deleteKassa', "Kassani o'chirish")}>
+                  <Trash2 className="w-3 h-3" />
+                  {t('common.delete')}
+                </button>
+              </>
             )}
           </div>
 
@@ -330,6 +385,26 @@ function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
             )}
           </div>
         </div>
+
+        {/* Biriktirilgan xodimlar */}
+        {!kassa.is_personal && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-slate-400 mr-0.5 flex items-center gap-1">
+              <Users className="w-3 h-3" />
+              {tfOr(t, 'kassa.assignedUsersLabel', 'Biriktirilgan xodimlar')}:
+            </span>
+            {Array.isArray(kassa.assigned_users) && kassa.assigned_users.length > 0 ? (
+              kassa.assigned_users.map(u => (
+                <span key={u.id} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  {u.name}
+                </span>
+              ))
+            ) : (
+              <span className="text-[11px] text-slate-400 italic">{tfOr(t, 'kassa.noAssignedUsers', 'Biriktirilmagan')}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Kutilayotgan o'tkazmalar (masalan kuryer/agent topshirgan naqd pul) */}
@@ -809,6 +884,104 @@ function KassaCard({ kassa, onRefresh, allKassalar = [], branches = [] }) {
         </Modal>
       )}
 
+      {/* Assign users to kassa modal */}
+      {modal === 'users' && (
+        <Modal title={`${kassa.name} — ${tfOr(t, 'kassa.assignUsers', 'Xodimlar biriktirish')}`} onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700 leading-relaxed">
+              {tfOr(
+                t,
+                'kassa.assignUsersHint',
+                "Biriktirilgan xodimlarning barcha sotuvlari va to'lovlari faqat shu kassaga tushadi va boshqa kassa xodimlari sotuvlari bilan aralashmaydi."
+              )}
+            </div>
+            <input
+              type="text"
+              className={field}
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              placeholder={tfOr(t, 'kassa.searchUser', 'Xodim ismini qidiring...')}
+            />
+            {!usersData ? (
+              <div className="py-8 text-center text-sm text-slate-400">{t('common.loading')}</div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl">
+                {(usersData.users || [])
+                  .filter(u => !userSearch.trim() || String(u.name || '').toLowerCase().includes(userSearch.trim().toLowerCase()))
+                  .map(u => {
+                    const checked = selectedUserIds.includes(u.id);
+                    const onOtherKassa = u.current_wallet_id && u.current_wallet_id !== kassa.id;
+                    return (
+                      <label key={u.id} className={`flex items-center justify-between gap-3 px-3.5 py-2.5 cursor-pointer transition-colors ${checked ? 'bg-blue-50/60' : 'hover:bg-slate-50'}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              if (e.target.checked) setSelectedUserIds(prev => [...prev, u.id]);
+                              else setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-800 truncate">{u.name}</div>
+                            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
+                              <span className="uppercase font-semibold">{u.role}</span>
+                              {onOtherKassa && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                                  {tfOr(t, 'kassa.currentlyOn', 'Hozir')}: {u.current_wallet_name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {checked && (
+                          <span className="text-[11px] font-bold text-blue-600 shrink-0">✓</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                {(usersData.users || []).length === 0 && (
+                  <div className="py-6 text-center text-sm text-slate-400">{t('common.noData')}</div>
+                )}
+              </div>
+            )}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setModal(null)} className={cancelBtn}>{t('common.cancel')}</button>
+              <button type="button" onClick={handleSaveUsers} disabled={saving || !usersData}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors cursor-pointer">
+                {saving ? t('common.saving') : `${t('common.save')} (${selectedUserIds.length})`}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete kassa confirmation modal */}
+      {modal === 'delete' && (
+        <Modal title={tfOr(t, 'kassa.deleteKassa', "Kassani o'chirish")} onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-700">
+              <p className="font-bold mb-1">"{kassa.name}" {tfOr(t, 'kassa.confirmDeleteTitle', "kassasini o'chirishga ishonchingiz komilmi?")}</p>
+              <p className="text-xs text-rose-600">
+                {tfOr(
+                  t,
+                  'kassa.confirmDeleteHint',
+                  "Kassa faol ro'yxatdan olib tashlanadi va unga biriktirilgan xodimlar uziladi. Ochiq sessiya, kutilayotgan o'tkazma yoki qoldiq bo'lsa, avval kassani yoping va qoldiqni nolga tushiring."
+                )}
+              </p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setModal(null)} className={cancelBtn}>{t('common.cancel')}</button>
+              <button type="button" onClick={handleDeleteKassa} disabled={saving}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-colors cursor-pointer">
+                {saving ? '...' : t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {modal === 'history' && filteredHistory && (
         <Modal title={t('kassa.kassaHistory')} onClose={() => setModal(null)} wide>
           <div className="space-y-6">
@@ -1213,6 +1386,269 @@ function SessionsTab({ branches }) {
   );
 }
 
+/* ── Umumiy Kassa Card (barcha kassalar jamlanmasi + umumiy tarix) ── */
+function UmumiyKassaCard({ kassalar = [], branchFilter = '' }) {
+  const { t } = useLang();
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState(null);
+  const [loadingHist, setLoadingHist] = useState(false);
+  const [histWallet, setHistWallet] = useState('');
+  const [histDir, setHistDir] = useState('all');
+  const [histDate, setHistDate] = useState('');
+
+  // Barcha ko'rinadigan kassalar bo'yicha to'lov turlari va valyutalar yig'indisi
+  const combinedByPt = {};
+  const combinedTotal = {};
+  PT_KEYS.forEach(pt => { combinedByPt[pt] = {}; });
+
+  kassalar.forEach(k => {
+    const b = k.balances || {};
+    PT_KEYS.forEach(pt => {
+      const arr = Array.isArray(b[pt]) ? b[pt] : [];
+      arr.forEach(({ currency, value }) => {
+        const cur = currency || 'UZS';
+        combinedByPt[pt][cur] = (combinedByPt[pt][cur] || 0) + Number(value || 0);
+      });
+    });
+    const tArr = Array.isArray(b.total) ? b.total : [];
+    tArr.forEach(({ currency, value }) => {
+      const cur = currency || 'UZS';
+      combinedTotal[cur] = (combinedTotal[cur] || 0) + Number(value || 0);
+    });
+  });
+
+  const totalEntries = Object.entries(combinedTotal).filter(([, v]) => Math.abs(v) >= 0.005);
+
+  const loadAllHistory = useCallback(async (wId = histWallet, dir = histDir, dt = histDate) => {
+    setLoadingHist(true);
+    try {
+      const params = { limit: 100 };
+      if (wId) params.wallet_id = Number(wId);
+      if (branchFilter) params.branch_id = Number(branchFilter);
+      if (dir && dir !== 'all') params.direction = dir;
+      if (dt) { params.date_from = dt; params.date_to = dt; }
+      const r = await api.get('/kassa/all-history', { params });
+      setHistory(r.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t('common.error'));
+    } finally {
+      setLoadingHist(false);
+    }
+  }, [branchFilter, histWallet, histDir, histDate, t]);
+
+  const openAllHistory = () => {
+    setShowHistory(true);
+    loadAllHistory(histWallet, histDir, histDate);
+  };
+
+  return (
+    <div className="rounded-2xl overflow-hidden border-2 border-blue-500/40 bg-white shadow-md shadow-blue-500/10">
+      {/* Header */}
+      <div className="px-5 py-4 bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 text-white">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/15 border border-white/25 text-white">
+              <Layers className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-[17px] font-black tracking-tight">
+                  {tfOr(t, 'kassa.overallKassa', 'UMUMIY KASSA')}
+                </h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">
+                  {kassalar.length} {tfOr(t, 'kassa.kassasCombined', 'ta kassa birgalikda')}
+                </span>
+              </div>
+              <div className="text-xs text-blue-100 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                {kassalar.map((k, idx) => {
+                  const kTot = Array.isArray(k.balances?.total) && k.balances.total.length > 0
+                    ? k.balances.total.map(x => `${fmt(x.value)} ${x.currency === 'UZS' ? t('common.sum') : x.currency}`).join(' + ')
+                    : `0 ${t('common.sum')}`;
+                  return (
+                    <span key={k.id} className="inline-flex items-center gap-1">
+                      {idx > 0 && <span className="opacity-50">·</span>}
+                      <span className="font-semibold">{k.name}:</span>
+                      <span className="opacity-90 tabular-nums">{kTot}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-right ml-auto">
+            {totalEntries.length === 0 ? (
+              <div className="text-2xl font-black tabular-nums leading-none">0 {t('common.sum')}</div>
+            ) : (
+              totalEntries.map(([curr, val]) => (
+                <div key={curr} className="text-xl font-black tabular-nums leading-tight">
+                  {Number(val).toLocaleString('uz-UZ')}{' '}
+                  <span className="text-sm font-semibold text-blue-100">{curr === 'UZS' ? t('common.sum') : curr}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Combined Payment Type Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-4 px-5 py-4 bg-blue-50/40 border-b border-blue-100">
+        {PT_KEYS.map(pt => {
+          const cfg = PT_CONFIG[pt];
+          const entries = Object.entries(combinedByPt[pt] || {}).filter(([, v]) => Math.abs(v) >= 0.005);
+          return (
+            <div key={pt}>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-blue-700 mb-1">{t(cfg.labelKey)}</div>
+              <div className="text-[15px] font-bold tabular-nums text-slate-900">
+                {entries.length > 0 ? (
+                  entries.map(([curr, val]) => (
+                    <span key={curr} className={`flex flex-col ${val < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                      {fmt(val)} {curr}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-slate-300">0</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer Action */}
+      <div className="px-5 py-3 flex items-center justify-between gap-3 bg-white">
+        <span className="text-xs text-slate-500 font-medium">
+          {tfOr(t, 'kassa.overallHint', "Barcha faol kassalardagi jami tushum va qoldiqlar avtomatik jamlanadi")}
+        </span>
+        <button
+          type="button"
+          onClick={openAllHistory}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+          {tfOr(t, 'kassa.overallHistory', 'Umumiy tarix')}
+        </button>
+      </div>
+
+      {showHistory && (
+        <Modal title={tfOr(t, 'kassa.overallHistoryTitle', 'Umumiy kassa tarixi (barcha kassalar)')} onClose={() => setShowHistory(false)} wide>
+          <div className="space-y-5">
+            <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="flex flex-wrap gap-3 items-center">
+                <select
+                  className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700"
+                  value={histWallet}
+                  onChange={e => { setHistWallet(e.target.value); loadAllHistory(e.target.value, histDir, histDate); }}
+                >
+                  <option value="">{tfOr(t, 'kassa.allKassas', 'Barcha kassalar')}</option>
+                  {kassalar.map(k => <option key={k.id} value={String(k.id)}>{k.name}</option>)}
+                </select>
+                <select
+                  className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700"
+                  value={histDir}
+                  onChange={e => { setHistDir(e.target.value); loadAllHistory(histWallet, e.target.value, histDate); }}
+                >
+                  <option value="all">🔄 {t('common.all')}</option>
+                  <option value="in">↓ {t('kassa.incomes')}</option>
+                  <option value="out">↑ {t('kassa.outcomes')}</option>
+                </select>
+                <input
+                  type="date"
+                  className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700"
+                  value={histDate}
+                  onChange={e => { setHistDate(e.target.value); loadAllHistory(histWallet, histDir, e.target.value); }}
+                />
+                {histDate && (
+                  <button type="button" onClick={() => { setHistDate(''); loadAllHistory(histWallet, histDir, ''); }}
+                    className="text-xs font-bold text-blue-600 px-2.5 py-1.5 rounded-lg hover:bg-blue-100">
+                    {t('kassa.clear')}
+                  </button>
+                )}
+              </div>
+
+              {history?.summary && (
+                <div className="flex flex-wrap gap-4 bg-white px-4 py-2.5 rounded-xl border border-slate-100 items-center">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">{t('kassa.totalIncome')}</p>
+                    <p className="text-sm font-bold text-emerald-600 tabular-nums">+{fmt(history.summary.total_in)}</p>
+                  </div>
+                  <div className="w-px h-7 bg-slate-200" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">{t('kassa.totalOutcome')}</p>
+                    <p className="text-sm font-bold text-blue-600 tabular-nums">−{fmt(history.summary.total_out)}</p>
+                  </div>
+                  <div className="w-px h-7 bg-slate-200" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">{t('common.balance')}</p>
+                    <p className="text-sm font-extrabold text-slate-800 tabular-nums">{fmt(history.summary.balance)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+              {loadingHist ? (
+                <div className="py-12 text-center text-sm text-slate-400">{t('common.loading')}</div>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                      <th className="px-4 py-3 font-bold text-xs uppercase">{tfOr(t, 'kassa.kassa', 'Kassa')}</th>
+                      <th className="px-4 py-3 font-bold text-xs uppercase">{t('kassa.transaction')}</th>
+                      <th className="px-4 py-3 font-bold text-xs uppercase text-right">{t('common.amount')}</th>
+                      <th className="px-4 py-3 font-bold text-xs uppercase">{t('kassa.detailsCol')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(history?.items || []).map(m => {
+                      const isIn = m.direction === 'in';
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50/60">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              {m.wallet_name || `#${m.wallet_id}`}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className={`font-bold text-xs ${isIn ? 'text-emerald-700' : 'text-blue-700'}`}>
+                              {isIn ? t('kassa.income') : t('kassa.outcome')}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5 uppercase font-semibold">
+                              {PT_CONFIG[m.payment_type] ? t(PT_CONFIG[m.payment_type].labelKey) : m.payment_type}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <span className={`font-black tabular-nums text-base ${isIn ? 'text-emerald-600' : 'text-blue-600'}`}>
+                              {isIn ? '+' : '−'}{fmt(m.amount)}
+                            </span>{' '}
+                            <span className="text-xs font-bold text-slate-400">{m.currency || 'UZS'}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-bold uppercase">
+                                {REF_LABEL_KEYS[m.reference_type] ? t(REF_LABEL_KEYS[m.reference_type]) : m.reference_type}
+                              </span>
+                              <span className="text-xs text-slate-400">{fmtDate(m.created_at)}</span>
+                            </div>
+                            {m.description && <p className="text-xs text-slate-600 mt-1">{m.description}</p>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {(history?.items || []).length === 0 && (
+                      <tr><td colSpan={4} className="py-12 text-center text-slate-400">{t('common.noData')}</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 const TABS = [
   { id: 'kassalar', labelKey: 'kassa.tabKassalar' },
@@ -1222,6 +1658,8 @@ const TABS = [
 
 export default function Kassa() {
   const { t } = useLang();
+  const { user } = useAuth();
+  const canManage = ['super_admin', 'admin', 'director'].includes(user?.role);
   const [tab, setTab] = useState('kassalar');
   const [kassalar, setKassalar] = useState([]);
   const [showNew, setShowNew] = useState(false);
@@ -1324,7 +1762,10 @@ export default function Kassa() {
               </select>
             </div>
           )}
-          {shownKassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} allKassalar={kassalar} branches={branches} />)}
+          {shownKassalar.length > 0 && (
+            <UmumiyKassaCard kassalar={shownKassalar} branchFilter={branchFilter} />
+          )}
+          {shownKassalar.map(k => <KassaCard key={k.id} kassa={k} onRefresh={load} allKassalar={kassalar} branches={branches} canManage={canManage} />)}
           {kassalar.length === 0 && (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
               <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>

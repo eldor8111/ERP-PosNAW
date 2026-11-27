@@ -213,6 +213,59 @@ def test_bulk_import_branch_other_company_not_found(db, env):
     assert res["created"] == 0 and "Filial topilmadi" in res["errors"][0]["error"]
 
 
+def test_bulk_import_address_region_district_and_update_guard(db, env):
+    admin = env["admin"]
+    rows = [
+        {
+            "Ism": "Manzil   Mijoz",
+            "Telefon": "901110055.0",
+            "Manzil": "Chilonzor  tumani,   5-mavze",
+            "Viloyat": "Toshkent   sh.",
+            "Tuman": "Chilonzor",
+        },
+        {
+            "Ism": "Ikkinchi Mijoz",
+            "Telefon": "901110066",
+            "Manzil": "Yunusobod 12",
+        },
+    ]
+    res = bulk_import_customers(rows=rows, allow_update=False, db=db, current_user=admin)
+    assert res["created"] == 2 and not res["errors"]
+    c1 = db.query(Customer).filter(Customer.company_id == env["a"].id, Customer.phone == "901110055").one()
+    assert c1.name == "Manzil Mijoz"
+    assert c1.address == "Chilonzor tumani, 5-mavze"
+    assert c1.region == "Toshkent sh."
+    assert c1.district == "Chilonzor"
+
+    # Bo'sh manzil mavjud manzilni o'chirmaydi; xato maydon qisman saqlanishiga yo'l qo'ymaydi
+    res_bad = bulk_import_customers(
+        rows=[{"Ism": "Manzil Mijoz", "Telefon": "901110055", "Manzil": "Yangi ko'cha", "Kredit limit": "not-a-num"}],
+        allow_update=True, db=db, current_user=admin,
+    )
+    assert res_bad["updated"] == 0 and len(res_bad["errors"]) == 1
+    db.refresh(c1)
+    assert c1.address == "Chilonzor tumani, 5-mavze"
+
+    # Boshqa mijozning telefoniga o'zgartirib bo'lmaydi
+    res_dup = bulk_import_customers(
+        rows=[{"Ism": "Manzil Mijoz", "Telefon": "901110066", "Manzil": "Yangi"}],
+        allow_update=True, db=db, current_user=admin,
+    )
+    # Telefon bo'yicha 901110066 topiladi ("Ikkinchi Mijoz"), endi ism bilan topib boshqa telefonni sinab ko'ramiz:
+    assert res_dup["updated"] == 1
+    c2 = db.query(Customer).filter(Customer.company_id == env["a"].id, Customer.phone == "901110066").one()
+    assert c2.address == "Yangi"
+
+    # Yangi qatorda bo'sh manzil mavjudini buzmaydi, to'ldirilgani yangilanadi
+    res_ok = bulk_import_customers(
+        rows=[{"Ism": "Manzil Mijoz", "Telefon": "901110055", "Manzil": "Olmazor 7"}],
+        allow_update=True, db=db, current_user=admin,
+    )
+    assert res_ok["updated"] == 1 and not res_ok["errors"]
+    db.refresh(c1)
+    assert c1.address == "Olmazor 7"
+
+
 # ───────────────────── 9. mijoz tarixi ─────────────────────
 
 def test_customer_history_cashier_warehouse_branch(client, env, db):

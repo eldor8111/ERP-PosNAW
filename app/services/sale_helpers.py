@@ -471,12 +471,43 @@ def apply_sale_branch_filter(q, db: Session, user):
     ))
 
 
+_SALE_ALL_WALLET_ROLES = ("super_admin", "admin", "director", "accountant")
+
+
+def apply_sale_wallet_filter(q, db: Session, user, explicit_wallet_id=None):
+    """Kassa bo'yicha sotuvlar ajratilishi:
+    - admin/director/super_admin/accountant: barcha kassalar (yoki tanlangan `explicit_wallet_id`);
+    - qolgan xodimlar (kassir va h.k.): agar `user_wallets` da kassaga biriktirilgan bo'lsa,
+      FAQAT o'ziga biriktirilgan kassa(lar) sotuvlarini ko'radi (2 ta kassa xodimlarining sotuvlari aralashmaydi).
+    """
+    from app.services.wallet_resolver import user_wallet_ids
+
+    role = getattr(user.role, "value", user.role)
+    if role in _SALE_ALL_WALLET_ROLES:
+        if explicit_wallet_id is not None:
+            return q.filter(Sale.wallet_id == explicit_wallet_id)
+        return q
+
+    assigned_wids = user_wallet_ids(db, user)
+    if assigned_wids:
+        if explicit_wallet_id is not None:
+            if explicit_wallet_id not in assigned_wids:
+                return q.filter(Sale.id == -1)
+            return q.filter(Sale.wallet_id == explicit_wallet_id)
+        return q.filter(or_(
+            Sale.wallet_id.in_(assigned_wids),
+            and_(Sale.wallet_id.is_(None), Sale.cashier_id == user.id),
+        ))
+    if explicit_wallet_id is not None:
+        return q.filter(Sale.wallet_id == explicit_wallet_id)
+    return q
+
+
 def assert_sale_branch_access(db: Session, user, sale) -> None:
-    """Sotuv foydalanuvchi filialiga tegishli bo'lmasa 404 (mavjudligini oshkor qilmaslik uchun)."""
-    allowed = apply_sale_branch_filter(
-        db.query(Sale.id).filter(Sale.id == sale.id), db, user
-    ).first()
-    if not allowed:
+    """Sotuv foydalanuvchi filialiga va biriktirilgan kassasiga tegishli bo'lmasa 404."""
+    q = apply_sale_branch_filter(db.query(Sale.id).filter(Sale.id == sale.id), db, user)
+    q = apply_sale_wallet_filter(q, db, user)
+    if not q.first():
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
 
 

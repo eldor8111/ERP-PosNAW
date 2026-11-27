@@ -69,8 +69,10 @@ def test_poskassa_pharmacy_elements_are_conditionally_rendered():
     assert "{pharmacy && (" in POS[cart_idx - 120:cart_idx]
     card_idx = POS.index('data-testid="pharmacy-card-extras"')
     assert "{pharmacy && (" in POS[card_idx - 120:card_idx]
-    # qatorga dorixona maydonlari faqat dorixonada qo'shiladi
-    assert re.search(r"const pharmaCartFields = \(p, unit\) => \{\s*if \(!pharmacy\) return \{\};", POS)
+    # 2026-11-27: qadoq birliklari (quti/blok) hamma korxonada — oddiy korxonada faqat birliklari bor
+    # mahsulotga birlik maydonlari qo'shiladi; dorixona maydonlari (partiya, muddat) baribir faqat dorixonada
+    assert re.search(r"const pharmaCartFields = \(p, unit\) => \{\s*const pUnits = getProductPackUnits\(p\);\s*"
+                     r"(?:const ratio = [^\n]+\s*)?if \(!pharmacy\) \{\s*if \(!pUnits\.length\) return \{\};", POS)
     # stock_display faqat dorixonada
     assert "(pharmacy && p.stock_display) ? p.stock_display" in POS
 
@@ -79,7 +81,8 @@ def test_ulgurji_pharmacy_elements_are_conditionally_rendered():
     for marker in ("{pharmacy && rxModal && (", "{pharmacy && analogModal && (", "{pharmacy && saleError && ("):
         assert marker in ULG, marker
     assert "{pharmacy && (\n                                  <>" in ULG   # savat qatori belgilari
-    assert "...(pharmacy ? pharmaFieldsOf(" in ULG
+    # 2026-11-27: qadoq birligi bor mahsulot oddiy korxonada ham birlik bilan qo'shiladi
+    assert "...((pharmacy || getProductPackUnits(formProduct).length > 0) ? { ...pharmaFieldsOf(formProduct, null)" in ULG
     assert "searchFeatures?.pharmacy ? '/products/pos-list' : '/products'" in ULG   # oddiy korxona avvalgi endpoint
 
 
@@ -414,7 +417,8 @@ def _ulg_block(start: str, end: str) -> str:
 def test_ulgurji_pending_converts_unit_lines_to_base_unit():
     blk = _ulg_block("const savePendingSale = async", "const activeSaleId")
     # birlik qatori asosiy birlikka o'tkaziladi (pending unit_id ni rad etadi)
-    assert "const unitRatio = pharmacy && it.unit_id ? (Number(it.unit_ratio) || 1) : 1;" in blk
+    # 2026-11-27: birlik qatori har qanday korxonada asosiy birlikka o'tkaziladi
+    assert "const unitRatio = it.unit_id ? (Number(it.unit_ratio) || 1) : 1;" in blk
     assert "quantity: it.qty * unitRatio, unit_price: it.price / unitRatio" in blk
     assert "unit_id:" not in blk   # so'rovga unit_id yuborilmaydi
     # tab almashtirganda avto-saqlash ham shu funksiya orqali ketadi
@@ -431,7 +435,8 @@ def test_ulgurji_unit_switch_uses_base_price_and_manual_check_handles_missing_un
     sw = _ulg_block("const switchUnit = useCallback", "const addAnalogToCart")
     assert "lineBasePrice(it)" in sw and "base_price: basePrice" in sw
     assert "/ oldRatio" not in sw        # eski: narx/nisbat bilan siljish
-    assert "base_price: basePrice }" in ULG and "...(isPharma ? { ...pharmaFieldsOf(p, scanUnit), base_price: basePrice }" in ULG
+    assert "base_price: basePrice }" in ULG
+    assert "...((isPharma || getProductPackUnits(p).length > 0) ? { ...pharmaFieldsOf(p, scanUnit), base_price: basePrice }" in ULG
     man = _ulg_block("const isPriceManual", "const saveSettings")
     assert "unitLinePrice(base, it.sale_price, un)" in man       # unit.price yo'q bo'lsa asosiy narx * nisbat
     assert "un.price != null && price === Number(un.price)" not in man

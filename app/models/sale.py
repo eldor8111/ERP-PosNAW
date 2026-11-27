@@ -95,6 +95,7 @@ class Sale(Base):
     currency = relationship("Currency")
     warehouse = relationship("Warehouse")
     branch = relationship("Branch", foreign_keys=[branch_id])
+    wallet = relationship("Wallet", foreign_keys=[wallet_id])
     customer = relationship("Customer")
     cashier = relationship("User", foreign_keys=[cashier_id])
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")

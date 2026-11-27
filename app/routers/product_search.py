@@ -295,6 +295,7 @@ def list_products_for_pos(
         Product.package_code,
         Product.parent_code,
         Product.requires_marking,
+        Product.attributes,
         Product.vat_rate_type,
     ).filter(
         Product.is_deleted == False,
@@ -440,6 +441,7 @@ def list_products_for_pos(
             "package_code": p.package_code,
             "parent_code": p.parent_code,
             "requires_marking": bool(p.requires_marking),
+            "attributes": p.attributes or [],
             "vat_rate_type": p.vat_rate_type.value if p.vat_rate_type else None,
         }
         for p in products_raw
@@ -812,14 +814,35 @@ def products_by_ids(
         return []
     rows = (
         db.query(Product.id, Product.name, Product.barcode, Product.sku, Product.plu_code, Product.product_code,
-                 Product.sale_price, Product.sale_currency)
+                 Product.sale_price, Product.wholesale_price, Product.sale_currency, Product.unit, Product.attributes)
         .filter(Product.id.in_(ids), Product.company_id == current_user.company_id, Product.is_deleted == False)
         .all()
     )
     by_id = {r.id: r for r in rows}
+    units_by: dict = {pid: [] for pid in by_id}
+    if by_id:
+        for u in (
+            db.query(ProductUnit)
+            .filter(ProductUnit.product_id.in_(list(by_id.keys())), ProductUnit.company_id == current_user.company_id)
+            .order_by(ProductUnit.ratio.desc(), ProductUnit.sort_order.asc(), ProductUnit.id.asc())
+            .all()
+        ):
+            units_by[u.product_id].append({
+                "id": u.id, "name": u.name, "ratio": float(u.ratio),
+                "sale_price": float(u.sale_price) if u.sale_price is not None else None,
+                "price": float(u.sale_price) if u.sale_price is not None else None,
+                "barcode": u.barcode,
+            })
     return [
-        {"id": r.id, "name": r.name, "barcode": r.barcode, "sku": r.sku, "plu_code": r.plu_code, "product_code": r.product_code,
-         "sale_price": float(r.sale_price or 0), "sale_currency": r.sale_currency}
+        {
+            "id": r.id, "name": r.name, "barcode": r.barcode, "sku": r.sku, "plu_code": r.plu_code, "product_code": r.product_code,
+            "sale_price": float(r.sale_price or 0),
+            "wholesale_price": float(r.wholesale_price or 0) if r.wholesale_price is not None else None,
+            "sale_currency": r.sale_currency,
+            "unit": r.unit or "dona",
+            "attributes": r.attributes or [],
+            "units": units_by.get(r.id, []),
+        }
         for r in (by_id.get(i) for i in ids) if r is not None
     ]
 

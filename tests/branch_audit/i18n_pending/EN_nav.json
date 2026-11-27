@@ -1,0 +1,11 @@
+{
+  "en": {
+    "nav.system_group": "System & Settings",
+    "nav.analytics_group": "Analytics & KPI",
+    "nav.supply_group": "Warehouse & Purchasing",
+    "nav.pos_group": "Sales & Cash desk",
+    "nav.sfa": "SFA Center",
+    "nav.sfa_group": "SFA & Field sales",
+    "nav.exec_group": "Management & Analytics"
+  }
+}

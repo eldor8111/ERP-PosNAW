@@ -438,34 +438,28 @@ def test_credit_limit_create_sale(db, w):
     assert c.debt_balance == D('50000000')
 
 
-def test_credit_limit_pending_complete_status_only(db, w):
+# 2026-11-27 korxona egasi qarori: kredit limiti faqat YANGI sotuvda tekshiriladi. Kutilayotgan sotuvni
+# yakunlash va tugallangan sotuvni tahrirlashda limit tekshirilmaydi (qarz to'liq yoziladi).
+
+def test_pending_complete_status_only_ignores_limit(db, w):
     c = _distributor(db, w)
     s = create_pending_sale(db, _data(w['p'], w['wa'], c, price=10_000_000), w['admin'])
-    with pytest.raises(HTTPException) as e:
-        update_sale(db, s.id, SaleUpdate(status=SaleStatus.completed), w['admin'])
-    assert e.value.status_code == 400 and 'Kredit limitidan oshadi' in e.value.detail
+    update_sale(db, s.id, SaleUpdate(status=SaleStatus.completed), w['admin'])
     db.refresh(c)
-    assert c.debt_balance == D('48000000')
+    assert c.debt_balance == D('58000000')
 
 
-def test_credit_limit_pending_complete_with_paid_amount(db, w):
+def test_pending_complete_with_paid_amount_ignores_limit(db, w):
     c = _distributor(db, w)
     s = create_pending_sale(db, _data(w['p'], w['wa'], c, price=10_000_000), w['admin'])
-    with pytest.raises(HTTPException) as e:
-        update_sale(db, s.id, SaleUpdate(status=SaleStatus.completed, paid_amount=D('0')), w['admin'])
-    assert e.value.status_code == 400 and 'Kredit limitidan oshadi' in e.value.detail
+    update_sale(db, s.id, SaleUpdate(status=SaleStatus.completed, paid_amount=D('0')), w['admin'])
+    db.refresh(c)
+    assert c.debt_balance == D('58000000')
 
 
-def test_credit_limit_pending_complete_full_edit_via_api(client, db, w):
+def test_pending_complete_full_edit_via_api_ignores_limit(client, db, w):
     c = _distributor(db, w)
     s = create_pending_sale(db, _data(w['p'], w['wa'], c, price=10_000_000), w['admin'])
-    r = client.login(w['admin']).put(f'/api/sales/{s.id}', json={
-        "items": [{"product_id": w['p'].id, "quantity": 1, "unit_price": 10_000_000}],
-        "status": "completed", "payment_type": "debt", "paid_amount": 0, "customer_id": c.id})
-    assert r.status_code == 400 and 'Kredit limitidan oshadi' in r.json()['detail']
-    # limit oshirilsa yakunlanadi
-    c.debt_limit = D('100000000')
-    db.flush()
     r = client.login(w['admin']).put(f'/api/sales/{s.id}', json={
         "items": [{"product_id": w['p'].id, "quantity": 1, "unit_price": 10_000_000}],
         "status": "completed", "payment_type": "debt", "paid_amount": 0, "customer_id": c.id})
@@ -474,15 +468,15 @@ def test_credit_limit_pending_complete_full_edit_via_api(client, db, w):
     assert c.debt_balance == D('58000000')
 
 
-def test_credit_limit_full_edit_of_completed_sale(db, w):
+def test_full_edit_of_completed_sale_ignores_limit(db, w):
     c = _distributor(db, w, limit=50_000_000, debt=10_000_000)
     s = create_sale(db, _data(w['p'], w['wa'], c, price=5_000_000), w['admin'])
-    _edit(db, w, s, c, price=30_000_000)          # 10 + 30 = 40 mln — o'tadi (eski 5 mln qaytariladi)
+    _edit(db, w, s, c, price=30_000_000)          # 10 + 30 = 40 mln (eski 5 mln qaytariladi)
     db.refresh(c)
     assert c.debt_balance == D('40000000')
-    with pytest.raises(HTTPException) as e:
-        _edit(db, w, s, c, price=45_000_000)      # 10 + 45 = 55 mln > 50 mln
-    assert e.value.status_code == 400 and 'Kredit limitidan oshadi' in e.value.detail
+    _edit(db, w, s, c, price=45_000_000)          # 10 + 45 = 55 mln > 50 mln — tahrirda ruxsat
+    db.refresh(c)
+    assert c.debt_balance == D('55000000')
 
 
 def test_credit_scope_all_blocks_retail(db, w):
