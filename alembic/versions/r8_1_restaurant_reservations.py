@@ -1,4 +1,4 @@
-"""R8.1: stol bron qilish — reservations; paymenttype enumiga 'deposit'.
+"""R8.1: stol bron qilish — reservations.
 
 Additiv va takroriy xavfsiz.
 
@@ -24,22 +24,9 @@ def _tables():
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    if bind.dialect.name == "postgresql":
-        # sales.payment_type native enum: chek to'liq depozit bilan yopilganda ham 'mixed' yoziladi, lekin
-        # enum Python bilan bir xil bo'lsin
-        bind.execute(sa.text("""
-            DO $$
-            BEGIN
-                IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'paymenttype') AND NOT EXISTS (
-                    SELECT 1 FROM pg_enum
-                    WHERE enumlabel = 'deposit'
-                    AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'paymenttype')
-                ) THEN
-                    ALTER TYPE paymenttype ADD VALUE 'deposit';
-                END IF;
-            END$$;
-        """))
+    # 'deposit' faqat sale_payments.payment_type (String) ga yoziladi; sales.payment_type (native enum) ga
+    # depozitli chekda 'mixed' yoziladi, shuning uchun paymenttype enumini o'zgartirish shart emas
+    # (prod DB foydalanuvchisi enum turining egasi emas: ALTER TYPE ruxsat etilmaydi).
     if 'reservations' in _tables():
         return
     op.create_table(
