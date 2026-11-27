@@ -58,6 +58,10 @@ class RestaurantOrder(Base):
     tips_amount = Column(Numeric(16, 2), nullable=False, default=0, server_default="0")
     change_amount = Column(Numeric(16, 2), nullable=False, default=0, server_default="0")
     paid_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # R5.4: qaytarishlar — jami qaytarilgan summa va har bir qaytarish yozuvi
+    # [{sale_id, number, amount, payment_type, reason, at, by, approved_by, lines:[{item_id, quantity}]}]
+    refunded_amount = Column(Numeric(16, 2), nullable=False, default=0, server_default="0")
+    refunds = Column(JSON, nullable=True)
 
     items = relationship("RestaurantOrderItem", back_populates="order", cascade="all, delete-orphan",
                          order_by="RestaurantOrderItem.id")
@@ -103,6 +107,8 @@ class RestaurantOrderItem(Base):
     stock_deducted = Column(Boolean, nullable=False, default=False, server_default="false")
     # Yechilgan ingredientlar: [{product_id, quantity, warehouse_id}] — bekor qilinsa aynan shular qaytariladi
     stock_lines = Column(JSON, nullable=True)
+    # R5.4: to'langan chekdan qaytarilgan miqdor
+    refunded_qty = Column(Numeric(12, 3), nullable=False, default=0, server_default="0")
 
     order = relationship("RestaurantOrder", back_populates="items")
 

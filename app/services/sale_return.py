@@ -131,7 +131,13 @@ def create_return_sale(
     current_user: User,
     ip: Optional[str] = None,
     idempotency_key: Optional[str] = None,
+    *,
+    restaurant: bool = False,
+    restock_product_ids: Optional[set] = None,
 ) -> Sale:
+    """`restaurant=True` — faqat restoran servisi (R5.4) chaqiradi: restoran himoyasi o'tkaziladi, taom /
+    xizmat qatorlari va `restock_product_ids` da bo'lmagan tovarlar omborga QAYTMAYDI (tayyorlangan taom
+    chiqim bo'lib qoladi); pul, kassa, smena va asl sotuv holati odatdagidek."""
     # warehouse_id majburiy — bo'lmasa qaytarilgan tovar "hech kimga tegishli
     # bo'lmagan" NULL-warehouse StockLevel'ga tushib, real ombor balansida
     # ko'rinmay qoladi (inventarizatsiyada yo'qolib qoladi).
@@ -139,8 +145,9 @@ def create_return_sale(
         raise HTTPException(status_code=400, detail="Ombor tanlanmagan — qaytarish uchun ombor majburiy")
     # R5: restoran cheki va taomlari restoran bo'limidan qaytariladi (taom qoldig'i yuritilmaydi)
     from app.services.restaurant_guard import assert_no_restaurant_items, assert_not_restaurant_sale
-    assert_not_restaurant_sale(db, getattr(data, "original_sale_id", None))
-    assert_no_restaurant_items(db, [i.product_id for i in data.items])
+    if not restaurant:
+        assert_not_restaurant_sale(db, getattr(data, "original_sale_id", None))
+        assert_no_restaurant_items(db, [i.product_id for i in data.items])
     # Ombor shu korxonaning faol ombori bo'lishi shart (T0.13); filial ruxsati joriy korxona bo'yicha
     # (T1.2: uc.branch_id ∪ user_branches), global users.branch_id bo'yicha emas
     validate_sale_warehouse(db, current_user, data.warehouse_id)
@@ -452,10 +459,23 @@ def create_return_sale(
                 wallet.balance = Decimal(str(wallet.balance or 0)) - _amt
 
     # Stock oshirish + SaleItem yozish
+    from app.models.product import NO_STOCK_ITEM_KINDS
+    _restock = set(restock_product_ids or ())
     for item_d in sale_items_data:
         product = item_d["product"]
         qty_needed = Decimal(str(item_d["quantity"]))
         is_virtual = getattr(product, "product_type", "stock") == "sell"
+
+        # R5.4: restoran qaytarishi — taom/xizmat va belgilanmagan tovar omborga qaytmaydi (faqat sotuv qatori)
+        if restaurant and (getattr(product, "item_kind", "goods") in NO_STOCK_ITEM_KINDS or product.id not in _restock):
+            db.add(SaleItem(
+                sale_id=sale.id, product_id=product.id, variant_id=item_d["variant_id"],
+                warehouse_id=data.warehouse_id, quantity=qty_needed,
+                unit_price=item_d["unit_price"], cost_price=item_d["cost_price"],
+                discount=item_d["discount"], subtotal=item_d["subtotal"],
+                currency_code=item_d["currency_code"], exchange_rate=item_d["exchange_rate"],
+            ))
+            continue
 
         if is_virtual:
             conversion = db.query(ProductConversion).filter(

@@ -597,7 +597,7 @@ Hali ochiq:
 | R7.3 Tayyorlangan taom bekor qilinsa chiqim (`rest_writeoff`), pishmagani `sent` rejimida omborga qaytadi | Bajarildi |
 | Taom, modifikator va xizmat haqi qatorlarining o'z qoldig'i yo'q (`sale_create` ularni yechmaydi, oddiy POS'da ham) | Bajarildi |
 | Restoran sotuvini umumiy qaytarish va o'chirish yo'llaridan himoya (409 `RESTAURANT_SALE`, `RESTAURANT_ITEM`) | Bajarildi |
-| R5.4 Restoran chekini qaytarish (pul qaytadi, tayyorlangan taom omborga qaytmaydi) | Keyingi qadam |
+| R5.4 Restoran chekini qaytarish (pul qaytadi, tayyorlangan taom omborga qaytmaydi) | Bajarildi: to'liq va qatorlar bo'yicha, chegirma va xizmat haqi ulushi, tovar faqat belgilansa omborga, menejer PIN, fiskal qaytarish cheki, "Bugun yopilgan cheklar" |
 | R5.2 Hisobni bo'lish (mehmon / qator bo'yicha) | 2-bosqich |
 
 Ruxsatlar (`restaurant` bo'limi, rol ruxsatlarida yoki xodimning shaxsiy ruxsatlarida): `orders`, `all_tables`,

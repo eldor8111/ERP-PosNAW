@@ -110,6 +110,20 @@ class PayIn(BaseModel):
     tips: float = 0
 
 
+class RefundLine(BaseModel):
+    item_id: int
+    quantity: Optional[float] = None
+    restock: bool = False
+
+
+class RefundIn(BaseModel):
+    lines: Optional[List[RefundLine]] = None      # bo'sh — to'liq qaytarish
+    reason: Optional[str] = None
+    note: Optional[str] = None
+    payment_type: str = "cash"
+    approval: Optional[Approval] = None
+
+
 class PinIn(BaseModel):
     pin: str
     password: Optional[str] = None
@@ -137,6 +151,7 @@ def _item_out(it: RestaurantOrderItem) -> dict:
         "course": it.course, "guest_no": it.guest_no, "station_id": it.station_id, "status": it.status,
         "comment": it.comment, "sent_at": _iso(it.sent_at), "ready_at": _iso(it.ready_at), "served_at": _iso(it.served_at),
         "cancel_reason": it.cancel_reason, "write_off": bool(it.write_off),
+        "refunded_qty": float(it.refunded_qty or 0),
     }
 
 
@@ -157,6 +172,7 @@ def _order_out(db: Session, o: RestaurantOrder, settings: dict) -> dict:
         "cancel_reason": o.cancel_reason, "merged_into_id": o.merged_into_id,
         "sale_id": o.sale_id, "payments": o.payments or [], "tips_amount": _f(o.tips_amount),
         "change_amount": _f(o.change_amount),
+        "refunded_amount": _f(o.refunded_amount or 0), "refunds": o.refunds or [],
         "locked": o.status == "prechecked" and bool(settings.get("precheck_lock", True)),
         "items": [_item_out(it) for it in o.items],
     }
@@ -213,6 +229,7 @@ def list_orders(
     branch_id: Optional[int] = None,
     status: str = Query("open,prechecked"),
     mine: bool = False,
+    closed_today: bool = False,
     limit: int = Query(200, ge=1, le=1000),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -233,6 +250,14 @@ def list_orders(
         q = q.filter(RestaurantOrder.branch_id.in_(ctx.allowed_branch_ids))
     if mine or not perms.get("all_tables"):
         q = q.filter(RestaurantOrder.waiter_id == user.id)
+    if closed_today:
+        # R5.4: bugun (Toshkent vaqti) yopilgan cheklar — qaytarish oynasi uchun
+        from datetime import datetime as _dt, time as _time, timedelta as _td
+        from app.services.document_numbers import tashkent_today
+        start = _dt.combine(tashkent_today(), _time.min) - _td(hours=5)      # UTC (Toshkent UTC+5)
+        q = q.filter(RestaurantOrder.closed_at >= start)
+        rows = q.order_by(RestaurantOrder.closed_at.desc()).limit(limit).all()
+        return [_order_out(db, o, settings) for o in rows]
     rows = q.order_by(RestaurantOrder.opened_at.desc()).limit(limit).all()
     return [_order_out(db, o, settings) for o in rows]
 
@@ -440,6 +465,51 @@ def _fiscal_payload(db: Session, o: RestaurantOrder) -> dict:
                      "vat_rate_type": getattr(sp.vat_rate_type, "value", None),
                      "unit_price": float(o.service_amount), "quantity": 1.0, "discount": 0.0})
     return {"cart": cart, "payments": o.payments or [], "discount": 0, "sale_id": o.sale_id}
+
+
+@router.post("/orders/{order_id}/refund")
+def refund(order_id: int, payload: RefundIn, request: Request, version: Optional[int] = None,
+           db: Session = Depends(get_db), user: User = Depends(get_current_user),
+           ctx: BranchContext = Depends(get_branch_context)):
+    """R5.4: to'langan chekni to'liq yoki qatorlar bo'yicha qaytarish (pul qaytadi, taom omborga qaytmaydi)."""
+    from app.services.restaurant_refund import refund_order
+    o, settings = _ctx_order(db, user, ctx, order_id, version)
+    ret, plan = refund_order(
+        db, user, o, settings, lines=[ln.model_dump() for ln in payload.lines] if payload.lines else None,
+        reason=payload.reason, note=payload.note, payment_type=payload.payment_type,
+        approval=_approval(payload.approval), ip=request.client.host if request.client else None,
+    )
+    db.refresh(o)
+    out = _order_out(db, o, settings)
+    out["refund"] = {"sale_id": ret.id, "number": ret.number, "amount": float(plan["amount"]),
+                     "fiscal_cart": _refund_fiscal_cart(db, plan)}
+    return out
+
+
+def _refund_fiscal_cart(db: Session, plan: dict) -> list:
+    """Fiskal qaytarish cheki (hippoLocal.registerReturn) uchun qatorlar; chegirma qatorlarga mutanosib."""
+    from decimal import ROUND_HALF_UP, Decimal
+    from app.models.product import Product
+    rows = []
+    for it, qty, _ in plan["picked"]:
+        p = db.get(Product, it.product_id)
+        price = Decimal(str(it.unit_price)) + Decimal(str(it.modifiers_total or 0))
+        rows.append([it.name, p, price, qty])
+    gross = sum((r[2] * r[3] for r in rows), Decimal("0"))
+    disc, left = Decimal(str(plan["discount"])), Decimal(str(plan["discount"]))
+    cart = []
+    for idx, (name, p, price, qty) in enumerate(rows):
+        d = left if idx == len(rows) - 1 else ((disc * price * qty / gross).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                                               if gross > 0 else Decimal("0"))
+        left -= d
+        cart.append({"name": name, "barcode": p.barcode if p else "", "mxik_code": (p.mxik_code if p else "") or "",
+                     "package_code": p.package_code if p else None,
+                     "vat_rate_type": getattr(getattr(p, "vat_rate_type", None), "value", None),
+                     "unit_price": float(price), "quantity": float(qty), "discount": float(max(d, Decimal("0")))})
+    if plan["service_qty"] > 0:
+        cart.append({"name": "Xizmat haqi", "barcode": "", "mxik_code": "", "package_code": None, "vat_rate_type": None,
+                     "unit_price": float(plan["service_price"]), "quantity": float(plan["service_qty"]), "discount": 0.0})
+    return cart
 
 
 @router.get("/orders/{order_id}/fiscal")

@@ -1,0 +1,53 @@
+{
+  "uz": {
+    "restOrd.closedToday": "Bugun yopilgan cheklar",
+    "restOrd.refund": "Qaytarish",
+    "restOrd.refundTitle": "Chekni qaytarish",
+    "restOrd.refundDone": "Pul qaytarildi",
+    "restOrd.refunded": "Qaytarilgan",
+    "restOrd.restock": "Omborga",
+    "restOrd.restockHint": "Faqat tayyor tovar (ichimlik) omborga qaytadi. Taom omborga qaytmaydi.",
+    "restOrd.refundHint": "Chegirma va xizmat haqi qaytarilayotgan taomlar ulushiga mutanosib qaytariladi.",
+    "restOrd.nothingToRefund": "Qaytariladigan narsa qolmagan",
+    "restOrd.fiscalReturnFailed": "Fiskal qaytarish cheki berilmadi",
+    "restOrd.refundReason.quality": "Sifat yomon",
+    "restOrd.refundReason.guest_refused": "Mehmon voz kechdi",
+    "restOrd.refundReason.mistake": "Xato kiritildi",
+    "restOrd.refundReason.long_wait": "Uzoq kutildi",
+    "restOrd.refundReason.other": "Boshqa"
+  },
+  "ru": {
+    "restOrd.closedToday": "Закрытые сегодня чеки",
+    "restOrd.refund": "Возврат",
+    "restOrd.refundTitle": "Возврат чека",
+    "restOrd.refundDone": "Деньги возвращены",
+    "restOrd.refunded": "Возвращено",
+    "restOrd.restock": "На склад",
+    "restOrd.restockHint": "На склад возвращается только готовый товар (напитки). Блюда не возвращаются.",
+    "restOrd.refundHint": "Скидка и обслуживание возвращаются пропорционально возвращаемым блюдам.",
+    "restOrd.nothingToRefund": "Нечего возвращать",
+    "restOrd.fiscalReturnFailed": "Фискальный чек возврата не выдан",
+    "restOrd.refundReason.quality": "Плохое качество",
+    "restOrd.refundReason.guest_refused": "Гость отказался",
+    "restOrd.refundReason.mistake": "Ошибка ввода",
+    "restOrd.refundReason.long_wait": "Долгое ожидание",
+    "restOrd.refundReason.other": "Другое"
+  },
+  "en": {
+    "restOrd.closedToday": "Closed today",
+    "restOrd.refund": "Refund",
+    "restOrd.refundTitle": "Refund check",
+    "restOrd.refundDone": "Money refunded",
+    "restOrd.refunded": "Refunded",
+    "restOrd.restock": "To stock",
+    "restOrd.restockHint": "Only ready goods (drinks) go back to stock. Dishes do not.",
+    "restOrd.refundHint": "Discount and service charge are refunded in proportion to the refunded dishes.",
+    "restOrd.nothingToRefund": "Nothing left to refund",
+    "restOrd.fiscalReturnFailed": "Fiscal return receipt was not issued",
+    "restOrd.refundReason.quality": "Poor quality",
+    "restOrd.refundReason.guest_refused": "Guest refused",
+    "restOrd.refundReason.mistake": "Entry mistake",
+    "restOrd.refundReason.long_wait": "Long wait",
+    "restOrd.refundReason.other": "Other"
+  }
+}

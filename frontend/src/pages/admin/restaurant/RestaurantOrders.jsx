@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, Minus, Search, X, Send, Printer, Lock, Unlock, Percent, ArrowRightLeft, Merge, Ban, KeyRound, ShoppingBag, Wallet, Trash2 } from 'lucide-react';
-import { fiscalizeAndPrint } from '../../../api/hippoLocal';
+import { fiscalizeAndPrint, registerReturn } from '../../../api/hippoLocal';
 import api from '../../../api/axios';
 import { useLang } from '../../../context/LangContext';
 import { useBranch } from '../../../context/BranchContext';
@@ -484,6 +484,97 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   );
 }
 
+// R5.4: to'langan chekni qaytarish oynasi (to'liq yoki qatorlar bo'yicha). Taom omborga qaytmaydi,
+// tovar faqat "omborga qaytarish" belgilansa. Ruxsat yetmasa menejer PIN tasdig'i so'raladi.
+const REFUND_REASONS = ['quality', 'guest_refused', 'mistake', 'long_wait', 'other'];
+const REFUND_PAY = ['cash', 'card', 'uzcard', 'humo', 'click', 'payme', 'uzum'];
+
+function RefundModal({ order, onClose, onDone, t }) {
+  const [lines, setLines] = useState(() => order.items
+    .filter(i => i.status !== 'cancelled' && Number(i.quantity) - Number(i.refunded_qty || 0) > 0)
+    .map(i => {
+      const max = Number(i.quantity) - Number(i.refunded_qty || 0);
+      return { item_id: i.id, name: i.name, max, qty: String(max), on: true, restock: false };
+    }));
+  const [reason, setReason] = useState('quality');
+  const [payType, setPayType] = useState((order.payments?.[0]?.type) || 'cash');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [approval, setApproval] = useState(null);
+
+  const setLine = (i, k, v) => setLines(ls => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  const chosen = lines.filter(l => l.on && num(l.qty) > 0);
+  const isFull = chosen.length === lines.length && chosen.every(l => num(l.qty) === l.max);
+
+  const submit = async (approvalData) => {
+    const body = { reason, note, payment_type: payType };
+    if (!isFull) body.lines = chosen.map(l => ({ item_id: l.item_id, quantity: num(l.qty), restock: l.restock }));
+    else body.lines = lines.filter(l => l.restock).length
+      ? lines.map(l => ({ item_id: l.item_id, quantity: l.max, restock: l.restock })) : null;
+    if (approvalData) body.approval = approvalData;
+    setBusy(true);
+    try {
+      const r = await api.post(`/restaurant/orders/${order.id}/refund`, body, { params: { version: order.version } });
+      toast.success(`${t('restOrd.refundDone')}: ${money(r.data.refund.amount)}`);
+      const factoryId = fiscalFactoryId();
+      if (factoryId && r.data.refund.fiscal_cart?.length) {
+        try {
+          await registerReturn({ factoryId, cart: r.data.refund.fiscal_cart, discountAmount: 0 });
+          toast.success(t('restOrd.fiscalSent'));
+        } catch (err) { toast.error(`${t('restOrd.fiscalReturnFailed')}: ${err?.message || ''}`); }
+      }
+      onDone();
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      if (err.response?.status === 403 && d?.code === 'APPROVAL_REQUIRED') setApproval(true);
+      else toast.error((typeof d === 'object' ? d?.message : d) || t('restOrd.failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal wide title={`${t('restOrd.refundTitle')}: #${order.daily_no}`} onClose={onClose}>
+      {lines.length === 0 && <p className="text-sm text-slate-500">{t('restOrd.nothingToRefund')}</p>}
+      <div className="space-y-1 max-h-64 overflow-y-auto">
+        {lines.map((l, i) => (
+          <div key={l.item_id} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={l.on} onChange={e => setLine(i, 'on', e.target.checked)} />
+            <span className="flex-1 truncate">{l.name}</span>
+            <input className="w-16 px-2 py-1 border border-slate-200 rounded text-right" inputMode="decimal" value={l.qty}
+                   disabled={!l.on} onChange={e => setLine(i, 'qty', e.target.value)} />
+            <span className="text-xs text-slate-400 w-10">/ {qtyFmt(l.max)}</span>
+            <label className="flex items-center gap-1 text-[11px] text-slate-500" title={t('restOrd.restockHint')}>
+              <input type="checkbox" checked={l.restock} disabled={!l.on} onChange={e => setLine(i, 'restock', e.target.checked)} />
+              {t('restOrd.restock')}
+            </label>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <select className={inputCls} value={reason} onChange={e => setReason(e.target.value)}>
+          {REFUND_REASONS.map(r => <option key={r} value={r}>{t(`restOrd.refundReason.${r}`)}</option>)}
+        </select>
+        <select className={inputCls} value={payType} onChange={e => setPayType(e.target.value)}>
+          {REFUND_PAY.map(p => <option key={p} value={p}>{t(`restOrd.pay.${p}`)}</option>)}
+        </select>
+      </div>
+      <input className={inputCls} value={note} maxLength={200} placeholder={t('restOrd.note')} onChange={e => setNote(e.target.value)} />
+      <p className="text-[11px] text-slate-500">{t('restOrd.refundHint')}</p>
+      <div className="flex justify-end gap-2">
+        <button className={btnGhost} onClick={onClose}>{t('restOrd.back')}</button>
+        <button className={`${btn} bg-rose-600 hover:bg-rose-700 text-white`} disabled={busy || chosen.length === 0} onClick={() => submit(null)}>
+          {t('restOrd.refund')}
+        </button>
+      </div>
+      {approval && (
+        <ApprovalModal capability="cancel_sent" t={t} onCancel={() => setApproval(null)}
+                       onConfirm={a => { setApproval(null); submit(a); }} />
+      )}
+    </Modal>
+  );
+}
+
 export default function RestaurantOrders() {
   const { t } = useLang();
   const { branches, currentBranchId, assignedBranchId } = useBranch();
@@ -492,6 +583,8 @@ export default function RestaurantOrders() {
   const [hallId, setHallId] = useState(null);
   const [status, setStatus] = useState({});        // table_id -> {status, orders}
   const [openOrders, setOpenOrders] = useState([]);
+  const [closedOrders, setClosedOrders] = useState([]);   // R5.4: bugun yopilgan cheklar
+  const [refundFor, setRefundFor] = useState(null);
   const [menu, setMenu] = useState([]);
   const [categories, setCategories] = useState([]);
   const [orderId, setOrderId] = useState(null);
@@ -513,6 +606,8 @@ export default function RestaurantOrders() {
       .then(r => setStatus(Object.fromEntries(r.data.map(x => [x.table_id, x])))).catch(() => {});
     api.get('/restaurant/orders', { params: { branch_id: branchId }, _silent: true })
       .then(r => setOpenOrders(r.data)).catch(() => {});
+    api.get('/restaurant/orders', { params: { branch_id: branchId, status: 'paid', closed_today: true }, _silent: true })
+      .then(r => setClosedOrders(r.data)).catch(() => {});
   }, [branchId]);
 
   useEffect(() => {
@@ -621,6 +716,24 @@ export default function RestaurantOrders() {
               </button>
             ))}
           </div>
+          <div className="px-3 py-2 border-y border-slate-100 text-sm font-bold text-slate-800">{t('restOrd.closedToday')}</div>
+          <div className="divide-y divide-slate-100 max-h-[40vh] overflow-y-auto">
+            {closedOrders.length === 0 && <div className="px-3 py-4 text-xs text-slate-400">{t('restOrd.none')}</div>}
+            {closedOrders.map(o => (
+              <div key={o.id} className="px-3 py-2 flex items-center gap-2 text-sm">
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">#{o.daily_no}{o.table_name ? ` · ${t('restOrd.table')} ${o.table_name}` : ''}</div>
+                  {o.refunded_amount > 0 && <div className="text-[11px] text-rose-600">{t('restOrd.refunded')}: {money(o.refunded_amount)}</div>}
+                </div>
+                <span className="tabular-nums">{money(o.total)}</span>
+                {o.refunded_amount < o.total && (
+                  <button className="text-[11px] px-2 py-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-50" onClick={() => setRefundFor(o)}>
+                    {t('restOrd.refund')}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -655,6 +768,7 @@ export default function RestaurantOrders() {
                     onClose={() => { setOrderId(null); refresh(); }} onChanged={refresh} />
       )}
       {pinOpen && <PinModal t={t} onClose={() => setPinOpen(false)} />}
+      {refundFor && <RefundModal order={refundFor} t={t} onClose={() => setRefundFor(null)} onDone={() => { setRefundFor(null); refresh(); }} />}
     </div>
   );
 }
