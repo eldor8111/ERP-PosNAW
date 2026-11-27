@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Minus, Search, X, Send, Printer, Lock, Unlock, Percent, ArrowRightLeft, Merge, Ban, KeyRound, ShoppingBag, Wallet, Trash2 } from 'lucide-react';
+import { Plus, Minus, Search, X, Send, Printer, Lock, Unlock, Percent, ArrowRightLeft, Merge, Ban, KeyRound, ShoppingBag, Wallet, Trash2, Split } from 'lucide-react';
 import { fiscalizeAndPrint, registerReturn } from '../../../api/hippoLocal';
 import api from '../../../api/axios';
 import { useLang } from '../../../context/LangContext';
@@ -260,6 +260,114 @@ function ModifierPicker({ dish, groups, initial, onClose, onConfirm, t }) {
   );
 }
 
+// R5.2: hisobni bo'lish. Har bir qism alohida chek bo'ladi va alohida to'lanadi (alohida fiskal chek).
+// Teng bo'lish: har bir qator miqdori N ga bo'linadi. Qatorlar: har qatorni qismga biriktirish, ko'p porsiyali
+// qatordan bir qismini ajratish mumkin; "Mehmonlar bo'yicha" qatordagi mehmon raqamini qism qilib qo'yadi.
+function SplitModal({ order, onClose, onSplit, busy, t }) {
+  const live = order.items.filter(i => i.status !== 'cancelled');
+  const [mode, setMode] = useState('equal');
+  const [n, setN] = useState(Math.min(Math.max(order.guests || 2, 2), 20));
+  const [k, setK] = useState(2);
+  const [assign, setAssign] = useState(() => Object.fromEntries(live.map(i => [i.id, { part: 1, qty: i.quantity }])));
+  const hasGuests = live.some(i => i.guest_no);
+  const setRow = (id, patch) => setAssign(a => ({ ...a, [id]: { ...a[id], ...patch } }));
+  const byGuests = () => {
+    const parts = Math.min(Math.max(...live.map(i => i.guest_no || 1)), 10);
+    setK(Math.max(parts, 2));
+    setAssign(Object.fromEntries(live.map(i => [i.id, { part: i.guest_no || 1, qty: i.quantity }])));
+  };
+  const unit = i => (i.quantity > 0 ? i.amount / i.quantity : 0);
+  const sums = Array.from({ length: k }, () => 0);
+  live.forEach(i => {
+    const a = assign[i.id];
+    const moved = a.part > 1 ? Math.min(Number(a.qty) || 0, i.quantity) : 0;
+    sums[0] += (i.quantity - moved) * unit(i);
+    if (a.part > 1) sums[a.part - 1] += moved * unit(i);
+  });
+
+  const submit = () => {
+    if (mode === 'equal') return onSplit({ equal: Number(n) });
+    const parts = Array.from({ length: k - 1 }, () => []);
+    live.forEach(i => {
+      const a = assign[i.id];
+      const q = Number(String(a.qty).replace(',', '.'));
+      if (a.part > 1 && q > 0) parts[a.part - 2].push({ item_id: i.id, quantity: q });
+    });
+    const filled = parts.filter(p => p.length);
+    if (!filled.length) { toast.error(t('restSplit.nothing')); return null; }
+    return onSplit({ parts: filled });
+  };
+
+  return (
+    <Modal title={t('restSplit.title')} onClose={onClose} wide>
+      <div className="flex gap-1 border-b border-slate-200">
+        {['equal', 'lines'].map(m => (
+          <button key={m} onClick={() => setMode(m)}
+                  className={`px-3 py-2 text-sm font-semibold border-b-2 -mb-px ${mode === m ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500'}`}>
+            {t(`restSplit.mode.${m}`)}
+          </button>
+        ))}
+      </div>
+      {mode === 'equal' ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-600">{t('restSplit.people')}</span>
+            {[2, 3, 4, 5, 6].map(x => (
+              <button key={x} onClick={() => setN(x)}
+                      className={`w-10 h-10 rounded-lg border text-sm font-semibold ${Number(n) === x ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 text-slate-700'}`}>{x}</button>
+            ))}
+            <input className="w-20 px-2 py-2 border border-slate-200 rounded-lg text-sm" type="number" min="2" max="20" value={n}
+                   onChange={e => setN(e.target.value)} />
+          </div>
+          <p className="text-sm text-slate-700">{t('restSplit.perPerson')}: <b className="tabular-nums">{money((order.total || 0) / Math.max(Number(n) || 1, 1))}</b></p>
+          <p className="text-xs text-slate-500">{t('restSplit.equalHint')}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-600">{t('restSplit.partsCount')}</span>
+            <select className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm" value={k}
+                    onChange={e => { const v = Number(e.target.value); setK(v); setAssign(a => Object.fromEntries(Object.entries(a).map(([id, r]) => [id, { ...r, part: Math.min(r.part, v) }]))); }}>
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(x => <option key={x} value={x}>{x}</option>)}
+            </select>
+            {hasGuests && <button className={btnGhost} onClick={byGuests}>{t('restSplit.byGuests')}</button>}
+          </div>
+          <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-[45vh] overflow-y-auto">
+            {live.map(i => (
+              <div key={i.id} className="px-3 py-2 flex flex-wrap items-center gap-2 text-sm">
+                <span className="flex-1 min-w-[140px] text-slate-800">
+                  {i.name} <span className="text-slate-500">x{qtyFmt(i.quantity)}</span>
+                  {i.guest_no ? <span className="ml-1 text-[11px] text-slate-400">{t('restSplit.guest')} {i.guest_no}</span> : null}
+                </span>
+                <select className="px-2 py-1 border border-slate-200 rounded text-sm" value={assign[i.id].part}
+                        onChange={e => setRow(i.id, { part: Number(e.target.value) })}>
+                  {Array.from({ length: k }, (_, j) => j + 1).map(p => (
+                    <option key={p} value={p}>{p === 1 ? t('restSplit.stays') : `${t('restSplit.check')} ${p}`}</option>
+                  ))}
+                </select>
+                {assign[i.id].part > 1 && i.quantity > 1 && (
+                  <input className="w-16 px-2 py-1 border border-slate-200 rounded text-sm text-right" inputMode="decimal"
+                         value={assign[i.id].qty} onChange={e => setRow(i.id, { qty: e.target.value })} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+            {sums.map((s, j) => (
+              <span key={j}>{j === 0 ? t('restSplit.stays') : `${t('restSplit.check')} ${j + 1}`}: <b className="tabular-nums">{money(s)}</b></span>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">{t('restSplit.linesHint')}</p>
+        </div>
+      )}
+      <div className="flex justify-end gap-2">
+        <button className={btnGhost} onClick={onClose}>{t('restOrd.back')}</button>
+        <button className={btnPrimary} disabled={busy} onClick={submit}>{t('restSplit.do')}</button>
+      </div>
+    </Modal>
+  );
+}
+
 // ── chek oynasi ──
 function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }) {
   const [order, setOrder] = useState(null);
@@ -280,6 +388,7 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   const [modGroups, setModGroups] = useState([]);
   const [picker, setPicker] = useState(null);   // {dish, item?}
   const [stop, setStop] = useState(null);       // R1.5: {unavailable, remaining, low}
+  const [splitOpen, setSplitOpen] = useState(false);
   useEffect(() => { api.get('/restaurant/me/perms', { _silent: true }).then(r => setPerms(r.data)).catch(() => setPerms({})); }, []);
   useEffect(() => {
     api.get('/restaurant/modifier-groups', { params: { include_inactive: false }, _silent: true })
@@ -335,6 +444,20 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   const drafts = order.items.filter(i => i.status === 'draft');
   const draftCourses = [...new Set(drafts.map(i => i.course))].sort();
 
+  const doSplit = async body => {
+    setBusy(true);
+    try {
+      const r = await api.post(`/restaurant/orders/${orderId}/split`, body, { params: { version: order.version } });
+      setOrder(r.data.order);
+      setSplitOpen(false);
+      onChanged();
+      toast.success(`${t('restSplit.done')}: ${[r.data.order, ...r.data.created].map(o => `#${o.daily_no}`).join(', ')}`);
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error((typeof d === 'object' ? d?.message : d) || t('restOrd.failed'));
+      if (err.response?.status === 409) load();
+    } finally { setBusy(false); }
+  };
   const groupsOf = m => (m?.modifier_group_ids || []).map(id => modGroups.find(g => g.id === id)).filter(Boolean);
   const addDish = m => (groupsOf(m).length
     ? setPicker({ dish: m })
@@ -487,6 +610,9 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
               )}
               {editable && <button className={btnGhost} onClick={() => { setDisc({ pct: order.discount_pct ?? '', reason: order.discount_reason || '' }); setDiscountOpen(true); }}><Percent className="w-4 h-4" />{t('restOrd.discount')}</button>}
               <button className={btnGhost} onClick={() => setMoveOpen(true)}><ArrowRightLeft className="w-4 h-4" />{t('restOrd.move')}</button>
+              {editable && order.items.some(i => i.status !== 'cancelled') && (
+                <button className={btnGhost} onClick={() => setSplitOpen(true)}><Split className="w-4 h-4" />{t('restSplit.button')}</button>
+              )}
               {order.status === 'open' && (
                 <button className={btnGhost} onClick={async () => {
                   const r = await api.get('/restaurant/orders', { params: { branch_id: order.branch_id, status: 'open' } });
@@ -565,6 +691,7 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
                        onConfirm={a => { const run = approval.run; setApproval(null); run(a); }} />
       )}
       {showPrecheck && <PrecheckView order={order} t={t} onClose={() => setShowPrecheck(false)} />}
+      {splitOpen && <SplitModal order={order} busy={busy} t={t} onClose={() => setSplitOpen(false)} onSplit={doSplit} />}
       {picker?.dish && (
         <ModifierPicker dish={picker.dish} groups={groupsOf(picker.dish)} t={t}
                         initial={picker.item ? picker.item.modifiers.map(m => m.id) : null}

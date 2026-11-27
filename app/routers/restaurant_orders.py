@@ -91,6 +91,16 @@ class MergeIn(BaseModel):
     source_order_id: int
 
 
+class SplitLine(BaseModel):
+    item_id: int
+    quantity: Optional[float] = None
+
+
+class SplitIn(BaseModel):
+    parts: Optional[List[List[SplitLine]]] = None   # qatorlar / mehmonlar bo'yicha: har ro'yxat — yangi chek
+    equal: Optional[int] = None                      # teng bo'lish: N kishiga
+
+
 class WaiterIn(BaseModel):
     waiter_id: int
 
@@ -172,7 +182,7 @@ def _order_out(db: Session, o: RestaurantOrder, settings: dict) -> dict:
         "service_pct": _f(o.service_pct), "service_amount": _f(o.service_amount), "total": _f(o.total),
         "comment": o.comment, "version": o.version, "opened_at": _iso(o.opened_at),
         "prechecked_at": _iso(o.prechecked_at), "closed_at": _iso(o.closed_at),
-        "cancel_reason": o.cancel_reason, "merged_into_id": o.merged_into_id,
+        "cancel_reason": o.cancel_reason, "merged_into_id": o.merged_into_id, "split_from_id": o.split_from_id,
         "sale_id": o.sale_id, "payments": o.payments or [], "tips_amount": _f(o.tips_amount),
         "change_amount": _f(o.change_amount),
         "refunded_amount": _f(o.refunded_amount or 0), "refunds": o.refunds or [],
@@ -414,6 +424,21 @@ def merge(order_id: int, payload: MergeIn, version: Optional[int] = None, db: Se
     src, _ = _ctx_order(db, user, ctx, payload.source_order_id)
     svc.merge_orders(db, user, o, src, settings)
     return _done(db, o, settings)
+
+
+@router.post("/orders/{order_id}/split")
+def split(order_id: int, payload: SplitIn, version: Optional[int] = None, db: Session = Depends(get_db),
+          user: User = Depends(get_current_user), ctx: BranchContext = Depends(get_branch_context)):
+    """R5.2: hisobni bo'lish. Qaytaradi: asl chek va yangi cheklar (har biri alohida to'lanadi)."""
+    from app.services.restaurant_split import split_order
+    o, settings = _ctx_order(db, user, ctx, order_id, version)
+    parts = [[ln.model_dump() for ln in part] for part in payload.parts] if payload.parts is not None else None
+    children = split_order(db, user, o, settings, parts=parts, equal=payload.equal)
+    db.commit()
+    db.refresh(o)
+    for c in children:
+        db.refresh(c)
+    return {"order": _order_out(db, o, settings), "created": [_order_out(db, c, settings) for c in children]}
 
 
 @router.post("/orders/{order_id}/waiter")
