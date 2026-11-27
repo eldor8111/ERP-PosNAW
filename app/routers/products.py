@@ -1356,17 +1356,17 @@ async def mxik_sync_bulk(
         current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
     """
-    Kompaniyaning barcha (o'chirilmagan) mahsulotlarini shtrix kodi bo'yicha
-    MXIK bilan taqqoslaydi: avval tezkor lokal tovarlar_catalog jadvalidan,
-    topilmasa tasnif.soliq.uz ochiq qidiruv API'sidan qidiradi. Topilgan
-    mxik_code asosida to'liq ma'lumot (birlik, QQS) bilan boyitishga harakat
-    qiladi. mxik_sync_status:
-      unknown  — shtrix kodi yo'q, tekshirilmadi
-      active   — mxik_code topildi (lokal katalog yoki tasnif qidiruvi orqali)
-      disabled — shtrix kod na lokal katalogda, na tasnifda topilmadi
-      error    — qidiruv/tasnif so'rovida tarmoq xatoligi yuz berdi
+    Kompaniyaning barcha (o'chirilmagan) mahsulotlarini MXIK va o'lchov kodi (package_code)
+    bilan sinxronizatsiya qiladi.
+    1. Avval mavjud mxik_code bo'lsa, to'g'ridan-to'g'ri o'lchov kodini (package_code) oladi.
+    2. Agar mxik_code bo'lmasa, shtrix kod bo'yicha tezkor lokal tovarlar_catalog jadvalidan qidiradi.
+    3. Lokal katalogda topilmasa, tasnif.soliq.uz ochiq qidiruv API'sidan qidiradi.
+    4. Topilgan mxik_code asosida to'liq o'lchov kodi (package_code), unit_id va QQS bilan boyitadi.
     """
     from datetime import datetime, timezone
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     from app.config import settings
     from app.models.mxik import MxikPackage
@@ -1375,87 +1375,105 @@ async def mxik_sync_bulk(
 
     terminal_id = settings.DEFAULT_TERMINAL_ID
 
+    # Barcha o'chirilmagan mahsulotlar (shtrixkodi bor yoki yo'qligidan qat'i nazar)
     products = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.is_deleted == False,
-        Product.barcode.isnot(None),
-        Product.barcode != "",
     ).all()
 
     summary = {"total": len(products), "active": 0, "disabled": 0, "error": 0}
     now = datetime.now(timezone.utc)
 
     for product in products:
-        catalog_entry = db.query(TovarlarCatalog).filter(
-            TovarlarCatalog.barcode == product.barcode
-        ).first()
-        mxik_code = catalog_entry.mxik_code if catalog_entry else None
-
-        if not mxik_code:
-            try:
-                found = await search_mxik_by_barcode(product.barcode)
-            except Exception:
-                product.mxik_sync_status = "error"
-                product.mxik_synced_at = now
-                summary["error"] += 1
-                continue
-            mxik_code = found.get("mxikCode") if found else None
-
-        if not mxik_code:
-            product.mxik_sync_status = "disabled"
-            product.mxik_synced_at = now
-            summary["disabled"] += 1
-            continue
-
-        product.mxik_code = mxik_code
-        product.mxik_sync_status = "active"
-        summary["active"] += 1
-
-        # Qo'shimcha ma'lumot (birlik, QQS) — muvaffaqiyatsiz bo'lsa ham
-        # mxik_code allaqachon yozilgan, shuning uchun status "active" qoladi.
         try:
-            ref = await sync_mxik(
-                db=db,
-                mxik_code=mxik_code,
-                terminal_id=terminal_id,
-                force_refresh=False,
-            )
-            unit_candidates = db.query(MxikPackage).filter(
-                MxikPackage.mxik_reference_id == ref.id,
-                MxikPackage.is_unit_package == 1,
-            ).all()
+            barcode = (product.barcode or "").strip()
+            mxik_code = (product.mxik_code or "").strip() or None
 
-            unit_pkg = None
-            if len(unit_candidates) == 1:
-                unit_pkg = unit_candidates[0]
-            elif unit_candidates:
-                # Vazn/hajm bo'yicha bir nechta birlik variant mavjud (gramm,
-                # kg, tonna...) — mahsulotning o'z birligiga mos kelganini tanlaymiz.
-                wanted = _MXIK_UNIT_NAME_MAP.get((product.unit or "").strip().lower())
-                unit_pkg = next(
-                    (c for c in unit_candidates if wanted and c.unit_name and wanted in c.unit_name.lower()),
-                    unit_candidates[0],
+            # 1. Agar mxik_code bo'lmasa, shtrix-kod orqali qidiramiz
+            if not mxik_code and barcode:
+                catalog_entry = db.query(TovarlarCatalog).filter(
+                    TovarlarCatalog.barcode == barcode
+                ).first()
+                if catalog_entry and catalog_entry.mxik_code:
+                    mxik_code = str(catalog_entry.mxik_code).strip()
+                else:
+                    try:
+                        found = await search_mxik_by_barcode(barcode)
+                        if found and found.get("mxikCode"):
+                            mxik_code = str(found.get("mxikCode")).strip()
+                    except Exception as e:
+                        logger.warning(f"Barcode {barcode} Tasnif search error: {e}")
+
+            # 2. Agar hali ham mxik_code topilmasa
+            if not mxik_code:
+                if not barcode:
+                    product.mxik_sync_status = "unknown"
+                else:
+                    product.mxik_sync_status = "disabled"
+                product.mxik_synced_at = now
+                summary["disabled"] += 1
+                continue
+
+            # 3. MXIK kodi bor — ma'lumotlarni boyitamiz
+            product.mxik_code = mxik_code
+            product.mxik_sync_status = "active"
+            summary["active"] += 1
+
+            try:
+                ref = await sync_mxik(
+                    db=db,
+                    mxik_code=mxik_code,
+                    terminal_id=terminal_id,
+                    force_refresh=False,
                 )
+                unit_candidates = db.query(MxikPackage).filter(
+                    MxikPackage.mxik_reference_id == ref.id,
+                    MxikPackage.is_unit_package == 1,
+                ).all()
 
-            product.mxik_reference_id = ref.id
-            # Frontend "O'lchov kod" maydoni parent_code'dan o'qiydi (GET /mxik/barcode
-            # bilan bir xil konventsiya) — package'ning o'z kodi shu yerga yoziladi.
-            product.parent_code = unit_pkg.code if unit_pkg else None
-            product.package_code = unit_pkg.code if unit_pkg else None
-            product.unit_id = unit_pkg.unit_id if unit_pkg else None
-            product.vat_rate_type = ref.vat_rate_type
-            product.vat_lgota_id = ref.lgota_id
-            product.vat_lgota_name = ref.lgota_name
-            product.vat_checked_at = now
-        except Exception:
-            pass
+                unit_pkg = None
+                if len(unit_candidates) == 1:
+                    unit_pkg = unit_candidates[0]
+                elif unit_candidates:
+                    wanted = _MXIK_UNIT_NAME_MAP.get((product.unit or "").strip().lower())
+                    unit_pkg = next(
+                        (c for c in unit_candidates if wanted and c.unit_name and wanted in c.unit_name.lower()),
+                        unit_candidates[0],
+                    )
 
-        product.mxik_synced_at = now
+                product.mxik_reference_id = ref.id
+                if unit_pkg and unit_pkg.code:
+                    product.parent_code = str(unit_pkg.code)
+                    product.package_code = str(unit_pkg.code)
+                if unit_pkg and unit_pkg.unit_id is not None:
+                    product.unit_id = unit_pkg.unit_id
+                if ref.vat_rate_type:
+                    product.vat_rate_type = ref.vat_rate_type
+                if ref.lgota_id is not None:
+                    product.vat_lgota_id = ref.lgota_id
+                if ref.lgota_name:
+                    product.vat_lgota_name = ref.lgota_name
+                product.vat_checked_at = now
+            except Exception as e:
+                logger.warning(f"MXIK {mxik_code} package sync warning: {e}")
 
-    # Dorixona: avval tasnifdan qo'shilgan dorilarning uzun rasmiy nomi qisqa nomga (brend + doza + soni)
-    from app.routers.pharmacy_catalog import shorten_tasnif_names
-    from app.services.pharmacy import pharmacy_context
-    summary["renamed"] = shorten_tasnif_names(db, current_user.company_id) if pharmacy_context(db, current_user.company_id)[0] else 0
+            product.mxik_synced_at = now
+
+        except Exception as item_err:
+            logger.error(f"Product {product.id} sync error: {item_err}")
+            product.mxik_sync_status = "error"
+            product.mxik_synced_at = now
+            summary["error"] += 1
+
+    # Dorixona: tasnif nomlarini qisqartirish
+    try:
+        from app.routers.pharmacy_catalog import shorten_tasnif_names
+        from app.services.pharmacy import pharmacy_context
+        is_pharma = pharmacy_context(db, current_user.company_id)[0]
+        summary["renamed"] = shorten_tasnif_names(db, current_user.company_id) if is_pharma else 0
+    except Exception as e:
+        logger.warning(f"shorten_tasnif_names warning: {e}")
+        summary["renamed"] = 0
 
     db.commit()
     return summary

@@ -1599,7 +1599,7 @@ export default function Products() {
   const syncMxikCodes = async () => {
     setMxikSyncing(true);
     try {
-      const { data } = await api.post('/products/mxik-sync-bulk');
+      const { data } = await api.post('/products/mxik-sync-bulk', {}, { timeout: 300000 });
       toast.success(
         t('product.mxikSyncDoneMsg', { active: data.active, disabled: data.disabled, error: data.error, total: data.total })
         + (data.renamed ? ' ' + t('product.mxikSyncRenamed', { n: data.renamed }) : '')
