@@ -109,6 +109,13 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           icon: <UtensilsCrossed className="w-[18px] h-[18px]" />,
         },
         {
+          name: t('nav.restaurantReports') || 'Restoran hisobotlari',
+          path: '/admin/restaurant/reports',
+          feature: 'restaurant',
+          roles: ROLE_GROUPS.REPORTS_ACCESS,
+          icon: <BarChart3 className="w-[18px] h-[18px]" />,
+        },
+        {
           name: t('nav.restaurantFloor') || 'Zal va stollar',
           path: '/admin/restaurant/floor',
           feature: 'restaurant',

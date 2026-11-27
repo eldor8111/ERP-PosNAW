@@ -888,6 +888,8 @@ from app.routers import restaurant_floor as _restaurant_floor_router  # noqa: E4
 app.include_router(_restaurant_floor_router.router, prefix=API_PREFIX)  # R2: zallar, stollar va zal sxemasi
 from app.routers import restaurant_orders as _restaurant_orders_router  # noqa: E402  # R3
 app.include_router(_restaurant_orders_router.router, prefix=API_PREFIX)  # R3: restoran cheklari, oshxona tiketlari, PIN
+from app.routers import restaurant_reports as _restaurant_reports_router  # noqa: E402  # 12-bo'lim
+app.include_router(_restaurant_reports_router.router, prefix=API_PREFIX)  # Restoran hisobotlari
 
 # Serve uploaded static files
 import os

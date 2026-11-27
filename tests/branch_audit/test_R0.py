@@ -175,7 +175,7 @@ def test_new_branch_of_retail_gets_nothing_extra(db, mk, client):
     b = mk.branch(c, is_main=True)
     u = mk.user(c, branch=b)
     _paid_tariff(db, c)
-    r = client.login(u).post("/api/branches", json={"name": "Filial 2"})
+    r = client.login(u).post("/api/branches", json={"name": "R0 savdo filiali"})
     assert r.status_code in (200, 201), r.text
     assert db.query(KitchenStation).filter(KitchenStation.company_id == c.id).count() == 0
     assert db.query(Hall).filter(Hall.company_id == c.id).count() == 0

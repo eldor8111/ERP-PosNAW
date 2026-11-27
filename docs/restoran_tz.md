@@ -599,6 +599,7 @@ Hali ochiq:
 | Restoran sotuvini umumiy qaytarish va o'chirish yo'llaridan himoya (409 `RESTAURANT_SALE`, `RESTAURANT_ITEM`) | Bajarildi |
 | R5.4 Restoran chekini qaytarish (pul qaytadi, tayyorlangan taom omborga qaytmaydi) | Bajarildi: to'liq va qatorlar bo'yicha, chegirma va xizmat haqi ulushi, tovar faqat belgilansa omborga, menejer PIN, fiskal qaytarish cheki, "Bugun yopilgan cheklar" |
 | R5.2 Hisobni bo'lish (mehmon / qator bo'yicha) | 2-bosqich |
+| Hisobotlar 1, 2, 4, 8: kunlik ko'rsatkichlar, to'lov va buyurtma turlari, taomlar (haqiqiy tannarx, food cost), ofitsiantlar, bekor qilishlar, chegirmalar `/admin/restaurant/reports` | Bajarildi |
 
 Ruxsatlar (`restaurant` bo'limi, rol ruxsatlarida yoki xodimning shaxsiy ruxsatlarida): `orders`, `all_tables`,
 `cancel_sent`, `discount_max` (foiz), `unlock_precheck`, `move_table`, `kitchen`, `take_payment`, `waiter`.
