@@ -22,7 +22,6 @@ from app.core.branch_context import BranchContext, get_branch_context
 from app.core.dependencies import get_current_user
 from app.core.features import require_restaurant
 from app.database import get_db
-from app.models.branch import Branch
 from app.models.restaurant import KitchenStation, RestaurantTable
 from app.models.restaurant_order import KitchenTicket, RestaurantOrder
 from app.models.user import User
@@ -56,15 +55,7 @@ def _guard(db: Session, user: User):
 
 
 def _branch(db: Session, user: User, ctx: BranchContext, branch_id: Optional[int]) -> int:
-    bid = branch_id or ctx.branch_id or (next(iter(ctx.allowed_branch_ids))
-                                         if ctx.allowed_branch_ids and len(ctx.allowed_branch_ids) == 1 else None)
-    if bid is None:
-        raise HTTPException(status_code=400, detail="Filial tanlanmagan")
-    if not db.query(Branch.id).filter(Branch.id == bid, Branch.company_id == user.company_id).first():
-        raise HTTPException(status_code=404, detail="Filial topilmadi")
-    if ctx.allowed_branch_ids is not None and bid not in ctx.allowed_branch_ids:
-        raise HTTPException(status_code=403, detail="Bu filialga ruxsat yo'q")
-    return bid
+    return svc.branch_for(db, user, ctx, branch_id)
 
 
 def _station_filter(q, db: Session, user: User, station: Optional[str]):

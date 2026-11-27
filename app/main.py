@@ -894,6 +894,8 @@ from app.routers import restaurant_kds as _restaurant_kds_router  # noqa: E402  
 app.include_router(_restaurant_kds_router.router, prefix=API_PREFIX)  # R4.2: oshxona ekrani (KDS)
 from app.routers import restaurant_print as _restaurant_print_router  # noqa: E402  # R4.1
 app.include_router(_restaurant_print_router.router, prefix=API_PREFIX)  # R4.1: oshxona tiketlari chop etish navbati
+from app.routers import restaurant_stops as _restaurant_stops_router  # noqa: E402  # R1.5
+app.include_router(_restaurant_stops_router.router, prefix=API_PREFIX)  # R1.5: stop-list va porsiya hisoblagichi
 
 # Serve uploaded static files
 import os

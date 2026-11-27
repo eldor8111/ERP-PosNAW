@@ -306,12 +306,20 @@ def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, r
                                  station_id=_station_of(db, p) if p.item_kind == "dish" else None,
                                  status="draft", comment=(r.get("comment") or "").strip()[:300] or None,
                                  created_by=user.id, created_at=_now())
+        added.append((i, p, it))
+    from app.services.restaurant_stops import consume
+    need = {}
+    for i, p, it in added:                              # bir taom bir necha qatorda bo'lsa jami miqdor tekshiriladi
+        cur = need.get(p.id)
+        need[p.id] = (cur[0] if cur else i, p, (cur[2] if cur else ZERO) + it.quantity)
+    for i, p, total in need.values():
+        consume(db, order, p, total, settings, f"{i}-qator: ")
+    for _, _, it in added:
         order.items.append(it)
-        added.append(it)
     db.flush()
     recalc(db, order, settings)
     bump(order)
-    return added
+    return [it for _, _, it in added]
 
 
 def _ticket_lines(items) -> list:
@@ -360,6 +368,12 @@ def update_draft_item(db: Session, order: RestaurantOrder, settings: dict, item:
         q = Decimal(str(data["quantity"]))
         if q <= 0 or q > 1000:
             raise HTTPException(status_code=400, detail="Miqdor noto'g'ri")
+        from app.services.restaurant_stops import consume, release
+        delta = q - Decimal(str(item.quantity))
+        if delta > 0:
+            consume(db, order, db.get(Product, item.product_id), delta, settings)
+        elif delta < 0:
+            release(db, order, item.product_id, -delta)
         item.quantity = q
     if "comment" in data:
         item.comment = (data.get("comment") or "").strip()[:300] or None
@@ -383,7 +397,9 @@ def cancel_item(db: Session, user: User, order: RestaurantOrder, settings: dict,
     ensure_editable(order, settings)
     if item.status == "cancelled":
         raise HTTPException(status_code=409, detail="Qator allaqachon bekor qilingan")
+    from app.services.restaurant_stops import release
     if item.status == "draft":
+        release(db, order, item.product_id, Decimal(str(item.quantity)))
         order.items.remove(item)
         db.flush()
         recalc(db, order, settings)
@@ -395,6 +411,8 @@ def cancel_item(db: Session, user: User, order: RestaurantOrder, settings: dict,
                                   "Oshxonaga yuborilgan taomni bekor qilish")
     was = item.status
     item.write_off = was in COOKED_STATES
+    if not item.write_off:
+        release(db, order, item.product_id, Decimal(str(item.quantity)))   # pishmagan porsiya qaytadi
     item.status = "cancelled"
     item.cancelled_at = _now()
     item.cancel_reason = (reason + (f": {note.strip()[:250]}" if note and note.strip() else ""))
@@ -517,14 +535,18 @@ def cancel_order(db: Session, user: User, order: RestaurantOrder, settings: dict
         approver = require_capability(db, user, settings, lambda p: bool(p.get("cancel_sent")), approval,
                                       "Oshxonaga yuborilgan chekni bekor qilish")
     now = _now()
+    from app.services.restaurant_stops import release
     for it in list(order.items):
         if it.status == "draft":
+            release(db, order, it.product_id, Decimal(str(it.quantity)))
             order.items.remove(it)
     kitchen_cancel = []
     for it in sent:
         if it.status != "served":
             kitchen_cancel.append(it)
         it.write_off = it.status in COOKED_STATES
+        if not it.write_off:
+            release(db, order, it.product_id, Decimal(str(it.quantity)))
         it.status = "cancelled"
         it.cancelled_at = now
         it.cancel_reason = (reason or "other") + (f": {note.strip()[:250]}" if note and note.strip() else "")
@@ -610,3 +632,17 @@ def transfer_waiter(db: Session, user: User, order: RestaurantOrder, settings: d
 def settings_for(db: Session, company_id: int) -> dict:
     from app.models.company import Company
     return restaurant_settings_of(db.get(Company, company_id))
+
+
+def branch_for(db: Session, user: User, ctx, branch_id: Optional[int]) -> int:
+    """So'rovdagi filial (yoki foydalanuvchining yagona filiali): korxonaga tegishli va ruxsat doirasida."""
+    from app.models.branch import Branch
+    bid = branch_id or ctx.branch_id or (next(iter(ctx.allowed_branch_ids))
+                                         if ctx.allowed_branch_ids and len(ctx.allowed_branch_ids) == 1 else None)
+    if bid is None:
+        raise HTTPException(status_code=400, detail="Filial tanlanmagan")
+    if not db.query(Branch.id).filter(Branch.id == bid, Branch.company_id == user.company_id).first():
+        raise HTTPException(status_code=404, detail="Filial topilmadi")
+    if ctx.allowed_branch_ids is not None and bid not in ctx.allowed_branch_ids:
+        raise HTTPException(status_code=403, detail="Bu filialga ruxsat yo'q")
+    return bid

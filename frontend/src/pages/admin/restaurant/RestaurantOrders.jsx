@@ -279,6 +279,7 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   const [perms, setPerms] = useState(null);
   const [modGroups, setModGroups] = useState([]);
   const [picker, setPicker] = useState(null);   // {dish, item?}
+  const [stop, setStop] = useState(null);       // R1.5: {unavailable, remaining, low}
   useEffect(() => { api.get('/restaurant/me/perms', { _silent: true }).then(r => setPerms(r.data)).catch(() => setPerms({})); }, []);
   useEffect(() => {
     api.get('/restaurant/modifier-groups', { params: { include_inactive: false }, _silent: true })
@@ -288,6 +289,15 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   const load = useCallback(() => api.get(`/restaurant/orders/${orderId}`).then(r => setOrder(r.data))
     .catch(err => toast.error(err.response?.data?.detail || t('restOrd.failed'))), [orderId, t]);
   useEffect(() => { load(); }, [load]);
+  const branchOfOrder = order?.branch_id;
+  const loadStop = useCallback(() => {
+    if (!branchOfOrder) return;
+    api.get('/restaurant/stop-list', { params: { branch_id: branchOfOrder }, _silent: true })
+      .then(r => setStop({ unavailable: new Set(r.data.unavailable), remaining: r.data.remaining || {},
+                           low: new Set(r.data.low.map(x => x.product_id)) }))
+      .catch(() => setStop(null));
+  }, [branchOfOrder]);
+  useEffect(() => { loadStop(); const p = setInterval(loadStop, 15000); return () => clearInterval(p); }, [loadStop]);
 
   // Barcha o'zgartirishlar shu orqali: versiya, 409 va tasdiq oynasi bir joyda
   const call = useCallback(async (method, path, body, capability, approvalData) => {
@@ -298,6 +308,7 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
                                     params: { version: order?.version } });
       setOrder(r.data);
       onChanged();
+      if (path === '/items' || path.startsWith('/items/') || path === '/cancel') loadStop();
       return r.data;
     } catch (err) {
       const d = err.response?.data?.detail;
@@ -312,7 +323,7 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
     } finally {
       setBusy(false);
     }
-  }, [orderId, order?.version, onChanged, load, t]);
+  }, [orderId, order?.version, onChanged, load, loadStop, t]);
 
   const shownMenu = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -358,13 +369,22 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
-            {shownMenu.map(m => (
-              <button key={m.id} disabled={!editable || busy} onClick={() => addDish(m)}
-                      className="text-left p-3 rounded-lg border border-slate-200 hover:border-blue-500 disabled:opacity-50 bg-white">
-                <div className="text-sm font-semibold text-slate-800 leading-tight">{m.name}</div>
-                <div className="text-xs text-slate-500 mt-1 tabular-nums">{money(m.sale_price)}</div>
-              </button>
-            ))}
+            {shownMenu.map(m => {
+              const off = stop?.unavailable.has(m.id);
+              const left = stop?.remaining[String(m.id)];
+              return (
+                <button key={m.id} disabled={!editable || busy || off} onClick={() => addDish(m)}
+                        className={`text-left p-3 rounded-lg border hover:border-blue-500 disabled:opacity-50 ${off ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white'}`}>
+                  <div className="text-sm font-semibold text-slate-800 leading-tight">{m.name}</div>
+                  <div className="text-xs text-slate-500 mt-1 tabular-nums flex items-center gap-2">
+                    {money(m.sale_price)}
+                    {off && <span className="text-rose-700 font-semibold">{t('restStop.badgeStop')}</span>}
+                    {!off && left != null && <span className="text-slate-700">{t('restStop.left')}: {qtyFmt(left)}</span>}
+                    {!off && stop?.low.has(m.id) && <span className="text-amber-700">{t('restStop.badgeLow')}</span>}
+                  </div>
+                </button>
+              );
+            })}
             {shownMenu.length === 0 && <div className="col-span-full text-center text-sm text-slate-400 py-10">{t('restOrd.noDishes')}</div>}
           </div>
         </div>

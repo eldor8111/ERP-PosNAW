@@ -54,6 +54,7 @@ const RestaurantOrders = lazy(() => import('./pages/admin/restaurant/RestaurantO
 const RestaurantReports = lazy(() => import('./pages/admin/restaurant/RestaurantReports'))  // 12-bo'lim
 const RestaurantKds = lazy(() => import('./pages/admin/restaurant/RestaurantKds'))  // R4.2
 const RestaurantPrintStation = lazy(() => import('./pages/admin/restaurant/RestaurantPrintStation'))  // R4.1
+const RestaurantStopList = lazy(() => import('./pages/admin/restaurant/RestaurantStopList'))  // R1.5
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const MarketplaceAgents = lazy(() => import('./pages/admin/MarketplaceAgents'))
 const AICopilot       = lazy(() => import('./pages/admin/EcodeAI'))
@@ -178,6 +179,7 @@ export default function App() {
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             {/* D4.6: Dorixona markazi — faqat pharmacy moduli yoqilgan korxonada */}
+            <Route path="restaurant/stop-list" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantStopList /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/print" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantPrintStation /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/kds" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantKds /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/reports" element={<PrivateRoute roles={[...ROLE_GROUPS.REPORTS_ACCESS, ROLES.SUPER_ADMIN]}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantReports /></Suspense></FeatureGate></PrivateRoute>} />

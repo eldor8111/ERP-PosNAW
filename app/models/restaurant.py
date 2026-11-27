@@ -114,3 +114,25 @@ class ProductModifierGroup(Base):
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
 
     __table_args__ = (UniqueConstraint("product_id", "group_id", name="uq_product_modifier_group"),)
+
+
+class MenuStop(Base):
+    """Stop-list (R1.5): filial bo'yicha taomni vaqtincha sotuvdan olish va "qoldi N porsiya" hisoblagichi.
+
+    Taom sotilmaydi, agar: `stopped` va (`until` yo'q yoki hali kelmagan), yoki `remaining` 0 ga tushgan.
+    `remaining` NULL = hisoblagich yo'q. Chekka qo'shilganda kamayadi, pishmagan qator bekor qilinsa qaytadi.
+    Qator ham to'xtatilmagan, ham hisoblagichsiz bo'lsa o'chiriladi."""
+    __tablename__ = "menu_stops"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    stopped = Column(Boolean, nullable=False, default=False, server_default="false")
+    reason = Column(String(200), nullable=True)
+    until = Column(DateTime, nullable=True)
+    remaining = Column(Numeric(12, 3), nullable=True)
+    updated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_at = Column(DateTime, default=_now)
+
+    __table_args__ = (UniqueConstraint("branch_id", "product_id", name="uq_menu_stop_branch_product"),)
