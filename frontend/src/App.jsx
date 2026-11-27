@@ -55,6 +55,7 @@ const RestaurantReports = lazy(() => import('./pages/admin/restaurant/Restaurant
 const RestaurantKds = lazy(() => import('./pages/admin/restaurant/RestaurantKds'))  // R4.2
 const RestaurantPrintStation = lazy(() => import('./pages/admin/restaurant/RestaurantPrintStation'))  // R4.1
 const RestaurantStopList = lazy(() => import('./pages/admin/restaurant/RestaurantStopList'))  // R1.5
+const RestaurantProduction = lazy(() => import('./pages/admin/restaurant/RestaurantProduction'))  // R7.2
 const RestaurantTerminals = lazy(() => import('./pages/admin/restaurant/RestaurantTerminals'))  // R6.1
 const WaiterApp = lazy(() => import('./pages/waiter/WaiterApp'))  // R6.1: ofitsiant plansheti (PIN bilan)
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
@@ -184,6 +185,7 @@ export default function App() {
             {/* D4.6: Dorixona markazi — faqat pharmacy moduli yoqilgan korxonada */}
             <Route path="restaurant/terminals" element={<PrivateRoute roles={ROLE_GROUPS.POS_ACCESS}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantTerminals /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/stop-list" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantStopList /></Suspense></FeatureGate></PrivateRoute>} />
+            <Route path="restaurant/production" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantProduction /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/print" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantPrintStation /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/kds" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantKds /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/reports" element={<PrivateRoute roles={[...ROLE_GROUPS.REPORTS_ACCESS, ROLES.SUPER_ADMIN]}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantReports /></Suspense></FeatureGate></PrivateRoute>} />
