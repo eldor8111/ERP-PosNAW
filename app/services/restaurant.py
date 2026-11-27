@@ -179,7 +179,38 @@ def provision_restaurant(db: Session, company, branch, fmt: Optional[str] = None
 
     company.restaurant_settings = settings
     db.flush()
+    created["roles"] = ensure_default_roles(db, company.id)
     return created
+
+
+# Tayyor restoran rollari (rol ruxsatlarining `restaurant` bo'limi; app/services/restaurant_orders.rest_perms o'qiydi).
+# Xodimga rol biriktiriladi, asosiy tizim roli (masalan kassir) alohida tanlanadi.
+ROLE_TEMPLATES = {
+    "Ofitsiant": {"orders": True, "waiter": True, "all_tables": False, "take_payment": False, "move_table": False,
+                  "kitchen": False, "cancel_sent": False, "unlock_precheck": False, "discount_max": 0},
+    "Oshpaz": {"orders": False, "waiter": False, "all_tables": False, "take_payment": False, "move_table": False,
+               "kitchen": True, "cancel_sent": False, "unlock_precheck": False, "discount_max": 0},
+    "Kassir (restoran)": {"orders": True, "waiter": False, "all_tables": True, "take_payment": True,
+                          "move_table": True, "kitchen": False, "cancel_sent": False, "unlock_precheck": False,
+                          "discount_max": 0},
+    "Zal menejeri": {"orders": True, "waiter": False, "all_tables": True, "take_payment": True, "move_table": True,
+                     "kitchen": True, "cancel_sent": True, "unlock_precheck": True, "discount_max": 20},
+}
+
+
+def ensure_default_roles(db: Session, company_id: int) -> int:
+    """Korxonada yo'q tayyor rollarni yaratadi (nomi bo'yicha; mavjudiga tegmaydi). Qaytaradi: yaratilganlar soni."""
+    from app.models.role import Role
+    have = {n for (n,) in db.query(Role.name).filter(Role.company_id == company_id)}
+    made = 0
+    for name, perms in ROLE_TEMPLATES.items():
+        if name in have:
+            continue
+        db.add(Role(name=name, company_id=company_id, permissions={"restaurant": dict(perms)}, is_system=False))
+        made += 1
+    if made:
+        db.flush()
+    return made
 
 
 def get_kitchen_warehouse(db: Session, company_id: int, branch_id: int):

@@ -184,7 +184,7 @@ def test_new_branch_of_retail_gets_nothing_extra(db, mk, client):
 def test_provision_is_idempotent(db, mk):
     c, b, _ = _restaurant(db, mk)
     again = provision_restaurant(db, c, b)
-    assert again == {"warehouse": False, "stations": 0, "halls": 0, "tables": 0, "categories": 0}
+    assert again == {"warehouse": False, "stations": 0, "halls": 0, "tables": 0, "categories": 0, "roles": 0}
     assert db.query(RestaurantTable).filter(RestaurantTable.company_id == c.id).count() == 10
 
 

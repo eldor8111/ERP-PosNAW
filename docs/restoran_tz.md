@@ -601,6 +601,7 @@ Hali ochiq:
 | R5.2 Hisobni bo'lish (mehmon / qator bo'yicha) | 2-bosqich |
 | Hisobotlar 1, 2, 4, 8: kunlik ko'rsatkichlar, to'lov va buyurtma turlari, taomlar (haqiqiy tannarx, food cost), ofitsiantlar, bekor qilishlar, chegirmalar `/admin/restaurant/reports` | Bajarildi |
 | R4.2 Oshxona ekrani (KDS) `/admin/restaurant/kds`: sex filtri, kartochkalar, norma bo'yicha kechikish (rang va yozuv), bir xil taomlar yig'indisi, bir yo'la "boshlash/tayyor", yaqinda bekor qilinganlar, ofitsiantga "taom tayyor" xabari; 5 soniyalik yangilanish (WebSocket keyin) | Bajarildi |
+| 10-bo'lim rollar: tayyor rollar (Ofitsiant, Oshpaz, Kassir (restoran), Zal menejeri) yangi restoranda avtomatik, mavjudlari uchun "Restoran rollarini qo'shish" tugmasi; Rollar sahifasida "Restoran" bo'limi (kalitlar, chegirma limiti, shablon) | Bajarildi |
 
 Ruxsatlar (`restaurant` bo'limi, rol ruxsatlarida yoki xodimning shaxsiy ruxsatlarida): `orders`, `all_tables`,
 `cancel_sent`, `discount_max` (foiz), `unlock_precheck`, `move_table`, `kitchen`, `take_payment`, `waiter`.

@@ -46,6 +46,25 @@ def update_settings(
     return merged
 
 
+@router.get("/roles/templates")
+def role_templates(user: User = Depends(get_current_user)):
+    """Rollar sahifasi uchun tayyor restoran ruxsatlari shablonlari."""
+    from app.services.restaurant import ROLE_TEMPLATES
+    return ROLE_TEMPLATES
+
+
+@router.post("/roles/defaults")
+def create_default_roles(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.super_admin, UserRole.admin, UserRole.director)),
+):
+    """Tayyor restoran rollarini (Ofitsiant, Oshpaz, Kassir, Zal menejeri) yaratadi; mavjudlari o'zgarmaydi."""
+    from app.services.restaurant import ensure_default_roles
+    made = ensure_default_roles(db, user.company_id)
+    db.commit()
+    return {"created": made}
+
+
 @router.get("/layout")
 def get_layout(
     branch_id: Optional[int] = None,

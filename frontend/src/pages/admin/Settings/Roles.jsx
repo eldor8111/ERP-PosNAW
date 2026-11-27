@@ -2,6 +2,7 @@
 import { useLang } from '../../../context/LangContext';
 import api from '../../../api/axios';
 import toast from 'react-hot-toast';
+import useCompanyFeatures from '../../../hooks/useCompanyFeatures';
 import { 
   BriefcaseBusiness, Package, Users, Warehouse, 
   Wallet, FileText, Settings, Shield, Plus, X, 
@@ -19,6 +20,9 @@ const MODULES = [
   // T4.6: tasdiqlash so'rovlarini hal qilish (chegirma, xarajat, qaytarish); "Tahrirlash" = tasdiqlash huquqi
   { id: 'approvals', name: 'Tasdiqlashlar', icon: <CheckCircle2 className="w-5 h-5" /> },
 ];
+
+// Restoran ruxsatlari (rolning `restaurant` bo'limi; backend: app/services/restaurant_orders.rest_perms)
+const REST_FLAGS = ['orders', 'waiter', 'all_tables', 'take_payment', 'move_table', 'kitchen', 'cancel_sent', 'unlock_precheck'];
 
 const ACTIONS = [
   { id: 'view', name: "Ko'rish" },
@@ -38,6 +42,30 @@ export default function RolesTab() {
   
   const [form, setForm] = useState({ name: '', permissions: {} });
   const [saving, setSaving] = useState(false);
+  const features = useCompanyFeatures();
+  const isRestaurant = !!features?.restaurant;
+  const [restTemplates, setRestTemplates] = useState({});
+  useEffect(() => {
+    if (isRestaurant) api.get('/restaurant/roles/templates').then(r => setRestTemplates(r.data)).catch(() => {});
+  }, [isRestaurant]);
+
+  const rest = form.permissions?.restaurant || {};
+  const setRest = (key, val) => setForm(prev => ({
+    ...prev, permissions: { ...prev.permissions, restaurant: { ...(prev.permissions?.restaurant || {}), [key]: val } },
+  }));
+  const applyRestTemplate = (name) => {
+    if (!restTemplates[name]) return;
+    setForm(prev => ({ ...prev, permissions: { ...prev.permissions, restaurant: { ...restTemplates[name] } } }));
+  };
+  const createRestRoles = async () => {
+    try {
+      const r = await api.post('/restaurant/roles/defaults');
+      toast.success(`${tf('roles.restCreated', 'Restoran rollari qo\'shildi')}: ${r.data.created}`);
+      fetchRoles();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Xatolik yuz berdi");
+    }
+  };
 
   const fetchRoles = () => {
     setLoading(true);
@@ -117,6 +145,14 @@ export default function RolesTab() {
           <p className="text-sm text-slate-500 mt-1">Tizimdagi rollarni yarating va ruxsatlarni boshqaring</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
+          {isRestaurant && (
+            <button
+              onClick={createRestRoles}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 whitespace-nowrap"
+            >
+              {tf('roles.restAddDefaults', "Restoran rollarini qo'shish")}
+            </button>
+          )}
           <div className="relative w-full sm:w-64">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -192,7 +228,7 @@ export default function RolesTab() {
                       <>
                         {activeMods.map(mod => (
                           <span key={mod} className="px-3 py-1.5 bg-slate-50 border border-slate-200/60 text-slate-600 text-xs font-semibold rounded-xl shadow-sm group-hover:border-blue-100 group-hover:bg-blue-50/50 transition-colors">
-                            {MODULES.find(m => m.id === mod)?.name || mod}
+                            {MODULES.find(m => m.id === mod)?.name || (mod === 'restaurant' ? tf('roles.restTitle', 'Restoran') : mod)}
                           </span>
                         ))}
                         {permCount > 3 && (
@@ -335,6 +371,50 @@ export default function RolesTab() {
                   })}
                 </div>
               </div>
+
+              {isRestaurant && (
+                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-slate-700">{tf('roles.restTitle', 'Restoran')}</span>
+                      <p className="text-xs text-slate-500 mt-0.5">{tf('roles.restHint', "Xodimning asosiy roli (kassir va h.k.) ustidan qo'llanadi")}</p>
+                    </div>
+                    {Object.keys(restTemplates).length > 0 && (
+                      <select defaultValue="" onChange={e => { applyRestTemplate(e.target.value); e.target.value = ''; }}
+                              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700">
+                        <option value="" disabled>{tf('roles.restTemplate', 'Shablondan to\'ldirish')}</option>
+                        {Object.keys(restTemplates).map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {REST_FLAGS.map(key => {
+                      const isActive = !!rest[key];
+                      return (
+                        <label key={key} className={`flex items-center justify-between p-3 rounded-xl cursor-pointer border ${isActive ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
+                          <span className="pr-2">
+                            <span className={`block text-sm font-semibold ${isActive ? 'text-blue-900' : 'text-slate-600'}`}>{tf(`roles.rest.${key}`, key)}</span>
+                            <span className="block text-[11px] text-slate-400">{tf(`roles.restDesc.${key}`, '')}</span>
+                          </span>
+                          <button type="button" onClick={() => setRest(key, !isActive)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full ${isActive ? 'bg-blue-600' : 'bg-slate-200'}`}>
+                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ${isActive ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </button>
+                        </label>
+                      );
+                    })}
+                    <label className="sm:col-span-2 flex items-center justify-between p-3 rounded-xl border border-slate-100">
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-600">{tf('roles.rest.discount_max', 'Chegirma limiti (%)')}</span>
+                        <span className="block text-[11px] text-slate-400">{tf('roles.restDesc.discount_max', '')}</span>
+                      </span>
+                      <input type="number" min={0} max={100} value={rest.discount_max ?? 0}
+                             onChange={e => setRest('discount_max', Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
+                             className="w-20 px-3 py-2 border border-slate-200 rounded-xl text-sm text-right" />
+                    </label>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
           
