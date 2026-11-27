@@ -13,7 +13,7 @@ import {
   ChevronRight, ShoppingBag, Navigation, Package, DollarSign, BarChart3,
   Settings as SettingsIcon, ShieldAlert, Layers, ShieldCheck, Store, Truck, Shield,
   Users, AlertTriangle, FileText, CheckCircle2, SlidersHorizontal,
-  Building2, Tag, Landmark, Scale, MapPin, MessageSquare, UtensilsCrossed, LayoutGrid, ClipboardList
+  Building2, Tag, Landmark, Scale, MapPin, MessageSquare, UtensilsCrossed, LayoutGrid, ClipboardList, ChefHat
 } from 'lucide-react';
 import AnnouncementModal from './AnnouncementModal';
 import AnnouncementBanner from './AnnouncementBanner';
@@ -107,6 +107,13 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           feature: 'restaurant',
           roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
           icon: <UtensilsCrossed className="w-[18px] h-[18px]" />,
+        },
+        {
+          name: t('nav.restaurantKds') || 'Oshxona ekrani',
+          path: '/admin/restaurant/kds',
+          feature: 'restaurant',
+          roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
+          icon: <ChefHat className="w-[18px] h-[18px]" />,
         },
         {
           name: t('nav.restaurantReports') || 'Restoran hisobotlari',

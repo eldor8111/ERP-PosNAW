@@ -600,6 +600,7 @@ Hali ochiq:
 | R5.4 Restoran chekini qaytarish (pul qaytadi, tayyorlangan taom omborga qaytmaydi) | Bajarildi: to'liq va qatorlar bo'yicha, chegirma va xizmat haqi ulushi, tovar faqat belgilansa omborga, menejer PIN, fiskal qaytarish cheki, "Bugun yopilgan cheklar" |
 | R5.2 Hisobni bo'lish (mehmon / qator bo'yicha) | 2-bosqich |
 | Hisobotlar 1, 2, 4, 8: kunlik ko'rsatkichlar, to'lov va buyurtma turlari, taomlar (haqiqiy tannarx, food cost), ofitsiantlar, bekor qilishlar, chegirmalar `/admin/restaurant/reports` | Bajarildi |
+| R4.2 Oshxona ekrani (KDS) `/admin/restaurant/kds`: sex filtri, kartochkalar, norma bo'yicha kechikish (rang va yozuv), bir xil taomlar yig'indisi, bir yo'la "boshlash/tayyor", yaqinda bekor qilinganlar, ofitsiantga "taom tayyor" xabari; 5 soniyalik yangilanish (WebSocket keyin) | Bajarildi |
 
 Ruxsatlar (`restaurant` bo'limi, rol ruxsatlarida yoki xodimning shaxsiy ruxsatlarida): `orders`, `all_tables`,
 `cancel_sent`, `discount_max` (foiz), `unlock_precheck`, `move_table`, `kitchen`, `take_payment`, `waiter`.

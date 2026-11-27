@@ -890,6 +890,8 @@ from app.routers import restaurant_orders as _restaurant_orders_router  # noqa: 
 app.include_router(_restaurant_orders_router.router, prefix=API_PREFIX)  # R3: restoran cheklari, oshxona tiketlari, PIN
 from app.routers import restaurant_reports as _restaurant_reports_router  # noqa: E402  # 12-bo'lim
 app.include_router(_restaurant_reports_router.router, prefix=API_PREFIX)  # Restoran hisobotlari
+from app.routers import restaurant_kds as _restaurant_kds_router  # noqa: E402  # R4.2
+app.include_router(_restaurant_kds_router.router, prefix=API_PREFIX)  # R4.2: oshxona ekrani (KDS)
 
 # Serve uploaded static files
 import os

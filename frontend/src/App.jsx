@@ -52,6 +52,7 @@ const RestaurantMenu  = lazy(() => import('./pages/admin/restaurant/RestaurantMe
 const RestaurantFloor = lazy(() => import('./pages/admin/restaurant/RestaurantFloor'))  // R2
 const RestaurantOrders = lazy(() => import('./pages/admin/restaurant/RestaurantOrders'))  // R3
 const RestaurantReports = lazy(() => import('./pages/admin/restaurant/RestaurantReports'))  // 12-bo'lim
+const RestaurantKds = lazy(() => import('./pages/admin/restaurant/RestaurantKds'))  // R4.2
 const Tariflar        = lazy(() => import('./pages/admin/Tariflar'))
 const MarketplaceAgents = lazy(() => import('./pages/admin/MarketplaceAgents'))
 const AICopilot       = lazy(() => import('./pages/admin/EcodeAI'))
@@ -176,6 +177,7 @@ export default function App() {
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentsPage /></Suspense>} />
             <Route path="ombor" element={<Suspense fallback={<PageLoader />}><Ombor /></Suspense>} />
             {/* D4.6: Dorixona markazi — faqat pharmacy moduli yoqilgan korxonada */}
+            <Route path="restaurant/kds" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantKds /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/reports" element={<PrivateRoute roles={[...ROLE_GROUPS.REPORTS_ACCESS, ROLES.SUPER_ADMIN]}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantReports /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/orders" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantOrders /></Suspense></FeatureGate></PrivateRoute>} />
             <Route path="restaurant/floor" element={<PrivateRoute roles={RESTAURANT_ROUTE_ROLES}><FeatureGate feature="restaurant"><Suspense fallback={<PageLoader />}><RestaurantFloor /></Suspense></FeatureGate></PrivateRoute>} />

@@ -593,6 +593,9 @@ export default function RestaurantOrders() {
   const [guests, setGuests] = useState('2');
   const [pinOpen, setPinOpen] = useState(false);
   const timer = useRef(null);
+  // R4.2: oshxonada taom tayyor bo'lganda xabar (holat 'ready' ga o'tgan stol); birinchi yuklashda xabar yo'q
+  const prevStatus = useRef(null);
+  const hallsRef = useRef([]);
 
   useEffect(() => {
     if (branchId) return;
@@ -603,7 +606,20 @@ export default function RestaurantOrders() {
   const refresh = useCallback(() => {
     if (!branchId) return;
     api.get('/restaurant/tables/status', { params: { branch_id: branchId }, _silent: true })
-      .then(r => setStatus(Object.fromEntries(r.data.map(x => [x.table_id, x])))).catch(() => {});
+      .then(r => {
+        const next = Object.fromEntries(r.data.map(x => [x.table_id, x]));
+        const prev = prevStatus.current;
+        if (prev) {
+          const names = Object.fromEntries(hallsRef.current.flatMap(h => h.tables).map(x => [x.id, x.name]));
+          for (const [tid, st] of Object.entries(next)) {
+            if (st.status === 'ready' && prev[tid]?.status !== 'ready') {
+              toast.success(`${t('restOrd.readyNotice')}: ${t('restOrd.table')} ${names[tid] || tid}`, { duration: 6000 });
+            }
+          }
+        }
+        prevStatus.current = next;
+        setStatus(next);
+      }).catch(() => {});
     api.get('/restaurant/orders', { params: { branch_id: branchId }, _silent: true })
       .then(r => setOpenOrders(r.data)).catch(() => {});
     api.get('/restaurant/orders', { params: { branch_id: branchId, status: 'paid', closed_today: true }, _silent: true })
@@ -614,6 +630,7 @@ export default function RestaurantOrders() {
     if (!branchId) return;
     api.get('/restaurant/halls', { params: { branch_id: branchId } }).then(r => {
       setHalls(r.data);
+      hallsRef.current = r.data;
       setHallId(h => (r.data.some(x => x.id === h) ? h : r.data[0]?.id ?? null));
     }).catch(err => toast.error(err.response?.data?.detail || t('restOrd.failed')));
     refresh();
