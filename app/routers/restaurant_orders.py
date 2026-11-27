@@ -43,6 +43,7 @@ class ItemRow(BaseModel):
     course: int = 1
     guest_no: Optional[int] = None
     comment: Optional[str] = None
+    modifiers: Optional[List[int]] = None       # R1.3: tanlangan qo'shimcha variantlari
 
 
 class ItemsIn(BaseModel):
@@ -51,6 +52,7 @@ class ItemsIn(BaseModel):
 
 class ItemPatch(BaseModel):
     quantity: Optional[float] = None
+    modifiers: Optional[List[int]] = None
     course: Optional[int] = None
     guest_no: Optional[int] = None
     comment: Optional[str] = None
@@ -147,6 +149,7 @@ def _item_out(it: RestaurantOrderItem) -> dict:
     return {
         "id": it.id, "product_id": it.product_id, "name": it.name, "quantity": float(it.quantity),
         "unit_price": float(it.unit_price), "modifiers_total": float(it.modifiers_total or 0),
+        "modifiers": it.modifiers or [],
         "amount": float(it.quantity * (it.unit_price + (it.modifiers_total or 0))) if it.status != "cancelled" else 0.0,
         "course": it.course, "guest_no": it.guest_no, "station_id": it.station_id, "status": it.status,
         "comment": it.comment, "sent_at": _iso(it.sent_at), "ready_at": _iso(it.ready_at), "served_at": _iso(it.served_at),

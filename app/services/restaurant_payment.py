@@ -95,6 +95,30 @@ def expand_card(db: Session, company_id: int, card: Optional[BOM], qty: Decimal,
     return out
 
 
+def modifier_lines(db: Session, company_id: int, item: RestaurantOrderItem, warehouse_id: int, settings: dict) -> dict:
+    """Qo'shimchalarga bog'langan mahsulotlar: miqdor x taom soni. Bog'langan mahsulot taom bo'lsa — o'z kartasi."""
+    from app.services.restaurant_menu import active_card
+    out = {}
+    qty = Decimal(str(item.quantity))
+    for m in item.modifiers or []:
+        pid = m.get("product_id")
+        need = Decimal(str(m.get("quantity") or 0)) * qty
+        if not pid or need <= 0:
+            continue
+        p = db.get(Product, int(pid))
+        if p is None or p.company_id != company_id:
+            continue
+        sub = {}
+        if p.item_kind == "dish":
+            sub = expand_card(db, company_id, active_card(db, company_id, p.id), need, warehouse_id, settings)
+        else:
+            sub = {p.id: (p, need)}
+        for k, (pp, q) in sub.items():
+            cur = out.get(k)
+            out[k] = (pp, (cur[1] if cur else ZERO) + q)
+    return out
+
+
 def _card_of(db: Session, item: RestaurantOrderItem) -> Optional[BOM]:
     from app.services.restaurant_menu import active_card
     if item.bom_id:
@@ -119,6 +143,9 @@ def deduct_item(db: Session, user: User, order: RestaurantOrder, item: Restauran
     if wh is None:
         raise HTTPException(status_code=409, detail="Filialda oshxona ombori yo'q")
     lines = expand_card(db, order.company_id, _card_of(db, item), Decimal(str(item.quantity)), wh.id, settings)
+    for pid, (p, q) in modifier_lines(db, order.company_id, item, wh.id, settings).items():
+        cur = lines.get(pid)
+        lines[pid] = (p, (cur[1] if cur else ZERO) + q)
     calc = CostCalc(db, order.company_id)
     reason = (f"Chiqim: bekor qilingan taom #{order.daily_no} ({item.name})" if write_off
               else f"Restoran #{order.daily_no}: {item.name} x{item.quantity}")

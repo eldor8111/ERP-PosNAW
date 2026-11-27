@@ -64,6 +64,7 @@ function Card({ card, now, onItem, onBulk, hideReady, t }) {
               {i.course > 1 && <span className="text-[11px] text-slate-500">{i.course}-{t('restKds.course')}</span>}
               <span className="ml-auto text-[11px] font-semibold uppercase">{t(`restOrd.item.${i.status}`)}</span>
             </div>
+            {i.modifiers?.length > 0 && <div className="text-sm font-semibold text-blue-800">{i.modifiers.join(', ')}</div>}
             {i.comment && <div className="text-sm text-amber-800">{i.comment}</div>}
             {i.status === 'cancelled' && i.cancel_reason && (
               <div className="text-[11px] no-underline">{t(`restOrd.reason.${String(i.cancel_reason).split(':')[0]}`)}</div>

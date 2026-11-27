@@ -5,7 +5,7 @@ Hamma jadvalda `company_id` bor (korxona izolyatsiyasi va company_purge uchun).
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -65,3 +65,52 @@ class RestaurantTable(Base):
     created_at = Column(DateTime, default=_now)
 
     hall = relationship("Hall", back_populates="tables")
+
+
+class ModifierGroup(Base):
+    """Taom qo'shimchalari guruhi (R1.3): "Pishirish darajasi" (1 ta majburiy), "Qo'shimchalar" (0..3).
+    min_select > 0 bo'lsa guruh majburiy; max_select — eng ko'p tanlov."""
+    __tablename__ = "modifier_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    min_select = Column(Integer, nullable=False, default=0, server_default="0")
+    max_select = Column(Integer, nullable=False, default=1, server_default="1")
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    created_at = Column(DateTime, default=_now)
+
+    modifiers = relationship("Modifier", back_populates="group", cascade="all, delete-orphan",
+                             order_by="Modifier.sort_order, Modifier.id")
+
+
+class Modifier(Base):
+    """Guruhdagi variant: qo'shimcha narx va ixtiyoriy bog'langan mahsulot (ombordan quantity x taom soni yechiladi).
+    Buyurtma qatorida nom va narx surati saqlanadi: o'zgartirish eski cheklarga ta'sir qilmaydi."""
+    __tablename__ = "modifiers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    group_id = Column(Integer, ForeignKey("modifier_groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    price = Column(Numeric(16, 2), nullable=False, default=0, server_default="0")
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    quantity = Column(Numeric(12, 3), nullable=False, default=0, server_default="0")
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+
+    group = relationship("ModifierGroup", back_populates="modifiers")
+
+
+class ProductModifierGroup(Base):
+    """Qaysi taomga qaysi qo'shimchalar guruhi biriktirilgan."""
+    __tablename__ = "product_modifier_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    group_id = Column(Integer, ForeignKey("modifier_groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+
+    __table_args__ = (UniqueConstraint("product_id", "group_id", name="uq_product_modifier_group"),)

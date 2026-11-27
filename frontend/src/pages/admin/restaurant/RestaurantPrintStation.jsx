@@ -26,6 +26,7 @@ function ticketHtml(tk, t) {
   const where = tk.table_name ? `${t('restPrint.table')} ${esc(tk.table_name)}` : esc(t(`restOrd.type.${tk.order_type || 'dine_in'}`));
   const lines = (tk.lines || []).map(l => `
     <div class="ln"><b>${esc(qtyFmt(l.quantity))} x ${esc(l.name)}</b>${l.course > 1 ? ` <span class="c">${esc(l.course)}-${esc(t('restPrint.course'))}</span>` : ''}</div>
+    ${l.modifiers?.length ? `<div class="md">${l.modifiers.map(esc).join(', ')}</div>` : ''}
     ${l.comment ? `<div class="cm">${esc(l.comment)}</div>` : ''}`).join('');
   return `<section class="tk">
     <div class="st">${esc(tk.station_name || t('restPrint.noStation'))}</div>
@@ -48,6 +49,7 @@ function printTickets(frame, tickets, width, t) {
     .cancel { font-size: 22px; font-weight: 700; border: 2px solid #000; text-align: center; margin: 2px 0; }
     .hd { font-size: 20px; } .sub { font-size: 12px; }
     .ln { font-size: ${width >= 80 ? 18 : 15}px; margin-top: 3px; } .c { font-size: 12px; }
+    .md { font-size: 15px; font-weight: 700; padding-left: 8px; }
     .cm { font-size: 14px; font-style: italic; padding-left: 8px; }
     hr { border: 0; border-top: 1px dashed #000; }
   </style></head><body>${tickets.map(tk => ticketHtml(tk, t)).join('')}</body></html>`);

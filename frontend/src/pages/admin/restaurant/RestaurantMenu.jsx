@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Plus, Search, Pencil, Trash2, ClipboardList, X } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ClipboardList, X, ListPlus } from 'lucide-react';
 import api from '../../../api/axios';
 import { useLang } from '../../../context/LangContext';
 import useCompanyFeatures from '../../../hooks/useCompanyFeatures';
@@ -15,6 +15,7 @@ const TABS = [
   { key: 'semi', label: 'restMenu.tabSemi' },
   { key: 'ingredient', label: 'restMenu.tabIngredient' },
   { key: 'goods', label: 'restMenu.tabGoods' },
+  { key: 'modifiers', label: 'restMod.tab' },
   { key: 'stations', label: 'restMenu.tabStations' },
 ];
 const TAB_KEYS = TABS.map(x => x.key);
@@ -435,6 +436,225 @@ function StationsPanel({ stations, categories, reload, t }) {
   );
 }
 
+// ───────────────────────── Qo'shimchalar (R1.3) ─────────────────────────
+
+const emptyMod = () => ({ name: '', price: '', product_id: '', quantity: '', is_active: true });
+
+function GroupModal({ group, components, onClose, onSaved, t }) {
+  const [form, setForm] = useState(() => ({
+    name: group?.name || '',
+    min_select: String(group?.min_select ?? 0),
+    max_select: String(group?.max_select ?? 1),
+    is_active: group?.is_active ?? true,
+  }));
+  const [rows, setRows] = useState(() => (group?.modifiers?.length ? group.modifiers.map(m => ({
+    id: m.id, name: m.name, price: m.price ? String(m.price) : '', product_id: m.product_id ? String(m.product_id) : '',
+    quantity: m.quantity ? String(m.quantity) : '', is_active: m.is_active,
+  })) : [emptyMod()]));
+  const [saving, setSaving] = useState(false);
+  const setRow = (i, patch) => setRows(rs => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  const save = async () => {
+    const body = {
+      name: form.name.trim(), min_select: Number(form.min_select) || 0, max_select: Number(form.max_select) || 1,
+      is_active: form.is_active,
+      modifiers: rows.filter(r => r.name.trim()).map(r => ({
+        id: r.id || null, name: r.name.trim(), price: num(r.price) || 0,
+        product_id: r.product_id ? Number(r.product_id) : null,
+        quantity: r.product_id ? num(r.quantity) : null, is_active: r.is_active,
+      })),
+    };
+    setSaving(true);
+    try {
+      if (group) await api.put(`/restaurant/modifier-groups/${group.id}`, body);
+      else await api.post('/restaurant/modifier-groups', body);
+      toast.success(t('restMenu.saved'));
+      onSaved();
+    } catch (err) { toast.error(err.response?.data?.detail || t('restMenu.saveFailed')); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Modal title={group ? t('restMod.editGroup') : t('restMod.newGroup')} onClose={onClose} wide>
+      <div className="grid sm:grid-cols-4 gap-3">
+        <div className="sm:col-span-2">
+          <Field label={t('restMod.groupName')}>
+            <input className={inputCls} value={form.name} maxLength={100} placeholder={t('restMod.groupNamePh')}
+                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </Field>
+        </div>
+        <Field label={t('restMod.minSelect')}>
+          <input className={inputCls} type="number" min="0" max="20" value={form.min_select}
+                 onChange={e => setForm(f => ({ ...f, min_select: e.target.value }))} />
+        </Field>
+        <Field label={t('restMod.maxSelect')}>
+          <input className={inputCls} type="number" min="1" max="20" value={form.max_select}
+                 onChange={e => setForm(f => ({ ...f, max_select: e.target.value }))} />
+        </Field>
+      </div>
+      <p className="text-xs text-slate-500 mt-2">{t('restMod.minHint')}</p>
+      <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} />
+        {t('restMenu.active')}
+      </label>
+
+      <div className="mt-4 border border-slate-200 rounded-lg overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs text-slate-500">
+            <tr>
+              <th className="text-left px-3 py-2">{t('restMod.option')}</th>
+              <th className="text-right px-3 py-2 w-28">{t('restMod.extraPrice')}</th>
+              <th className="text-left px-3 py-2">{t('restMod.linkedProduct')}</th>
+              <th className="text-right px-3 py-2 w-24">{t('restMod.qty')}</th>
+              <th className="w-16" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const unit = components.find(c => String(c.id) === r.product_id)?.unit || '';
+              return (
+                <tr key={r.id || `n${i}`} className="border-t border-slate-100">
+                  <td className="px-2 py-1.5">
+                    <input className={inputCls} value={r.name} maxLength={100} onChange={e => setRow(i, { name: e.target.value })} />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input className={`${inputCls} text-right`} inputMode="decimal" value={r.price} placeholder="0"
+                           onChange={e => setRow(i, { price: e.target.value })} />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <select className={inputCls} value={r.product_id} onChange={e => setRow(i, { product_id: e.target.value })}>
+                      <option value="">{t('restMod.noLink')}</option>
+                      {components.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    {r.product_id && (
+                      <div className="flex items-center gap-1">
+                        <input className={`${inputCls} text-right`} inputMode="decimal" value={r.quantity}
+                               onChange={e => setRow(i, { quantity: e.target.value })} />
+                        <span className="text-[11px] text-slate-400">{unit}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <div className="flex items-center gap-1 justify-end">
+                      <input type="checkbox" title={t('restMenu.active')} checked={r.is_active}
+                             onChange={e => setRow(i, { is_active: e.target.checked })} />
+                      <button className="p-1 text-slate-400 hover:text-rose-600" title={t('restMenu.delete')}
+                              onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button className={`${btnGhost} mt-2`} onClick={() => setRows(rs => [...rs, emptyMod()])}>
+        <Plus className="w-4 h-4" />{t('restMod.addOption')}
+      </button>
+      <p className="text-xs text-slate-500 mt-2">{t('restMod.linkHint')}</p>
+
+      <div className="flex justify-end gap-2 mt-5">
+        <button className={btnGhost} onClick={onClose}>{t('restMenu.cancel')}</button>
+        <button className={btnPrimary} disabled={saving || !form.name.trim()} onClick={save}>{t('restMenu.save')}</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ModifiersPanel({ components, t }) {
+  const [groups, setGroups] = useState([]);
+  const [edit, setEdit] = useState(null);     // {group|null}
+  const load = useCallback(() => {
+    api.get('/restaurant/modifier-groups').then(r => setGroups(r.data))
+      .catch(err => toast.error(err.response?.data?.detail || t('restMenu.loadFailed')));
+  }, [t]);
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async g => {
+    if (!window.confirm(`${t('restMod.confirmDelete')}: ${g.name}?`)) return;
+    try {
+      await api.delete(`/restaurant/modifier-groups/${g.id}`);
+      toast.success(t('restMenu.deleted'));
+      load();
+    } catch (err) { toast.error(err.response?.data?.detail || t('restMenu.saveFailed')); }
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl">
+      <div className="p-3 flex flex-wrap gap-2 items-center border-b border-slate-100">
+        <p className="flex-1 min-w-[200px] text-xs text-slate-500">{t('restMod.hint')}</p>
+        <button className={btnPrimary} onClick={() => setEdit({ group: null })}><Plus className="w-4 h-4" />{t('restMod.newGroup')}</button>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {groups.length === 0 && <div className="px-4 py-8 text-center text-sm text-slate-400">{t('restMod.empty')}</div>}
+        {groups.map(g => (
+          <div key={g.id} className={`px-4 py-3 flex items-start gap-3 ${g.is_active ? '' : 'opacity-50'}`}>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-slate-800">
+                {g.name}
+                <span className="ml-2 text-xs font-normal text-slate-500">
+                  {g.required ? t('restMod.required') : t('restMod.optional')}, {t('restMod.upTo')} {g.max_select}
+                </span>
+              </div>
+              <div className="text-xs text-slate-600 mt-0.5">
+                {g.modifiers.filter(m => m.is_active).map(m => (m.price ? `${m.name} +${money(m.price)}` : m.name)).join(', ')}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5">{t('restMod.dishesCount')}: {g.product_ids.length}</div>
+            </div>
+            <button title={t('restMenu.editItem')} onClick={() => setEdit({ group: g })} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600"><Pencil className="w-4 h-4" /></button>
+            <button title={t('restMenu.delete')} onClick={() => remove(g)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+          </div>
+        ))}
+      </div>
+      {edit && <GroupModal group={edit.group} components={components} t={t}
+                           onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
+    </div>
+  );
+}
+
+function DishModsModal({ item, onClose, onSaved, t }) {
+  const [groups, setGroups] = useState(null);
+  const [picked, setPicked] = useState(item.modifier_group_ids || []);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    api.get('/restaurant/modifier-groups').then(r => setGroups(r.data)).catch(() => setGroups([]));
+  }, []);
+  const toggle = id => setPicked(p => (p.includes(id) ? p.filter(x => x !== id) : [...p, id]));
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/restaurant/menu/items/${item.id}/modifier-groups`, { group_ids: picked });
+      toast.success(t('restMenu.saved'));
+      onSaved();
+    } catch (err) { toast.error(err.response?.data?.detail || t('restMenu.saveFailed')); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Modal title={`${t('restMod.dishGroups')}: ${item.name}`} onClose={onClose}>
+      {groups === null && <div className="text-sm text-slate-400">{t('restMenu.loading')}</div>}
+      {groups && groups.length === 0 && <div className="text-sm text-slate-500">{t('restMod.emptyGoTab')}</div>}
+      <div className="space-y-2">
+        {(groups || []).map(g => (
+          <label key={g.id} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${picked.includes(g.id) ? 'border-blue-600 bg-blue-50' : 'border-slate-200'} ${g.is_active ? '' : 'opacity-50'}`}>
+            <input type="checkbox" className="mt-1" checked={picked.includes(g.id)} onChange={() => toggle(g.id)} />
+            <span className="text-sm">
+              <span className="font-semibold text-slate-800">{g.name}</span>
+              <span className="ml-1 text-xs text-slate-500">({g.required ? t('restMod.required') : t('restMod.optional')})</span>
+              <span className="block text-xs text-slate-500">{g.modifiers.filter(m => m.is_active).map(m => m.name).join(', ')}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2 mt-5">
+        <button className={btnGhost} onClick={onClose}>{t('restMenu.cancel')}</button>
+        <button className={btnPrimary} disabled={saving || groups === null} onClick={save}>{t('restMenu.save')}</button>
+      </div>
+    </Modal>
+  );
+}
+
 // ───────────────────────── Sahifa ─────────────────────────
 
 export default function RestaurantMenu() {
@@ -459,6 +679,7 @@ export default function RestaurantMenu() {
   const [loading, setLoading] = useState(false);
   const [edit, setEdit] = useState(null);      // {item|null}
   const [cardItem, setCardItem] = useState(null);
+  const [modsItem, setModsItem] = useState(null);
 
   const loadRefs = useCallback(() => {
     api.get('/restaurant/menu/categories').then(r => setCategories(r.data)).catch(() => {});
@@ -466,7 +687,7 @@ export default function RestaurantMenu() {
   }, []);
 
   const loadItems = useCallback(() => {
-    if (tab === 'stations') return;
+    if (tab === 'stations' || tab === 'modifiers') return;
     setLoading(true);
     api.get('/restaurant/menu/items', { params: { kind: tab, include_inactive: true } })
       .then(r => setItems(r.data))
@@ -522,9 +743,10 @@ export default function RestaurantMenu() {
         ))}
       </div>
 
+      {tab === 'modifiers' && <ModifiersPanel components={components} t={t} />}
       {tab === 'stations' ? (
         <StationsPanel stations={stations} categories={categories} reload={loadRefs} t={t} />
-      ) : (
+      ) : tab === 'modifiers' ? null : (
         <div className="bg-white border border-slate-200 rounded-xl">
           <div className="p-3 flex flex-wrap gap-2 items-center border-b border-slate-100">
             <div className="relative flex-1 min-w-[200px]">
@@ -558,6 +780,9 @@ export default function RestaurantMenu() {
                       <div className="text-[11px] text-slate-400">
                         {it.unit}
                         {HAS_CARD.includes(it.kind) && !it.has_card && <span className="ml-2 text-amber-600">{t('restMenu.noCard')}</span>}
+                        {it.kind === 'dish' && it.modifier_group_ids?.length > 0 && (
+                          <span className="ml-2">{t('restMod.tab')}: {it.modifier_group_ids.length}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-slate-600">{it.category_name || ''}</td>
@@ -579,6 +804,9 @@ export default function RestaurantMenu() {
                         {HAS_CARD.includes(it.kind) && (
                           <button title={t('restMenu.card')} onClick={() => setCardItem(it)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600"><ClipboardList className="w-4 h-4" /></button>
                         )}
+                        {it.kind === 'dish' && (
+                          <button title={t('restMod.dishGroups')} onClick={() => setModsItem(it)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600"><ListPlus className="w-4 h-4" /></button>
+                        )}
                         <button title={t('restMenu.editItem')} onClick={() => setEdit({ item: it })} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600"><Pencil className="w-4 h-4" /></button>
                         <button title={t('restMenu.delete')} onClick={() => remove(it)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -594,6 +822,10 @@ export default function RestaurantMenu() {
       {edit && (
         <ItemModal kind={edit.item?.kind || tab} item={edit.item} categories={categories} stations={stations}
                    onClose={() => setEdit(null)} onSaved={afterSave} t={t} />
+      )}
+      {modsItem && (
+        <DishModsModal item={modsItem} onClose={() => setModsItem(null)} t={t}
+                       onSaved={() => { setModsItem(null); loadItems(); }} />
       )}
       {cardItem && (
         <CardModal item={cardItem} components={components} alertPct={alertPct}

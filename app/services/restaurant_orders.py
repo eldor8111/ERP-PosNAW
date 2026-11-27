@@ -276,6 +276,7 @@ def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, r
     if not rows or len(rows) > 100:
         raise HTTPException(status_code=400, detail="1 dan 100 tagacha qator yuboring")
     from app.services.restaurant_menu import active_card
+    from app.services.restaurant_modifiers import resolve as resolve_modifiers
     added = []
     for i, r in enumerate(rows, start=1):
         p = db.query(Product).filter(Product.id == r.get("product_id"), Product.company_id == user.company_id,
@@ -297,8 +298,10 @@ def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, r
         if guest_no is not None and not 1 <= int(guest_no) <= 100:
             raise HTTPException(status_code=400, detail=f"{i}-qator: mehmon raqami noto'g'ri")
         card = active_card(db, user.company_id, p.id) if p.item_kind == "dish" else None
+        mods, mods_total = resolve_modifiers(db, user.company_id, p, r.get("modifiers"), f"{i}-qator: ")
         it = RestaurantOrderItem(company_id=user.company_id, product_id=p.id, bom_id=card.id if card else None,
-                                 name=p.name, quantity=qty, unit_price=_money(p.sale_price), modifiers_total=ZERO,
+                                 name=p.name, quantity=qty, unit_price=_money(p.sale_price),
+                                 modifiers=mods, modifiers_total=mods_total,
                                  course=course, guest_no=int(guest_no) if guest_no is not None else None,
                                  station_id=_station_of(db, p) if p.item_kind == "dish" else None,
                                  status="draft", comment=(r.get("comment") or "").strip()[:300] or None,
@@ -313,7 +316,8 @@ def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, r
 
 def _ticket_lines(items) -> list:
     return [{"item_id": it.id, "name": it.name, "quantity": float(it.quantity), "comment": it.comment,
-             "course": it.course, "guest_no": it.guest_no} for it in items]
+             "course": it.course, "guest_no": it.guest_no,
+             "modifiers": [m.get("name") for m in (it.modifiers or [])]} for it in items]
 
 
 def _make_tickets(db: Session, user: User, order: RestaurantOrder, items: list, kind: str) -> list:
@@ -363,6 +367,10 @@ def update_draft_item(db: Session, order: RestaurantOrder, settings: dict, item:
         if not 1 <= int(data["course"]) <= 5:
             raise HTTPException(status_code=400, detail="Kurs 1 dan 5 gacha")
         item.course = int(data["course"])
+    if data.get("modifiers") is not None:
+        from app.services.restaurant_modifiers import resolve as resolve_modifiers
+        p = db.get(Product, item.product_id)
+        item.modifiers, item.modifiers_total = resolve_modifiers(db, order.company_id, p, data["modifiers"])
     if "guest_no" in data:
         g = data.get("guest_no")
         item.guest_no = int(g) if g is not None else None
@@ -401,7 +409,7 @@ def cancel_item(db: Session, user: User, order: RestaurantOrder, settings: dict,
     log_action(db=db, action="REST_ITEM_CANCEL", entity_type="restaurant_order", entity_id=order.id, user_id=user.id,
                old_values={"item_id": item.id, "status": was},
                new_values={"reason": item.cancel_reason, "write_off": item.write_off,
-                           "approved_by": item.cancel_approved_by, "amount": float(item.quantity * item.unit_price)})
+                           "approved_by": item.cancel_approved_by, "amount": float(item.quantity * (item.unit_price + (item.modifiers_total or 0)))})
 
 
 def set_item_status(db: Session, user: User, order: RestaurantOrder, settings: dict, item: RestaurantOrderItem,

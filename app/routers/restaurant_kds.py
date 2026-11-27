@@ -112,6 +112,7 @@ def kds_board(
                 continue
             rows.append({
                 "id": it.id, "name": it.name, "quantity": float(it.quantity), "comment": it.comment,
+                "modifiers": [m.get("name") for m in (it.modifiers or [])],
                 "course": it.course, "guest_no": it.guest_no, "status": it.status, "station_id": it.station_id,
                 "norm_min": norms.get(it.bom_id), "sent_at": _iso(it.sent_at), "cooking_at": _iso(it.cooking_at),
                 "ready_at": _iso(it.ready_at), "cancel_reason": it.cancel_reason if it.status == "cancelled" else None,

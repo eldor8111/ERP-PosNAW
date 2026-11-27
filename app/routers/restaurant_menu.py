@@ -19,6 +19,7 @@ from app.models.category import Category
 from app.models.product import Product, ProductStatus
 from app.models.restaurant import KitchenStation
 from app.models.user import User, UserRole
+from app.services import restaurant_modifiers as mod_svc
 from app.services.restaurant_menu import (
     CARD_KINDS, ITEM_KINDS, CostCalc, active_card, apply_item_fields, card_out, check_station, create_item,
     food_cost_pct, get_item, money, save_card, used_in_cards,
@@ -71,6 +72,29 @@ class CategoryStationIn(BaseModel):
     station_id: Optional[int] = None
 
 
+class ModifierIn(BaseModel):
+    id: Optional[int] = None
+    name: str
+    price: float = 0
+    product_id: Optional[int] = None
+    quantity: Optional[float] = None
+    sort_order: Optional[int] = None
+    is_active: bool = True
+
+
+class ModifierGroupIn(BaseModel):
+    name: Optional[str] = None
+    min_select: Optional[int] = None
+    max_select: Optional[int] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+    modifiers: Optional[List[ModifierIn]] = None
+
+
+class ProductGroupsIn(BaseModel):
+    group_ids: List[int]
+
+
 def _guard_edit(user: User, kind: str):
     """Ingredient va tovarni omborchi ham kirita oladi; taom, yarim tayyor va modifikatorni faqat rahbarlar."""
     if user.role in EDIT_ROLES:
@@ -80,7 +104,7 @@ def _guard_edit(user: User, kind: str):
     raise HTTPException(status_code=403, detail="Bu amal uchun ruxsat yo'q")
 
 
-def _item_out(p: Product, calc: CostCalc, has_card: bool, cat_station: dict) -> dict:
+def _item_out(p: Product, calc: CostCalc, has_card: bool, cat_station: dict, mod_groups: Optional[dict] = None) -> dict:
     unit_cost = calc.unit_cost(p)
     eff_station = p.station_id or cat_station.get(p.category_id)
     return {
@@ -91,6 +115,7 @@ def _item_out(p: Product, calc: CostCalc, has_card: bool, cat_station: dict) -> 
         "unit_cost": money(unit_cost),
         "food_cost_pct": food_cost_pct(unit_cost, p.sale_price) if p.item_kind == "dish" and has_card else None,
         "has_card": has_card, "is_active": p.status == ProductStatus.active,
+        "modifier_group_ids": (mod_groups or {}).get(p.id, []),
     }
 
 
@@ -134,7 +159,8 @@ def list_items(
             BOM.company_id == cid, BOM.is_active == True, BOM.product_id.in_(card_ids))}  # noqa: E712
     calc = CostCalc(db, cid)
     cats = _cat_stations(db, cid)
-    return [_item_out(p, calc, p.id in with_card, cats) for p in items]
+    mods = mod_svc.groups_by_product(db, cid, [p.id for p in items if p.item_kind == "dish"])
+    return [_item_out(p, calc, p.id in with_card, cats, mods) for p in items]
 
 
 @router.post("/menu/items", status_code=201)
@@ -293,3 +319,65 @@ def update_station(station_id: int, payload: StationIn, db: Session = Depends(ge
     db.commit()
     db.refresh(s)
     return _station_out(s)
+
+
+# ───────────────────────── Qo'shimchalar (R1.3) ─────────────────────────
+
+@router.get("/modifier-groups")
+def list_modifier_groups(include_inactive: bool = True, db: Session = Depends(get_db),
+                         user: User = Depends(require_roles(*READ_ROLES))):
+    return mod_svc.list_groups(db, user.company_id, include_inactive)
+
+
+def _group_resp(db: Session, company_id: int, gid: int) -> dict:
+    return next(g for g in mod_svc.list_groups(db, company_id) if g["id"] == gid)
+
+
+@router.post("/modifier-groups", status_code=201)
+def create_modifier_group(payload: ModifierGroupIn, db: Session = Depends(get_db),
+                          user: User = Depends(require_roles(*EDIT_ROLES))):
+    data = payload.model_dump(exclude_unset=True)
+    if "modifiers" in data:
+        data["modifiers"] = [m.model_dump() for m in payload.modifiers or []]
+    g = mod_svc.save_group(db, user.company_id, None, data)
+    log_action(db=db, action="MODIFIER_GROUP_CREATE", entity_type="modifier_group", entity_id=g.id, user_id=user.id,
+               new_values={"name": g.name})
+    db.commit()
+    return _group_resp(db, user.company_id, g.id)
+
+
+@router.put("/modifier-groups/{group_id}")
+def update_modifier_group(group_id: int, payload: ModifierGroupIn, db: Session = Depends(get_db),
+                          user: User = Depends(require_roles(*EDIT_ROLES))):
+    g = mod_svc.get_group(db, user.company_id, group_id)
+    data = payload.model_dump(exclude_unset=True)
+    if "modifiers" in data:
+        data["modifiers"] = [m.model_dump() for m in payload.modifiers or []]
+    mod_svc.save_group(db, user.company_id, g, data)
+    log_action(db=db, action="MODIFIER_GROUP_UPDATE", entity_type="modifier_group", entity_id=g.id, user_id=user.id,
+               new_values={"name": g.name, "modifiers": len(g.modifiers)})
+    db.commit()
+    return _group_resp(db, user.company_id, g.id)
+
+
+@router.delete("/modifier-groups/{group_id}")
+def delete_modifier_group(group_id: int, db: Session = Depends(get_db),
+                          user: User = Depends(require_roles(*EDIT_ROLES))):
+    """O'chirish taomlardan ham ajratadi; eski cheklarda tanlov surati saqlanib qoladi."""
+    from app.models.restaurant import ProductModifierGroup
+    g = mod_svc.get_group(db, user.company_id, group_id)
+    db.query(ProductModifierGroup).filter(ProductModifierGroup.group_id == g.id).delete(synchronize_session=False)
+    log_action(db=db, action="MODIFIER_GROUP_DELETE", entity_type="modifier_group", entity_id=g.id, user_id=user.id,
+               old_values={"name": g.name})
+    db.delete(g)
+    db.commit()
+    return {"ok": True}
+
+
+@router.put("/menu/items/{item_id}/modifier-groups")
+def set_item_modifier_groups(item_id: int, payload: ProductGroupsIn, db: Session = Depends(get_db),
+                             user: User = Depends(require_roles(*EDIT_ROLES))):
+    p = get_item(db, user.company_id, item_id)
+    ids = mod_svc.set_product_groups(db, user.company_id, p, payload.group_ids)
+    db.commit()
+    return {"product_id": p.id, "modifier_group_ids": ids}

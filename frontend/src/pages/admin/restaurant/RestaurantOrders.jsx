@@ -193,7 +193,10 @@ function PrecheckView({ order, onClose, t }) {
         <div className="text-center text-slate-500">{order.waiter_name} · {new Date().toLocaleString()}</div>
         <div className="border-t border-dashed border-slate-300 my-1" />
         {live.map(i => (
-          <div key={i.id} className="flex justify-between gap-2"><span>{i.name} x{qtyFmt(i.quantity)}</span><span>{money(i.amount)}</span></div>
+          <div key={i.id}>
+            <div className="flex justify-between gap-2"><span>{i.name} x{qtyFmt(i.quantity)}</span><span>{money(i.amount)}</span></div>
+            {i.modifiers?.length > 0 && <div className="pl-2 text-slate-500">{i.modifiers.map(m => (m.price ? `${m.name} +${money(m.price)}` : m.name)).join(', ')}</div>}
+          </div>
         ))}
         <div className="border-t border-dashed border-slate-300 my-1" />
         <div className="flex justify-between"><span>{t('restOrd.subtotal')}</span><span>{money(order.subtotal)}</span></div>
@@ -204,6 +207,54 @@ function PrecheckView({ order, onClose, t }) {
       <div className="flex justify-end gap-2">
         <button className={btnGhost} onClick={onClose}>{t('restOrd.close')}</button>
         <button className={btnPrimary} onClick={() => window.print()}><Printer className="w-4 h-4" />{t('restOrd.print')}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// R1.3: taom qo'shimchalarini tanlash. max_select = 1 bo'lsa radio kabi ishlaydi; majburiy guruh to'lmaguncha
+// "Qo'shish" yopiq. Backend (resolve) shu qoidalarni qayta tekshiradi.
+function ModifierPicker({ dish, groups, initial, onClose, onConfirm, t }) {
+  const [picked, setPicked] = useState(initial || []);
+  const toggle = (g, m) => setPicked(p => {
+    if (p.includes(m.id)) return p.filter(x => x !== m.id);
+    const inGroup = g.modifiers.map(x => x.id);
+    if (g.max_select === 1) return [...p.filter(x => !inGroup.includes(x)), m.id];
+    if (p.filter(x => inGroup.includes(x)).length >= g.max_select) return p;
+    return [...p, m.id];
+  });
+  const missing = groups.filter(g => g.modifiers.filter(m => picked.includes(m.id)).length < g.min_select);
+  const extra = groups.flatMap(g => g.modifiers).filter(m => picked.includes(m.id)).reduce((s, m) => s + (m.price || 0), 0);
+  return (
+    <Modal title={dish.name} onClose={onClose}>
+      <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+        {groups.map(g => (
+          <div key={g.id}>
+            <div className="text-sm font-semibold text-slate-800">
+              {g.name}
+              <span className={`ml-2 text-xs font-normal ${g.min_select > 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                {g.min_select > 0 ? t('restMod.required') : t('restMod.optional')}{g.max_select > 1 ? `, ${t('restMod.upTo')} ${g.max_select}` : ''}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {g.modifiers.filter(m => m.is_active).map(m => (
+                <button key={m.id} type="button" onClick={() => toggle(g, m)}
+                        className={`px-3 py-2 rounded-lg border text-sm ${picked.includes(m.id) ? 'border-blue-600 bg-blue-50 text-blue-800 font-semibold' : 'border-slate-200 text-slate-700'}`}>
+                  {m.name}{m.price ? <span className="ml-1 text-xs text-slate-500">+{money(m.price)}</span> : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+        <span className="text-sm tabular-nums text-slate-700">{money((dish.sale_price || 0) + extra)}</span>
+        <div className="flex gap-2">
+          <button className={btnGhost} onClick={onClose}>{t('restOrd.back')}</button>
+          <button className={btnPrimary} disabled={missing.length > 0} onClick={() => onConfirm(picked)}>
+            {initial ? t('restMod.apply') : t('restMod.addToCheck')}
+          </button>
+        </div>
       </div>
     </Modal>
   );
@@ -226,7 +277,13 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   const [showPrecheck, setShowPrecheck] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [perms, setPerms] = useState(null);
+  const [modGroups, setModGroups] = useState([]);
+  const [picker, setPicker] = useState(null);   // {dish, item?}
   useEffect(() => { api.get('/restaurant/me/perms', { _silent: true }).then(r => setPerms(r.data)).catch(() => setPerms({})); }, []);
+  useEffect(() => {
+    api.get('/restaurant/modifier-groups', { params: { include_inactive: false }, _silent: true })
+      .then(r => setModGroups(r.data)).catch(() => setModGroups([]));
+  }, []);
 
   const load = useCallback(() => api.get(`/restaurant/orders/${orderId}`).then(r => setOrder(r.data))
     .catch(err => toast.error(err.response?.data?.detail || t('restOrd.failed'))), [orderId, t]);
@@ -267,7 +324,16 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
   const drafts = order.items.filter(i => i.status === 'draft');
   const draftCourses = [...new Set(drafts.map(i => i.course))].sort();
 
-  const addDish = m => call('post', '/items', { items: [{ product_id: m.id, quantity: 1 }] });
+  const groupsOf = m => (m?.modifier_group_ids || []).map(id => modGroups.find(g => g.id === id)).filter(Boolean);
+  const addDish = m => (groupsOf(m).length
+    ? setPicker({ dish: m })
+    : call('post', '/items', { items: [{ product_id: m.id, quantity: 1 }] }));
+  const confirmPicker = ids => {
+    const { dish, item } = picker;
+    setPicker(null);
+    if (item) return call('patch', `/items/${item.id}`, { modifiers: ids });
+    return call('post', '/items', { items: [{ product_id: dish.id, quantity: 1, modifiers: ids }] });
+  };
   const setQty = (i, d) => {
     const nq = Number(i.quantity) + d;
     if (nq <= 0) return call('post', `/items/${i.id}/cancel`, {});
@@ -324,6 +390,16 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
               <div key={i.id} className={`px-4 py-2 flex items-center gap-2 ${i.status === 'cancelled' ? 'opacity-50' : ''}`}>
                 <div className="flex-1 min-w-0">
                   <div className={`text-sm font-medium text-slate-800 ${i.status === 'cancelled' ? 'line-through' : ''}`}>{i.name}</div>
+                  {i.modifiers?.length > 0 && (
+                    i.status === 'draft' && editable && groupsOf(menu.find(m => m.id === i.product_id)).length ? (
+                      <button className="block text-left text-xs text-blue-700 hover:underline"
+                              onClick={() => setPicker({ dish: menu.find(m => m.id === i.product_id), item: i })}>
+                        {i.modifiers.map(m => m.name).join(', ')}
+                      </button>
+                    ) : (
+                      <div className="text-xs text-slate-500">{i.modifiers.map(m => m.name).join(', ')}</div>
+                    )
+                  )}
                   <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${ITEM_BADGE[i.status]}`}>{t(`restOrd.item.${i.status}`)}</span>
                     {i.course > 1 && <span className="text-[10px] text-slate-500">{i.course}-{t('restOrd.course')}</span>}
@@ -469,6 +545,11 @@ function OrderPanel({ orderId, menu, categories, tables, onClose, onChanged, t }
                        onConfirm={a => { const run = approval.run; setApproval(null); run(a); }} />
       )}
       {showPrecheck && <PrecheckView order={order} t={t} onClose={() => setShowPrecheck(false)} />}
+      {picker?.dish && (
+        <ModifierPicker dish={picker.dish} groups={groupsOf(picker.dish)} t={t}
+                        initial={picker.item ? picker.item.modifiers.map(m => m.id) : null}
+                        onClose={() => setPicker(null)} onConfirm={confirmPicker} />
+      )}
       {payOpen && (
         <PayModal order={order} busy={busy} t={t} onClose={() => setPayOpen(false)}
                   onPay={async body => {
