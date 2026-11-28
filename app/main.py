@@ -903,6 +903,8 @@ from app.routers import restaurant_production as _restaurant_production_router  
 app.include_router(_restaurant_production_router.router, prefix=API_PREFIX)  # R7.2: yarim tayyor mahsulot tayyorlash
 from app.routers import restaurant_reservations as _restaurant_reservations_router  # noqa: E402  # R8.1
 app.include_router(_restaurant_reservations_router.router, prefix=API_PREFIX)  # R8.1: stol bron qilish
+from app.routers import restaurant_offline as _restaurant_offline_router  # noqa: E402  # R5.0
+app.include_router(_restaurant_offline_router.router, prefix=API_PREFIX)  # R5.0: E-Code POS Restoran oflayn sinxronlash
 
 # Serve uploaded static files
 import os

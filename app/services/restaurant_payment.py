@@ -244,7 +244,8 @@ def _payments(raw: list, total: Decimal) -> tuple:
 
 
 def pay_order(db: Session, user: User, order: RestaurantOrder, settings: dict, payments: list, tips,
-              ip: Optional[str] = None):
+              ip: Optional[str] = None, created_at: Optional[datetime] = None):
+    """created_at — R5.0 oflayn to'lov vaqti (sotuv shu vaqt bilan yoziladi, smena qoidasi create_sale da)."""
     """Chekni to'laydi: Sale yaratadi, ingredientlarni yechadi, chekni yopadi. Qaytaradi: (sale, change)."""
     from app.models.sale import SaleItem
     from app.schemas.sale import SaleCreate
@@ -317,11 +318,12 @@ def pay_order(db: Session, user: User, order: RestaurantOrder, settings: dict, p
         warehouse_id=wh.id,
         status="completed",
         note=f"Restoran #{order.daily_no}" + (f", stol {table.name}" if table else ""),
+        created_at=created_at,
     )
 
     now = _now()
     order.status = "paid"
-    order.closed_at = now
+    order.closed_at = created_at or now
     order.paid_by = user.id
     order.tips_amount = tips
     order.change_amount = change

@@ -6,7 +6,7 @@ To'langan chek R5 da mavjud `Sale` sifatida yoziladi (`sale_id`), shunda kassa, 
 from datetime import datetime, timezone
 
 from sqlalchemy import (JSON, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, Numeric,
-                        String, Text)
+                        String, Text, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -64,6 +64,9 @@ class RestaurantOrder(Base):
     # [{sale_id, number, amount, payment_type, reason, at, by, approved_by, lines:[{item_id, quantity}]}]
     refunded_amount = Column(Numeric(16, 2), nullable=False, default=0, server_default="0")
     refunds = Column(JSON, nullable=True)
+    # R5.0: E-Code POS Restoran oflayn ochgan chek — qurilmadagi identifikator va oflayn raqam (chekda ko'ringan)
+    client_uuid = Column(String(40), nullable=True)
+    offline_no = Column(String(20), nullable=True)
 
     items = relationship("RestaurantOrderItem", back_populates="order", cascade="all, delete-orphan",
                          order_by="RestaurantOrderItem.id")
@@ -72,6 +75,7 @@ class RestaurantOrder(Base):
         CheckConstraint("order_type IN ('dine_in','takeaway','delivery')", name="ck_rest_orders_type"),
         CheckConstraint("status IN ('open','prechecked','paid','cancelled')", name="ck_rest_orders_status"),
         Index("ix_rest_orders_branch_status", "company_id", "branch_id", "status"),
+        Index("uq_rest_orders_client_uuid", "company_id", "client_uuid", unique=True),
     )
 
 
@@ -137,3 +141,20 @@ class KitchenTicket(Base):
     created_at = Column(DateTime, default=_now)
     printed_at = Column(DateTime, nullable=True)
     print_attempts = Column(Integer, nullable=False, default=0, server_default="0")
+
+
+class RestaurantOfflineOp(Base):
+    """R5.0: oflayn sinxronlash amali (idempotentlik). Bir `op_id` bir marta qo'llanadi; takror yuborilsa saqlangan
+    natija qaytariladi."""
+    __tablename__ = "restaurant_offline_ops"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    op_id = Column(String(64), nullable=False)
+    order_id = Column(Integer, ForeignKey("restaurant_orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    device = Column(String(100), nullable=True)
+    result = Column(JSON, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=_now)
+
+    __table_args__ = (UniqueConstraint("company_id", "op_id", name="uq_rest_offline_op"),)

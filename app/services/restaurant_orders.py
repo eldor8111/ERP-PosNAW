@@ -271,7 +271,9 @@ def open_order(db: Session, user: User, settings: dict, *, branch_id: int, order
     return o
 
 
-def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, rows: list) -> list:
+def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, rows: list, *,
+              enforce_stops: bool = True) -> list:
+    """enforce_stops=False — R5.0 oflayn sinxronlash: taom allaqachon sotilgan, stop-list rad etmaydi."""
     ensure_editable(order, settings)
     if not rows or len(rows) > 100:
         raise HTTPException(status_code=400, detail="1 dan 100 tagacha qator yuboring")
@@ -281,7 +283,7 @@ def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, r
     for i, r in enumerate(rows, start=1):
         p = db.query(Product).filter(Product.id == r.get("product_id"), Product.company_id == user.company_id,
                                      Product.is_deleted == False).first()  # noqa: E712
-        if p is None or p.status != ProductStatus.active:
+        if p is None or (enforce_stops and p.status != ProductStatus.active):   # oflayn sotilgan: nofaol ham
             raise HTTPException(status_code=400, detail=f"{i}-qator: taom topilmadi yoki nofaol")
         if p.item_kind not in SELLABLE_KINDS:
             raise HTTPException(status_code=400, detail=f"{i}-qator: '{p.name}' sotilmaydi")
@@ -313,7 +315,8 @@ def add_items(db: Session, user: User, order: RestaurantOrder, settings: dict, r
         cur = need.get(p.id)
         need[p.id] = (cur[0] if cur else i, p, (cur[2] if cur else ZERO) + it.quantity)
     for i, p, total in need.values():
-        consume(db, order, p, total, settings, f"{i}-qator: ")
+        if enforce_stops:
+            consume(db, order, p, total, settings, f"{i}-qator: ")
     for _, _, it in added:
         order.items.append(it)
     db.flush()
