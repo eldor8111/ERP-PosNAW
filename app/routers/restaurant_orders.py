@@ -482,6 +482,9 @@ def _fiscal_payload(db: Session, o: RestaurantOrder) -> dict:
     from decimal import ROUND_HALF_UP, Decimal
     from app.models.product import Product
     from app.services.restaurant_payment import service_product
+    from app.models.company import Company
+    from app.services.hippo_fiscalize import _vat_percent      # R5.0: desktop fiskal moduli uchun QQS foizi
+    default_vat = db.query(Company.fiscal_default_vat).filter(Company.id == o.company_id).scalar()
     live = [it for it in o.items if it.status != "cancelled"]
     gross = [Decimal(str(it.quantity)) * (Decimal(str(it.unit_price)) + Decimal(str(it.modifiers_total or 0))) for it in live]
     total_gross = sum(gross, Decimal("0"))
@@ -494,6 +497,7 @@ def _fiscal_payload(db: Session, o: RestaurantOrder) -> dict:
         cart.append({"name": it.name, "barcode": p.barcode if p else "", "mxik_code": getattr(p, "mxik_code", None) or "",
                      "package_code": getattr(p, "package_code", None),
                      "vat_rate_type": getattr(getattr(p, "vat_rate_type", None), "value", None),
+                     "vat_percent": _vat_percent(p, default_vat) if p else None,
                      "unit_price": float(Decimal(str(it.unit_price)) + Decimal(str(it.modifiers_total or 0))),
                      "quantity": float(it.quantity), "discount": float(d)})
     if o.service_amount and Decimal(str(o.service_amount)) > 0:
@@ -501,6 +505,7 @@ def _fiscal_payload(db: Session, o: RestaurantOrder) -> dict:
         cart.append({"name": sp.name, "barcode": sp.barcode, "mxik_code": sp.mxik_code or "",
                      "package_code": sp.package_code,
                      "vat_rate_type": getattr(sp.vat_rate_type, "value", None),
+                     "vat_percent": _vat_percent(sp, default_vat),
                      "unit_price": float(o.service_amount), "quantity": 1.0, "discount": 0.0})
     # R8.1: depozit qatori fiskal modulga mijoz to'lagan usulda (reference: cash / card / ...) beriladi
     pays = [({**p, "type": p.get("reference") or "cash"} if p.get("type") == "deposit" else p) for p in (o.payments or [])]
