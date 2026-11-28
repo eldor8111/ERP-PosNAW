@@ -219,6 +219,20 @@ def _build_uc_payload(sale: Sale) -> dict:
 
 # ── Natijani Sale ga yozish ───────────────────────────────────────────────────
 
+def _build_receipt_payload(sale: Sale, factory_id: str = "") -> dict:
+    """Moslik qatlami (eski testlar uchun)."""
+    uc = _build_uc_payload(sale)
+    default_vat = sale.company.fiscal_default_vat if sale.company else None
+    items = []
+    for item in (sale.items or []):
+        p = item.product
+        items.append({
+            "name": p.name if p else "",
+            "vat_percent": _vat_percent(p, default_vat) if p else 12,
+        })
+    return {"receipt": {"items": items}, **uc}
+
+
 def _first(result: dict, *keys):
     """UC javobidan birinchi mavjud (bo'sh bo'lmagan) kalit qiymati."""
     for k in keys:

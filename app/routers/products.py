@@ -1352,16 +1352,14 @@ _MXIK_UNIT_NAME_MAP = {
 
 @router.post("/mxik-sync-bulk", status_code=status.HTTP_200_OK)
 async def mxik_sync_bulk(
+        offset: int = Query(0, ge=0),
+        limit: Optional[int] = Query(None, ge=1, le=500),
         db: Session = Depends(get_db),
         current_user: User = Depends(require_roles(*WRITE_ROLES)),
 ):
     """
     Kompaniyaning barcha (o'chirilmagan) mahsulotlarini MXIK va o'lchov kodi (package_code)
-    bilan sinxronizatsiya qiladi.
-    1. Avval mavjud mxik_code bo'lsa, to'g'ridan-to'g'ri o'lchov kodini (package_code) oladi.
-    2. Agar mxik_code bo'lmasa, shtrix kod bo'yicha tezkor lokal tovarlar_catalog jadvalidan qidiradi.
-    3. Lokal katalogda topilmasa, tasnif.soliq.uz ochiq qidiruv API'sidan qidiradi.
-    4. Topilgan mxik_code asosida to'liq o'lchov kodi (package_code), unit_id va QQS bilan boyitadi.
+    bilan sinxronizatsiya qiladi. Offset va limit orqali bo'laklab (batch) chaqirish mumkin.
     """
     from datetime import datetime, timezone
     import logging
@@ -1375,13 +1373,29 @@ async def mxik_sync_bulk(
 
     terminal_id = settings.DEFAULT_TERMINAL_ID
 
-    # Barcha o'chirilmagan mahsulotlar (shtrixkodi bor yoki yo'qligidan qat'i nazar)
-    products = db.query(Product).filter(
+    base_query = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.is_deleted == False,
-    ).all()
+    )
+    total_count = base_query.count()
 
-    summary = {"total": len(products), "active": 0, "disabled": 0, "error": 0}
+    if limit is not None:
+        products = base_query.order_by(Product.id.asc()).offset(offset).limit(limit).all()
+        has_more = (offset + len(products)) < total_count
+    else:
+        products = base_query.order_by(Product.id.asc()).all()
+        has_more = False
+
+    summary = {
+        "total": total_count,
+        "processed": len(products),
+        "offset": offset,
+        "limit": limit,
+        "has_more": has_more,
+        "active": 0,
+        "disabled": 0,
+        "error": 0,
+    }
     now = datetime.now(timezone.utc)
 
     for product in products:

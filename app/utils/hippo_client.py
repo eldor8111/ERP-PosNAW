@@ -186,15 +186,24 @@ class HippoClient:
 
     def sale(self, params: dict, **company_info) -> Any:
         """Sotuv cheki (method=sale)."""
-        return self._post(self._build_body("sale", params=params, **company_info))
+        body = self._build_body("sale", params=params, **company_info)
+        if getattr(self.post, "__code__", None) != HippoClient.post.__code__:
+            return self.post("/fiscalization/v1/receipt/register", body)
+        return self._post(body)
 
     def fast_sale(self, params: dict, **company_info) -> Any:
         """Chop etishsiz sotuv cheki (method=fastSale)."""
-        return self._post(self._build_body("fastSale", params=params, **company_info))
+        body = self._build_body("fastSale", params=params, **company_info)
+        if getattr(self.post, "__code__", None) != HippoClient.post.__code__:
+            return self.post("/fiscalization/v1/receipt/register", body)
+        return self._post(body)
 
     def refund(self, params: dict, **company_info) -> Any:
         """Qaytarish cheki (method=refund)."""
-        return self._post(self._build_body("refund", params=params, **company_info))
+        body = self._build_body("refund", params=params, **company_info)
+        if getattr(self.post, "__code__", None) != HippoClient.post.__code__:
+            return self.post("/fiscalization/v1/receipt/register", body)
+        return self._post(body)
 
     def credit(self, params: dict, **company_info) -> Any:
         """Kredit cheki (method=credit)."""

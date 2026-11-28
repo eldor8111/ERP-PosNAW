@@ -346,6 +346,7 @@ export default function Products() {
 
   /* MXIK bulk sync + tarozi export modal */
   const [mxikSyncing, setMxikSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0, percent: 0, active: 0, disabled: 0 });
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
   const [scaleBranch, setScaleBranch] = useState(''); // T3.12: tarozi fayli filiali ('' = barcha filiallar)
 
@@ -1598,15 +1599,54 @@ export default function Products() {
 
   const syncMxikCodes = async () => {
     setMxikSyncing(true);
+    setSyncProgress({ current: 0, total: 0, percent: 0, active: 0, disabled: 0 });
+    let offset = 0;
+    const BATCH_SIZE = 50;
+    let hasMore = true;
+    let totalProcessed = 0;
+    let totalCount = 0;
+    let accActive = 0;
+    let accDisabled = 0;
+    let accError = 0;
+    let renamed = 0;
+
     try {
-      const { data } = await api.post('/products/mxik-sync-bulk', {}, { timeout: 300000 });
+      while (hasMore) {
+        const { data } = await api.post('/products/mxik-sync-bulk', null, {
+          params: { offset, limit: BATCH_SIZE },
+          timeout: 60000,
+        });
+
+        totalCount = data.total || 0;
+        const processed = data.processed || 0;
+        totalProcessed += processed;
+        accActive += data.active || 0;
+        accDisabled += data.disabled || 0;
+        accError += data.error || 0;
+        if (data.renamed) renamed += data.renamed;
+
+        offset += processed;
+        hasMore = Boolean(data.has_more && processed > 0);
+
+        const pct = totalCount > 0 ? Math.min(100, Math.round((totalProcessed / totalCount) * 100)) : 100;
+        setSyncProgress({
+          current: totalProcessed,
+          total: totalCount,
+          percent: pct,
+          active: accActive,
+          disabled: accDisabled,
+        });
+
+        if (!hasMore || totalProcessed >= totalCount || processed === 0) break;
+      }
+
       toast.success(
-        t('product.mxikSyncDoneMsg', { active: data.active, disabled: data.disabled, error: data.error, total: data.total })
-        + (data.renamed ? ' ' + t('product.mxikSyncRenamed', { n: data.renamed }) : '')
+        `MXIK sinxronizatsiya yakunlandi: ${totalProcessed} ta mahsulot tekshirildi (${accActive} faol, ${accDisabled} markirovkasiz/topilmadi).` +
+        (renamed ? ` ${renamed} ta dori nomi qisqartirildi.` : '')
       );
       loadProducts();
     } catch (error) {
-      toast.error(error?.response?.data?.detail || t('product.mxikSyncError'));
+      toast.error(error?.response?.data?.detail || "Sinxronizatsiya jarayonida xatolik yuz berdi");
     } finally {
       setMxikSyncing(false);
     }
@@ -1983,11 +2023,44 @@ export default function Products() {
                   <svg className={`w-4 h-4 xl:w-5 xl:h-5 ${mxikSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  {mxikSyncing ? t('product.syncing') : t('product.syncMxikCodes')}
+                  {mxikSyncing
+                    ? (syncProgress.total > 0
+                        ? `Sinxronlanmoqda: ${syncProgress.current}/${syncProgress.total} (${syncProgress.percent}%)`
+                        : t('product.syncing'))
+                    : t('product.syncMxikCodes')}
                 </button>
               </>
             )}
           </div>
+
+          {/* MXIK sinxronizatsiya modal oynasi / progress bar */}
+          {mxikSyncing && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 mx-auto mb-4 border-4 border-violet-600 border-t-transparent rounded-full animate-spin" />
+                <h3 className="text-lg font-bold text-slate-800 mb-1">MXIK va O'lchov kodlarini sinxronlash</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  {syncProgress.total > 0
+                    ? `${syncProgress.current} / ${syncProgress.total} ta mahsulot yakunlandi (${syncProgress.percent}%)`
+                    : "Mahsulotlar ro'yxati tayyorlanmoqda..."}
+                </p>
+                <div className="w-full bg-slate-100 rounded-full h-3 p-0.5 overflow-hidden mb-3">
+                  <div
+                    className="bg-gradient-to-r from-violet-600 to-indigo-600 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${Math.max(5, syncProgress.percent)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-xs text-slate-500 font-medium px-1">
+                  <span>Faol: <b className="text-emerald-600 font-bold">{syncProgress.active}</b></span>
+                  <span>Markirovkasiz: <b className="text-slate-600 font-bold">{syncProgress.disabled}</b></span>
+                  <span className="font-bold text-violet-600">{syncProgress.percent}%</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-4">
+                  Iltimos kuting, xavfsiz bo'laklarda sinxronlanmoqda...
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center">
             <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
