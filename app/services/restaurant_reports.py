@@ -36,37 +36,24 @@ def _pct(a: Decimal, b: Decimal) -> Optional[float]:
     return float((a / b * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
 
 
-def build_report(db: Session, company_id: int, branch_id: Optional[int], d_from: date, d_to: date) -> dict:
+def _check_period(d_from: date, d_to: date) -> None:
     if d_to < d_from:
         raise HTTPException(status_code=400, detail="Davr noto'g'ri: boshlanish tugashdan keyin")
     if (d_to - d_from).days + 1 > MAX_DAYS:
         raise HTTPException(status_code=400, detail=f"Davr {MAX_DAYS} kundan oshmasin")
-    start, end = _utc_bounds(d_from, d_to)
 
-    def scoped(q):
-        q = q.filter(RestaurantOrder.company_id == company_id)
-        return q.filter(RestaurantOrder.branch_id == branch_id) if branch_id else q
 
-    paid = (scoped(db.query(RestaurantOrder)).options(selectinload(RestaurantOrder.items))
-            .filter(RestaurantOrder.status == "paid", RestaurantOrder.closed_at >= start,
-                    RestaurantOrder.closed_at < end).all())
+def paid_orders(db: Session, company_id: int, branch_id: Optional[int], start: datetime, end: datetime) -> list:
+    q = (db.query(RestaurantOrder).options(selectinload(RestaurantOrder.items))
+         .filter(RestaurantOrder.company_id == company_id, RestaurantOrder.status == "paid",
+                 RestaurantOrder.closed_at >= start, RestaurantOrder.closed_at < end))
+    if branch_id:
+        q = q.filter(RestaurantOrder.branch_id == branch_id)
+    return q.all()
 
-    # ── ko'rsatkichlar ──
-    gross = sum((Decimal(str(o.total or 0)) for o in paid), ZERO)
-    refunded = sum((Decimal(str(o.refunded_amount or 0)) for o in paid), ZERO)
-    net = gross - refunded
-    checks = len(paid)
-    guests = sum((int(o.guests or 0) for o in paid if o.order_type == "dine_in"), 0)
-    pay_types = defaultdict(Decimal)
-    by_type = defaultdict(lambda: {"checks": 0, "revenue": ZERO})
-    for o in paid:
-        for p in o.payments or []:
-            pay_types[p.get("type") or "other"] += Decimal(str(p.get("amount") or 0))
-        bt = by_type[o.order_type]
-        bt["checks"] += 1
-        bt["revenue"] += Decimal(str(o.total or 0)) - Decimal(str(o.refunded_amount or 0))
 
-    # ── taomlar ── (sotuv qatoridagi haqiqiy tannarx: sale_id + product_id bo'yicha)
+def dish_rows(db: Session, paid: list) -> list:
+    """Taomlar: soni, tushum, haqiqiy tannarx (sotuv qatoridan), foyda, food cost. Qaytarilgan miqdor ayiriladi."""
     sale_ids = [o.sale_id for o in paid if o.sale_id]
     unit_cost = {}
     if sale_ids:
@@ -91,11 +78,35 @@ def build_report(db: Session, company_id: int, branch_id: Optional[int], d_from:
             tq, tc = unit_cost.get((o.sale_id, it.product_id), (ZERO, ZERO))
             if tq > 0:
                 d["cost"] += q * tc / tq
-    dish_rows = sorted(
+    return sorted(
         ({"product_id": pid, "name": name, "qty": float(v["qty"]), "revenue": _m(v["revenue"]),
           "cost": _m(v["cost"]), "profit": _m(v["revenue"] - v["cost"]),
           "food_cost_pct": _pct(v["cost"], v["revenue"])} for (pid, name), v in dishes.items()),
         key=lambda r: -r["revenue"])
+
+
+def build_report(db: Session, company_id: int, branch_id: Optional[int], d_from: date, d_to: date) -> dict:
+    _check_period(d_from, d_to)
+    start, end = _utc_bounds(d_from, d_to)
+    paid = paid_orders(db, company_id, branch_id, start, end)
+
+    # ── ko'rsatkichlar ──
+    gross = sum((Decimal(str(o.total or 0)) for o in paid), ZERO)
+    refunded = sum((Decimal(str(o.refunded_amount or 0)) for o in paid), ZERO)
+    net = gross - refunded
+    checks = len(paid)
+    guests = sum((int(o.guests or 0) for o in paid if o.order_type == "dine_in"), 0)
+    pay_types = defaultdict(Decimal)
+    by_type = defaultdict(lambda: {"checks": 0, "revenue": ZERO})
+    for o in paid:
+        for p in o.payments or []:
+            pay_types[p.get("type") or "other"] += Decimal(str(p.get("amount") or 0))
+        bt = by_type[o.order_type]
+        bt["checks"] += 1
+        bt["revenue"] += Decimal(str(o.total or 0)) - Decimal(str(o.refunded_amount or 0))
+
+    # ── taomlar ── (sotuv qatoridagi haqiqiy tannarx: sale_id + product_id bo'yicha)
+    dish_rows_ = dish_rows(db, paid)
 
     # ── bekor qilishlar (davrda bekor qilingan qatorlar, chek holatidan qat'i nazar) ──
     canc_q = (db.query(RestaurantOrderItem, RestaurantOrder)
@@ -148,8 +159,8 @@ def build_report(db: Session, company_id: int, branch_id: Optional[int], d_from:
         "waiter": names.get(o.waiter_id), "total": _m(o.total),
     } for o in sorted(discounted, key=lambda x: x.closed_at or x.opened_at, reverse=True)]
 
-    cost_total = sum((Decimal(str(r["cost"])) for r in dish_rows), ZERO)
-    dish_revenue = sum((Decimal(str(r["revenue"])) for r in dish_rows), ZERO)
+    cost_total = sum((Decimal(str(r["cost"])) for r in dish_rows_), ZERO)
+    dish_revenue = sum((Decimal(str(r["revenue"])) for r in dish_rows_), ZERO)
     return {
         "period": {"from": d_from.isoformat(), "to": d_to.isoformat(), "branch_id": branch_id},
         "kpi": {
@@ -165,7 +176,7 @@ def build_report(db: Session, company_id: int, branch_id: Optional[int], d_from:
         },
         "payments": {k: _m(v) for k, v in sorted(pay_types.items())},
         "by_type": {k: {"checks": v["checks"], "revenue": _m(v["revenue"])} for k, v in by_type.items()},
-        "dishes": dish_rows,
+        "dishes": dish_rows_,
         "waiters": waiter_rows,
         "cancellations": cancel_rows,
         "discounts": discount_rows,

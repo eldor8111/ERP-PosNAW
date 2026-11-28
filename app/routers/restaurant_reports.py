@@ -32,3 +32,20 @@ def summary(
     d_from = date_from or tashkent_today()
     d_to = date_to or d_from
     return build_report(db, user.company_id, scope.branch_id, d_from, d_to)
+
+
+@router.get("/analytics")
+def analytics(
+    date_from: Optional[date] = Query(None, description="Toshkent sanasi (sukut: 30 kun oldin)"),
+    date_to: Optional[date] = Query(None, description="Toshkent sanasi (sukut: bugun)"),
+    scope: ReportScope = Depends(report_scope_dep),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hisobotlar 3, 5, 6, 7, 9: menyu muhandisligi (ABC), yuklama, stol aylanishi, oshxona tezligi, ombor
+    (nazariy va haqiqiy sarf, R7.4)."""
+    from datetime import timedelta
+    from app.services.restaurant_analytics import build_analytics
+    d_to = date_to or tashkent_today()
+    d_from = date_from or (d_to - timedelta(days=29))
+    return build_analytics(db, user.company_id, scope.branch_id, d_from, d_to)
