@@ -86,6 +86,8 @@ def create_terminal(payload: TerminalIn, db: Session = Depends(get_db),
     if db.query(RestaurantTerminal).filter(RestaurantTerminal.company_id == user.company_id,
                                            RestaurantTerminal.revoked_at.is_(None)).count() >= 50:
         raise HTTPException(status_code=400, detail="Faol planshetlar soni 50 tadan oshmasin")
+    from app.services.restaurant_tariff import check_waiter_devices
+    check_waiter_devices(db, user.company_id)                                  # R9.1: tarif limiti
     token = secrets.token_urlsafe(32)
     t = RestaurantTerminal(company_id=user.company_id, branch_id=bid, name=name, token_hash=_hash(token),
                            created_by=user.id, created_at=_now())

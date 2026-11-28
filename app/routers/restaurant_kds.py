@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.branch_context import BranchContext, get_branch_context
 from app.core.dependencies import get_current_user
-from app.core.features import require_restaurant
+from app.core.features import require_restaurant, require_restaurant_feature
 from app.database import get_db
 from app.models.bom import BOM
 from app.models.branch import Branch
@@ -25,7 +25,8 @@ from app.models.restaurant_order import RestaurantOrder, RestaurantOrderItem
 from app.models.user import User
 from app.services import restaurant_orders as svc
 
-router = APIRouter(prefix="/restaurant/kds", tags=["Oshxona ekrani"], dependencies=[Depends(require_restaurant)])
+router = APIRouter(prefix="/restaurant/kds", tags=["Oshxona ekrani"],
+                   dependencies=[Depends(require_restaurant), Depends(require_restaurant_feature("kds"))])
 
 ACTIVE = ("sent", "cooking", "ready")
 CANCEL_SHOW_MINUTES = 15

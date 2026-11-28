@@ -31,6 +31,8 @@ function isNavLinkVisible(user, link, features) {
   if (link.feature && !features?.[link.feature]) return false;
   // R0.4: restoran korxonasida savdoga xos bo'limlar (ulgurji sotuv, SFA, marketplace, dorixona) yashiriladi
   if (link.hideForRestaurant && features?.restaurant) return false;
+  // R9.1: restoran tarifiga kirmagan bo'lim (KDS, bron) menyuda ko'rinmaydi
+  if (link.restFeature && Array.isArray(features?.restaurant_features) && !features.restaurant_features.includes(link.restFeature)) return false;
   if (user.role === 'super_admin') return true;
 
   const permKey = link.path.split('?')[0].split('/').pop();
@@ -112,6 +114,7 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           name: t('nav.restaurantReservations') || 'Bron',
           path: '/admin/restaurant/reservations',
           feature: 'restaurant',
+          restFeature: 'reservations',
           roles: ROLE_GROUPS.SALES,
           icon: <CalendarDays className="w-[18px] h-[18px]" />,
         },
@@ -126,6 +129,7 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
           name: t('nav.restaurantKds') || 'Oshxona ekrani',
           path: '/admin/restaurant/kds',
           feature: 'restaurant',
+          restFeature: 'kds',
           roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
           icon: <ChefHat className="w-[18px] h-[18px]" />,
         },

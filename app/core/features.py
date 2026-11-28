@@ -102,6 +102,19 @@ def require_feature(feature: str):
     return _dep
 
 
+def require_restaurant_feature(code: str):
+    """R9.1: restoran tarifida shu imkoniyat (kds, reservations, ...) bo'lmasa 403. Tarifda ro'yxat
+    belgilanmagan bo'lsa cheklov yo'q."""
+    def _dep(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> None:
+        from app.services.restaurant_tariff import RESTAURANT_FEATURES, feature_on
+        if not feature_on(db, current_user.company_id, code):
+            raise HTTPException(status_code=403, detail={
+                "code": "TARIFF_FEATURE",
+                "message": f"\"{RESTAURANT_FEATURES.get(code, code)}\" tarifingizga kirmaydi. Tarifni oshiring.",
+            })
+    return _dep
+
+
 def require_restaurant(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> None:
     """R0.4: restoran endpointlari faqat `business_type = 'restaurant'` korxonaga ochiq (do'kon chaqirsa 403)."""
     from app.services.restaurant import is_restaurant

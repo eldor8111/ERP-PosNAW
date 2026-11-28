@@ -284,7 +284,7 @@ def get_my_company_features(
             "manufacturing": False, "distribution": False, "marketplace_agents": False,
             "require_shift": False, "credit_limit_scope": "distributor",
             "pharmacy": False, "pharmacy_settings": {}, "ai_assistant": False,
-            "business_type": "retail", "restaurant": False, "restaurant_settings": {},
+            "business_type": "retail", "restaurant": False, "restaurant_settings": {}, "restaurant_features": [],
         }
     c = db.query(Company).filter(Company.id == cid).first()
     from app.services.ai_packages import access_for as ai_access_for
@@ -303,7 +303,14 @@ def get_my_company_features(
         "business_type": (getattr(c, "business_type", None) or "retail") if c else "retail",
         "restaurant": _is_rest,
         "restaurant_settings": restaurant_settings_of(c) if _is_rest else {},
+        # R9.1: restoran tarifiga kiradigan imkoniyatlar (kds, reservations, ...); menyuda yashirish uchun
+        "restaurant_features": _rest_features(db, cid) if _is_rest else [],
     }
+
+
+def _rest_features(db, cid) -> list:
+    from app.services.restaurant_tariff import enabled_features
+    return enabled_features(db, cid)
 
 
 @router.get("/me/receipt_templates")

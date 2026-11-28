@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session  # type: ignore
 from app.core.audit import log_action  # type: ignore
 from app.core.dependencies import get_current_user, get_current_user_allow_expired  # type: ignore
 from app.database import get_db  # type: ignore
+from app.services.restaurant_tariff import normalize_business_type, normalize_features
 from app.models.billing import Tariff, BalanceLog, FeaturePackage, CompanyPackage  # type: ignore
 from app.models.company import Company  # type: ignore
 from app.models.platform_settings import PlatformSettings  # type: ignore
@@ -119,6 +120,11 @@ def _tariff_out(t: Tariff, bhm: Optional[float] = None) -> dict:
         "is_active": t.is_active,
         "sort_order": t.sort_order,
         "bhm_percent": float(t.bhm_percent) if t.bhm_percent is not None else None,
+        # R9.1: restoran tariflari alohida
+        "business_type": getattr(t, "business_type", None) or "retail",
+        "max_waiter_devices": getattr(t, "max_waiter_devices", None),
+        "max_kds_screens": getattr(t, "max_kds_screens", None),
+        "restaurant_features": getattr(t, "restaurant_features", None),
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
@@ -192,13 +198,19 @@ def get_payment_settings(
 @router.get("/tariffs")
 def list_tariffs(
         all: bool = False,
+        business_type: Optional[str] = None,
         db: Session = Depends(get_db),
 ):
-    """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi, BHM asosida narxlar)"""
+    """Barcha faol tariflar (hamma foydalanuvchilar ko'ra oladi, BHM asosida narxlar).
+    R9.1: `business_type` (sukut 'retail') bo'yicha — do'kon va restoran tariflari aralashmaydi;
+    `all=true` (Super Admin) hammasini qaytaradi, `business_type` berilsa shu tur."""
     bhm = get_bhm_amount(db)
     query = db.query(Tariff)
     if not all:
         query = query.filter(Tariff.is_active == True, Tariff.price_per_month > 0)
+    if business_type or not all:
+        from app.services.restaurant_tariff import normalize_business_type
+        query = query.filter(Tariff.business_type == normalize_business_type(business_type))
     tariffs = query.order_by(Tariff.sort_order).all()
     return [_tariff_out(t, bhm) for t in tariffs]
 
@@ -215,6 +227,11 @@ def get_tariff_quote(
     t = db.query(Tariff).filter(Tariff.id == tariff_id, Tariff.is_active == True).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
+    if user.company_id:
+        from app.services.restaurant_tariff import check_tariff_fits
+        comp = db.query(Company).filter(Company.id == user.company_id).first()
+        if comp is not None:
+            check_tariff_fits(t, comp)                       # R9.1: boshqa turdagi tarif emas
     bhm = get_bhm_amount(db)
     from app.services.tariff_guard import calculate_subscription_price
     quote = calculate_subscription_price(t, months, bhm=bhm)
@@ -242,6 +259,10 @@ class TariffCreate(BaseModel):
     period_discounts: Optional[dict] = None
     sort_order: int = 0
     bhm_percent: Optional[float] = None
+    business_type: str = "retail"
+    max_waiter_devices: Optional[int] = None
+    max_kds_screens: Optional[int] = None
+    restaurant_features: Optional[list] = None
 
 
 @router.post("/tariffs")
@@ -270,6 +291,10 @@ def create_tariff(
         period_discounts=data.period_discounts,
         sort_order=data.sort_order,
         bhm_percent=data.bhm_percent,
+        business_type=normalize_business_type(data.business_type),
+        max_waiter_devices=data.max_waiter_devices,
+        max_kds_screens=data.max_kds_screens,
+        restaurant_features=normalize_features(data.restaurant_features),
         created_at=datetime.now(timezone.utc),
     )
     db.add(t)
@@ -299,6 +324,10 @@ class TariffUpdate(BaseModel):
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
     bhm_percent: Optional[float] = None
+    business_type: Optional[str] = None
+    max_waiter_devices: Optional[int] = None
+    max_kds_screens: Optional[int] = None
+    restaurant_features: Optional[list] = None
 
 
 @router.put("/tariffs/{tariff_id}")
@@ -311,8 +340,17 @@ def update_tariff(
     t = db.query(Tariff).filter(Tariff.id == tariff_id).first()
     if not t:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
+    sent = data.model_dump(exclude_unset=True)
     for field, val in data.model_dump(exclude_none=True).items():
+        if field == "business_type":
+            val = normalize_business_type(val)
+        elif field == "restaurant_features":
+            val = normalize_features(val)
         setattr(t, field, val)
+    # R9.1: null yuborilsa cheklov olib tashlanadi (cheksiz / hammasi ochiq)
+    for field in ("max_waiter_devices", "max_kds_screens", "restaurant_features"):
+        if field in sent and sent[field] is None:
+            setattr(t, field, None)
     db.commit()
     db.refresh(t)
     return _tariff_out(t)
@@ -466,7 +504,11 @@ def activate_my_trial(
         raise HTTPException(status_code=400, detail="Sinov yoki pullik obuna allaqachon ishlatilgan")
 
     # Sinov tarifini topamiz
-    trial_tariff = db.query(Tariff).filter(Tariff.is_active == True, Tariff.price_per_month <= 0).first()
+    _trial_q = db.query(Tariff).filter(Tariff.is_active == True, Tariff.price_per_month <= 0)
+    # R9.1: korxona turidagi sinov tarifi, bo'lmasa do'kon sinov tarifi
+    trial_tariff = (_trial_q.filter(Tariff.business_type == (getattr(c, "business_type", None) or "retail"))
+                    .order_by(Tariff.sort_order, Tariff.id).first()
+                    or _trial_q.filter(Tariff.business_type == "retail").order_by(Tariff.sort_order, Tariff.id).first())
 
     c.subscription_ends_at = now + timedelta(days=7)
     c.subscription_starts_at = now
@@ -558,6 +600,8 @@ def activate_subscription(
     tariff = db.query(Tariff).filter(Tariff.id == data.tariff_id, Tariff.is_active == True).first()
     if not tariff:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
+    from app.services.restaurant_tariff import check_tariff_fits
+    check_tariff_fits(tariff, c)                             # R9.1: do'kon / restoran tarifi aralashmaydi
 
     bhm = get_bhm_amount(db)
     from app.services.tariff_guard import calculate_subscription_price
@@ -633,6 +677,8 @@ def subscribe_my_company(
     tariff = db.query(Tariff).filter(Tariff.id == data.tariff_id, Tariff.is_active == True).first()
     if not tariff:
         raise HTTPException(status_code=404, detail="Tarif topilmadi")
+    from app.services.restaurant_tariff import check_tariff_fits
+    check_tariff_fits(tariff, c)                             # R9.1: do'kon / restoran tarifi aralashmaydi
 
     bhm = get_bhm_amount(db)
     from app.services.tariff_guard import calculate_subscription_price

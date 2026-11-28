@@ -34,6 +34,10 @@ class Tariff(Base):
     bhm_percent = Column(Float, nullable=True)  # BHM ning necha foizini tashkil qiladi
     # R0.2 / R9.1: qaysi biznes turi uchun tarif ('retail' | 'restaurant'); restoran tariflari alohida
     business_type = Column(String(20), nullable=False, default="retail", server_default="retail")
+    # R9.1: restoran tarifi limitlari va imkoniyatlari (NULL = cheklanmagan / hammasi ochiq)
+    max_waiter_devices = Column(Integer, nullable=True)   # ofitsiant planshetlari (faol ulanishlar)
+    max_kds_screens = Column(Integer, nullable=True)      # oshxona ekranlari (ma'lumot uchun)
+    restaurant_features = Column(JSON, nullable=True)     # ["kds", "reservations", "delivery", "aggregators", "qr_menu"]
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

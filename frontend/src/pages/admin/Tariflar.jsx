@@ -24,6 +24,9 @@ import {
   Pill,
 } from 'lucide-react';
 import PaymeLogo, { PaymeIcon } from '../../components/PaymeLogo';
+
+// R9.1: restoran tarifi imkoniyatlari (tarifda ro'yxat bo'lmasa hammasi kiradi)
+const RESTAURANT_FEATURE_CODES = ['kds', 'reservations', 'delivery', 'aggregators', 'qr_menu'];
 import UzumLogo, { UzumIcon } from '../../components/UzumLogo';
 import paymeOfficialImg from '../../assets/images/payme_official.png';
 import uzumOfficialImg from '../../assets/images/uzum_official.png';
@@ -414,6 +417,20 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                         </span>
                       </div>
 
+                      {tariff.business_type === 'restaurant' ? (
+                        <>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-600 font-medium">{t('restTar.waiterDevices')}</span>
+                            <span className="font-black text-slate-900">
+                              {tariff.max_waiter_devices == null ? unlimitedTxt : `${tariff.max_waiter_devices} ${unitTxt}`}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            {(tariff.restaurant_features == null ? RESTAURANT_FEATURE_CODES : tariff.restaurant_features)
+                              .map(f => t(`restTar.f.${f}`)).join(', ') || t('restTar.noFeatures')}
+                          </div>
+                        </>
+                      ) : (<>
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2 text-slate-600 font-medium">
                           <Bike size={15} className="text-violet-600 shrink-0" />
@@ -433,6 +450,7 @@ function TariflarTab({ hasBhm, billing, settings, tariffs, bgAccent, btnColor, p
                           {tariff.max_couriers > 0 ? `${tariff.max_couriers} ${unitTxt}` : (tariff.max_couriers == null && tariff.has_distribution ? unlimitedTxt : '—')}
                         </span>
                       </div>
+                      </>)}
                     </div>
 
                     {/* O'ng ustun: Modullar & Funksiyalar */}
@@ -964,8 +982,11 @@ export default function Tariflar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // R9.1: korxona turiga mos tariflar (restoran va do'kon tariflari aralashmaydi)
+        const feat = await api.get('/companies/me/features').catch(() => null);
+        const businessType = feat?.data?.business_type || 'retail';
         const [t, s, l] = await Promise.all([
-          api.get('/billing/tariffs').catch(err => {
+          api.get('/billing/tariffs', { params: { business_type: businessType } }).catch(err => {
             console.error("Failed to load tariffs:", err);
             return { data: [] };
           }),

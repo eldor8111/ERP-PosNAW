@@ -1512,3 +1512,66 @@ def get_survey_results(
         "announcement": _ann_dict(ann),
         "results": results
     }
+
+
+# ── R9.1: Restoranlar bo'limi ─────────────────────────────────────
+
+@router.get("/restaurants")
+def list_restaurants(db: Session = Depends(get_db), _: User = Depends(require_super_admin)):
+    """Restoran korxonalari: format, filiallar, tarif va obuna, oxirgi faollik (chek ochilgan vaqt),
+    bugungi to'langan cheklar va tushum, hozir ochiq cheklar, faol ofitsiant planshetlari."""
+    from datetime import datetime, timezone
+    from app.models.restaurant import RestaurantTerminal
+    from app.models.restaurant_order import RestaurantOrder
+    from app.services.restaurant import restaurant_settings_of
+    from app.services.restaurant_reports import _utc_bounds
+    from app.services.document_numbers import tashkent_today
+    from app.services.restaurant_tariff import enabled_features
+
+    now = datetime.now(timezone.utc)
+    start, end = _utc_bounds(tashkent_today(), tashkent_today())
+    comps = (db.query(Company).options(joinedload(Company.tariff))
+             .filter(Company.business_type == "restaurant").order_by(Company.id).all())
+    ids = [c.id for c in comps] or [0]
+    branches = dict(db.query(Branch.company_id, func.count(Branch.id)).filter(Branch.company_id.in_(ids))
+                    .group_by(Branch.company_id).all())
+    last = dict(db.query(RestaurantOrder.company_id, func.max(RestaurantOrder.opened_at))
+                .filter(RestaurantOrder.company_id.in_(ids)).group_by(RestaurantOrder.company_id).all())
+    today = {cid: (n, total) for cid, n, total in db.query(
+        RestaurantOrder.company_id, func.count(RestaurantOrder.id), func.coalesce(func.sum(RestaurantOrder.total), 0))
+        .filter(RestaurantOrder.company_id.in_(ids), RestaurantOrder.status == "paid",
+                RestaurantOrder.closed_at >= start, RestaurantOrder.closed_at < end)
+        .group_by(RestaurantOrder.company_id).all()}
+    open_now = dict(db.query(RestaurantOrder.company_id, func.count(RestaurantOrder.id))
+                    .filter(RestaurantOrder.company_id.in_(ids), RestaurantOrder.status.in_(("open", "prechecked")))
+                    .group_by(RestaurantOrder.company_id).all())
+    terminals = dict(db.query(RestaurantTerminal.company_id, func.count(RestaurantTerminal.id))
+                     .filter(RestaurantTerminal.company_id.in_(ids), RestaurantTerminal.revoked_at.is_(None))
+                     .group_by(RestaurantTerminal.company_id).all())
+    out = []
+    for c in comps:
+        ends = c.subscription_ends_at
+        if ends is not None and ends.tzinfo is None:
+            ends = ends.replace(tzinfo=timezone.utc)
+        la = last.get(c.id)
+        n_today, sum_today = today.get(c.id, (0, 0))
+        t = c.tariff
+        out.append({
+            "id": c.id, "name": c.name, "org_code": c.org_code, "is_active": c.is_active,
+            "format": restaurant_settings_of(c).get("format"),
+            "branches": branches.get(c.id, 0),
+            "tariff_id": c.tariff_id, "tariff_name": t.name if t else None,
+            "tariff_type": (getattr(t, "business_type", None) or "retail") if t else None,
+            "is_trial": bool(c.is_trial),
+            "subscription_ends_at": ends.isoformat() if ends else None,
+            "subscription_active": bool(ends and ends > now),
+            "days_left": max(0, (ends - now).days) if ends and ends > now else 0,
+            "last_activity": (la.replace(tzinfo=timezone.utc) if la is not None and la.tzinfo is None else la).isoformat()
+            if la else None,
+            "today_checks": int(n_today or 0), "today_revenue": float(sum_today or 0),
+            "open_checks": int(open_now.get(c.id, 0)),
+            "waiter_devices": int(terminals.get(c.id, 0)),
+            "waiter_devices_limit": getattr(t, "max_waiter_devices", None) if t else None,
+            "features": enabled_features(db, c.id),
+        })
+    return out

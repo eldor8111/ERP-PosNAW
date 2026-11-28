@@ -1567,6 +1567,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
     { id: 'companies', label: t('superAdmin.companies'), icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
     { id: 'billing', label: t('superAdmin.billing'), icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
     { id: 'tariffs', label: t('superAdmin.tariffs'), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { id: 'restaurants', label: t('restTar.tab'), icon: 'M3 3h18v4H3z M5 7v14 M19 7v14 M9 11h6 M9 15h6' },
     { id: 'ai', label: 'E-code AI', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z' },
     { id: 'announcements', label: t('superAdmin.announcements'), icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
     { id: 'settings', label: t('superAdmin.settings'), icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
@@ -2375,6 +2376,7 @@ export default function SuperAdmin({ defaultTab = 'companies' }) {
 
       {/* ── TARIFLAR TAB ── */}
       {tab === 'tariffs' && <TariffsTab />}
+      {tab === 'restaurants' && <RestaurantsTab />}
 
       {/* ── SETTINGS TAB ── */}
       {tab === 'settings' && <SettingsTab />}
@@ -2938,7 +2940,12 @@ function TariffsTab() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('retail');   // R9.1: do'kon / restoran tariflari alohida
   const defaultForm = {
+    business_type: 'retail',
+    max_waiter_devices: '',
+    max_kds_screens: '',
+    restaurant_features: null,
     name: '',
     description: '',
     price_per_month: 0,
@@ -2969,13 +2976,17 @@ function TariffsTab() {
 
   const openNew = () => {
     setEditItem(null);
-    setForm(defaultForm);
+    setForm({ ...defaultForm, business_type: typeFilter === 'restaurant' ? 'restaurant' : 'retail' });
     setShowForm(true);
   };
 
   const openEdit = (tariff) => {
     setEditItem(tariff);
     setForm({
+      business_type: tariff.business_type || 'retail',
+      max_waiter_devices: tariff.max_waiter_devices ?? '',
+      max_kds_screens: tariff.max_kds_screens ?? '',
+      restaurant_features: tariff.restaurant_features ?? null,
       name: tariff.name || '',
       description: tariff.description || '',
       price_per_month: tariff.price_per_month || 0,
@@ -3001,11 +3012,18 @@ function TariffsTab() {
   const save = async () => {
     if (!form.name.trim()) return alert(t('superAdmin.enterTariffName'));
     setSaving(true);
+    // R9.1: bo'sh limit = cheklovsiz (null); restoran maydonlari faqat restoran tarifida
+    const body = {
+      ...form,
+      max_waiter_devices: form.business_type === 'restaurant' && form.max_waiter_devices !== '' ? Number(form.max_waiter_devices) : null,
+      max_kds_screens: form.business_type === 'restaurant' && form.max_kds_screens !== '' ? Number(form.max_kds_screens) : null,
+      restaurant_features: form.business_type === 'restaurant' ? form.restaurant_features : null,
+    };
     try {
       if (editItem) {
-        await api.put(`/billing/tariffs/${editItem.id}`, form);
+        await api.put(`/billing/tariffs/${editItem.id}`, body);
       } else {
-        await api.post('/billing/tariffs', form);
+        await api.post('/billing/tariffs', body);
       }
       load();
       setShowForm(false);
@@ -3032,15 +3050,25 @@ function TariffsTab() {
             </span>
             {t('superAdmin.tariffs')}
           </h3>
-          <button onClick={openNew} className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer">
-            <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" /> {t('superAdmin.newTariff')}
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-bold">
+              {['retail', 'restaurant', 'all'].map(k => (
+                <button key={k} onClick={() => setTypeFilter(k)}
+                        className={`px-3 py-2 cursor-pointer ${typeFilter === k ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+                  {t(`restTar.type.${k}`)}
+                </button>
+              ))}
+            </div>
+            <button onClick={openNew} className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer">
+              <Ic d="M12 4v16m8-8H4" cls="w-3.5 h-3.5" /> {t('superAdmin.newTariff')}
+            </button>
+          </div>
         </div>
         {loading ? (
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-            {tariffs.map(tariff => {
+            {tariffs.filter(x => typeFilter === 'all' || (x.business_type || 'retail') === typeFilter).map(tariff => {
               const nameLower = (tariff.name || '').toLowerCase();
               let tierBadge = 'Distribyutor Start';
               let badgeCls = 'bg-sky-600 text-white shadow-xs';
@@ -3275,6 +3303,52 @@ function TariffsTab() {
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><Ic d="M6 18L18 6M6 6l12 12" /></button>
             </div>
             <div className="space-y-4">
+              {/* R9.1: tarif turi (do'kon / restoran) va restoran limitlari */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t('restTar.typeLabel')}</label>
+                  <select value={form.business_type} onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))} className={inp}>
+                    <option value="retail">{t('restTar.type.retail')}</option>
+                    <option value="restaurant">{t('restTar.type.restaurant')}</option>
+                  </select>
+                </div>
+                {form.business_type === 'restaurant' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">{t('restTar.waiterDevices')}</label>
+                      <input type="number" min="0" value={form.max_waiter_devices} placeholder={t('restTar.unlimitedPh')}
+                             onChange={e => setForm(p => ({ ...p, max_waiter_devices: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) }))} className={inp} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">{t('restTar.kdsScreens')}</label>
+                      <input type="number" min="0" value={form.max_kds_screens} placeholder={t('restTar.unlimitedPh')}
+                             onChange={e => setForm(p => ({ ...p, max_kds_screens: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) }))} className={inp} />
+                    </div>
+                  </>
+                )}
+              </div>
+              {form.business_type === 'restaurant' && (
+                <div className="border border-slate-200 rounded-xl p-3 space-y-2">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={form.restaurant_features == null}
+                           onChange={e => setForm(p => ({ ...p, restaurant_features: e.target.checked ? null : [...REST_FEATURES] }))} />
+                    {t('restTar.allFeaturesCheck')}
+                  </label>
+                  {form.restaurant_features != null && (
+                    <div className="flex flex-wrap gap-3">
+                      {REST_FEATURES.map(f => (
+                        <label key={f} className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={form.restaurant_features.includes(f)}
+                                 onChange={e => setForm(p => ({ ...p, restaurant_features: e.target.checked ? [...p.restaurant_features, f] : p.restaurant_features.filter(x => x !== f) }))} />
+                          {t(`restTar.f.${f}`)}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-slate-500">{t('restTar.featuresHint')}</p>
+                </div>
+              )}
+
               {/* Asosiy */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
@@ -3387,6 +3461,81 @@ function TariffsTab() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── R9.1: RESTORANLAR TAB ─────────────────────────── */
+const REST_FEATURES = ['kds', 'reservations', 'delivery', 'aggregators', 'qr_menu'];
+
+function RestaurantsTab() {
+  const { t } = useLang();
+  const [rows, setRows] = useState(null);
+  const [q, setQ] = useState('');
+  useEffect(() => {
+    api.get('/super-admin/restaurants').then(r => setRows(r.data))
+      .catch(err => toast.error(err.response?.data?.detail || t('superAdmin.errorOccurred')));
+  }, [t]);
+  const money = v => Math.round(Number(v) || 0).toLocaleString('uz-UZ');
+  const dt = iso => (iso ? new Date(iso).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-');
+  const shown = (rows || []).filter(r => !q.trim() || `${r.name} ${r.org_code || ''}`.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <h3 className="font-bold text-slate-800">{t('restTar.tab')}</h3>
+        <span className="text-xs text-slate-500">{rows ? rows.length : ''}</span>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder={t('restTar.search')}
+               className="ml-auto border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-300" />
+      </div>
+      {rows && rows.length === 0 && <div className="px-5 py-10 text-center text-sm text-slate-400">{t('restTar.none')}</div>}
+      {shown.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500">
+              <tr>
+                <th className="text-left px-4 py-2">{t('restTar.colName')}</th>
+                <th className="text-left px-3 py-2">{t('restTar.colFormat')}</th>
+                <th className="text-right px-3 py-2">{t('restTar.colBranches')}</th>
+                <th className="text-left px-3 py-2">{t('restTar.colTariff')}</th>
+                <th className="text-left px-3 py-2">{t('restTar.colSubscription')}</th>
+                <th className="text-left px-3 py-2">{t('restTar.colLastActivity')}</th>
+                <th className="text-right px-3 py-2">{t('restTar.colToday')}</th>
+                <th className="text-right px-3 py-2">{t('restTar.colOpen')}</th>
+                <th className="text-right px-3 py-2">{t('restTar.colDevices')}</th>
+                <th className="text-left px-4 py-2">{t('restTar.colFeatures')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {shown.map(r => (
+                <tr key={r.id} className={r.is_active ? '' : 'opacity-60'}>
+                  <td className="px-4 py-2">
+                    <div className="font-semibold text-slate-800">{r.name}</div>
+                    <div className="text-[11px] text-slate-400">{r.org_code}</div>
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">{r.format ? t(`restTar.format.${r.format}`) : '-'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.branches}</td>
+                  <td className="px-3 py-2">
+                    <div className="text-slate-800">{r.tariff_name || '-'}</div>
+                    {r.tariff_type && r.tariff_type !== 'restaurant' && <div className="text-[11px] text-amber-700">{t('restTar.retailTariff')}</div>}
+                  </td>
+                  <td className="px-3 py-2">
+                    {r.subscription_active
+                      ? <span className="text-slate-700">{r.is_trial ? `${t('restTar.trial')}, ` : ''}{t('restTar.daysLeft', { n: r.days_left })}</span>
+                      : <span className="text-rose-700">{t('restTar.expired')}</span>}
+                  </td>
+                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{dt(r.last_activity)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{r.today_checks} / {money(r.today_revenue)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.open_checks}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.waiter_devices}{r.waiter_devices_limit != null ? ` / ${r.waiter_devices_limit}` : ''}</td>
+                  <td className="px-4 py-2 text-xs text-slate-600">
+                    {r.features.length === REST_FEATURES.length ? t('restTar.allFeatures') : (r.features.map(f => t(`restTar.f.${f}`)).join(', ') || t('restTar.noFeatures'))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
