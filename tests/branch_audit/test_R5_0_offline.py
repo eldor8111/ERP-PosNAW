@@ -57,6 +57,11 @@ def test_bootstrap(rp, client, db):
     assert menu["Osh"]["price"] == 50000 and menu["Osh"]["station_id"] == rp.hot.id and menu["Cola"]["kind"] == "goods"
     assert "Guruch" not in menu                                          # ingredient sotilmaydi
     assert out["settings"]["service_pct"] == 10 and out["open_orders"] == [] and "unavailable" in out["stop_list"]
+    # oflayn fiskal chek uchun maydonlar; GET "Xizmat haqi" mahsulotini yaratmaydi
+    assert menu["Osh"]["vat_percent"] == 12 and "mxik_code" in menu["Osh"]
+    from app.models.product import Product
+    assert out["service_item"]["name"] and db.query(Product).filter(Product.company_id == rp.c.id,
+                                                                    Product.item_kind == "service").count() == 0
 
 
 def test_new_offline_check_paid_with_original_times(rp, client, db):

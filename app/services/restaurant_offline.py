@@ -97,6 +97,16 @@ def bootstrap(db: Session, user: User, branch_id: int, settings: dict) -> dict:
                                                     RestaurantOrder.status.in_(("open", "prechecked")))
                    .order_by(RestaurantOrder.id).all())
     used_cats = {p.category_id for p in items if p.category_id}
+    # oflayn fiskal chek (qurilmadagi fiskal modul) uchun: MXIK, o'lchov kodi, QQS foizi
+    from app.services.hippo_fiscalize import _vat_percent
+    default_vat = getattr(company, "fiscal_default_vat", None)
+
+    def fiscal_of(p):
+        return {"mxik_code": getattr(p, "mxik_code", None) or "", "package_code": getattr(p, "package_code", None),
+                "vat_percent": _vat_percent(p, default_vat)}
+    # "Xizmat haqi" qatori (GET da yaratilmaydi; birinchi to'lovda serverning o'zi yaratadi)
+    sp = (db.query(Product).filter(Product.company_id == cid, Product.item_kind == "service",
+                                   Product.is_deleted == False).order_by(Product.id).first())  # noqa: E712
     return {
         "server_time": datetime.now(timezone.utc).isoformat(),
         "company": {"id": cid, "name": company.name if company else None,
@@ -117,7 +127,10 @@ def bootstrap(db: Session, user: User, branch_id: int, settings: dict) -> dict:
         "menu": [{"id": p.id, "name": p.name, "kind": p.item_kind, "unit": p.unit, "barcode": p.barcode,
                   "category_id": p.category_id, "price": money(p.sale_price or 0),
                   "station_id": (p.station_id or cat_station.get(p.category_id)) if p.item_kind == "dish" else None,
-                  "modifier_group_ids": mods.get(p.id, [])} for p in items],
+                  "modifier_group_ids": mods.get(p.id, []), **fiscal_of(p)} for p in items],
+        "service_item": ({"product_id": sp.id, "name": sp.name, "barcode": sp.barcode, **fiscal_of(sp)} if sp else
+                         {"product_id": None, "name": "Xizmat haqi", "barcode": "", "mxik_code": "", "package_code": None,
+                          "vat_percent": int(default_vat) if default_vat is not None else 12}),
         "modifier_groups": mod_svc.list_groups(db, cid, include_inactive=False),
         "stop_list": stops.status(db, cid, branch_id, settings),
         "open_orders": [_order_out(db, o, settings) for o in open_orders],
