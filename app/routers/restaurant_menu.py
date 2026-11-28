@@ -404,3 +404,43 @@ def food_cost_changes(limit: int = Query(30, ge=1, le=200), db: Session = Depend
     """Ingredient tannarxi o'zgarishlari (kirim yoki qo'lda) va ta'sirlangan taomlar: eski / yangi tannarx va food cost."""
     from app.services import restaurant_costs
     return {"items": restaurant_costs.list_changes(db, user.company_id, limit)}
+
+
+# ── R1.2: tex kartalar Excel eksport / import ───────────────────────
+
+class CardImportIn(BaseModel):
+    rows: List[dict]
+    create_missing: bool = False
+    dry_run: bool = True
+
+
+@router.get("/menu/cards/export")
+def export_cards(db: Session = Depends(get_db), user: User = Depends(require_roles(*COST_ROLES))):
+    """Barcha faol tex kartalar qatorma-qator (brauzer xlsx yasaydi)."""
+    from app.services.restaurant_card_io import export_rows
+    return {"rows": export_rows(db, user.company_id)}
+
+
+@router.post("/menu/cards/import")
+def import_cards(payload: CardImportIn, db: Session = Depends(get_db),
+                 user: User = Depends(require_roles(*EDIT_ROLES))):
+    """Excel qatorlaridan tex kartalar. `dry_run` (sukut) — hech narsa saqlanmaydi, faqat natija."""
+    from app.services.restaurant_card_io import import_cards as run_import
+    sp = db.begin_nested()
+    try:
+        out = run_import(db, user, payload.rows, create_missing=payload.create_missing)
+    except Exception:
+        sp.rollback()
+        raise
+    if payload.dry_run:
+        sp.rollback()
+        out["applied"] = False
+        return out
+    sp.commit()
+    log_action(db=db, action="MENU_CARDS_IMPORT", entity_type="bom", entity_id=None, user_id=user.id,
+               new_values={"summary": out["summary"], "created_dishes": len(out["created_dishes"]),
+                           "created_ingredients": len(out["created_ingredients"]),
+                           "row_errors": len(out["row_errors"])})
+    db.commit()
+    out["applied"] = True
+    return out

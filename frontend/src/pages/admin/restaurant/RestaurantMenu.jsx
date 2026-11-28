@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Plus, Search, Pencil, Trash2, ClipboardList, X, ListPlus } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ClipboardList, X, ListPlus, FileUp, FileDown, FileSpreadsheet } from 'lucide-react';
 import api from '../../../api/axios';
 import { useLang } from '../../../context/LangContext';
 import useCompanyFeatures from '../../../hooks/useCompanyFeatures';
 import { fmtQty } from '../../../utils/qty';
+import { loadXLSX, loadSaveAs } from '../../../utils/excelLazy';
 
 // R1: restoran menyusi — taomlar, yarim tayyorlar, ingredientlar, tovarlar, sexlar va texnologik kartalar.
 // Backend: app/routers/restaurant_menu.py. Marshrut App.jsx'da FeatureGate feature="restaurant" bilan o'ralgan.
@@ -657,6 +658,164 @@ function DishModsModal({ item, onClose, onSaved, t }) {
 
 // ───────────────────────── Sahifa ─────────────────────────
 
+// ── R1.2: tex kartalar Excel eksport / import (fayl brauzerda o'qiladi va yoziladi) ──
+// Ustun nomlari uch tilda ham taniladi; serverga kanonik kalitlar yuboriladi.
+const XL_COLS = [
+  ['dish', ['taom', 'блюдо', 'dish']],
+  ['dish_code', ['taom kodi', 'код блюда', 'dish code']],
+  ['kind', ['turi', 'тип', 'type']],
+  ['output_qty', ['chiqish', 'выход', 'yield']],
+  ['output_weight_g', ["porsiya og'irligi (g)", 'вес порции (г)', 'portion weight (g)']],
+  ['cooking_time_min', ['tayyorlash vaqti (daq)', 'время приготовления (мин)', 'cooking time (min)']],
+  ['ingredient', ['ingredient', 'ингредиент']],
+  ['ingredient_code', ['ingredient kodi', 'код ингредиента', 'ingredient code']],
+  ['unit', ['birlik', 'ед. изм.', 'unit']],
+  ['gross', ['brutto', 'брутто', 'gross']],
+  ['net', ['netto', 'нетто', 'net']],
+  ['loss_cold', ["sovuq yo'qotish %", 'потери холодные %', 'cold loss %']],
+  ['loss_hot', ["issiq yo'qotish %", 'потери горячие %', 'hot loss %']],
+  ['price', ['ingredient narxi', 'цена ингредиента', 'ingredient price']],
+];
+const XL_EXTRA = ['line_cost', 'sale_price', 'version'];
+const XL_HEADER_TO_KEY = Object.fromEntries(XL_COLS.flatMap(([k, names]) => [[k, k], ...names.map(n => [n, k])]));
+const xlNorm = s => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[‘’`ʻʼ]/g, "'");
+const XL_STATUS_CLS = { created: 'text-emerald-700', updated: 'text-blue-700', unchanged: 'text-slate-500', error: 'text-rose-700' };
+
+async function downloadCardsXlsx(t, rows, fileName) {
+  const [XLSX, saveAs] = await Promise.all([loadXLSX(), loadSaveAs()]);
+  const cols = [...XL_COLS.map(([k]) => k), ...XL_EXTRA];
+  const data = rows.map(r => Object.fromEntries(cols.map(k => [t(`restXl.col.${k}`),
+    k === 'kind' ? t(`restXl.kind.${r.kind || 'dish'}`) : (r[k] ?? '')])));
+  const ws = XLSX.utils.json_to_sheet(data, { header: cols.map(k => t(`restXl.col.${k}`)) });
+  ws['!cols'] = cols.map(k => ({ wch: ['dish', 'ingredient'].includes(k) ? 26 : 14 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, t('restXl.sheet'));
+  saveAs(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]), fileName);
+}
+
+function CardsImportModal({ onClose, onDone, t }) {
+  const [rows, setRows] = useState(null);
+  const [fileName, setFileName] = useState('');
+  const [unknown, setUnknown] = useState([]);
+  const [createMissing, setCreateMissing] = useState(false);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const readFile = async file => {
+    if (!file) return;
+    setResult(null);
+    setFileName(file.name);
+    try {
+      const XLSX = await loadXLSX();
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+      const unk = new Set();
+      const mapped = raw.map((r, i) => {
+        const o = { row: i + 2 };
+        Object.entries(r).forEach(([h, v]) => {
+          const k = XL_HEADER_TO_KEY[xlNorm(h)];
+          if (k) o[k] = v;
+          else if (!XL_EXTRA.some(x => xlNorm(t(`restXl.col.${x}`)) === xlNorm(h))) unk.add(h);
+        });
+        return o;
+      }).filter(o => String(o.dish || '').trim() || String(o.ingredient || '').trim());
+      setUnknown([...unk]);
+      setRows(mapped);
+      if (!mapped.length) toast.error(t('restXl.emptyFile'));
+    } catch {
+      toast.error(t('restXl.readFailed'));
+      setRows(null);
+    }
+  };
+
+  const send = async dryRun => {
+    setBusy(true);
+    try {
+      const r = await api.post('/restaurant/menu/cards/import', { rows, create_missing: createMissing, dry_run: dryRun });
+      setResult(r.data);
+      if (!dryRun) {
+        toast.success(t('restXl.imported', { n: r.data.summary.created + r.data.summary.updated }));
+        onDone();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || t('restMenu.saveFailed'));
+    }
+    setBusy(false);
+  };
+
+  const s = result?.summary;
+  const canApply = result && !result.applied && (s.created + s.updated > 0);
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-start justify-center overflow-y-auto p-4" onMouseDown={onClose}>
+      <div className="bg-white rounded-xl border border-slate-200 w-full max-w-3xl mt-10" onMouseDown={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+          <h3 className="text-base font-bold text-slate-800">{t('restXl.importTitle')}</h3>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <p className="text-xs text-slate-500">{t('restXl.importHint')}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className={`${btnGhost} cursor-pointer`}>
+              <FileUp className="w-4 h-4" />{t('restXl.chooseFile')}
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {fileName && <span className="text-sm text-slate-600">{fileName}{rows ? `: ${t('restXl.rowsN', { n: rows.length })}` : ''}</span>}
+          </div>
+          {unknown.length > 0 && <p className="text-xs text-amber-800">{t('restXl.unknownCols')}: {unknown.join(', ')}</p>}
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={createMissing} onChange={e => { setCreateMissing(e.target.checked); setResult(null); }} />
+            {t('restXl.createMissing')}
+          </label>
+
+          {result && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-3 text-sm">
+                {['created', 'updated', 'unchanged', 'error'].map(k => (
+                  <span key={k} className={XL_STATUS_CLS[k]}>{t(`restXl.st.${k}`)}: <b>{s[k]}</b></span>
+                ))}
+                {result.applied && <span className="text-emerald-700 font-semibold">{t('restXl.applied')}</span>}
+                {!result.applied && <span className="text-slate-500">{t('restXl.preview')}</span>}
+              </div>
+              {(result.created_dishes.length > 0 || result.created_ingredients.length > 0) && (
+                <p className="text-xs text-slate-600">
+                  {t('restXl.willCreate')}: {[...result.created_dishes, ...result.created_ingredients].join(', ')}
+                </p>
+              )}
+              <div className="border border-slate-200 rounded-lg max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-slate-100">
+                    {result.cards.map((c, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-1.5 text-slate-800">{c.name}{c.kind === 'semi' ? <span className="ml-1 text-xs text-slate-500">({t('restXl.kind.semi')})</span> : null}</td>
+                        <td className="px-3 py-1.5 text-xs text-slate-500">{t('restXl.rowsN', { n: c.rows })}</td>
+                        <td className={`px-3 py-1.5 text-xs ${XL_STATUS_CLS[c.status]}`}>
+                          {t(`restXl.st.${c.status}`)}{c.version ? ` v${c.version}` : ''}{c.error ? `: ${c.error}` : ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {result.row_errors.length > 0 && (
+                <div className="border border-rose-200 bg-rose-50 rounded-lg px-3 py-2 max-h-40 overflow-y-auto text-xs text-rose-800 space-y-0.5">
+                  {result.row_errors.map((e, i) => <div key={i}>{t('restXl.row')} {e.row}: {e.message}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <button className={btnGhost} onClick={onClose}>{t('restXl.close')}</button>
+            <button className={btnGhost} disabled={busy || !rows?.length} onClick={() => send(true)}>{t('restXl.check')}</button>
+            <button className={btnPrimary} disabled={busy || !canApply} onClick={() => send(false)}>{t('restXl.apply')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RestaurantMenu() {
   const { t } = useLang();
   const features = useCompanyFeatures();
@@ -676,6 +835,7 @@ export default function RestaurantMenu() {
   const [categories, setCategories] = useState([]);
   const [stations, setStations] = useState([]);
   const [q, setQ] = useState('');
+  const [xlImport, setXlImport] = useState(false);
   const [loading, setLoading] = useState(false);
   const [edit, setEdit] = useState(null);      // {item|null}
   const [cardItem, setCardItem] = useState(null);
@@ -727,6 +887,19 @@ export default function RestaurantMenu() {
 
   const afterSave = () => { setEdit(null); setCardItem(null); loadItems(); loadComponents(); };
 
+  const exportCards = async () => {
+    try {
+      const r = await api.get('/restaurant/menu/cards/export');
+      if (!r.data.rows.length) { toast(t('restXl.nothingToExport')); return; }
+      await downloadCardsXlsx(t, r.data.rows, `tex_kartalar_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) { toast.error(err.response?.data?.detail || t('restMenu.saveFailed')); }
+  };
+  const downloadTemplate = () => downloadCardsXlsx(t, [
+    { dish: 'Osh', kind: 'dish', output_qty: 1, output_weight_g: 350, cooking_time_min: 40, ingredient: 'Guruch', unit: 'kg', gross: 0.15, net: 0.15 },
+    { dish: 'Osh', kind: 'dish', ingredient: "Mol go'shti", unit: 'kg', gross: 0.12, net: 0.1, loss_cold: 15, price: 110000 },
+    { dish: 'Qiyma', kind: 'semi', output_qty: 5, ingredient: "Mol go'shti", unit: 'kg', gross: 4.5, net: 4.2 },
+  ], 'tex_karta_shablon.xlsx');
+
   return (
     <div className="space-y-4">
       <div>
@@ -754,6 +927,13 @@ export default function RestaurantMenu() {
               <input className={`${inputCls} pl-9`} value={q} onChange={e => setQ(e.target.value)} placeholder={t('restMenu.search')} />
             </div>
             <button className={btnPrimary} onClick={() => setEdit({ item: null })}><Plus className="w-4 h-4" />{t(`restMenu.add.${tab}`)}</button>
+            {HAS_CARD.includes(tab) && (
+              <>
+                <button className={btnGhost} onClick={exportCards}><FileDown className="w-4 h-4" />{t('restXl.export')}</button>
+                <button className={btnGhost} onClick={() => setXlImport(true)}><FileUp className="w-4 h-4" />{t('restXl.import')}</button>
+                <button className={btnGhost} onClick={downloadTemplate} title={t('restXl.templateHint')}><FileSpreadsheet className="w-4 h-4" />{t('restXl.template')}</button>
+              </>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -827,6 +1007,7 @@ export default function RestaurantMenu() {
         <DishModsModal item={modsItem} onClose={() => setModsItem(null)} t={t}
                        onSaved={() => { setModsItem(null); loadItems(); }} />
       )}
+      {xlImport && <CardsImportModal t={t} onClose={() => setXlImport(false)} onDone={() => { loadItems(); loadComponents(); }} />}
       {cardItem && (
         <CardModal item={cardItem} components={components} alertPct={alertPct}
                    onClose={() => setCardItem(null)} onSaved={afterSave} t={t} />
