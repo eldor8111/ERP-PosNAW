@@ -187,6 +187,7 @@ def _order_out(db: Session, o: RestaurantOrder, settings: dict) -> dict:
         "change_amount": _f(o.change_amount),
         "refunded_amount": _f(o.refunded_amount or 0), "refunds": o.refunds or [],
         "locked": o.status == "prechecked" and bool(settings.get("precheck_lock", True)),
+        "client_uuid": o.client_uuid, "offline_no": o.offline_no,     # R5.0: desktop oflayn chek
         "deposit": _deposit_of(db, o),
         "items": [_item_out(it) for it in o.items],
     }

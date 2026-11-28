@@ -50,6 +50,11 @@ class OfflinePayment(BaseModel):
     fiscal: Optional[dict] = None
 
 
+class OfflineSendItem(BaseModel):
+    id: int
+    sent_at: Optional[datetime] = None
+
+
 class OfflineCancel(BaseModel):
     reason: Optional[str] = None
 
@@ -65,6 +70,7 @@ class OfflineOp(BaseModel):
     comment: Optional[str] = None
     opened_at: Optional[datetime] = None
     items: List[OfflineItem] = []
+    send_items: List[OfflineSendItem] = []
     precheck_at: Optional[datetime] = None
     payment: Optional[OfflinePayment] = None
     cancel: Optional[OfflineCancel] = None

@@ -242,6 +242,23 @@ def apply_op(db: Session, user: User, settings: dict, branch_id: int, op: dict, 
                        user_id=user.id, new_values={"items": price_diff, "op_id": op_id})
         svc.recalc(db, order, settings)
 
+    # ── serverdagi (masalan ofitsiant qo'shgan) qoralama taomlar oflayn oshxonaga yuborilgan ──
+    send_rows = op.get("send_items") or []
+    if send_rows:
+        by_id = {it.id: it for it in order.items}
+        sent_srv = []
+        for r in send_rows:
+            it = by_id.get(int(r.get("id")))
+            if it is None or it.status != "draft":
+                continue                               # allaqachon yuborilgan yoki bekor qilingan
+            it.status = "sent"
+            it.sent_at = _check_time(r.get("sent_at"), "Oshxonaga yuborilgan vaqt") or _utcnow()
+            sent_srv.append(it)
+        if sent_srv:
+            db.flush()
+            _sent(db, user, order, sent_srv, settings)
+            on_sent(db, user, order, sent_srv, settings)
+
     if op.get("precheck_at") and order.status == "open":
         order.status = "prechecked"
         order.prechecked_at = _check_time(op["precheck_at"], "Pre-chek vaqti")

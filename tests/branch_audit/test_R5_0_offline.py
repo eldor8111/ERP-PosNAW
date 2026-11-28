@@ -156,3 +156,21 @@ def test_time_limits_and_permissions(rp, client, db, mk):
     res = _sync(client.login(w), rp, _op(rp, items=[{"product_id": rp.cola.id}],
                                          payment={"payments": [{"type": "cash", "amount": 11000}]}))
     assert res.status_code == 403
+
+
+def test_send_server_drafts_offline(rp, client, db):
+    """Ofitsiant qo'shgan (serverdagi) qoralama taomlarni kassa oflayn oshxonaga yuborgan."""
+    cl = client.login(rp.cashier)
+    srv = rp.open(cl, table=4)
+    item = rp.add(cl, srv["id"], {"product_id": rp.osh.id})["items"][0]
+    out = cl.get(f"/api/restaurant/orders/{srv['id']}").json()
+    assert out["client_uuid"] is None and "offline_no" in out
+    res = _sync(cl, rp, _op(rp, order_uuid=None, server_id=srv["id"], send_items=[{"id": item["id"], "sent_at": _ago(6)}]))
+    assert res.status_code == 200, res.text
+    o = db.get(RestaurantOrder, srv["id"])
+    assert o.items[0].status == "sent"
+    t = db.query(KitchenTicket).filter(KitchenTicket.order_id == o.id).all()
+    assert len(t) == 1 and t[0].printed_at is not None
+    # takroriy (allaqachon yuborilgan) — e'tiborsiz
+    res = _sync(cl, rp, _op(rp, order_uuid=None, server_id=srv["id"], send_items=[{"id": item["id"]}]))
+    assert res.status_code == 200 and db.query(KitchenTicket).filter(KitchenTicket.order_id == o.id).count() == 1
