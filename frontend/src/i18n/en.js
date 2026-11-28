@@ -2267,6 +2267,7 @@ export default {
   'wholesale.saleUpdated': 'Sale "{number}" updated!',
   'wholesale.saleSavedSuccess': 'Sale saved successfully!',
   'wholesale.saveError': 'Error saving',
+  'wholesale.archivedCustomerCleared': 'The selected customer is archived and was removed from the selection and the default customer setting. Choose another customer or restore it in Customers.',
   'wholesale.enterDebtDueDate': 'Enter the debt due date!',
   'wholesale.saleArchived': 'Sale archived!',
   'wholesale.selectCustomerForDebtSale': 'Select a customer to sell on credit!',

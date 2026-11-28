@@ -294,6 +294,7 @@ class CustomerOut(BaseModel):
     id: int
     name: str
     phone: Optional[str] = None
+    is_active: Optional[bool] = True   # arxivlangan mijoz (POST /customers/{id}) kassada tanlovdan olib tashlanadi
     debt_balance: Decimal
     debt_currency: str = "UZS"
     debt_balances: Optional[dict] = {}
@@ -390,6 +391,7 @@ class CustomerOut(BaseModel):
                 "photo_url": getattr(data, "photo_url", None),
                 "tg_connected": bool(getattr(data, "tg_chat_id", None)),
                 "branch_id": getattr(data, "branch_id", None),
+                "is_active": getattr(data, "is_active", True) is not False,
             }
             return data_dict
 

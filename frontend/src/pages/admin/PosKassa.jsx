@@ -142,6 +142,21 @@ const navigate = useNavigate();
     }).finally(() => setRefreshing(false));
   };
 
+  // Arxivlangan mijoz tanlovda va "Asosiy mijoz" sozlamasida qolib ketmasin (har sotuv rad etilardi)
+  const dropArchivedCustomer = (id) => {
+    const sid = String(id);
+    setCustId(c => (String(c) === sid ? '' : c));
+    try {
+      const st = JSON.parse(localStorage.getItem('pos_desktop_settings') || '{}');
+      if (String(st.defaultCustomer || '') === sid) {
+        delete st.defaultCustomer;
+        localStorage.setItem('pos_desktop_settings', JSON.stringify(st));
+        setPosSettings(p => ({ ...p, defaultCustomer: '' }));
+      }
+    } catch { /* ignore */ }
+    toast(t('wholesale.archivedCustomerCleared'), { id: 'archived-customer', duration: 7000 });
+  };
+
   const savePosSettings = (updates) => {
     const next = { ...posSettings, ...updates };
     setPosSettings(next);
@@ -178,7 +193,12 @@ const navigate = useNavigate();
       setProducts(prods);
       setCustomers(custs);
       const s = JSON.parse(localStorage.getItem('pos_desktop_settings') || '{}');
-      if (s.defaultCustomer) setCustId(s.defaultCustomer);
+      if (s.defaultCustomer) {
+        // ro'yxat faqat faol mijozlar; to'liq yuklangan ro'yxatda yo'q bo'lsa asosiy mijoz arxivlangan
+        const known = custs.some(c => String(c.id) === String(s.defaultCustomer));
+        if (known || custs.length >= 500) setCustId(s.defaultCustomer);
+        else dropArchivedCustomer(s.defaultCustomer);
+      }
     }).finally(() => setRefreshing(false));
 
     // Chek shabloni sozlamalarini kompaniya (backend) dan sinxronlash - aks
@@ -1265,6 +1285,10 @@ const navigate = useNavigate();
         }
         if (raw.code === 'approval_invalid') approvalFlow.close();
         toast.error(raw.message || t('auth.errGeneral'));
+        return;
+      }
+      if (typeof raw === 'string' && raw.startsWith('Mijoz arxivlangan') && custId) {
+        dropArchivedCustomer(custId);
         return;
       }
       toast.error(raw || t('auth.errGeneral'));

@@ -2384,6 +2384,7 @@ export default {
   'wholesale.saleUpdated': 'Продажа "{number}" обновлена!',
   'wholesale.saleSavedSuccess': 'Продажа успешно сохранена!',
   'wholesale.saveError': 'Ошибка при сохранении',
+  'wholesale.archivedCustomerCleared': 'Выбранный клиент в архиве, он убран из выбора и из настройки основного клиента. Выберите другого клиента или верните его из архива в разделе Клиенты.',
   'wholesale.enterDebtDueDate': 'Введите срок погашения долга!',
   'wholesale.saleArchived': 'Продажа отправлена в архив!',
   'wholesale.selectCustomerForDebtSale': 'Выберите клиента для продажи в долг!',

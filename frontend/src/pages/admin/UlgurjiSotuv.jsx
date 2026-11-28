@@ -1023,6 +1023,19 @@ export default function UlgurjiSotuv() {
     catch (e) { toast.error(e.response?.data?.detail || t('wholesale.deleteError')); }
   };
 
+  // Arxivlangan (yoki o'chirilgan) mijoz tanlovda va "Asosiy mijoz" sozlamasida qolib ketmasin: aks holda har sotuv
+  // server tomonidan "Mijoz arxivlangan" bilan rad etiladi, mijoz esa ro'yxatda ko'rinmaydi
+  const dropArchivedCustomer = useCallback((id) => {
+    const sid = String(id);
+    setCustId(c => (String(c) === sid ? '' : c));
+    setDefaultCustomerId(d => {
+      if (String(d) !== sid) return d;
+      localStorage.removeItem('ulgurji_defaultCustomer');
+      return '';
+    });
+    toast(t('wholesale.archivedCustomerCleared'), { id: 'archived-customer', duration: 7000 });
+  }, [t]);
+
   // T3.8: tanlangan mijoz 200 talik oflayn zaxira ro'yxatda bo'lmasa (masalan sessiyadan tiklangan) — alohida olinadi
   useEffect(() => {
     if (customers.length === 0) return undefined;
@@ -1031,11 +1044,15 @@ export default function UlgurjiSotuv() {
     let alive = true;
     missing.forEach(id => {
       api.post(`/customers/${id}`, null, { _silent: true, _suppressToast: true })   // yagona mijoz: POST /customers/{id}
-        .then(r => { if (alive && r.data?.id) handleNewFetchedCustomers([r.data]); })
-        .catch(() => { /* topilmasa nom ko'rinmaydi, id saqlanadi */ });
+        .then(r => {
+          if (!alive || !r.data?.id) return;
+          if (r.data.is_active === false) dropArchivedCustomer(id);
+          else handleNewFetchedCustomers([r.data]);
+        })
+        .catch(err => { if (alive && err?.response?.status === 404) dropArchivedCustomer(id); });
     });
     return () => { alive = false; };
-  }, [custId, assignCustId, defaultCustomerId, customers, handleNewFetchedCustomers]);
+  }, [custId, assignCustId, defaultCustomerId, customers, handleNewFetchedCustomers, dropArchivedCustomer]);
 
   const openAssignCustomerModal = (sale) => {
     setAssignModalSale(sale);
@@ -2287,6 +2304,11 @@ export default function UlgurjiSotuv() {
         } else {
           setSaleError({ category: info.category, message: info.text, boxFix: parseWholeBoxError(detail) });
         }
+        return;
+      }
+      if (typeof detail === 'string' && detail.startsWith('Mijoz arxivlangan') && custId) {
+        setShowPayment(false);
+        dropArchivedCustomer(custId);
         return;
       }
       toast.error((typeof detail === 'string' && detail) || t('wholesale.saveError'));

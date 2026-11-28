@@ -2382,6 +2382,7 @@ export default {
   'wholesale.saleUpdated': '"{number}" sotuv yangilandi!',
   'wholesale.saleSavedSuccess': 'Sotuv muvaffaqiyatli saqlandi!',
   'wholesale.saveError': 'Saqlashda xatolik',
+  'wholesale.archivedCustomerCleared': 'Tanlangan mijoz arxivlangan, u tanlovdan va asosiy mijoz sozlamasidan olib tashlandi. Boshqa mijozni tanlang yoki uni Mijozlar bo\'limida arxivdan chiqaring.',
   'wholesale.enterDebtDueDate': 'Qarz muddat sanasini kiriting!',
   'wholesale.saleArchived': 'Sotuv arxivga olindi!',
   'wholesale.selectCustomerForDebtSale': 'Qarzga sotish uchun mijoz tanlang!',
