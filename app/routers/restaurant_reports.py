@@ -49,3 +49,16 @@ def analytics(
     d_to = date_to or tashkent_today()
     d_from = date_from or (d_to - timedelta(days=29))
     return build_analytics(db, user.company_id, scope.branch_id, d_from, d_to)
+
+
+@router.get("/dashboard")
+def dashboard(
+    scope: ReportScope = Depends(report_scope_dep),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Restoran bosh sahifasi: bugungi tushum, ochiq stollar va cheklar, oshxona navbati va kechikishlar,
+    bugungi bronlar, stop-list. Filial berilmasa barcha filiallar (hisobot doirasida)."""
+    from app.services.restaurant_dashboard import build_dashboard
+    from app.services.restaurant_orders import settings_for
+    return build_dashboard(db, user.company_id, scope.branch_id, settings_for(db, user.company_id))

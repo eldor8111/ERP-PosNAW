@@ -13,7 +13,7 @@ import {
   ChevronRight, ShoppingBag, Navigation, Package, DollarSign, BarChart3,
   Settings as SettingsIcon, ShieldAlert, Layers, ShieldCheck, Store, Truck, Shield,
   Users, AlertTriangle, FileText, CheckCircle2, SlidersHorizontal,
-  Building2, Tag, Landmark, Scale, MapPin, MessageSquare, UtensilsCrossed, LayoutGrid, ClipboardList, ChefHat, Printer, Ban, Tablet, CookingPot, Percent, CalendarDays
+  Building2, Tag, Landmark, Scale, MapPin, MessageSquare, UtensilsCrossed, LayoutGrid, ClipboardList, ChefHat, Printer, Ban, Tablet, CookingPot, Percent, CalendarDays, LayoutDashboard
 } from 'lucide-react';
 import AnnouncementModal from './AnnouncementModal';
 import AnnouncementBanner from './AnnouncementBanner';
@@ -94,6 +94,13 @@ function buildNavGroups(t, alertsCount = 0, approvalsCount = 0) {
       feature: 'restaurant',
       roles: ROLE_GROUPS.WAREHOUSE_ACCESS,
       links: [
+        {
+          name: t('nav.restaurantDashboard') || 'Bosh sahifa',
+          path: '/admin/restaurant/dashboard',
+          feature: 'restaurant',
+          roles: ROLE_GROUPS.REPORTS_ACCESS,
+          icon: <LayoutDashboard className="w-[18px] h-[18px]" />,
+        },
         {
           name: t('nav.restaurantOrders') || 'Buyurtmalar (zal)',
           path: '/admin/restaurant/orders',
